@@ -21,11 +21,86 @@ $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
 $rendered = 0
 $skipped = 0
 
+function ConvertTo-YamlSafeTitleLine {
+    param([string]$Line)
+
+    if ($Line -notmatch '^title:\s*(.+)$') {
+        return $Line
+    }
+
+    $title = $Matches[1].Trim()
+
+    if (
+        ($title.StartsWith('"') -and $title.EndsWith('"')) -or
+        ($title.StartsWith("'") -and $title.EndsWith("'"))
+    ) {
+        return $Line
+    }
+
+    if ($title.Contains(":")) {
+        $escaped = $title.Replace('\', '\\').Replace('"', '\"')
+        return "title: `"$escaped`""
+    }
+
+    return $Line
+}
+
+function Repair-NotebookYamlTitle {
+    param([System.IO.FileInfo]$Notebook)
+
+    $json = Get-Content -LiteralPath $Notebook.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+
+    if (-not $json.cells -or $json.cells.Count -eq 0) {
+        return $false
+    }
+
+    $firstCell = $json.cells[0]
+
+    if ($firstCell.cell_type -ne "raw" -or -not $firstCell.source) {
+        return $false
+    }
+
+    $changed = $false
+    $newSource = @()
+
+    foreach ($line in $firstCell.source) {
+        $newline = ""
+        if ($line.EndsWith("`r`n")) {
+            $newline = "`r`n"
+            $body = $line.Substring(0, $line.Length - 2)
+        } elseif ($line.EndsWith("`n")) {
+            $newline = "`n"
+            $body = $line.Substring(0, $line.Length - 1)
+        } else {
+            $body = $line
+        }
+
+        $safeBody = ConvertTo-YamlSafeTitleLine -Line $body
+        if ($safeBody -ne $body) {
+            $changed = $true
+        }
+
+        $newSource += "$safeBody$newline"
+    }
+
+    if ($changed) {
+        $firstCell.source = $newSource
+        $jsonText = $json | ConvertTo-Json -Depth 100
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($Notebook.FullName, $jsonText, $utf8NoBom)
+        Write-Host "[fix]    YAML title quoted in $($Notebook.FullName)"
+    }
+
+    return $changed
+}
+
 foreach ($notebook in $notebooks) {
+    $titleWasRepaired = Repair-NotebookYamlTitle -Notebook $notebook
     $htmlPath = [System.IO.Path]::ChangeExtension($notebook.FullName, ".html")
     $html = Get-Item -LiteralPath $htmlPath -ErrorAction SilentlyContinue
 
     $needsRender = $Force -or
+        $titleWasRepaired -or
         (-not $html) -or
         ($notebook.LastWriteTime -gt $html.LastWriteTime)
 
@@ -37,6 +112,8 @@ foreach ($notebook in $notebooks) {
 
     if ($Force) {
         $reason = "force"
+    } elseif ($titleWasRepaired) {
+        $reason = "yaml title repaired"
     } elseif (-not $html) {
         $reason = "missing html"
     } else {
