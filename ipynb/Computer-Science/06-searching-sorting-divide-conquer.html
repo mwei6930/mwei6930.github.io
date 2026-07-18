@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"><head>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.5.55">
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -34,6 +68,35 @@ ul.task-list li input[type="checkbox"] {
 <link href="06-searching-sorting-divide-conquer_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="06-searching-sorting-divide-conquer_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -87,41 +150,967 @@ ul.task-list li input[type="checkbox"] {
 <p><a href="Data-Structure&amp;Algorithm.html">Back to Data Structures and Algorithms guideline</a></p>
 <section id="searching-sorting-and-divide-and-conquer" class="level2">
 <h2 class="anchored" data-anchor-id="searching-sorting-and-divide-and-conquer"><strong>Searching, Sorting, and Divide-and-Conquer</strong></h2>
+<p>Searching and sorting are not only library operations. They expose several ideas used throughout algorithm design: maintaining a shrinking candidate set, preserving loop invariants, rearranging data under an explicit contract, decomposing a problem into smaller instances, and solving the resulting recurrence.</p>
+<p>This chapter connects those ideas in one progression:</p>
+<ul>
+<li>binary search turns sorted order or a monotone predicate into logarithmic candidate elimination;</li>
+<li>sorting algorithms reveal trade-offs among comparisons, writes, stability, auxiliary memory, and worst-case guarantees;</li>
+<li>merge sort, quicksort, and heapsort obtain <span class="math inline">\(O(n\log n)\)</span> behavior through different structural invariants;</li>
+<li>divide-and-conquer separates recursive subproblem work from division and combination work;</li>
+<li>recurrence expansion and the Master Theorem explain when recursion is efficient;</li>
+<li>quickselect shows that finding one rank does not require fully sorting both sides.</li>
+</ul>
+<p>Python’s built-in <code>sorted</code> and <code>list.sort</code> should remain the practical default for ordinary application code. The implementations here make the hidden invariants and costs visible so that the same reasoning can be transferred to less familiar problems.</p>
 <section id="binary-search" class="level3">
 <h3 class="anchored" data-anchor-id="binary-search"><strong>Binary Search</strong></h3>
+<p><strong>Binary search</strong> locates a target in a sorted sequence by comparing the target with the middle value and discarding the half that cannot contain it. It resembles looking up a word in a dictionary: the current page tells whether every earlier or every later page can be ignored.</p>
+<p>The sorted-order precondition is what makes elimination safe. On an unsorted array, observing that the middle value is smaller than the target says nothing about values to its left. Binary search is better than linear search only when order is already available, can be built once and reused, or comes naturally from the problem.</p>
+<p>Using a closed candidate interval <code>[low, high]</code>, the loop invariant is:</p>
+<blockquote class="blockquote">
+<p>If the target occurs in the sequence, at least one occurrence remains between <code>low</code> and <code>high</code>, inclusive.</p>
+</blockquote>
+<pre class="text"><code>BINARY-SEARCH(values, target)
+    low &lt;- 0
+    high &lt;- length(values) - 1
+
+    while low &lt;= high
+        mid &lt;- low + floor((high - low) / 2)
+        if values[mid] equals target
+            return mid
+        if values[mid] &lt; target
+            low &lt;- mid + 1
+        else
+            high &lt;- mid - 1
+    return not-found</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/binary-search-steps.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Binary search compares the middle value, discards an impossible half, and preserves the target candidate interval.</figcaption>
+</figure>
+</div>
+<p>The midpoint expression</p>
+<p><span class="math display">\[
+\operatorname{mid}=\operatorname{low}+\left\lfloor\frac{\operatorname{high}-\operatorname{low}}{2}\right\rfloor
+\]</span></p>
+<p>chooses the lower middle index and avoids the integer overflow that <code>(low + high) // 2</code> can cause in fixed-width languages. Python integers do not overflow, but the safer form communicates the invariant correctly across languages.</p>
+<p>After <code>k</code> unsuccessful comparisons, at most <span class="math inline">\(n/2^k\)</span> candidates remain. The loop ends when this quantity falls below 1, so <span class="math inline">\(k\)</span> is <span class="math inline">\(O(\log_2 n)\)</span>. Time is therefore <span class="math inline">\(O(\log n)\)</span> and iterative auxiliary space is <span class="math inline">\(O(1)\)</span>. A recursive implementation has the same comparisons but uses <span class="math inline">\(O(\log n)\)</span> call-stack space.</p>
+<p>Binary search is useful for exact lookup, dictionary indexes, version boundaries, threshold decisions, and answer-space optimization. Random access matters: applying index-based binary search to a linked list loses the <span class="math inline">\(O(1)\)</span> middle access that makes the array version efficient.</p>
+<details>
+<summary>
+Python implementation: exact binary search with invariant checks
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections.abc <span class="im">import</span> Sequence</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> binary_search(values: Sequence[<span class="bu">int</span>], target: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return an index containing target, or None if it is absent."""</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    low <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    high <span class="op">=</span> <span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> low <span class="op">&lt;=</span> high:</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        mid <span class="op">=</span> low <span class="op">+</span> (high <span class="op">-</span> low) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> values[mid] <span class="op">==</span> target:</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> mid</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> values[mid] <span class="op">&lt;</span> target:</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Sorted order proves every index through mid is too small.</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>            low <span class="op">=</span> mid <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Sorted order proves every index from mid onward is too large.</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>            high <span class="op">=</span> mid <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>numbers <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">8</span>, <span class="dv">12</span>, <span class="dv">16</span>, <span class="dv">23</span>, <span class="dv">38</span>]</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> binary_search(numbers, <span class="dv">23</span>) <span class="op">==</span> <span class="dv">5</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> binary_search(numbers, <span class="dv">2</span>) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> binary_search(numbers, <span class="dv">40</span>) <span class="kw">is</span> <span class="va">None</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> binary_search([], <span class="dv">7</span>) <span class="kw">is</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/binary-search/">LeetCode 704 - Binary Search</a> is the direct closed-interval implementation exercise and is useful for checking off-by-one behavior at both ends.</p>
 </section>
 <section id="boundary-search-templates" class="level3">
 <h3 class="anchored" data-anchor-id="boundary-search-templates"><strong>Boundary Search Templates</strong></h3>
+<p>Many problems do not ask whether one exact value exists. They ask for the first position meeting a condition, the first occurrence of a duplicate, the insertion point of a value, or the smallest feasible answer. These are <strong>boundary searches</strong> over a monotone predicate.</p>
+<p>Suppose <code>predicate(i)</code> is false for an initial region and true from one boundary onward:</p>
+<p><span class="math display">\[
+F,F,\ldots,F,T,T,\ldots,T.
+\]</span></p>
+<p>The goal is to find the first true index. A half-open interval <code>[low, high)</code> is convenient because its size is exactly <code>high - low</code> and an empty interval has <code>low == high</code>. The invariant is:</p>
+<ul>
+<li>every index below <code>low</code> is known false;</li>
+<li>every index at or above <code>high</code> is known true;</li>
+<li>the first true position remains inside <code>[low, high]</code>.</li>
+</ul>
+<pre class="text"><code>FIRST-TRUE(low, high, predicate)       // search [low, high)
+    while low &lt; high
+        mid &lt;- low + floor((high - low) / 2)
+        if predicate(mid) is true
+            high &lt;- mid                // mid may be the first true index
+        else
+            low &lt;- mid + 1             // mid is definitely too early
+    return low</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/boundary-search-invariant.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>A half-open boundary search shrinks a false-then-true predicate until low equals high at the first true index.</figcaption>
+</figure>
+</div>
+<p>The asymmetric updates are essential. When the predicate is true, <code>mid</code> remains a candidate, so assign <code>high = mid</code>. When false, <code>mid</code> cannot be the answer, so assign <code>low = mid + 1</code>. Both updates strictly reduce <code>high - low</code>, proving termination.</p>
+<p>For a sorted array, <code>lower_bound(target)</code> is the first index whose value is at least the target. <code>upper_bound(target)</code> is the first index whose value is greater than the target. Their difference counts duplicate occurrences. The same template can search an answer domain, such as the smallest speed, capacity, or deadline for which a feasibility test becomes true.</p>
+<p>The search makes <span class="math inline">\(O(\log R)\)</span> predicate calls for a domain containing <code>R</code> candidate positions. If one predicate evaluation costs <span class="math inline">\(P\)</span>, total time is <span class="math inline">\(O(P\log R)\)</span>, not merely <span class="math inline">\(O(\log R)\)</span>. Auxiliary space remains <span class="math inline">\(O(1)\)</span> for an iterative implementation.</p>
+<details>
+<summary>
+Python implementation: first true, lower bound, and upper bound
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections.abc <span class="im">import</span> Callable, Sequence</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> first_true(low: <span class="bu">int</span>, high: <span class="bu">int</span>, predicate: Callable[[<span class="bu">int</span>], <span class="bu">bool</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the first true index in the half-open domain [low, high)."""</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> low <span class="op">&lt;</span> high:</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        mid <span class="op">=</span> low <span class="op">+</span> (high <span class="op">-</span> low) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> predicate(mid):</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>            high <span class="op">=</span> mid                 <span class="co"># Preserve mid as a possible boundary.</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>            low <span class="op">=</span> mid <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> low</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lower_bound(values: Sequence[<span class="bu">int</span>], target: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> first_true(<span class="dv">0</span>, <span class="bu">len</span>(values), <span class="kw">lambda</span> i: values[i] <span class="op">&gt;=</span> target)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> upper_bound(values: Sequence[<span class="bu">int</span>], target: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> first_true(<span class="dv">0</span>, <span class="bu">len</span>(values), <span class="kw">lambda</span> i: values[i] <span class="op">&gt;</span> target)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">8</span>]</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> lower_bound(values, <span class="dv">2</span>) <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> upper_bound(values, <span class="dv">2</span>) <span class="op">==</span> <span class="dv">4</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> upper_bound(values, <span class="dv">2</span>) <span class="op">-</span> lower_bound(values, <span class="dv">2</span>) <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> lower_bound(values, <span class="dv">7</span>) <span class="op">==</span> <span class="dv">5</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> lower_bound(values, <span class="dv">10</span>) <span class="op">==</span> <span class="bu">len</span>(values)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/find-first-and-last-position-of-element-in-sorted-array/">LeetCode 34 - Find First and Last Position of Element in Sorted Array</a> requires two boundary searches rather than stopping at an arbitrary matching duplicate.</p>
 </section>
 <section id="sorting-properties-and-lower-bounds" class="level3">
 <h3 class="anchored" data-anchor-id="sorting-properties-and-lower-bounds"><strong>Sorting Properties and Lower Bounds</strong></h3>
+<p>A sorting algorithm must satisfy two correctness conditions. Its output keys are in nondecreasing order, and its output is a <strong>permutation</strong> of the input: no element is lost, duplicated, or invented. Real applications often require additional properties that are invisible when every value is distinct.</p>
+<ul>
+<li>A <strong>stable</strong> sort preserves the original relative order of records with equal keys. Stability enables multi-stage sorting: sorting by a secondary key and then stably by a primary key keeps secondary order inside equal-primary groups.</li>
+<li>An <strong>in-place</strong> sort uses only constant or logarithmic auxiliary storage beyond the input array. The precise definition should state whether the recursion stack counts.</li>
+<li>An <strong>adaptive</strong> sort becomes faster when the input already contains useful order. Insertion sort and Timsort exploit existing runs; selection sort performs essentially the same comparisons regardless of order.</li>
+<li>An <strong>online</strong> sort can incorporate items as they arrive, while an offline algorithm expects the complete collection.</li>
+<li>Worst-case, average-case, and expected complexity are different promises. Expected randomized quicksort is not the same guarantee as worst-case heapsort.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/sorting-contract-lower-bound.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Sorting has observable stability and memory properties, while a comparison decision tree imposes an Omega(n log n) worst-case lower bound.</figcaption>
+</figure>
+</div>
+<p>Why can no comparison sort guarantee <span class="math inline">\(o(n\log n)\)</span> comparisons for arbitrary distinct keys? There are <span class="math inline">\(n!\)</span> possible input permutations. A deterministic comparison algorithm is a binary decision tree: each comparison has at most two outcomes, and each permutation must reach a distinguishable leaf. A tree of height <code>h</code> has at most <span class="math inline">\(2^h\)</span> leaves, so</p>
+<p><span class="math display">\[
+2^h \ge n!,\qquad h\ge \log_2(n!).
+\]</span></p>
+<p>Using Stirling’s approximation, <span class="math inline">\(\log_2(n!)=\Theta(n\log n)\)</span>. Therefore every comparison-based sort requires <span class="math inline">\(\Omega(n\log n)\)</span> comparisons in the worst case. Merge sort and heapsort match this asymptotic bound.</p>
+<p>The restriction “comparison-based” matters. Counting sort and radix sort use key structure rather than only pairwise comparisons and can run in <span class="math inline">\(O(n+k)\)</span> or related bounds, where <code>k</code> describes the key range or number of digits. They do not contradict the decision-tree lower bound because one operation can reveal more than a binary comparison outcome.</p>
+<details>
+<summary>
+Python implementation: verify order, permutation, and stability
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter, defaultdict</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Record:</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    key: <span class="bu">int</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    label: <span class="bu">str</span>                    <span class="co"># Distinguishes equal-key records.</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> verify_stable_sort(original: <span class="bu">list</span>[Record], result: <span class="bu">list</span>[Record]) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Check the three observable parts of a stable sorting contract."""</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1. The result must contain exactly the same records.</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> Counter(original) <span class="op">!=</span> Counter(result):</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2. Keys must be nondecreasing.</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(result[i <span class="op">-</span> <span class="dv">1</span>].key <span class="op">&gt;</span> result[i].key <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(result))):</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3. Labels inside each equal-key group must preserve input order.</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    original_groups: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">list</span>[<span class="bu">str</span>]] <span class="op">=</span> defaultdict(<span class="bu">list</span>)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    result_groups: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">list</span>[<span class="bu">str</span>]] <span class="op">=</span> defaultdict(<span class="bu">list</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> record <span class="kw">in</span> original:</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        original_groups[record.key].append(record.label)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> record <span class="kw">in</span> result:</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        result_groups[record.key].append(record.label)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> original_groups <span class="op">==</span> result_groups</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>records <span class="op">=</span> [Record(<span class="dv">2</span>, <span class="st">"A"</span>), Record(<span class="dv">1</span>, <span class="st">"X"</span>),</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>           Record(<span class="dv">2</span>, <span class="st">"B"</span>), Record(<span class="dv">1</span>, <span class="st">"Y"</span>)]</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>stable_result <span class="op">=</span> [Record(<span class="dv">1</span>, <span class="st">"X"</span>), Record(<span class="dv">1</span>, <span class="st">"Y"</span>),</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>                 Record(<span class="dv">2</span>, <span class="st">"A"</span>), Record(<span class="dv">2</span>, <span class="st">"B"</span>)]</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>unstable_result <span class="op">=</span> [Record(<span class="dv">1</span>, <span class="st">"Y"</span>), Record(<span class="dv">1</span>, <span class="st">"X"</span>),</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>                   Record(<span class="dv">2</span>, <span class="st">"A"</span>), Record(<span class="dv">2</span>, <span class="st">"B"</span>)]</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> verify_stable_sort(records, stable_result)</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> verify_stable_sort(records, unstable_result)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/relative-sort-array/">LeetCode 1122 - Relative Sort Array</a> encourages thinking beyond “ascending order” by defining a custom ordering contract and allowing counting-based alternatives.</p>
 </section>
 <section id="elementary-sorting-algorithms" class="level3">
 <h3 class="anchored" data-anchor-id="elementary-sorting-algorithms"><strong>Elementary Sorting Algorithms</strong></h3>
+<p>Selection sort, insertion sort, and bubble sort all have <span class="math inline">\(O(n^2)\)</span> worst-case time, but they perform different work and are useful under different constraints.</p>
+<p><strong>Selection sort</strong> repeatedly finds the minimum of the unsorted suffix and swaps it into the next output position. After iteration <code>i</code>, the prefix through <code>i</code> contains the globally smallest <code>i + 1</code> values in final positions. It always performs <span class="math inline">\(\Theta(n^2)\)</span> comparisons but only <span class="math inline">\(O(n)\)</span> swaps, making it relevant when writes are unusually expensive.</p>
+<p><strong>Insertion sort</strong> maintains a sorted prefix and inserts the next value into its correct position by shifting larger values right. It is stable when equal values are not shifted past each other. Its running time is <span class="math inline">\(\Theta(n+I)\)</span>, where <code>I</code> is the number of inversions, so nearly sorted input can approach linear time.</p>
+<p><strong>Bubble sort</strong> repeatedly swaps adjacent inversions. After one complete left-to-right pass, the largest remaining value reaches the end. An early-stop flag gives <span class="math inline">\(O(n)\)</span> best-case time on already sorted input, but insertion sort is generally the more useful adaptive elementary algorithm.</p>
+<pre class="text"><code>SELECTION-SORT(A)
+    for boundary from 0 to n - 2
+        minimum &lt;- index of smallest item in A[boundary:n]
+        swap A[boundary] and A[minimum]
+
+INSERTION-SORT(A)
+    for i from 1 to n - 1
+        value &lt;- A[i]
+        shift larger prefix values one position right
+        insert value into the created gap
+
+BUBBLE-SORT(A)
+    repeat passes over adjacent pairs
+        swap every inverted pair
+        stop if a pass made no swap</code></pre>
+<div>
+
+</div>
+<div class="quarto-layout-panel" data-layout-ncol="3">
+<div class="quarto-layout-row">
+<div class="quarto-layout-cell" style="flex-basis: 33.3%;justify-content: flex-start;">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/selection-sort.gif" class="img-fluid figure-img" style="width:92.0%"></p>
+<figcaption>Selection sort repeatedly selects the next minimum.</figcaption>
+</figure>
+</div>
+</div>
+<div class="quarto-layout-cell" style="flex-basis: 33.3%;justify-content: flex-start;">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/insertion-sort.gif" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>Insertion sort grows a sorted prefix by shifting values.</figcaption>
+</figure>
+</div>
+</div>
+<div class="quarto-layout-cell" style="flex-basis: 33.3%;justify-content: flex-start;">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/bubble-sort.gif" class="img-fluid figure-img" style="width:92.0%"></p>
+<figcaption>Bubble sort moves large values right through adjacent swaps.</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</div>
+<p><em>Open visual sources: <a href="https://commons.wikimedia.org/wiki/File:Selection_sort_animation.gif">Selection sort animation</a>, <a href="https://commons.wikimedia.org/wiki/File:AnimazioneInsertionSort.gif">AnimazioneInsertionSort.gif</a>, and <a href="https://commons.wikimedia.org/wiki/File:Sorting_bubblesort_anim.gif">Sorting bubblesort anim.gif</a> (public-domain / CC BY-SA).</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 15%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Algorithm</th>
+<th style="text-align: right;">Best time</th>
+<th style="text-align: right;">Average / worst</th>
+<th>Stable</th>
+<th>In-place</th>
+<th>Characteristic cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>selection sort</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^2)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^2)\)</span></td>
+<td>usually no</td>
+<td>yes</td>
+<td>few swaps, many comparisons</td>
+</tr>
+<tr class="even">
+<td>insertion sort</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^2)\)</span></td>
+<td>yes</td>
+<td>yes</td>
+<td>adaptive to few inversions</td>
+</tr>
+<tr class="odd">
+<td>bubble sort with early stop</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^2)\)</span></td>
+<td>yes</td>
+<td>yes</td>
+<td>many adjacent swaps</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python implementation: selection, insertion, and bubble sort
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> selection_sort(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> boundary <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span>):</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        minimum <span class="op">=</span> boundary</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(boundary <span class="op">+</span> <span class="dv">1</span>, <span class="bu">len</span>(values)):</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> values[index] <span class="op">&lt;</span> values[minimum]:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>                minimum <span class="op">=</span> index</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        values[boundary], values[minimum] <span class="op">=</span> values[minimum], values[boundary]</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> insertion_sort(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(values)):</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> values[index]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        position <span class="op">=</span> index</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Shift only strictly larger values, preserving stable equal order.</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> position <span class="op">&gt;</span> <span class="dv">0</span> <span class="kw">and</span> values[position <span class="op">-</span> <span class="dv">1</span>] <span class="op">&gt;</span> value:</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>            values[position] <span class="op">=</span> values[position <span class="op">-</span> <span class="dv">1</span>]</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>            position <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        values[position] <span class="op">=</span> value</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bubble_sort(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> end <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        swapped <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(end):</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> values[index] <span class="op">&gt;</span> values[index <span class="op">+</span> <span class="dv">1</span>]:</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>                values[index], values[index <span class="op">+</span> <span class="dv">1</span>] <span class="op">=</span> (</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>                    values[index <span class="op">+</span> <span class="dv">1</span>], values[index]</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>                swapped <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> swapped:                    <span class="co"># Remaining prefix is already sorted.</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> algorithm <span class="kw">in</span> (selection_sort, insertion_sort, bubble_sort):</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    sample <span class="op">=</span> [<span class="dv">5</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">2</span>]</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    algorithm(sample)</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> sample <span class="op">==</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/insertion-sort-list/">LeetCode 147 - Insertion Sort List</a> transfers the sorted-prefix invariant from an array to linked-list pointer operations.</p>
 </section>
 <section id="merge-sort" class="level3">
 <h3 class="anchored" data-anchor-id="merge-sort"><strong>Merge Sort</strong></h3>
+<p><strong>Merge sort</strong> divides an array by position into two halves, recursively sorts both halves, and merges the two sorted results. Its key advantage is predictability: every input arrangement receives the same <span class="math inline">\(\Theta(n\log n)\)</span> asymptotic treatment.</p>
+<p>The merge step maintains two indices, one for each sorted run. The smaller front value is the smallest value not yet emitted, so it can be copied safely to the output. When values compare equal, taking the left value first preserves original cross-half order and makes the algorithm stable.</p>
+<pre class="text"><code>MERGE-SORT(values)
+    if length(values) &lt;= 1
+        return values
+    split values into left and right halves
+    left &lt;- MERGE-SORT(left)
+    right &lt;- MERGE-SORT(right)
+    return MERGE(left, right)
+
+MERGE(left, right)
+    repeatedly copy the smaller current value
+    copy any remaining suffix after one side is exhausted</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/merge-sort-recursion.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Merge sort splits by position until singleton base cases, then merges adjacent sorted runs.</figcaption>
+</figure>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/merge-sort.gif" class="img-fluid figure-img" style="width:44.0%"></p>
+<figcaption>Animated merge sort progressively combines values into sorted runs.</figcaption>
+</figure>
+</div>
+<p><em>Open animation source: <a href="https://commons.wikimedia.org/wiki/File:Merge_sort_animation2.gif">Wikimedia Commons - Merge sort animation2.gif</a> (CC BY-SA 2.5).</em></p>
+<p>For an input of size <code>n</code>, merge sort creates two subproblems of size approximately <code>n/2</code> and performs <span class="math inline">\(\Theta(n)\)</span> merge work:</p>
+<p><span class="math display">\[
+T(n)=2T(n/2)+\Theta(n).
+\]</span></p>
+<p>There are <span class="math inline">\(\Theta(\log n)\)</span> split levels, and each merge level processes all <code>n</code> values once, giving <span class="math inline">\(\Theta(n\log n)\)</span> time in the best, average, and worst cases. Standard array merge sort uses <span class="math inline">\(\Theta(n)\)</span> auxiliary array storage plus <span class="math inline">\(O(\log n)\)</span> recursion stack. It is not in-place under the usual practical definition.</p>
+<p>Merge sort is especially effective for linked lists, where merging changes links without an auxiliary value array, and for external sorting, where sequentially merging large disk runs is more efficient than random access. It also supports algorithmic augmentation: inversion counting and range statistics can be accumulated during merge.</p>
+<details>
+<summary>
+Python implementation: stable top-down merge sort
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections.abc <span class="im">import</span> Sequence</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> merge_sort(values: Sequence[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">int</span>]:</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return a new stably sorted list."""</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(values) <span class="op">&lt;=</span> <span class="dv">1</span>:</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">list</span>(values)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    middle <span class="op">=</span> <span class="bu">len</span>(values) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    left <span class="op">=</span> merge_sort(values[:middle])</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    right <span class="op">=</span> merge_sort(values[middle:])</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    merged: <span class="bu">list</span>[<span class="bu">int</span>] <span class="op">=</span> []</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    left_index <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    right_index <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> left_index <span class="op">&lt;</span> <span class="bu">len</span>(left) <span class="kw">and</span> right_index <span class="op">&lt;</span> <span class="bu">len</span>(right):</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> left[left_index] <span class="op">&lt;=</span> right[right_index]:</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Taking the left item on equality preserves stability.</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>            merged.append(left[left_index])</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>            left_index <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>            merged.append(right[right_index])</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>            right_index <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Exactly one of these suffixes can be nonempty.</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    merged.extend(left[left_index:])</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    merged.extend(right[right_index:])</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> merged</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> merge_sort([<span class="dv">8</span>, <span class="dv">3</span>, <span class="dv">2</span>, <span class="dv">9</span>, <span class="dv">7</span>, <span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">4</span>]) <span class="op">==</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">8</span>, <span class="dv">9</span>]</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> merge_sort([]) <span class="op">==</span> []</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/sort-list/">LeetCode 148 - Sort List</a> is a natural merge-sort exercise because linked-list halves can be split with slow/fast pointers and merged by relinking nodes.</p>
 </section>
 <section id="quick-sort" class="level3">
 <h3 class="anchored" data-anchor-id="quick-sort"><strong>Quick Sort</strong></h3>
+<p><strong>Quicksort</strong> chooses a pivot, partitions values so smaller keys lie on one side and larger keys on the other, then recursively sorts those outer regions. Unlike merge sort, it performs most structural work before recursion and usually rearranges the input array in place.</p>
+<p>The pivot does not need to be the median for correctness. Pivot quality determines recursion balance and therefore performance. A pivot near the median creates two subproblems of roughly half size; repeatedly choosing an extreme value creates one subproblem of size <code>n - 1</code> and leads to quadratic time.</p>
+<p>A three-way partition is robust when many values equal the pivot. During scanning it maintains:</p>
+<ul>
+<li><code>[low, lt)</code>: values smaller than the pivot;</li>
+<li><code>[lt, scan)</code>: values equal to the pivot;</li>
+<li><code>[scan, gt]</code>: not yet classified;</li>
+<li><code>(gt, high]</code>: values greater than the pivot.</li>
+</ul>
+<pre class="text"><code>THREE-WAY-PARTITION(A, low, high, pivot)
+    lt &lt;- low; scan &lt;- low; gt &lt;- high
+    while scan &lt;= gt
+        if A[scan] &lt; pivot
+            swap A[lt] and A[scan]; increment lt and scan
+        else if A[scan] &gt; pivot
+            swap A[scan] and A[gt]; decrement gt
+        else
+            increment scan
+    return lt, gt
+
+QUICKSORT(A, low, high)
+    choose a pivot
+    lt, gt &lt;- THREE-WAY-PARTITION(A, low, high, pivot)
+    QUICKSORT(A, low, lt - 1)
+    QUICKSORT(A, gt + 1, high)</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/quicksort-partition.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Three-way partition fixes the equal-pivot region and recurses only on smaller and larger values.</figcaption>
+</figure>
+</div>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/quicksort.gif" class="img-fluid figure-img" style="width:48.0%"></p>
+<figcaption>Quicksort animation: the highlighted pivot separates values before recursive sorting continues.</figcaption>
+</figure>
+</div>
+<p><em>Open animation source: <a href="https://commons.wikimedia.org/wiki/File:Sorting_quicksort_anim.gif">Wikimedia Commons - Sorting quicksort anim.gif</a> (CC BY-SA / GFDL).</em></p>
+<p>Balanced partitions satisfy <span class="math inline">\(T(n)=2T(n/2)+\Theta(n)=\Theta(n\log n)\)</span>. Extreme partitions satisfy <span class="math inline">\(T(n)=T(n-1)+\Theta(n)=\Theta(n^2)\)</span>. Choosing pivots uniformly at random gives expected <span class="math inline">\(\Theta(n\log n)\)</span> time against input order, while the theoretical worst case remains <span class="math inline">\(\Theta(n^2)\)</span>.</p>
+<p>In-place partitioning uses <span class="math inline">\(O(1)\)</span> local storage. The recursion stack is expected <span class="math inline">\(O(\log n)\)</span> under balanced randomized behavior but can reach <span class="math inline">\(O(n)\)</span> in the worst case. Quicksort is normally unstable because swaps can reverse equal-key records. Its strong cache locality and small constants often make it fast for arrays despite the weaker worst-case guarantee.</p>
+<details>
+<summary>
+Python implementation: randomized in-place three-way quicksort
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> random <span class="im">import</span> Random</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> quicksort(values: <span class="bu">list</span>[<span class="bu">int</span>], seed: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Sort in place with randomized pivots and three-way partitioning."""</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    random <span class="op">=</span> Random(seed)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> sort(low: <span class="bu">int</span>, high: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> low <span class="op">&gt;=</span> high:</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>        pivot <span class="op">=</span> values[random.randrange(low, high <span class="op">+</span> <span class="dv">1</span>)]</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        less <span class="op">=</span> low</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        scan <span class="op">=</span> low</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        greater <span class="op">=</span> high</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> scan <span class="op">&lt;=</span> greater:</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> values[scan] <span class="op">&lt;</span> pivot:</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>                values[less], values[scan] <span class="op">=</span> values[scan], values[less]</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>                less <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>                scan <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> values[scan] <span class="op">&gt;</span> pivot:</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>                values[scan], values[greater] <span class="op">=</span> values[greater], values[scan]</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>                greater <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>                <span class="co"># The new value at scan has not been classified yet.</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>                scan <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>        sort(low, less <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>        sort(greater <span class="op">+</span> <span class="dv">1</span>, high)</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    sort(<span class="dv">0</span>, <span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> [<span class="dv">7</span>, <span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">3</span>, <span class="dv">9</span>, <span class="dv">5</span>, <span class="dv">1</span>, <span class="dv">5</span>]</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>quicksort(sample, seed<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> sample <span class="op">==</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">5</span>, <span class="dv">5</span>, <span class="dv">7</span>, <span class="dv">9</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/sort-an-array/">LeetCode 912 - Sort an Array</a> is a suitable environment for testing pivot choice, duplicate handling, and recursion depth under adversarial cases.</p>
 </section>
 <section id="heap-sort" class="level3">
 <h3 class="anchored" data-anchor-id="heap-sort"><strong>Heap Sort</strong></h3>
+<p><strong>Heapsort</strong> treats the input array as a max-heap. The largest value occupies the root at index 0. Swapping that root with the final element places one value into its permanent sorted position; reducing the logical heap size excludes the sorted suffix, and sift-down repairs the remaining heap prefix.</p>
+<p>This section focuses on heapsort’s sorting contract. The complete-tree representation, index formulas, sift operations, and bottom-up <span class="math inline">\(O(n)\)</span> heap construction are developed fully in <a href="04-trees-heaps-priority-queues.html#binary-heaps-and-heapify">Binary Heaps and Heapify</a>.</p>
+<pre class="text"><code>HEAPSORT(A)
+    build a max-heap across the full array
+    for end from length(A) - 1 down to 1
+        swap A[0] and A[end]
+        reduce logical heap size to end
+        sift the new root downward inside the heap prefix</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/heapsort-inplace-phases.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Heapsort stores a shrinking max-heap and a growing sorted suffix inside the same array.</figcaption>
+</figure>
+</div>
+<p>Bottom-up heap construction costs <span class="math inline">\(O(n)\)</span>. The algorithm then performs <code>n - 1</code> root extractions, each requiring at most <span class="math inline">\(O(\log n)\)</span> sift work, so best, average, and worst time are all <span class="math inline">\(O(n\log n)\)</span>. Iterative heapsort uses <span class="math inline">\(O(1)\)</span> auxiliary storage and gives a stronger worst-case memory and time guarantee than ordinary quicksort.</p>
+<p>The trade-off is practical locality and stability. Sift-down jumps between parent and child indices rather than scanning contiguous runs, so it is often slower than well-engineered quicksort on in-memory arrays. Long-distance swaps make the algorithm unstable. Heapsort is appropriate when worst-case <span class="math inline">\(O(n\log n)\)</span> and in-place storage matter more than stability and typical constant factors.</p>
+<details>
+<summary>
+Python implementation: in-place max-heap sort
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> heapsort(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> sift_down(root: <span class="bu">int</span>, heap_size: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>            left <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> root <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>            right <span class="op">=</span> left <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>            largest <span class="op">=</span> root</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> left <span class="op">&lt;</span> heap_size <span class="kw">and</span> values[left] <span class="op">&gt;</span> values[largest]:</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>                largest <span class="op">=</span> left</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> right <span class="op">&lt;</span> heap_size <span class="kw">and</span> values[right] <span class="op">&gt;</span> values[largest]:</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>                largest <span class="op">=</span> right</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> largest <span class="op">==</span> root:</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>            values[root], values[largest] <span class="op">=</span> values[largest], values[root]</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>            root <span class="op">=</span> largest</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Bottom-up heapify: leaves already satisfy the heap property.</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> root <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(values) <span class="op">//</span> <span class="dv">2</span> <span class="op">-</span> <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        sift_down(root, <span class="bu">len</span>(values))</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Move each maximum to the excluded sorted suffix.</span></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> end <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>        values[<span class="dv">0</span>], values[end] <span class="op">=</span> values[end], values[<span class="dv">0</span>]</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        sift_down(<span class="dv">0</span>, end)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> [<span class="dv">12</span>, <span class="dv">11</span>, <span class="dv">13</span>, <span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">7</span>, <span class="dv">6</span>]</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>heapsort(sample)</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> sample <span class="op">==</span> [<span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">6</span>, <span class="dv">7</span>, <span class="dv">11</span>, <span class="dv">12</span>, <span class="dv">13</span>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/sort-an-array/">LeetCode 912 - Sort an Array</a> can also be used to compare heapsort’s guaranteed recursion-free behavior with randomized quicksort.</p>
 </section>
 <section id="divide-and-conquer-design" class="level3">
 <h3 class="anchored" data-anchor-id="divide-and-conquer-design"><strong>Divide-and-Conquer Design</strong></h3>
+<p><strong>Divide-and-conquer</strong> solves a problem by dividing it into smaller instances of the same problem, solving those instances recursively, and combining their answers. The pattern is valuable when subproblems are substantially smaller and their results summarize enough information for an efficient combination step.</p>
+<pre class="text"><code>SOLVE(problem of size n)
+    if n is small enough
+        return direct base-case answer
+    subproblems &lt;- DIVIDE(problem)
+    partial_answers &lt;- recursively SOLVE each required subproblem
+    return COMBINE(partial_answers)</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/divide-conquer-template.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>The divide-and-conquer template separates recursive subproblem count and size from nonrecursive combine work.</figcaption>
+</figure>
+</div>
+<p>If a problem creates <code>a</code> subproblems, each of size <code>n/b</code>, and division plus combination costs <span class="math inline">\(f(n)\)</span>, its recurrence often has the form</p>
+<p><span class="math display">\[
+T(n)=aT(n/b)+f(n).
+\]</span></p>
+<p>Here <code>a</code> is the number of recursive branches, <code>b</code> is the shrink factor, and <span class="math inline">\(f(n)\)</span> includes work outside recursive calls. Binary search has <code>a = 1</code>, <code>b = 2</code>, and <span class="math inline">\(f(n)=\Theta(1)\)</span>. Merge sort has <code>a = 2</code>, <code>b = 2</code>, and <span class="math inline">\(f(n)=\Theta(n)\)</span>.</p>
+<p>Divide-and-conquer is not automatically efficient. Creating overlapping subproblems may repeat enormous work and instead call for memoization or dynamic programming. Highly unbalanced subproblems can create deep recursion. A costly combine step may dominate all recursive savings. The design should therefore state base cases, prove progress toward them, identify whether subproblems overlap, and analyze combination cost.</p>
+<p>As an example, the maximum-subarray problem can split at the midpoint. The best subarray lies entirely in the left half, entirely in the right half, or crosses the midpoint. The crossing answer is built from the best suffix of the left half and best prefix of the right half.</p>
+<details>
+<summary>
+Python implementation: divide-and-conquer maximum subarray
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> maximum_subarray_divide_conquer(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the maximum sum of a nonempty contiguous subarray."""</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> values:</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"values must be nonempty"</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> solve(low: <span class="bu">int</span>, high: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> high <span class="op">-</span> low <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> values[low]</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        middle <span class="op">=</span> low <span class="op">+</span> (high <span class="op">-</span> low) <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        best_left <span class="op">=</span> solve(low, middle)</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>        best_right <span class="op">=</span> solve(middle, high)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Best suffix ending immediately before the midpoint.</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>        running <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        best_suffix <span class="op">=</span> <span class="bu">float</span>(<span class="st">"-inf"</span>)</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(middle <span class="op">-</span> <span class="dv">1</span>, low <span class="op">-</span> <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>            running <span class="op">+=</span> values[index]</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>            best_suffix <span class="op">=</span> <span class="bu">max</span>(best_suffix, running)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Best prefix starting exactly at the midpoint.</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        running <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>        best_prefix <span class="op">=</span> <span class="bu">float</span>(<span class="st">"-inf"</span>)</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(middle, high):</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>            running <span class="op">+=</span> values[index]</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>            best_prefix <span class="op">=</span> <span class="bu">max</span>(best_prefix, running)</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>        best_crossing <span class="op">=</span> <span class="bu">int</span>(best_suffix <span class="op">+</span> best_prefix)</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">max</span>(best_left, best_right, best_crossing)</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> solve(<span class="dv">0</span>, <span class="bu">len</span>(values))</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> maximum_subarray_divide_conquer(</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>    [<span class="op">-</span><span class="dv">2</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">3</span>, <span class="dv">4</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">5</span>, <span class="dv">4</span>]</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>) <span class="op">==</span> <span class="dv">6</span>  <span class="co"># [4, -1, 2, 1]</span></span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> maximum_subarray_divide_conquer([<span class="op">-</span><span class="dv">4</span>, <span class="op">-</span><span class="dv">2</span>, <span class="op">-</span><span class="dv">7</span>]) <span class="op">==</span> <span class="op">-</span><span class="dv">2</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The recurrence is <span class="math inline">\(T(n)=2T(n/2)+\Theta(n)=\Theta(n\log n)\)</span>. Kadane’s algorithm solves the same problem in <span class="math inline">\(\Theta(n)\)</span> time, so this example illustrates the design pattern rather than the best specialized solution.</p>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/maximum-subarray/">LeetCode 53 - Maximum Subarray</a> allows direct comparison between the divide-and-conquer formulation and the linear dynamic-programming invariant.</p>
 </section>
 <section id="recurrence-analysis" class="level3">
 <h3 class="anchored" data-anchor-id="recurrence-analysis"><strong>Recurrence Analysis</strong></h3>
+<p>A <strong>recurrence</strong> defines an algorithm’s cost on size <code>n</code> in terms of costs on smaller inputs. It is a model of the recursive code, not a formula chosen after seeing the desired answer. Every recurrence should identify:</p>
+<ul>
+<li>the base-case cost;</li>
+<li>the number and sizes of recursive calls;</li>
+<li>the nonrecursive division, partition, or combination work;</li>
+<li>whether floors, ceilings, or uneven sizes matter asymptotically.</li>
+</ul>
+<p>Examples from this chapter are:</p>
+<p><span class="math display">\[
+\begin{aligned}
+\text{binary search: } &amp;T(n)=T(n/2)+\Theta(1),\\
+\text{merge sort: } &amp;T(n)=2T(n/2)+\Theta(n),\\
+\text{balanced quicksort: } &amp;T(n)=2T(n/2)+\Theta(n),\\
+\text{extreme quicksort: } &amp;T(n)=T(n-1)+\Theta(n).
+\end{aligned}
+\]</span></p>
+<p>The first coefficient counts recursive calls. The argument gives each subproblem size. The final term counts work performed by the current call outside recursion.</p>
+<p>Repeated substitution, also called <strong>unrolling</strong>, expands smaller terms until the base case appears. A recursion tree presents the same expansion by level and is often better for seeing where work accumulates.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/recurrence-expansion.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Expanding T(n)=2T(n/2)+n shows n work at each of log2(n) levels.</figcaption>
+</figure>
+</div>
+<p>For merge sort,</p>
+<p><span class="math display">\[
+T(n)=2T(n/2)+n
+=4T(n/4)+2n
+=8T(n/8)+3n.
+\]</span></p>
+<p>After <code>j</code> expansions there are <span class="math inline">\(2^j\)</span> subproblems of size <span class="math inline">\(n/2^j\)</span>, while accumulated merge work is <span class="math inline">\(jn\)</span>. Expansion stops when <span class="math inline">\(n/2^j=1\)</span>, so <span class="math inline">\(j=\log_2 n\)</span>. The leaves contribute <span class="math inline">\(\Theta(n)\)</span> and internal levels contribute <span class="math inline">\(\Theta(n\log n)\)</span>, giving <span class="math inline">\(T(n)=\Theta(n\log n)\)</span>.</p>
+<p>Substitution can also prove a guessed bound by induction. To prove <span class="math inline">\(T(n)=O(n\log n)\)</span>, assume smaller instances satisfy the proposed inequality, insert that assumption into the recurrence, and choose constants that make the result hold. The recursion tree discovers a likely bound; induction verifies it rigorously.</p>
+<details>
+<summary>
+Python implementation: measure the merge-sort recurrence directly
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> merge_recurrence_work(size: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Count unit base work plus size units at every merge call."""</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> size <span class="op">&lt;=</span> <span class="dv">1</span>:</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    left_size <span class="op">=</span> size <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    right_size <span class="op">=</span> size <span class="op">-</span> left_size</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>        merge_recurrence_work(left_size)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> merge_recurrence_work(right_size)</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> size</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="co"># For powers of two with T(1)=1 and merge cost n:</span></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="co"># T(n) = n + n log2(n).</span></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> size <span class="kw">in</span> (<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">8</span>, <span class="dv">16</span>, <span class="dv">32</span>):</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>    expected <span class="op">=</span> size <span class="op">*</span> (<span class="dv">1</span> <span class="op">+</span> <span class="bu">int</span>(math.log2(size)))</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> merge_recurrence_work(size) <span class="op">==</span> expected</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The recursive measurement is educational rather than an efficient analyzer; it mirrors the call tree so the counted work can be matched to the algebra.</p>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/powx-n/">LeetCode 50 - Pow(x, n)</a> uses exponent halving and leads to <span class="math inline">\(T(n)=T(n/2)+\Theta(1)=\Theta(\log n)\)</span> when the half-power is computed once and reused.</p>
 </section>
 <section id="recursion-trees-and-the-master-theorem" class="level3">
 <h3 class="anchored" data-anchor-id="recursion-trees-and-the-master-theorem"><strong>Recursion Trees and the Master Theorem</strong></h3>
+<p>For recurrences of the form</p>
+<p><span class="math display">\[
+T(n)=aT(n/b)+f(n),
+\]</span></p>
+<p>the <strong>Master Theorem</strong> compares the current call’s nonrecursive work <span class="math inline">\(f(n)\)</span> with the recursive threshold</p>
+<p><span class="math display">\[
+n^{\log_b a}.
+\]</span></p>
+<p>The parameter <code>a</code> is the number of subproblems, <code>b</code> is the factor by which each subproblem shrinks, and <span class="math inline">\(p=\log_b a\)</span> describes how the number of recursion-tree leaves grows. The theorem asks whether work is concentrated near the leaves, balanced across levels, or concentrated near the root.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/master-theorem-cases.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>The three Master Theorem cases compare f(n) with the recursive threshold n raised to log base b of a.</figcaption>
+</figure>
+</div>
+<p>Using <span class="math inline">\(p=\log_b a\)</span> and a positive constant <span class="math inline">\(\varepsilon\)</span>:</p>
+<ol type="1">
+<li>If <span class="math inline">\(f(n)=O(n^{p-\varepsilon})\)</span>, recursive leaves dominate and <span class="math inline">\(T(n)=\Theta(n^p)\)</span>.</li>
+<li>If <span class="math inline">\(f(n)=\Theta(n^p\log^k n)\)</span> for <span class="math inline">\(k\ge 0\)</span>, levels balance and <span class="math inline">\(T(n)=\Theta(n^p\log^{k+1}n)\)</span>.</li>
+<li>If <span class="math inline">\(f(n)=\Omega(n^{p+\varepsilon})\)</span> and the regularity condition <span class="math inline">\(af(n/b)\le c f(n)\)</span> holds for some <span class="math inline">\(c&lt;1\)</span>, root-side work dominates and <span class="math inline">\(T(n)=\Theta(f(n))\)</span>.</li>
+</ol>
+<p>For example:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 28%">
+<col style="width: 28%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Recurrence</th>
+<th>Comparison</th>
+<th style="text-align: right;">Case</th>
+<th style="text-align: right;">Bound</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(T(n)=8T(n/2)+n^2\)</span></td>
+<td><span class="math inline">\(p=3\)</span> and <span class="math inline">\(n^2\)</span> is polynomially smaller</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^3)\)</span></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(T(n)=2T(n/2)+n\)</span></td>
+<td><span class="math inline">\(p=1\)</span> and <span class="math inline">\(f(n)=\Theta(n^p)\)</span></td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n\log n)\)</span></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(T(n)=2T(n/2)+n^2\)</span></td>
+<td><span class="math inline">\(p=1\)</span> and <span class="math inline">\(n^2\)</span> is polynomially larger</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n^2)\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>The theorem is not universal. It does not directly handle <span class="math inline">\(T(n)=T(n/3)+T(2n/3)+n\)</span>, subproblem counts that vary with <code>n</code>, or extreme quicksort’s <span class="math inline">\(T(n)=T(n-1)+n\)</span>. A recursion tree, substitution, Akra-Bazzi, or another technique is needed when the required form or side conditions fail.</p>
+<details>
+<summary>
+Python implementation: classify the polynomial Master cases
+</summary>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> polynomial_master_case(a: <span class="bu">float</span>, b: <span class="bu">float</span>, degree: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">int</span>, <span class="bu">str</span>]:</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Classify T(n)=aT(n/b)+Theta(n^degree), with no log factor."""</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> a <span class="op">&lt;</span> <span class="dv">1</span> <span class="kw">or</span> b <span class="op">&lt;=</span> <span class="dv">1</span>:</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"require a &gt;= 1 and b &gt; 1"</span>)</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    threshold <span class="op">=</span> math.log(a, b)          <span class="co"># p = log_b(a)</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>    tolerance <span class="op">=</span> <span class="fl">1e-12</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> degree <span class="op">&lt;</span> threshold <span class="op">-</span> tolerance:</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span>, <span class="ss">f"Theta(n^</span><span class="sc">{</span>threshold<span class="sc">:g}</span><span class="ss">)"</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> degree <span class="op">&gt;</span> threshold <span class="op">+</span> tolerance:</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Polynomial f(n)=n^degree satisfies the regularity condition here.</span></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">3</span>, <span class="ss">f"Theta(n^</span><span class="sc">{</span>degree<span class="sc">:g}</span><span class="ss">)"</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span>, <span class="ss">f"Theta(n^</span><span class="sc">{</span>threshold<span class="sc">:g}</span><span class="ss"> log n)"</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> polynomial_master_case(<span class="dv">8</span>, <span class="dv">2</span>, <span class="dv">2</span>) <span class="op">==</span> (<span class="dv">1</span>, <span class="st">"Theta(n^3)"</span>)</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> polynomial_master_case(<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">1</span>) <span class="op">==</span> (<span class="dv">2</span>, <span class="st">"Theta(n^1 log n)"</span>)</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> polynomial_master_case(<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>) <span class="op">==</span> (<span class="dv">3</span>, <span class="st">"Theta(n^2)"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The helper deliberately handles only <span class="math inline">\(f(n)=\Theta(n^d)\)</span>. Treating it as a general recurrence solver would hide logarithmic factors and required regularity conditions.</p>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/majority-element/">LeetCode 169 - Majority Element</a> admits a divide-and-conquer solution whose two half-results are combined with linear counting work, providing a concrete <span class="math inline">\(2T(n/2)+\Theta(n)\)</span> recurrence.</p>
 </section>
 <section id="quickselect-and-randomized-pivots" class="level3">
 <h3 class="anchored" data-anchor-id="quickselect-and-randomized-pivots"><strong>Quickselect and Randomized Pivots</strong></h3>
+<p>An <strong>order statistic</strong> is the item of a requested rank, such as the minimum, median, or <code>k</code>-th smallest value. Sorting the entire array gives the answer in <span class="math inline">\(O(n\log n)\)</span> time, but it computes more order information than one rank requires.</p>
+<p><strong>Quickselect</strong> uses the same partition step as quicksort. After partitioning, the pivot or equal-pivot region is in its final rank range. Comparing <code>k</code> with that range determines whether the answer is already found or lies entirely on one side. The other side can be discarded without sorting.</p>
+<pre class="text"><code>QUICKSELECT(A, k)
+    low &lt;- 0; high &lt;- length(A) - 1
+    while low &lt;= high
+        choose a random pivot from A[low:high+1]
+        lt, gt &lt;- three-way partition around pivot
+        if k &lt; lt
+            high &lt;- lt - 1
+        else if k &gt; gt
+            low &lt;- gt + 1
+        else
+            return A[k]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/quickselect-shrink.svg" class="img-fluid figure-img" style="width:96.0%"></p>
+<figcaption>Quickselect compares the requested rank with the pivot rank and discards the side that cannot contain the answer.</figcaption>
+</figure>
+</div>
+<p>One partition scans the active interval in <span class="math inline">\(\Theta(n)\)</span> time. If random pivots produce a geometrically shrinking sequence of expected interval sizes, total expected work resembles</p>
+<p><span class="math display">\[
+n+\frac{n}{2}+\frac{n}{4}+\cdots=O(n).
+\]</span></p>
+<p>The exact expected analysis accounts for all pivot ranks, but the geometric sum gives the central intuition. Repeatedly choosing an extreme pivot produces <span class="math inline">\(n+(n-1)+\cdots+1=\Theta(n^2)\)</span> worst-case time. Random pivots make this behavior unlikely against fixed input order but do not remove the theoretical worst case.</p>
+<p>An iterative in-place implementation uses <span class="math inline">\(O(1)\)</span> auxiliary storage. Three-way partitioning is valuable for duplicate-heavy input because the entire equal region can terminate the search at once.</p>
+<details>
+<summary>
+Python implementation: randomized in-place Quickselect
+</summary>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> random <span class="im">import</span> Random</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> quickselect(values: <span class="bu">list</span>[<span class="bu">int</span>], k: <span class="bu">int</span>, seed: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the zero-based k-th smallest value, rearranging values in place."""</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> k <span class="op">&lt;</span> <span class="dv">0</span> <span class="kw">or</span> k <span class="op">&gt;=</span> <span class="bu">len</span>(values):</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">IndexError</span>(<span class="st">"rank k is outside the array"</span>)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    random <span class="op">=</span> Random(seed)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    low <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    high <span class="op">=</span> <span class="bu">len</span>(values) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> low <span class="op">&lt;=</span> high:</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        pivot <span class="op">=</span> values[random.randrange(low, high <span class="op">+</span> <span class="dv">1</span>)]</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>        less <span class="op">=</span> low</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>        scan <span class="op">=</span> low</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>        greater <span class="op">=</span> high</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> scan <span class="op">&lt;=</span> greater:</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> values[scan] <span class="op">&lt;</span> pivot:</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>                values[less], values[scan] <span class="op">=</span> values[scan], values[less]</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>                less <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>                scan <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> values[scan] <span class="op">&gt;</span> pivot:</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>                values[scan], values[greater] <span class="op">=</span> values[greater], values[scan]</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>                greater <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>                scan <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> k <span class="op">&lt;</span> less:</span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a>            high <span class="op">=</span> less <span class="op">-</span> <span class="dv">1</span>              <span class="co"># Discard pivot and larger region.</span></span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> k <span class="op">&gt;</span> greater:</span>
+<span id="cb19-33"><a href="#cb19-33" aria-hidden="true" tabindex="-1"></a>            low <span class="op">=</span> greater <span class="op">+</span> <span class="dv">1</span>            <span class="co"># Discard pivot and smaller region.</span></span>
+<span id="cb19-34"><a href="#cb19-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb19-35"><a href="#cb19-35" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> values[k]</span>
+<span id="cb19-36"><a href="#cb19-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-37"><a href="#cb19-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="st">"unreachable for a valid rank"</span>)</span>
+<span id="cb19-38"><a href="#cb19-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-39"><a href="#cb19-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-40"><a href="#cb19-40" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> [<span class="dv">9</span>, <span class="dv">1</span>, <span class="dv">8</span>, <span class="dv">2</span>, <span class="dv">7</span>, <span class="dv">3</span>, <span class="dv">6</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">5</span>]</span>
+<span id="cb19-41"><a href="#cb19-41" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> quickselect(sample.copy(), <span class="dv">0</span>, seed<span class="op">=</span><span class="dv">7</span>) <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb19-42"><a href="#cb19-42" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> quickselect(sample.copy(), <span class="dv">4</span>, seed<span class="op">=</span><span class="dv">7</span>) <span class="op">==</span> <span class="dv">5</span></span>
+<span id="cb19-43"><a href="#cb19-43" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> quickselect(sample.copy(), <span class="dv">9</span>, seed<span class="op">=</span><span class="dv">7</span>) <span class="op">==</span> <span class="dv">9</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/kth-largest-element-in-an-array/">LeetCode 215 - Kth Largest Element in an Array</a> is the direct Quickselect exercise after converting a largest-rank request into the corresponding zero-based smallest rank.</p>
 </section>
 <section id="comparison-and-selection" class="level3">
 <h3 class="anchored" data-anchor-id="comparison-and-selection"><strong>Comparison and Selection</strong></h3>
+<p>The right technique depends on how much order information is needed and which guarantees the application values.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 17%">
+<col style="width: 17%">
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 17%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Goal or constraint</th>
+<th>Recommended starting point</th>
+<th style="text-align: right;">Time</th>
+<th style="text-align: right;">Auxiliary space</th>
+<th>Important property</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>exact lookup in sorted random-access data</td>
+<td>binary search</td>
+<td style="text-align: right;"><span class="math inline">\(O(\log n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(O(1)\)</span></td>
+<td>returns any match unless boundary logic is added</td>
+</tr>
+<tr class="even">
+<td>first feasible value or duplicate boundary</td>
+<td>first-true / lower-bound template</td>
+<td style="text-align: right;"><span class="math inline">\(O(P\log R)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(O(1)\)</span></td>
+<td>predicate must be monotone</td>
+</tr>
+<tr class="odd">
+<td>tiny or nearly sorted input</td>
+<td>insertion sort</td>
+<td style="text-align: right;">best <span class="math inline">\(O(n)\)</span>, worst <span class="math inline">\(O(n^2)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(O(1)\)</span></td>
+<td>stable and adaptive</td>
+</tr>
+<tr class="even">
+<td>stable predictable array sorting</td>
+<td>merge sort</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n\log n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n)\)</span></td>
+<td>stable, sequential merge access</td>
+</tr>
+<tr class="odd">
+<td>fast typical in-place array sorting</td>
+<td>randomized three-way quicksort</td>
+<td style="text-align: right;">expected <span class="math inline">\(\Theta(n\log n)\)</span></td>
+<td style="text-align: right;">expected <span class="math inline">\(O(\log n)\)</span> stack</td>
+<td>strong locality, unstable</td>
+</tr>
+<tr class="even">
+<td>in-place worst-case sorting guarantee</td>
+<td>heapsort</td>
+<td style="text-align: right;"><span class="math inline">\(\Theta(n\log n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(O(1)\)</span></td>
+<td>unstable, weaker locality</td>
+</tr>
+<tr class="odd">
+<td>one rank rather than total order</td>
+<td>randomized Quickselect</td>
+<td style="text-align: right;">expected <span class="math inline">\(\Theta(n)\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(O(1)\)</span> iterative</td>
+<td>worst case <span class="math inline">\(\Theta(n^2)\)</span></td>
+</tr>
+<tr class="even">
+<td>non-comparison integer keys with small range</td>
+<td>counting / radix family</td>
+<td style="text-align: right;">model-dependent, often <span class="math inline">\(O(n+k)\)</span></td>
+<td style="text-align: right;">model-dependent</td>
+<td>escapes comparison lower bound</td>
+</tr>
+</tbody>
+</table>
+<p>A disciplined workflow is:</p>
+<ol type="1">
+<li>State whether the input is already sorted or whether a monotone predicate exists.</li>
+<li>Decide whether the output requires one item, a boundary, partial order, or complete order.</li>
+<li>Specify stability, mutation, memory, and worst-case requirements before selecting a sort.</li>
+<li>For recursive algorithms, write the base case and map every recurrence term to code.</li>
+<li>Check theorem assumptions before quoting a bound; unequal quicksort subproblems do not fit the basic Master Theorem.</li>
+<li>Test empty input, one item, duplicates, sorted and reverse-sorted input, and highly unbalanced partitions.</li>
+</ol>
+<p>The unifying idea is <strong>safe elimination</strong>. Binary search removes impossible indices, sorting fixes progressively more order, divide-and-conquer summarizes completed subproblems, and Quickselect discards ranks that cannot contain the requested answer.</p>
+<p><strong>Practice.</strong> <a href="https://leetcode.com/problems/median-of-two-sorted-arrays/">LeetCode 4 - Median of Two Sorted Arrays</a> is a demanding synthesis problem: it searches a partition boundary rather than merging or sorting all values.</p>
 </section>
 </section>
 

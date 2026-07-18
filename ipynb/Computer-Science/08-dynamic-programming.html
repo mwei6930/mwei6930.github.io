@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"><head>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
 <meta name="generator" content="quarto-1.5.55">
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -34,6 +68,35 @@ ul.task-list li input[type="checkbox"] {
 <link href="08-dynamic-programming_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="08-dynamic-programming_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
 
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
 
 </head>
 
@@ -85,35 +148,815 @@ ul.task-list li input[type="checkbox"] {
 <p><a href="Data-Structure&amp;Algorithm.html">Back to Data Structures and Algorithms guideline</a></p>
 <section id="dynamic-programming" class="level2">
 <h2 class="anchored" data-anchor-id="dynamic-programming"><strong>Dynamic Programming</strong></h2>
+<p><strong>Dynamic programming (DP)</strong> solves a problem by identifying repeated subproblems, solving each distinct subproblem once, and reusing its answer wherever that state appears again. The stored answer may be a minimum cost, maximum value, number of constructions, feasibility decision, probability, or an actual witness. DP is therefore a way to organize dependencies, not merely a way to fill a table.</p>
+<p>The central design question is: <strong>what information from the past can still affect the future?</strong> A state stores exactly that information. Two decision histories that produce the same future-relevant state can be merged, because every continuation available to one is also available to the other. This state merging is what can turn an exponential recursion tree into a polynomial-size directed acyclic graph.</p>
+<p>Dynamic programming sits between the surrounding design paradigms:</p>
+<ul>
+<li>a greedy algorithm proves that one local choice is safe and discards all alternatives;</li>
+<li>backtracking preserves distinct choice histories and explores them when necessary;</li>
+<li>dynamic programming preserves alternatives but merges histories that lead to the same state.</li>
+</ul>
+<p>This chapter moves from recognition and state design to common state shapes: one-dimensional prefixes, capacities, pairs of prefixes, grids, and intervals. It then separates computing the optimal value from reconstructing the choices that achieve it.</p>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Do not begin by asking, “What should the DP array contain?” Begin by writing a complete sentence: “State X means …” The recurrence, base cases, evaluation order, and final answer should all follow from that sentence.</p>
+</div>
+</div>
 <section id="recognizing-dynamic-programming-problems" class="level3">
 <h3 class="anchored" data-anchor-id="recognizing-dynamic-programming-problems"><strong>Recognizing Dynamic Programming Problems</strong></h3>
+<p>DP becomes a strong candidate when a direct recursive formulation has two structural properties.</p>
+<p><strong>Optimal substructure</strong> means that an optimal answer can be assembled from optimal answers to smaller states. For counting and decision problems, the analogous requirement is that the current answer can be assembled completely from smaller answers. This property explains why smaller results are sufficient.</p>
+<p><strong>Overlapping subproblems</strong> means that different decision paths request the same state. Without caching, that state is recomputed repeatedly. A divide-and-conquer algorithm also solves smaller problems, but its recursive branches are usually independent; DP is especially valuable when the branches converge.</p>
+<p>Useful recognition signals include:</p>
+<ul>
+<li>the problem asks for a minimum, maximum, count, or existence over many combinations;</li>
+<li>a choice divides the problem into a small number of smaller states;</li>
+<li>the same suffix, prefix, capacity, position, mask, or interval appears under many histories;</li>
+<li>a brute-force recursion is easy to describe but repeats calls;</li>
+<li>the future depends on a compact summary rather than the entire construction history.</li>
+</ul>
+<p>The generic top-down structure is:</p>
+<pre class="text"><code>SOLVE(state s)
+    if s is a base state
+        return its direct answer
+    if s is already stored
+        return stored[s]
+
+    answer &lt;- combine SOLVE(next_state) over every legal final/next decision
+    stored[s] &lt;- answer
+    return answer</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/dp-overlapping-subproblems.svg" class="img-fluid figure-img" style="width:34.0%"></p>
+<figcaption>Fibonacci dependencies form a DAG because several recursive paths request the same smaller state.</figcaption>
+</figure>
+</div>
+<p><em>Visual source: <a href="https://commons.wikimedia.org/wiki/File:Fibonacci_dynamic_programming.svg">Fibonacci dynamic programming</a>, public domain. The unchanged SVG is stored locally for reliable rendering.</em></p>
+<p>Fibonacci numbers are a deliberately small example. In the naive recursion, both <span class="math inline">\(F(n-1)\)</span> and <span class="math inline">\(F(n-2)\)</span> recursively request states such as <span class="math inline">\(F(n-3)\)</span>. Memoization changes the computation from a tree of calls into one evaluation per integer state. The same transformation applies to much richer states such as <code>(row, column)</code>, <code>(item, capacity)</code>, or <code>(left, right)</code>.</p>
+<details>
+<summary>
+Python implementation: expose repeated calls and remove them with caching
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> functools <span class="im">import</span> cache</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compare_fibonacci_calls(n: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">tuple</span>[<span class="bu">int</span>, <span class="bu">int</span>, <span class="bu">int</span>]:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return Fibonacci(n), naive body calls, and memoized body calls."""</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> n <span class="op">&lt;</span> <span class="dv">0</span>:</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"n must be non-negative"</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    naive_calls <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> naive(k: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        <span class="kw">nonlocal</span> naive_calls</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        naive_calls <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> k <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> k</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> naive(k <span class="op">-</span> <span class="dv">1</span>) <span class="op">+</span> naive(k <span class="op">-</span> <span class="dv">2</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    memo_calls <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">@cache</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> memoized(k: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="kw">nonlocal</span> memo_calls</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        memo_calls <span class="op">+=</span> <span class="dv">1</span>  <span class="co"># The body runs only on a cache miss.</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> k <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> k</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> memoized(k <span class="op">-</span> <span class="dv">1</span>) <span class="op">+</span> memoized(k <span class="op">-</span> <span class="dv">2</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    naive_value <span class="op">=</span> naive(n)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    memoized_value <span class="op">=</span> memoized(n)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> naive_value <span class="op">==</span> memoized_value</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> naive_value, naive_calls, memo_calls</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>value, naive_count, memo_count <span class="op">=</span> compare_fibonacci_calls(<span class="dv">10</span>)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (value, naive_count, memo_count) <span class="op">==</span> (<span class="dv">55</span>, <span class="dv">177</span>, <span class="dv">11</span>)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(value, naive_count, memo_count)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The naive recursion takes <span class="math inline">\(\Theta(\varphi^n)\)</span> time, where <span class="math inline">\(\varphi\)</span> is the golden ratio, because its call tree grows exponentially. Memoization evaluates the <span class="math inline">\(n+1\)</span> states <span class="math inline">\(0\)</span> through <span class="math inline">\(n\)</span> once, taking <span class="math inline">\(O(n)\)</span> time and <span class="math inline">\(O(n)\)</span> cache plus recursion-stack space.</p>
+<p>Recognition is only the first step. An inefficient or incomplete state can still produce an exponential number of distinct entries. The remaining sections focus on making the state both sufficient and economical.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/climbing-stairs/">LeetCode 70 - Climbing Stairs</a> is a compact exercise in identifying repeated suffix lengths and converting a recurrence into linear work.</p>
 </section>
 <section id="state-transition-base-case-and-evaluation-order" class="level3">
 <h3 class="anchored" data-anchor-id="state-transition-base-case-and-evaluation-order"><strong>State, Transition, Base Case, and Evaluation Order</strong></h3>
+<p>A DP formulation has four inseparable parts.</p>
+<ol type="1">
+<li><strong>State meaning:</strong> a precise subproblem definition, including index conventions.</li>
+<li><strong>Transition:</strong> a complete partition of the legal final or next decisions.</li>
+<li><strong>Base cases:</strong> smallest states whose answers are known directly.</li>
+<li><strong>Evaluation order:</strong> an order in which every dependency is available before use.</li>
+</ol>
+<p>Consider maximum non-adjacent sum. Let <span class="math inline">\(v_0,\ldots,v_{n-1}\)</span> be non-negative values, and define <span class="math inline">\(dp[i]\)</span> as the maximum sum obtainable from the <strong>first <span class="math inline">\(i\)</span> values</strong> without selecting adjacent positions. The prefix convention matters: <span class="math inline">\(dp[0]\)</span> describes an empty prefix, while value <span class="math inline">\(v_{i-1}\)</span> is the last value inside state <span class="math inline">\(dp[i]\)</span>.</p>
+<p>Every optimal solution for the first <span class="math inline">\(i\)</span> values makes exactly one of two final decisions:</p>
+<ul>
+<li>skip <span class="math inline">\(v_{i-1}\)</span>, leaving the best answer <span class="math inline">\(dp[i-1]\)</span>;</li>
+<li>take <span class="math inline">\(v_{i-1}\)</span>, which forbids <span class="math inline">\(v_{i-2}\)</span> and leaves <span class="math inline">\(v_{i-1}+dp[i-2]\)</span>.</li>
+</ul>
+<p>Therefore,</p>
+<p><span class="math display">\[
+dp[i]=\max\left(dp[i-1],\;v_{i-1}+dp[i-2]\right),\qquad i\ge 2,
+\]</span></p>
+<p>with <span class="math inline">\(dp[0]=0\)</span> and <span class="math inline">\(dp[1]=v_0\)</span>. Here <span class="math inline">\(i\)</span> is a prefix length, <span class="math inline">\(v_{i-1}\)</span> is the final available value, and the two arguments of <code>max</code> represent the exhaustive skip/take cases. Because state <span class="math inline">\(i\)</span> depends only on smaller indices, increasing <span class="math inline">\(i\)</span> is a valid topological order.</p>
+<pre class="text"><code>MAX-NON-ADJACENT(values v[0..n-1])
+    if n = 0
+        return 0
+    dp[0] &lt;- 0
+    dp[1] &lt;- v[0]
+    for i &lt;- 2 to n
+        skip &lt;- dp[i-1]
+        take &lt;- v[i-1] + dp[i-2]
+        dp[i] &lt;- max(skip, take)
+    return dp[n]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/dp-state-transition.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>A complete DP formulation connects state meaning, transition, base cases, and dependency order.</figcaption>
+</figure>
+</div>
+<p>Correctness follows by induction on <span class="math inline">\(i\)</span>. Assume all smaller prefix states are optimal. Every feasible answer either excludes or includes the final value; the recurrence evaluates the optimal result in both disjoint cases and chooses the better one. The base states anchor the induction.</p>
+<details>
+<summary>
+Python implementation: maximum non-adjacent sum with an explicit state table
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> maximum_non_adjacent_sum(values: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the maximum sum of non-adjacent non-negative values."""</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(value <span class="op">&lt;</span> <span class="dv">0</span> <span class="cf">for</span> value <span class="kw">in</span> values):</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"this state definition assumes non-negative values"</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> values:</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">0</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># dp[i] means the best answer using values[:i].</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> (<span class="bu">len</span>(values) <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    dp[<span class="dv">1</span>] <span class="op">=</span> values[<span class="dv">0</span>]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>, <span class="bu">len</span>(values) <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        skip <span class="op">=</span> dp[i <span class="op">-</span> <span class="dv">1</span>]</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        take <span class="op">=</span> values[i <span class="op">-</span> <span class="dv">1</span>] <span class="op">+</span> dp[i <span class="op">-</span> <span class="dv">2</span>]</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        dp[i] <span class="op">=</span> <span class="bu">max</span>(skip, take)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> dp[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> maximum_non_adjacent_sum([<span class="dv">2</span>, <span class="dv">7</span>, <span class="dv">9</span>, <span class="dv">3</span>, <span class="dv">1</span>]) <span class="op">==</span> <span class="dv">12</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> maximum_non_adjacent_sum([]) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(maximum_non_adjacent_sum([<span class="dv">2</span>, <span class="dv">7</span>, <span class="dv">9</span>, <span class="dv">3</span>, <span class="dv">1</span>]))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>There are <span class="math inline">\(n+1\)</span> states and <span class="math inline">\(O(1)\)</span> work per state, so the algorithm takes <span class="math inline">\(O(n)\)</span> time and <span class="math inline">\(O(n)\)</span> table space. The dependency window has width two, so the value alone can later be compressed to <span class="math inline">\(O(1)\)</span> space. That optimization should be applied only after the full state and order are correct.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/house-robber/">LeetCode 198 - House Robber</a> directly tests the skip/take partition and prefix-state convention.</p>
 </section>
 <section id="memoization-and-tabulation" class="level3">
 <h3 class="anchored" data-anchor-id="memoization-and-tabulation"><strong>Memoization and Tabulation</strong></h3>
+<p><strong>Memoization</strong> and <strong>tabulation</strong> evaluate the same state graph in different ways.</p>
+<p>Memoization is top-down. The program starts from the requested target, follows recursive dependencies, and stores each completed answer in a cache. It often mirrors the mathematical recurrence and may avoid unreachable states. Its costs include function calls, recursion depth, and cache-key construction.</p>
+<p>Tabulation is bottom-up. The program explicitly chooses a dependency-respecting order and fills a table from base cases toward the target. It avoids recursion overhead, makes memory access predictable, and exposes opportunities for rolling-array optimization, but may compute states that the target never reaches.</p>
+<pre class="text"><code>TOP-DOWN(state s)
+    if s is a base state: return base value
+    if s is cached: return cache[s]
+    cache[s] &lt;- combine TOP-DOWN(predecessor) over dependencies
+    return cache[s]
+
+BOTTOM-UP(all states)
+    initialize every base state
+    for state s in topological dependency order
+        table[s] &lt;- combine table[predecessor] over dependencies
+    return table[target]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/memoization-tabulation.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>Memoization follows demanded recursive edges; tabulation fills the same DAG in an explicit order.</figcaption>
+</figure>
+</div>
+<p>For minimum climbing cost, let <span class="math inline">\(f(i)\)</span> be the minimum total cost paid when landing on step <span class="math inline">\(i\)</span>. The final move to <span class="math inline">\(i\)</span> comes from <span class="math inline">\(i-1\)</span> or <span class="math inline">\(i-2\)</span>:</p>
+<p><span class="math display">\[
+f(i)=cost[i]+\min(f(i-1),f(i-2)).
+\]</span></p>
+<p>The top lies immediately beyond the final step, so the answer is <span class="math inline">\(\min(f(n-1),f(n-2))\)</span>. The recursive version asks only for states reachable from those two targets; the iterative version computes the same values left to right.</p>
+<details>
+<summary>
+Python implementation: the same recurrence top-down and bottom-up
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> functools <span class="im">import</span> cache</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> minimum_climbing_cost_top_down(cost: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Pay a step's cost when landing on it; start from step 0 or 1."""</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(cost) <span class="op">&lt;</span> <span class="dv">2</span> <span class="kw">or</span> <span class="bu">any</span>(value <span class="op">&lt;</span> <span class="dv">0</span> <span class="cf">for</span> value <span class="kw">in</span> cost):</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"provide at least two non-negative step costs"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">@cache</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> reach(i: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> cost[i]</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> cost[i] <span class="op">+</span> <span class="bu">min</span>(reach(i <span class="op">-</span> <span class="dv">1</span>), reach(i <span class="op">-</span> <span class="dv">2</span>))</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">min</span>(reach(<span class="bu">len</span>(cost) <span class="op">-</span> <span class="dv">1</span>), reach(<span class="bu">len</span>(cost) <span class="op">-</span> <span class="dv">2</span>))</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> minimum_climbing_cost_bottom_up(cost: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(cost) <span class="op">&lt;</span> <span class="dv">2</span> <span class="kw">or</span> <span class="bu">any</span>(value <span class="op">&lt;</span> <span class="dv">0</span> <span class="cf">for</span> value <span class="kw">in</span> cost):</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"provide at least two non-negative step costs"</span>)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> cost.copy()</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>, <span class="bu">len</span>(dp)):</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>        dp[i] <span class="op">+=</span> <span class="bu">min</span>(dp[i <span class="op">-</span> <span class="dv">1</span>], dp[i <span class="op">-</span> <span class="dv">2</span>])</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">min</span>(dp[<span class="op">-</span><span class="dv">1</span>], dp[<span class="op">-</span><span class="dv">2</span>])</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>example <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">15</span>, <span class="dv">20</span>]</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> minimum_climbing_cost_top_down(example) <span class="op">==</span> <span class="dv">15</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> minimum_climbing_cost_bottom_up(example) <span class="op">==</span> <span class="dv">15</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(minimum_climbing_cost_top_down(example))</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(minimum_climbing_cost_bottom_up(example))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Both implementations have <span class="math inline">\(n\)</span> distinct states and <span class="math inline">\(O(1)\)</span> work per state, giving <span class="math inline">\(O(n)\)</span> time. Top-down uses <span class="math inline">\(O(n)\)</span> cache and recursion-stack space. The shown bottom-up table uses <span class="math inline">\(O(n)\)</span> space and can be reduced to two variables. On a sparse state graph, memoization may evaluate fewer states; on a dense regular table, tabulation is often simpler and faster in practice.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Memoization</th>
+<th>Tabulation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Starting point</td>
+<td>requested target</td>
+<td>base states</td>
+</tr>
+<tr class="even">
+<td>Order</td>
+<td>generated by recursion</td>
+<td>written explicitly</td>
+</tr>
+<tr class="odd">
+<td>Unreachable states</td>
+<td>usually skipped</td>
+<td>may be filled</td>
+</tr>
+<tr class="even">
+<td>Stack overflow risk</td>
+<td>possible</td>
+<td>absent</td>
+</tr>
+<tr class="odd">
+<td>Space compression</td>
+<td>less direct</td>
+<td>often straightforward</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/min-cost-climbing-stairs/">LeetCode 746 - Min Cost Climbing Stairs</a> lets you implement both evaluation styles over the same recurrence.</p>
 </section>
 <section id="one-dimensional-dynamic-programming" class="level3">
 <h3 class="anchored" data-anchor-id="one-dimensional-dynamic-programming"><strong>One-Dimensional Dynamic Programming</strong></h3>
+<p>One-dimensional DP usually processes a sequence, amount, or ordered set of positions. A common state is <code>dp[i]</code>, an answer for the first <span class="math inline">\(i\)</span> elements or for numeric target <span class="math inline">\(i\)</span>. This shape is effective when every transition depends on a bounded number of earlier positions or on earlier amounts.</p>
+<p>The important decision is not the array dimension but the <strong>meaning of the index</strong>. Prefix-length indexing often simplifies base cases because <code>dp[0]</code> naturally represents the empty prefix.</p>
+<p>Consider decoding a digit string where <code>1</code> through <code>26</code> map to letters. Define <span class="math inline">\(dp[i]\)</span> as the number of valid decodings of the first <span class="math inline">\(i\)</span> characters. The empty prefix has one neutral decoding, so <span class="math inline">\(dp[0]=1\)</span>. For each <span class="math inline">\(i\)</span>:</p>
+<ul>
+<li>if the one-digit token <span class="math inline">\(s[i-1]\)</span> is between 1 and 9, append it to every decoding counted by <span class="math inline">\(dp[i-1]\)</span>;</li>
+<li>if the two-digit token <span class="math inline">\(s[i-2:i]\)</span> is between 10 and 26, append it to every decoding counted by <span class="math inline">\(dp[i-2]\)</span>.</li>
+</ul>
+<p>Thus,</p>
+<p><span class="math display">\[
+dp[i]=\mathbf{1}_{1\le s[i-1]\le 9}\,dp[i-1]
++\mathbf{1}_{10\le s[i-2:i]\le 26}\,dp[i-2].
+\]</span></p>
+<p><span class="math inline">\(\mathbf{1}_{condition}\)</span> is 1 when its condition is true and 0 otherwise. The two terms count disjoint constructions according to the length of the final token. A zero cannot stand alone, but it can participate in <code>10</code> or <code>20</code>.</p>
+<pre class="text"><code>COUNT-DECODINGS(string s)
+    dp[0] &lt;- 1
+    for i &lt;- 1 to length(s)
+        dp[i] &lt;- 0
+        if s[i-1] is a valid one-digit code
+            dp[i] &lt;- dp[i] + dp[i-1]
+        if i &gt;= 2 and s[i-2:i] is a valid two-digit code
+            dp[i] &lt;- dp[i] + dp[i-2]
+    return dp[length(s)]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/one-dimensional-dp.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>For 226, each prefix state receives contributions from valid one-digit and two-digit final tokens.</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+Python implementation: count valid decodings
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> count_decodings(digits: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the number of decodings under the mapping 1..26 -&gt; A..Z."""</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> digits:</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">0</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> digits.isdigit():</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"digits must contain decimal characters only"</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> (<span class="bu">len</span>(digits) <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    dp[<span class="dv">0</span>] <span class="op">=</span> <span class="dv">1</span>  <span class="co"># One way to decode the empty prefix.</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(digits) <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> digits[i <span class="op">-</span> <span class="dv">1</span>] <span class="op">!=</span> <span class="st">"0"</span>:</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            dp[i] <span class="op">+=</span> dp[i <span class="op">-</span> <span class="dv">1</span>]</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> i <span class="op">&gt;=</span> <span class="dv">2</span> <span class="kw">and</span> <span class="dv">10</span> <span class="op">&lt;=</span> <span class="bu">int</span>(digits[i <span class="op">-</span> <span class="dv">2</span> : i]) <span class="op">&lt;=</span> <span class="dv">26</span>:</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>            dp[i] <span class="op">+=</span> dp[i <span class="op">-</span> <span class="dv">2</span>]</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> dp[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> count_decodings(<span class="st">"226"</span>) <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> count_decodings(<span class="st">"06"</span>) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> count_decodings(<span class="st">"2101"</span>) <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(count_decodings(<span class="st">"226"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>There are <span class="math inline">\(n+1\)</span> prefix states, each with at most two transitions, so time is <span class="math inline">\(O(n)\)</span> and the displayed table uses <span class="math inline">\(O(n)\)</span> space. Because state <span class="math inline">\(i\)</span> depends only on <span class="math inline">\(i-1\)</span> and <span class="math inline">\(i-2\)</span>, the count can be compressed to <span class="math inline">\(O(1)\)</span> space after correctness is established.</p>
+<p>Other one-dimensional patterns include minimum cost to reach a position, number of ways to form an amount, longest valid prefix, and finite-state parsing. The shared skill is deciding which earlier states can legally become the current state.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/decode-ways/">LeetCode 91 - Decode Ways</a> directly exercises prefix meaning, zero handling, and multiple predecessor states.</p>
 </section>
 <section id="knapsack-problems" class="level3">
 <h3 class="anchored" data-anchor-id="knapsack-problems"><strong>Knapsack Problems</strong></h3>
+<p>Knapsack DP models decisions that consume a limited resource. In <strong>0/1 knapsack</strong>, each item may be used at most once. Item <span class="math inline">\(i\)</span> has weight <span class="math inline">\(w_i\)</span>, value <span class="math inline">\(v_i\)</span>, and the total selected weight must not exceed capacity <span class="math inline">\(C\)</span>.</p>
+<p>Define <span class="math inline">\(dp[i][c]\)</span> as the maximum value obtainable using the first <span class="math inline">\(i\)</span> items with capacity at most <span class="math inline">\(c\)</span>. The final decision either excludes item <span class="math inline">\(i\)</span> or includes it when it fits:</p>
+<p><span class="math display">\[
+dp[i][c]=
+\begin{cases}
+dp[i-1][c], &amp; w_i&gt;c,\\
+\max\left(dp[i-1][c],\;dp[i-1][c-w_i]+v_i\right), &amp; w_i\le c.
+\end{cases}
+\]</span></p>
+<p><span class="math inline">\(i\)</span> is the number of available items, <span class="math inline">\(c\)</span> is the current capacity limit, and both alternatives use row <span class="math inline">\(i-1\)</span> because item <span class="math inline">\(i\)</span> cannot be reused. Base states <span class="math inline">\(dp[0][c]=0\)</span> and <span class="math inline">\(dp[i][0]=0\)</span> represent no items or no capacity.</p>
+<p>The item dimension can be compressed into one capacity array. The capacity loop must then run <strong>downward</strong>: before processing item <span class="math inline">\(i\)</span>, every <code>dp[c-w]</code> must still represent the previous item set. An upward loop would read values already updated by the same item and silently change the problem into unbounded knapsack.</p>
+<pre class="text"><code>ZERO-ONE-KNAPSACK(items, capacity C)
+    dp[0..C] &lt;- 0
+    for each item (weight w, value v)
+        for c &lt;- C down to w
+            dp[c] &lt;- max(dp[c], dp[c-w] + v)
+    return dp[C]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/knapsack-dp-animation.gif" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>The 0/1 knapsack table compares excluding and including each item across capacities.</figcaption>
+</figure>
+</div>
+<p><em>Visual source: <a href="https://commons.wikimedia.org/wiki/File:Knapsack_problem_dynamic_programming.gif">RDSEED, Knapsack problem dynamic programming</a>, CC BY-SA 4.0. The unchanged animation is stored locally for reliable rendering.</em></p>
+<details>
+<summary>
+Python implementation: space-optimized 0/1 knapsack value
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> zero_one_knapsack_value(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    items: <span class="bu">list</span>[<span class="bu">tuple</span>[<span class="bu">int</span>, <span class="bu">int</span>]], capacity: <span class="bu">int</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return maximum value when each (weight, value) item is used at most once."""</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> capacity <span class="op">&lt;</span> <span class="dv">0</span>:</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"capacity must be non-negative"</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(weight <span class="op">&lt;=</span> <span class="dv">0</span> <span class="kw">or</span> value <span class="op">&lt;</span> <span class="dv">0</span> <span class="cf">for</span> weight, value <span class="kw">in</span> items):</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"weights must be positive and values non-negative"</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> (capacity <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> weight, value <span class="kw">in</span> items:</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Descending capacity preserves the previous-item layer.</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> current_capacity <span class="kw">in</span> <span class="bu">range</span>(capacity, weight <span class="op">-</span> <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>            dp[current_capacity] <span class="op">=</span> <span class="bu">max</span>(</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>                dp[current_capacity],</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>                dp[current_capacity <span class="op">-</span> weight] <span class="op">+</span> value,</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> dp[capacity]</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>example_items <span class="op">=</span> [(<span class="dv">10</span>, <span class="dv">60</span>), (<span class="dv">20</span>, <span class="dv">100</span>), (<span class="dv">30</span>, <span class="dv">120</span>)]</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> zero_one_knapsack_value(example_items, <span class="dv">50</span>) <span class="op">==</span> <span class="dv">220</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(zero_one_knapsack_value(example_items, <span class="dv">50</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>For <span class="math inline">\(n\)</span> items and capacity <span class="math inline">\(C\)</span>, the algorithm takes <span class="math inline">\(O(nC)\)</span> time and <span class="math inline">\(O(C)\)</span> space. This is <strong>pseudo-polynomial</strong>: the cost is polynomial in the numeric capacity, not in the number of bits needed to encode <span class="math inline">\(C\)</span>. A capacity of one billion is therefore impractical even if the input contains few items.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variant</th>
+<th style="text-align: right;">Item reuse</th>
+<th>Capacity-loop direction in 1D</th>
+<th>Typical transition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0/1 knapsack</td>
+<td style="text-align: right;">at most once</td>
+<td>descending</td>
+<td>previous layer only</td>
+</tr>
+<tr class="even">
+<td>Unbounded knapsack</td>
+<td style="text-align: right;">unlimited</td>
+<td>ascending</td>
+<td>current layer may reuse item</td>
+</tr>
+<tr class="odd">
+<td>Bounded knapsack</td>
+<td style="text-align: right;">limited count</td>
+<td>decomposition or count state</td>
+<td>track remaining multiplicity</td>
+</tr>
+<tr class="even">
+<td>Subset sum</td>
+<td style="text-align: right;">at most once</td>
+<td>descending</td>
+<td>boolean reachability</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/partition-equal-subset-sum/">LeetCode 416 - Partition Equal Subset Sum</a> reframes equal partitioning as 0/1 subset-sum feasibility.</p>
 </section>
 <section id="subsequence-dynamic-programming" class="level3">
 <h3 class="anchored" data-anchor-id="subsequence-dynamic-programming"><strong>Subsequence Dynamic Programming</strong></h3>
+<p>A <strong>subsequence</strong> preserves relative order but may delete elements; a substring or subarray must remain contiguous. Subsequence problems often compare prefixes of one or two sequences because the final characters create a small, complete set of cases.</p>
+<p>For strings <span class="math inline">\(x\)</span> and <span class="math inline">\(y\)</span>, define <span class="math inline">\(dp[i][j]\)</span> as the length of the longest common subsequence (LCS) between prefixes <span class="math inline">\(x[:i]\)</span> and <span class="math inline">\(y[:j]\)</span>. If the final characters match, they can extend an optimal solution for both shorter prefixes. If they differ, at least one final character is absent from an optimal common subsequence:</p>
+<p><span class="math display">\[
+dp[i][j]=
+\begin{cases}
+dp[i-1][j-1]+1, &amp; x_{i-1}=y_{j-1},\\
+\max(dp[i-1][j],dp[i][j-1]), &amp; x_{i-1}\ne y_{j-1}.
+\end{cases}
+\]</span></p>
+<p><span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span> are prefix lengths. The diagonal state removes both final characters, while the upper and left states remove one. Row 0 and column 0 are zero because an empty sequence has no nonempty common subsequence.</p>
+<pre class="text"><code>LCS-LENGTH(x, y)
+    initialize dp[0][j] and dp[i][0] to 0
+    for i &lt;- 1 to length(x)
+        for j &lt;- 1 to length(y)
+            if x[i-1] = y[j-1]
+                dp[i][j] &lt;- dp[i-1][j-1] + 1
+            else
+                dp[i][j] &lt;- max(dp[i-1][j], dp[i][j-1])
+    return dp[length(x)][length(y)]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/sequence-alignment-dp.png" class="img-fluid figure-img" style="width:62.0%"></p>
+<figcaption>Sequence alignment fills a two-dimensional prefix matrix and traces optimal predecessor choices.</figcaption>
+</figure>
+</div>
+<p><em>Visual source: <a href="https://commons.wikimedia.org/wiki/File:Needleman-Wunsch_pairwise_sequence_alignment.png">Slowkow, Needleman-Wunsch pairwise sequence alignment</a>, CC0. Needleman-Wunsch uses match, mismatch, and gap scores, but its prefix-state geometry is the same family as LCS and edit-distance DP.</em></p>
+<details>
+<summary>
+Python implementation: longest common subsequence length
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> longest_common_subsequence_length(first: <span class="bu">str</span>, second: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the LCS length using a full prefix table."""</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> <span class="bu">len</span>(first) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> <span class="bu">len</span>(second) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [[<span class="dv">0</span>] <span class="op">*</span> columns <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(rows)]</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, rows):</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, columns):</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> first[i <span class="op">-</span> <span class="dv">1</span>] <span class="op">==</span> second[j <span class="op">-</span> <span class="dv">1</span>]:</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>                dp[i][j] <span class="op">=</span> dp[i <span class="op">-</span> <span class="dv">1</span>][j <span class="op">-</span> <span class="dv">1</span>] <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>                dp[i][j] <span class="op">=</span> <span class="bu">max</span>(dp[i <span class="op">-</span> <span class="dv">1</span>][j], dp[i][j <span class="op">-</span> <span class="dv">1</span>])</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> dp[<span class="op">-</span><span class="dv">1</span>][<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> longest_common_subsequence_length(<span class="st">"abcde"</span>, <span class="st">"ace"</span>) <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> longest_common_subsequence_length(<span class="st">"abc"</span>, <span class="st">"def"</span>) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(longest_common_subsequence_length(<span class="st">"abcde"</span>, <span class="st">"ace"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>For lengths <span class="math inline">\(m\)</span> and <span class="math inline">\(n\)</span>, the table has <span class="math inline">\((m+1)(n+1)\)</span> states and <span class="math inline">\(O(1)\)</span> work per state, giving <span class="math inline">\(O(mn)\)</span> time and <span class="math inline">\(O(mn)\)</span> space. If only the length is needed, one row can be rolled to <span class="math inline">\(O(\min(m,n))\)</span> space. Recovering an actual subsequence requires additional decisions or recomputation, addressed later.</p>
+<p>Related formulations include edit distance, sequence alignment, shortest common supersequence, and <span class="math inline">\(O(n^2)\)</span> longest increasing subsequence. They differ in transition semantics, not merely in table dimensions.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/longest-common-subsequence/">LeetCode 1143 - Longest Common Subsequence</a> directly tests two-prefix state design and diagonal/upper/left transitions.</p>
 </section>
 <section id="grid-and-multidimensional-dynamic-programming" class="level3">
 <h3 class="anchored" data-anchor-id="grid-and-multidimensional-dynamic-programming"><strong>Grid and Multidimensional Dynamic Programming</strong></h3>
+<p>Grid DP uses coordinates as state dimensions. A state such as <span class="math inline">\(dp[r][c]\)</span> may represent the number of paths to cell <span class="math inline">\((r,c)\)</span>, the minimum cost of reaching it, or the best score obtainable after processing that position. The movement rules determine predecessor cells and therefore the valid evaluation order.</p>
+<p>If movement is restricted to right and down, every path into <span class="math inline">\((r,c)\)</span> ends at either <span class="math inline">\((r-1,c)\)</span> or <span class="math inline">\((r,c-1)\)</span>. The path-count recurrence is</p>
+<p><span class="math display">\[
+ways[r][c]=ways[r-1][c]+ways[r][c-1].
+\]</span></p>
+<p><span class="math inline">\(r\)</span> and <span class="math inline">\(c\)</span> identify the current row and column. The first term counts paths whose final move is down; the second counts paths whose final move is right. These sets are disjoint and exhaustive. Obstacles set selected states to zero rather than changing the dependency pattern.</p>
+<p>For minimum path sum over cell costs <span class="math inline">\(g[r][c]\)</span>, replace addition of counts with minimization of predecessor costs:</p>
+<p><span class="math display">\[
+cost[r][c]=g[r][c]+\min(cost[r-1][c],cost[r][c-1]).
+\]</span></p>
+<pre class="text"><code>MINIMUM-GRID-PATH(grid g with R rows and C columns)
+    dp[0] &lt;- 0
+    dp[1..C] &lt;- infinity
+    for r &lt;- 0 to R-1
+        for c &lt;- 0 to C-1
+            from_above &lt;- dp[c]
+            from_left &lt;- dp[c-1] when c &gt; 0, otherwise infinity
+            dp[c] &lt;- g[r][c] + min(from_above, from_left)
+    return dp[C-1]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/grid-path-counts.svg" class="img-fluid figure-img" style="width:58.0%"></p>
+<figcaption>Numbers on the grid count paths from the origin when each state receives transitions from above and left.</figcaption>
+</figure>
+</div>
+<p><em>Visual source: <a href="https://commons.wikimedia.org/wiki/File:Pascal%27s_triangle_pathways.svg">Pascal’s triangle pathways</a>, public domain. The same dependency pattern supports path counts and minimum path costs.</em></p>
+<details>
+<summary>
+Python implementation: minimum path sum with one rolling row
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> minimum_grid_path_sum(grid: <span class="bu">list</span>[<span class="bu">list</span>[<span class="bu">int</span>]]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Move only right/down from top-left to bottom-right."""</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> grid <span class="kw">or</span> <span class="kw">not</span> grid[<span class="dv">0</span>]:</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"grid must be non-empty"</span>)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> <span class="bu">len</span>(grid[<span class="dv">0</span>])</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(<span class="bu">len</span>(row) <span class="op">!=</span> columns <span class="cf">for</span> row <span class="kw">in</span> grid):</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"grid must be rectangular"</span>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [inf] <span class="op">*</span> columns</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> row_index, row <span class="kw">in</span> <span class="bu">enumerate</span>(grid):</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> column_index, cell_cost <span class="kw">in</span> <span class="bu">enumerate</span>(row):</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> row_index <span class="op">==</span> <span class="dv">0</span> <span class="kw">and</span> column_index <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>                dp[<span class="dv">0</span>] <span class="op">=</span> cell_cost</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>            from_above <span class="op">=</span> dp[column_index]</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>            from_left <span class="op">=</span> dp[column_index <span class="op">-</span> <span class="dv">1</span>] <span class="cf">if</span> column_index <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> inf</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>            dp[column_index] <span class="op">=</span> cell_cost <span class="op">+</span> <span class="bu">min</span>(from_above, from_left)</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">int</span>(dp[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>example_grid <span class="op">=</span> [[<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">1</span>], [<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">1</span>], [<span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">1</span>]]</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> minimum_grid_path_sum(example_grid) <span class="op">==</span> <span class="dv">7</span></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(minimum_grid_path_sum(example_grid))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>For <span class="math inline">\(R\)</span> rows and <span class="math inline">\(C\)</span> columns, every cell is processed once, so time is <span class="math inline">\(O(RC)\)</span>. The rolling row uses <span class="math inline">\(O(C)\)</span> space because the current state needs only the value above, still stored at <code>dp[c]</code>, and the value to the left, already updated at <code>dp[c-1]</code>.</p>
+<p>Additional dimensions may encode remaining resources, direction, parity, visited masks, or time. Their product determines the number of states, so a “polynomial” recurrence can still be impractical if unnecessary information is placed in the state.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/minimum-path-sum/">LeetCode 64 - Minimum Path Sum</a> directly exercises grid dependencies and rolling-row evaluation.</p>
 </section>
 <section id="interval-dynamic-programming" class="level3">
 <h3 class="anchored" data-anchor-id="interval-dynamic-programming"><strong>Interval Dynamic Programming</strong></h3>
+<p>Interval DP uses a state <span class="math inline">\(dp[i][j]\)</span> for a contiguous range from index <span class="math inline">\(i\)</span> through <span class="math inline">\(j\)</span>. It is appropriate when the final operation splits, removes, or encloses an interval and leaves smaller intervals whose answers can be combined.</p>
+<p>Unlike prefix DP, row-major order is usually invalid: <span class="math inline">\(dp[i][j]\)</span> may depend on states with both larger starting indices and smaller ending indices. The safe order is increasing interval length. All length-1 states are base cases, then length 2, and so on.</p>
+<p>Matrix-chain multiplication is the classic example. Matrices <span class="math inline">\(A_1,\ldots,A_n\)</span> have dimensions <span class="math inline">\(p_0\times p_1,p_1\times p_2,\ldots,p_{n-1}\times p_n\)</span>. Matrix multiplication is associative, but parenthesizations perform different numbers of scalar multiplications.</p>
+<p>Let <span class="math inline">\(dp[i][j]\)</span> be the minimum cost to multiply <span class="math inline">\(A_i\cdots A_j\)</span>. If the final multiplication splits after <span class="math inline">\(A_k\)</span>, the left result has dimensions <span class="math inline">\(p_{i-1}\times p_k\)</span> and the right result has dimensions <span class="math inline">\(p_k\times p_j\)</span>:</p>
+<p><span class="math display">\[
+dp[i][j]=\min_{i\le k&lt;j}\left(dp[i][k]+dp[k+1][j]+p_{i-1}p_kp_j\right).
+\]</span></p>
+<p><span class="math inline">\(k\)</span> enumerates every possible final split. The first two terms optimally construct the child products, and <span class="math inline">\(p_{i-1}p_kp_j\)</span> is the scalar cost of multiplying those two resulting matrices.</p>
+<pre class="text"><code>MATRIX-CHAIN(dimensions p[0..n])
+    dp[i][i] &lt;- 0 for every matrix i
+    for length &lt;- 2 to n
+        for each interval [i, j] of this length
+            dp[i][j] &lt;- infinity
+            for k &lt;- i to j-1
+                candidate &lt;- dp[i][k] + dp[k+1][j] + p[i-1]*p[k]*p[j]
+                dp[i][j] &lt;- min(dp[i][j], candidate)
+    return dp[1][n]</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/interval-dp-order.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>Interval states occupy an upper-triangular table and are filled by increasing length; each split combines two shorter intervals.</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+Python implementation: minimum matrix-chain multiplication cost
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> matrix_chain_minimum_cost(dimensions: <span class="bu">list</span>[<span class="bu">int</span>]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return minimum scalar multiplications for the implied matrix chain."""</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(dimensions) <span class="op">&lt;</span> <span class="dv">2</span> <span class="kw">or</span> <span class="bu">any</span>(size <span class="op">&lt;=</span> <span class="dv">0</span> <span class="cf">for</span> size <span class="kw">in</span> dimensions):</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"dimensions must contain positive matrix dimensions"</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    matrix_count <span class="op">=</span> <span class="bu">len</span>(dimensions) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [[<span class="dv">0</span>] <span class="op">*</span> matrix_count <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(matrix_count)]</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> length <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>, matrix_count <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> left <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, matrix_count <span class="op">-</span> length <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>            right <span class="op">=</span> left <span class="op">+</span> length <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>            dp[left][right] <span class="op">=</span> inf</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> split <span class="kw">in</span> <span class="bu">range</span>(left, right):</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>                combine_cost <span class="op">=</span> (</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>                    dimensions[left]</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a>                    <span class="op">*</span> dimensions[split <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a>                    <span class="op">*</span> dimensions[right <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>                candidate <span class="op">=</span> (</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>                    dp[left][split]</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>                    <span class="op">+</span> dp[split <span class="op">+</span> <span class="dv">1</span>][right]</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>                    <span class="op">+</span> combine_cost</span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a>                dp[left][right] <span class="op">=</span> <span class="bu">min</span>(dp[left][right], candidate)</span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">int</span>(dp[<span class="dv">0</span>][matrix_count <span class="op">-</span> <span class="dv">1</span>]) <span class="cf">if</span> matrix_count <span class="cf">else</span> <span class="dv">0</span></span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> matrix_chain_minimum_cost([<span class="dv">10</span>, <span class="dv">30</span>, <span class="dv">5</span>, <span class="dv">60</span>]) <span class="op">==</span> <span class="dv">4500</span></span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> matrix_chain_minimum_cost([<span class="dv">10</span>, <span class="dv">20</span>]) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(matrix_chain_minimum_cost([<span class="dv">10</span>, <span class="dv">30</span>, <span class="dv">5</span>, <span class="dv">60</span>]))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>There are <span class="math inline">\(O(n^2)\)</span> intervals and up to <span class="math inline">\(O(n)\)</span> split points per interval, giving <span class="math inline">\(O(n^3)\)</span> time and <span class="math inline">\(O(n^2)\)</span> space. The cubic bound arises from the three independent choices <code>left</code>, <code>right</code>, and <code>split</code>, not from using a two-dimensional array alone.</p>
+<p>Other interval formulations include palindrome problems, optimal binary search trees, polygon triangulation, and removing elements whose reward depends on their surviving neighbors.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/burst-balloons/">LeetCode 312 - Burst Balloons</a> becomes an interval DP after reversing the perspective from “which balloon is first” to “which balloon is last inside this interval.”</p>
 </section>
 <section id="solution-reconstruction-and-space-optimization" class="level3">
 <h3 class="anchored" data-anchor-id="solution-reconstruction-and-space-optimization"><strong>Solution Reconstruction and Space Optimization</strong></h3>
+<p>An optimization DP can have two different output contracts:</p>
+<ul>
+<li>return only the optimal objective value;</li>
+<li>return a <strong>witness</strong>: the chosen items, path, subsequence, parenthesization, or edit operations.</li>
+</ul>
+<p>The value table does not always identify the witness uniquely. Reconstruction usually stores a parent decision for each state or compares neighboring values while walking backward. If several predecessors tie, any consistent tie rule returns one optimal witness; enumerating all optimal witnesses is a different and potentially much larger problem.</p>
+<p>Space optimization exploits the width of the dependency window. If row <span class="math inline">\(i\)</span> depends only on row <span class="math inline">\(i-1\)</span>, older rows can be overwritten. However, those rows may contain the predecessor information required for reconstruction. The correct optimization depends on the output contract.</p>
+<pre class="text"><code>RECONSTRUCT-LCS(x, y, table dp)
+    i &lt;- length(x), j &lt;- length(y), answer &lt;- empty
+    while i &gt; 0 and j &gt; 0
+        if x[i-1] = y[j-1]
+            append x[i-1] to answer
+            i &lt;- i-1, j &lt;- j-1
+        else if dp[i-1][j] &gt;= dp[i][j-1]
+            i &lt;- i-1
+        else
+            j &lt;- j-1
+    reverse answer
+    return answer</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/dp-reconstruction-space.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>A full table supports parent-pointer backtracking; rolling rows preserve objective values but may discard the path.</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+Python implementation: compute and reconstruct one longest common subsequence
+</summary>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> longest_common_subsequence(first: <span class="bu">str</span>, second: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return one LCS; ties are resolved by moving upward first."""</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> <span class="bu">len</span>(first) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    columns <span class="op">=</span> <span class="bu">len</span>(second) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [[<span class="dv">0</span>] <span class="op">*</span> columns <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(rows)]</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, rows):</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, columns):</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> first[i <span class="op">-</span> <span class="dv">1</span>] <span class="op">==</span> second[j <span class="op">-</span> <span class="dv">1</span>]:</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>                dp[i][j] <span class="op">=</span> dp[i <span class="op">-</span> <span class="dv">1</span>][j <span class="op">-</span> <span class="dv">1</span>] <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>                dp[i][j] <span class="op">=</span> <span class="bu">max</span>(dp[i <span class="op">-</span> <span class="dv">1</span>][j], dp[i][j <span class="op">-</span> <span class="dv">1</span>])</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Walk backward from the target state through an optimal predecessor.</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>    i, j <span class="op">=</span> <span class="bu">len</span>(first), <span class="bu">len</span>(second)</span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    reversed_answer: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> []</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> i <span class="op">&gt;</span> <span class="dv">0</span> <span class="kw">and</span> j <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> first[i <span class="op">-</span> <span class="dv">1</span>] <span class="op">==</span> second[j <span class="op">-</span> <span class="dv">1</span>]:</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>            reversed_answer.append(first[i <span class="op">-</span> <span class="dv">1</span>])</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>            i <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>            j <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> dp[i <span class="op">-</span> <span class="dv">1</span>][j] <span class="op">&gt;=</span> dp[i][j <span class="op">-</span> <span class="dv">1</span>]:</span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>            i <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a>            j <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">""</span>.join(<span class="bu">reversed</span>(reversed_answer))</span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_subsequence(candidate: <span class="bu">str</span>, sequence: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a>    iterator <span class="op">=</span> <span class="bu">iter</span>(sequence)</span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">all</span>(character <span class="kw">in</span> iterator <span class="cf">for</span> character <span class="kw">in</span> candidate)</span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>answer <span class="op">=</span> longest_common_subsequence(<span class="st">"ABCBDAB"</span>, <span class="st">"BDCABA"</span>)</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(answer) <span class="op">==</span> <span class="dv">4</span></span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> is_subsequence(answer, <span class="st">"ABCBDAB"</span>)</span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> is_subsequence(answer, <span class="st">"BDCABA"</span>)</span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(answer)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The full LCS algorithm takes <span class="math inline">\(O(mn)\)</span> time and <span class="math inline">\(O(mn)\)</span> space, followed by <span class="math inline">\(O(m+n)\)</span> backtracking time. If only the length is needed, rolling rows reduce space to <span class="math inline">\(O(\min(m,n))\)</span>. Hirschberg’s algorithm can reconstruct an LCS in linear space by combining rolling-row computations with divide-and-conquer, trading simplicity for a more advanced reconstruction method.</p>
+<p>Before compressing memory, ask which values remain live, whether updates need old or new values, and whether the final output requires a path. Space optimization is a dependency analysis, not a mechanical replacement of arrays with variables.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/shortest-common-supersequence/">LeetCode 1092 - Shortest Common Supersequence</a> requires an actual sequence, making reconstruction part of the problem rather than an optional afterthought.</p>
 </section>
 <section id="dynamic-programming-greedy-and-backtracking" class="level3">
 <h3 class="anchored" data-anchor-id="dynamic-programming-greedy-and-backtracking"><strong>Dynamic Programming, Greedy, and Backtracking</strong></h3>
+<p>These techniques can begin from the same decision tree but preserve different information.</p>
+<p>Greedy follows one path after proving each commitment safe. Backtracking keeps distinct histories because their future feasibility may differ. Dynamic programming keeps all relevant alternatives but merges histories that have the same future-relevant state and retains only the best value, count, or feasibility result for that state.</p>
+<pre class="text"><code>SELECT-A-STRATEGY(problem)
+    if one local choice can be proved safe
+        use greedy
+    else if equivalent future states recur under many histories
+        define and cache/tabulate those states with DP
+    else if distinct histories must remain distinct
+        use backtracking or another state-space search</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="assets/dp-strategy-comparison.svg" class="img-fluid figure-img" style="width:100.0%"></p>
+<figcaption>Greedy commits to one path, DP merges equivalent states, and backtracking explores the choice tree.</figcaption>
+</figure>
+</div>
+<p>Coin change with denominations <span class="math inline">\(\{1,3,4\}\)</span> and target 6 provides a clean comparison. Largest-first greedy returns <span class="math inline">\(4+1+1\)</span> and is wrong. Backtracking finds <span class="math inline">\(3+3\)</span> but revisits the same remaining amounts through many orderings. DP stores the best result for each amount and merges those histories.</p>
+<details>
+<summary>
+Python implementation: compare greedy, backtracking, and DP on the same state space
+</summary>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> greedy_coin_count(coins: <span class="bu">list</span>[<span class="bu">int</span>], amount: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    count <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> coin <span class="kw">in</span> <span class="bu">sorted</span>(coins, reverse<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>        used, amount <span class="op">=</span> <span class="bu">divmod</span>(amount, coin)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>        count <span class="op">+=</span> used</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> count <span class="cf">if</span> amount <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> backtracking_coin_count(coins: <span class="bu">list</span>[<span class="bu">int</span>], amount: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Exact but intentionally uncached; useful only for small examples."""</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> search(remaining: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> remaining <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="dv">0</span></span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>        best <span class="op">=</span> inf</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> coin <span class="kw">in</span> coins:</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> coin <span class="op">&lt;=</span> remaining:</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>                best <span class="op">=</span> <span class="bu">min</span>(best, <span class="dv">1</span> <span class="op">+</span> search(remaining <span class="op">-</span> coin))</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> best</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> search(amount)</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span> <span class="cf">if</span> result <span class="op">==</span> inf <span class="cf">else</span> <span class="bu">int</span>(result)</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dynamic_programming_coin_count(coins: <span class="bu">list</span>[<span class="bu">int</span>], amount: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true" tabindex="-1"></a>    dp <span class="op">=</span> [<span class="dv">0</span>] <span class="op">+</span> [inf] <span class="op">*</span> amount</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> current <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, amount <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> coin <span class="kw">in</span> coins:</span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> coin <span class="op">&lt;=</span> current:</span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true" tabindex="-1"></a>                dp[current] <span class="op">=</span> <span class="bu">min</span>(dp[current], <span class="dv">1</span> <span class="op">+</span> dp[current <span class="op">-</span> coin])</span>
+<span id="cb20-33"><a href="#cb20-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">None</span> <span class="cf">if</span> dp[amount] <span class="op">==</span> inf <span class="cf">else</span> <span class="bu">int</span>(dp[amount])</span>
+<span id="cb20-34"><a href="#cb20-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-35"><a href="#cb20-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-36"><a href="#cb20-36" aria-hidden="true" tabindex="-1"></a>coins <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">4</span>]</span>
+<span id="cb20-37"><a href="#cb20-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> greedy_coin_count(coins, <span class="dv">6</span>) <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb20-38"><a href="#cb20-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> backtracking_coin_count(coins, <span class="dv">6</span>) <span class="op">==</span> <span class="dv">2</span></span>
+<span id="cb20-39"><a href="#cb20-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> dynamic_programming_coin_count(coins, <span class="dv">6</span>) <span class="op">==</span> <span class="dv">2</span></span>
+<span id="cb20-40"><a href="#cb20-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"greedy:"</span>, greedy_coin_count(coins, <span class="dv">6</span>))</span>
+<span id="cb20-41"><a href="#cb20-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"backtracking:"</span>, backtracking_coin_count(coins, <span class="dv">6</span>))</span>
+<span id="cb20-42"><a href="#cb20-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"dynamic programming:"</span>, dynamic_programming_coin_count(coins, <span class="dv">6</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>For <span class="math inline">\(k\)</span> coin types and target <span class="math inline">\(A\)</span>, the greedy rule takes <span class="math inline">\(O(k\log k)\)</span> time but lacks correctness for arbitrary denominations. The uncached backtracking recursion can grow exponentially with <span class="math inline">\(A\)</span>. DP takes <span class="math inline">\(O(kA)\)</span> time and <span class="math inline">\(O(A)\)</span> space by solving each remaining amount once.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Structural question</th>
+<th>Greedy</th>
+<th>Dynamic programming</th>
+<th>Backtracking</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Must alternatives be retained?</td>
+<td>no, after safety proof</td>
+<td>yes, but merge equal states</td>
+<td>yes, keep distinct histories</td>
+</tr>
+<tr class="even">
+<td>Typical correctness tool</td>
+<td>exchange / stays-ahead</td>
+<td>recurrence + induction</td>
+<td>exhaustive coverage + safe pruning</td>
+</tr>
+<tr class="odd">
+<td>Repeated equivalent states</td>
+<td>discarded by proof</td>
+<td>cached or tabulated</td>
+<td>often recomputed unless memoized</td>
+</tr>
+<tr class="even">
+<td>Typical worst-case scale</td>
+<td>linear or sorting-dominated</td>
+<td>number of states times transitions</td>
+<td>exponential search tree</td>
+</tr>
+</tbody>
+</table>
+<p>Choose DP when you can state what makes two partial histories equivalent for every possible continuation. If that equivalence cannot be expressed compactly, backtracking may be necessary. If one alternative can be proved permanently dominant, greedy is simpler and usually faster.</p>
+<p><strong>Practice:</strong> <a href="https://leetcode.com/problems/word-break/">LeetCode 139 - Word Break</a> is a strong recognition exercise: naive segmentation revisits suffixes, while a prefix-feasibility state merges equivalent histories.</p>
 </section>
 </section>
 
