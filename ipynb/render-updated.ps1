@@ -6,9 +6,19 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $quarto = Get-Command quarto -ErrorAction SilentlyContinue
+$sharedCss = Join-Path $root "blog-images.css"
+$lightboxFilter = Join-Path $root "lightbox-all.lua"
 
 if (-not $quarto) {
     throw "quarto was not found in PATH. Install Quarto or add it to PATH before running this script."
+}
+
+if (-not (Test-Path -LiteralPath $sharedCss -PathType Leaf)) {
+    throw "Shared notebook stylesheet was not found: $sharedCss"
+}
+
+if (-not (Test-Path -LiteralPath $lightboxFilter -PathType Leaf)) {
+    throw "Shared Lightbox filter was not found: $lightboxFilter"
 }
 
 $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
@@ -120,10 +130,30 @@ foreach ($notebook in $notebooks) {
         $reason = "notebook newer"
     }
 
-    Write-Host "[render] $($notebook.FullName) ($reason)"
-    & quarto render $notebook.FullName --to html
+    $relativeDirectory = $notebook.DirectoryName.Substring($root.Length).TrimStart('\', '/')
+    $directoryDepth = 0
+    if ($relativeDirectory) {
+        $directoryDepth = ($relativeDirectory -split '[\\/]').Count
+    }
 
-    if ($LASTEXITCODE -ne 0) {
+    $rootPathParts = @()
+    for ($level = 0; $level -lt $directoryDepth; $level += 1) {
+        $rootPathParts += ".."
+    }
+    $relativeCssPath = ($rootPathParts + "blog-images.css") -join "/"
+    $relativeLightboxFilterPath = ($rootPathParts + "lightbox-all.lua") -join "/"
+
+    Write-Host "[render] $($notebook.FullName) ($reason)"
+
+    Push-Location -LiteralPath $notebook.DirectoryName
+    try {
+        & quarto render $notebook.Name --to html -M lightbox:true --css $relativeCssPath --lua-filter $relativeLightboxFilterPath
+        $renderExitCode = $LASTEXITCODE
+    } finally {
+        Pop-Location
+    }
+
+    if ($renderExitCode -ne 0) {
         throw "quarto render failed for $($notebook.FullName)"
     }
 

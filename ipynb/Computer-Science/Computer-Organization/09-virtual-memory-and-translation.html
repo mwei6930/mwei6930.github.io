@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Computer Organization and Architecture: Virtual Memory and Address Translation</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="09-virtual-memory-and-translation_files/libs/clipboard/clipboard.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/quarto.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/popper.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/anchor.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="../../blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#virtual-memory-and-address-translation" id="toc-virtual-memory-and-address-translation" class="nav-link active" data-scroll-target="#virtual-memory-and-address-translation"><strong>Virtual Memory and Address Translation</strong></a>
+  <ul>
+  <li><a href="#why-virtual-memory-exists" id="toc-why-virtual-memory-exists" class="nav-link" data-scroll-target="#why-virtual-memory-exists"><strong>Why Virtual Memory Exists</strong></a></li>
+  <li><a href="#virtual-and-physical-address-spaces" id="toc-virtual-and-physical-address-spaces" class="nav-link" data-scroll-target="#virtual-and-physical-address-spaces"><strong>Virtual and Physical Address Spaces</strong></a></li>
+  <li><a href="#pages-frames-and-address-translation" id="toc-pages-frames-and-address-translation" class="nav-link" data-scroll-target="#pages-frames-and-address-translation"><strong>Pages, Frames, and Address Translation</strong></a></li>
+  <li><a href="#page-tables" id="toc-page-tables" class="nav-link" data-scroll-target="#page-tables"><strong>Page Tables</strong></a>
+  <ul>
+  <li><a href="#single-level-page-tables" id="toc-single-level-page-tables" class="nav-link" data-scroll-target="#single-level-page-tables"><strong>Single-Level Page Tables</strong></a></li>
+  <li><a href="#multi-level-page-tables" id="toc-multi-level-page-tables" class="nav-link" data-scroll-target="#multi-level-page-tables"><strong>Multi-Level Page Tables</strong></a></li>
+  <li><a href="#page-table-entries" id="toc-page-table-entries" class="nav-link" data-scroll-target="#page-table-entries"><strong>Page-Table Entries</strong></a></li>
+  </ul></li>
+  <li><a href="#translation-lookaside-buffers" id="toc-translation-lookaside-buffers" class="nav-link" data-scroll-target="#translation-lookaside-buffers"><strong>Translation Lookaside Buffers</strong></a></li>
+  <li><a href="#page-faults-and-demand-paging" id="toc-page-faults-and-demand-paging" class="nav-link" data-scroll-target="#page-faults-and-demand-paging"><strong>Page Faults and Demand Paging</strong></a></li>
+  <li><a href="#protection-privilege-and-sharing" id="toc-protection-privilege-and-sharing" class="nav-link" data-scroll-target="#protection-privilege-and-sharing"><strong>Protection, Privilege, and Sharing</strong></a></li>
+  <li><a href="#the-complete-tlb-cache-memory-access-path" id="toc-the-complete-tlb-cache-memory-access-path" class="nav-link" data-scroll-target="#the-complete-tlb-cache-memory-access-path"><strong>The Complete TLB-Cache-Memory Access Path</strong></a></li>
+  <li><a href="#translation-performance-and-memory-overheads" id="toc-translation-performance-and-memory-overheads" class="nav-link" data-scroll-target="#translation-performance-and-memory-overheads"><strong>Translation Performance and Memory Overheads</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Computer Organization and Architecture: Virtual Memory and Address Translation</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p><a href="Computer-Organization.html">Back to Computer Organization and Architecture guideline</a></p>
+<section id="virtual-memory-and-address-translation" class="level2">
+<h2 class="anchored" data-anchor-id="virtual-memory-and-address-translation"><strong>Virtual Memory and Address Translation</strong></h2>
+<p>Chapter 08 followed a physical address through the cache hierarchy. Real programs usually do not generate that physical address directly. An instruction fetch, load, or store first produces a <strong>virtual address</strong>. The memory-management unit (MMU) translates it, verifies that the requested operation is permitted, and only then allows the cache and memory system to serve the request.</p>
+<p>Virtual memory is therefore more than a way to use storage when RAM is full. It is an architectural contract jointly implemented by the processor and operating system. Hardware performs fast translation and permission checks; the operating system creates page tables, decides which mappings exist, and handles exceptional cases. This chapter keeps the focus on that hardware-software boundary.</p>
+<section id="why-virtual-memory-exists" class="level3">
+<h3 class="anchored" data-anchor-id="why-virtual-memory-exists"><strong>Why Virtual Memory Exists</strong></h3>
+<p>Without virtual memory, a program would need to know where its bytes physically reside. Loading several programs would require finding non-overlapping physical ranges, moving a program could invalidate every stored pointer, and one program could accidentally name another program’s data. Physical fragmentation and changing memory demand would leak into ordinary application logic.</p>
+<p>Virtual memory inserts a level of indirection. A process works with a stable, mostly contiguous address space, while page-table mappings place its pages in any available physical frames. This indirection supports four closely related goals:</p>
+<ul>
+<li><strong>Isolation:</strong> private mappings prevent one process from accessing another process’s frames.</li>
+<li><strong>Relocation:</strong> virtual addresses remain unchanged when physical placement changes.</li>
+<li><strong>Demand allocation:</strong> unused or inactive virtual pages need not occupy RAM immediately.</li>
+<li><strong>Controlled sharing:</strong> different processes can map the same frame with selected permissions.</li>
+</ul>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-memory-benefits.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Two processes see simple virtual spaces while their code, data, and shared pages map to scattered physical frames."><img src="assets/virtual-memory-benefits.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="Two processes see simple virtual spaces while their code, data, and shared pages map to scattered physical frames."></a></p>
+</figure>
+</div>
+<figcaption>Two processes see simple virtual spaces while their code, data, and shared pages map to scattered physical frames.</figcaption>
+</figure>
+</div>
+</div>
+<p>A large virtual address space is not a promise of unlimited usable memory. A page still needs physical storage when it is actively used, and page tables, RAM capacity, backing storage, and operating-system policy impose real limits. The benefit is that allocation and protection are managed in page-sized units instead of being exposed as fixed physical addresses.</p>
+<details>
+<summary>
+Python model: the same virtual address can mean different physical bytes
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Each process owns a different virtual-page mapping.</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>page_tables <span class="op">=</span> {</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">'A'</span>: {<span class="bn">0x1</span>: <span class="dv">12</span>, <span class="bn">0x2</span>: <span class="dv">27</span>},</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">'B'</span>: {<span class="bn">0x1</span>: <span class="dv">52</span>, <span class="bn">0x2</span>: <span class="dv">27</span>},  <span class="co"># VPN 0x2 deliberately shares PFN 27</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> translate(process, virtual_address):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(virtual_address, PAGE_SIZE)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> vpn <span class="kw">not</span> <span class="kw">in</span> page_tables[process]:</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">'virtual page is not mapped'</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    pfn <span class="op">=</span> page_tables[process][vpn]</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pfn <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>same_va <span class="op">=</span> <span class="bn">0x1008</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> translate(<span class="st">'A'</span>, same_va) <span class="op">!=</span> translate(<span class="st">'B'</span>, same_va)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>shared_va <span class="op">=</span> <span class="bn">0x2008</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> translate(<span class="st">'A'</span>, shared_va) <span class="op">==</span> translate(<span class="st">'B'</span>, shared_va)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(translate(<span class="st">'A'</span>, same_va)), <span class="bu">hex</span>(translate(<span class="st">'B'</span>, same_va)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="virtual-and-physical-address-spaces" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-and-physical-address-spaces"><strong>Virtual and Physical Address Spaces</strong></h3>
+<p>A <strong>virtual address space</strong> is the set of addresses interpreted under one translation context. For a user process, that context is usually identified by a page-table root plus an address-space identifier such as an ASID or PCID. A <strong>physical address space</strong> is the set of addresses accepted by the memory hierarchy and memory controller. The two spaces can have different widths and different layouts.</p>
+<p>The numeric virtual address alone is not a globally unique memory location. Process A and process B can both use virtual address <code>0x12345ABC</code>, yet their page tables may translate it to different physical frames. Conversely, two unrelated virtual addresses can intentionally map to the same physical frame for a shared library, shared-memory region, or memory-mapped file.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-physical-spaces.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="The same virtual page in two address spaces maps to different frames, while two other virtual pages share one physical frame."><img src="assets/virtual-physical-spaces.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="The same virtual page in two address spaces maps to different frames, while two other virtual pages share one physical frame."></a></p>
+</figure>
+</div>
+<figcaption>The same virtual page in two address spaces maps to different frames, while two other virtual pages share one physical frame.</figcaption>
+</figure>
+</div>
+</div>
+<p>A context switch changes the active translation context. A simple processor may flush process-specific TLB entries when the page-table root changes. A processor with ASID-tagged TLB entries can retain translations from several processes and distinguish them using <code>(ASID, VPN)</code> rather than VPN alone. This avoids unnecessary refill work while preserving isolation.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Virtual address space</th>
+<th>Physical address space</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>interpreted by</td>
+<td>process and MMU translation context</td>
+<td>cache hierarchy, interconnect, and memory controller</td>
+</tr>
+<tr class="even">
+<td>layout</td>
+<td>private, sparse, and selected by page tables</td>
+<td>finite installed/architecturally addressable storage</td>
+</tr>
+<tr class="odd">
+<td>same number in two processes</td>
+<td>may identify different data</td>
+<td>identifies the same physical location</td>
+</tr>
+<tr class="even">
+<td>holes</td>
+<td>unmapped ranges are common</td>
+<td>unimplemented or reserved ranges are platform-specific</td>
+</tr>
+<tr class="odd">
+<td>sharing</td>
+<td>several virtual mappings may alias one frame</td>
+<td>one frame stores the shared bytes</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="pages-frames-and-address-translation" class="level3">
+<h3 class="anchored" data-anchor-id="pages-frames-and-address-translation"><strong>Pages, Frames, and Address Translation</strong></h3>
+<p>Paging divides a virtual space into fixed-size <strong>pages</strong> and physical memory into equally sized <strong>frames</strong>. Both are aligned to the page size. Translation replaces the virtual page number (VPN) with a physical page or frame number (PPN/PFN), while preserving the byte offset inside the page.</p>
+<p>For page size <span class="math inline">\(P\)</span> bytes and virtual address <span class="math inline">\(VA\)</span>,</p>
+<p><span class="math display">\[
+VPN=\left\lfloor\frac{VA}{P}\right\rfloor,\qquad offset=VA\bmod P.
+\]</span></p>
+<p>If the selected translation maps that VPN to physical page number <span class="math inline">\(PPN\)</span>, then</p>
+<p><span class="math display">\[
+PA=PPN\times P+offset.
+\]</span></p>
+<p>Here <span class="math inline">\(VA\)</span> is the virtual byte address, <span class="math inline">\(PA\)</span> is the physical byte address, <span class="math inline">\(P\)</span> is the number of bytes in one page/frame, and <code>offset</code> identifies the same byte position before and after translation. Alignment is what makes the offset reusable.</p>
+<p>When <span class="math inline">\(P=2^p\)</span>, the lowest <span class="math inline">\(p\)</span> address bits form the offset. A 4 KiB page has <span class="math inline">\(P=4096=2^{12}\)</span> bytes, so a 32-bit virtual address contains a 20-bit VPN and a 12-bit page offset.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-frame-address-translation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Virtual address 0x12345ABC is split into VPN 0x12345 and offset 0xABC; mapping the VPN to PPN 0x2BEEF creates physical address 0x2BEEFABC."><img src="assets/page-frame-address-translation.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="Virtual address 0x12345ABC is split into VPN 0x12345 and offset 0xABC; mapping the VPN to PPN 0x2BEEF creates physical address 0x2BEEFABC."></a></p>
+</figure>
+</div>
+<figcaption>Virtual address 0x12345ABC is split into VPN 0x12345 and offset 0xABC; mapping the VPN to PPN 0x2BEEF creates physical address 0x2BEEFABC.</figcaption>
+</figure>
+</div>
+</div>
+<p>In the running example, <code>0x12345ABC</code> becomes VPN <code>0x12345</code> and offset <code>0xABC</code>. The mapping <code>0x12345 -&gt; 0x2BEEF</code> produces physical address <code>0x2BEEFABC</code>. No addition is performed between page number and offset fields in hardware; concatenation is equivalent because both frame bases and pages are aligned.</p>
+<details>
+<summary>
+Python example: split a virtual address and construct its physical address
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> split_address(address, page_size):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># divmod returns both the page number and byte offset.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">divmod</span>(address, page_size)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_physical_address(ppn, offset, page_size):</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="dv">0</span> <span class="op">&lt;=</span> offset <span class="op">&lt;</span> page_size:</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">'offset must remain inside one page'</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ppn <span class="op">*</span> page_size <span class="op">+</span> offset</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>virtual_address <span class="op">=</span> <span class="bn">0x12345ABC</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>page_size <span class="op">=</span> <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>vpn, offset <span class="op">=</span> split_address(virtual_address, page_size)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>physical_address <span class="op">=</span> make_physical_address(<span class="bn">0x2BEEF</span>, offset, page_size)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> vpn <span class="op">==</span> <span class="bn">0x12345</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> offset <span class="op">==</span> <span class="bn">0xABC</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> physical_address <span class="op">==</span> <span class="bn">0x2BEEFABC</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(vpn), <span class="bu">hex</span>(offset), <span class="bu">hex</span>(physical_address))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Page size creates a trade-off. Larger pages increase TLB coverage and reduce the number of page-table entries, but may waste unused bytes inside the last page of an allocation, move more data on a fault, and require larger aligned physical regions. Many architectures therefore support a normal page size plus one or more huge-page sizes.</p>
+</section>
+<section id="page-tables" class="level3">
+<h3 class="anchored" data-anchor-id="page-tables"><strong>Page Tables</strong></h3>
+<p>A <strong>page table</strong> is the memory-resident data structure that describes a virtual address space. A privileged register identifies its root. Each indexed entry either points to the next table level, supplies a final physical page number, or states that the requested mapping cannot currently be used.</p>
+<p>Page-table walks are part of the memory system: their entries reside in memory and their reads pass through caches. A four-level walk does not necessarily generate four DRAM accesses, because page-walk caches and ordinary data caches may contain upper-level entries. It is nevertheless a chain of dependent lookups, which is why processors cache completed translations in a TLB.</p>
+<section id="single-level-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="single-level-page-tables"><strong>Single-Level Page Tables</strong></h4>
+<p>A single-level page table treats the VPN as one array index. If a virtual address has <span class="math inline">\(v\)</span> bits and the page offset has <span class="math inline">\(p\)</span> bits, the table needs</p>
+<p><span class="math display">\[
+N_{PTE}=2^{v-p}
+\]</span></p>
+<p>entries. With <span class="math inline">\(E\)</span> bytes per entry, its memory cost is</p>
+<p><span class="math display">\[
+M_{flat}=2^{v-p}\times E.
+\]</span></p>
+<p><span class="math inline">\(N_{PTE}\)</span> is the number of possible virtual pages, <span class="math inline">\(v-p\)</span> is the number of VPN bits, <span class="math inline">\(E\)</span> is PTE size, and <span class="math inline">\(M_{flat}\)</span> is the memory reserved for the flat table. For 32-bit virtual addresses, 4 KiB pages, and 4-byte PTEs, the result is <span class="math inline">\(2^{20}\times4=4\)</span> MiB per process, even when the process maps only a few pages.</p>
+<details>
+<summary>
+Python example: calculate flat page-table storage
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> flat_page_table_bytes(virtual_bits, page_size, pte_bytes):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># A power-of-two page size dedicates log2(page_size) bits to offset.</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    offset_bits <span class="op">=</span> page_size.bit_length() <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> page_size <span class="op">!=</span> <span class="dv">1</span> <span class="op">&lt;&lt;</span> offset_bits:</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">'page size must be a power of two'</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    vpn_bits <span class="op">=</span> virtual_bits <span class="op">-</span> offset_bits</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="dv">1</span> <span class="op">&lt;&lt;</span> vpn_bits) <span class="op">*</span> pte_bytes</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> flat_page_table_bytes(<span class="dv">32</span>, <span class="dv">4096</span>, <span class="dv">4</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> size <span class="op">==</span> <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f'</span><span class="sc">{</span>size <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span><span class="sc">:.0f}</span><span class="ss"> MiB per process'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Flat tables provide direct indexing and conceptually simple hardware, but their fixed cost is poorly matched to large sparse address spaces.</p>
+</section>
+<section id="multi-level-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="multi-level-page-tables"><strong>Multi-Level Page Tables</strong></h4>
+<p>A multi-level page table divides the VPN into several indices. An upper-level entry points to a lower-level table only when some virtual address in that subtree is mapped. Large holes can therefore be represented by one invalid upper-level entry instead of thousands or millions of invalid leaf entries.</p>
+<p>For the same 32-bit example, a two-level design can split the address as <code>10-bit L1 index | 10-bit L2 index | 12-bit offset</code>. With 4-byte entries, each table contains <span class="math inline">\(2^{10}=1024\)</span> entries and occupies exactly 4 KiB, so every table is itself one page.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/single-vs-multilevel-page-tables.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="A flat table reserves 4 MiB, while a two-level table allocates one root and only the leaf tables required by populated virtual regions."><img src="assets/single-vs-multilevel-page-tables.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="A flat table reserves 4 MiB, while a two-level table allocates one root and only the leaf tables required by populated virtual regions."></a></p>
+</figure>
+</div>
+<figcaption>A flat table reserves 4 MiB, while a two-level table allocates one root and only the leaf tables required by populated virtual regions.</figcaption>
+</figure>
+</div>
+</div>
+<p>For <code>VA = 0x12345ABC</code>, the upper index is 72, the lower index is 837, and the offset is <code>0xABC</code>. A hardware walk reads <code>root[72]</code> to find the relevant leaf table and then reads <code>leaf[837]</code> to obtain the final PPN and permissions.</p>
+<details>
+<summary>
+Python model: walk a two-level page table
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>INDEX_MASK <span class="op">=</span> <span class="bn">0x3FF</span>  <span class="co"># ten one-bits select one of 1024 entries</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Only one lower-level table is allocated in this small example.</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>root <span class="op">=</span> {</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="dv">72</span>: {<span class="dv">837</span>: {<span class="st">'ppn'</span>: <span class="bn">0x2BEEF</span>, <span class="st">'read'</span>: <span class="va">True</span>, <span class="st">'write'</span>: <span class="va">True</span>}},</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> walk_two_levels(virtual_address):</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    l1_index <span class="op">=</span> (virtual_address <span class="op">&gt;&gt;</span> <span class="dv">22</span>) <span class="op">&amp;</span> INDEX_MASK</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    l2_index <span class="op">=</span> (virtual_address <span class="op">&gt;&gt;</span> <span class="dv">12</span>) <span class="op">&amp;</span> INDEX_MASK</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    offset <span class="op">=</span> virtual_address <span class="op">&amp;</span> <span class="bn">0xFFF</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    leaf_table <span class="op">=</span> root.get(l1_index)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> leaf_table <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">'no lower-level table for this virtual region'</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    pte <span class="op">=</span> leaf_table.get(l2_index)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> pte <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">'virtual page is not mapped'</span>)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pte[<span class="st">'ppn'</span>] <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset, (l1_index, l2_index)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>pa, indices <span class="op">=</span> walk_two_levels(<span class="bn">0x12345ABC</span>)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> indices <span class="op">==</span> (<span class="dv">72</span>, <span class="dv">837</span>)</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> pa <span class="op">==</span> <span class="bn">0x2BEEFABC</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(indices, <span class="bu">hex</span>(pa))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The trade-off is explicit: a hierarchy saves memory when the virtual space is sparse, but a TLB miss may need several dependent PTE reads. Huge-page leaf entries can terminate a walk at an upper level, reducing both page-table depth and TLB pressure when a large aligned mapping is suitable.</p>
+</section>
+<section id="page-table-entries" class="level4">
+<h4 class="anchored" data-anchor-id="page-table-entries"><strong>Page-Table Entries</strong></h4>
+<p>A <strong>page-table entry (PTE)</strong> does not contain only a frame number. It also records whether the entry is usable, which privilege levels may use it, which operations are allowed, and often whether the page has been accessed or modified. Exact names and bit positions vary by architecture, so it is safer to reason about their roles than to assume one universal binary layout.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/generic-pte-fields.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="A generic PTE combines a physical page number with validity, privilege, read, write, execute, accessed, dirty, and software-defined state."><img src="assets/generic-pte-fields.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="A generic PTE combines a physical page number with validity, privilege, read, write, execute, accessed, dirty, and software-defined state."></a></p>
+</figure>
+</div>
+<figcaption>A generic PTE combines a physical page number with validity, privilege, read, write, execute, accessed, dirty, and software-defined state.</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Conceptual field</th>
+<th>Purpose</th>
+<th>Typical consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>valid or present</td>
+<td>states whether this entry can complete translation</td>
+<td>clear may trigger a page fault or indicate an unused subtree</td>
+</tr>
+<tr class="even">
+<td>PPN/PFN</td>
+<td>identifies the mapped physical frame or next table</td>
+<td>combined with the offset for a leaf mapping</td>
+</tr>
+<tr class="odd">
+<td>user/supervisor</td>
+<td>restricts use by current privilege mode</td>
+<td>user access to a supervisor-only page faults</td>
+</tr>
+<tr class="even">
+<td>read/write/execute</td>
+<td>restricts the requested operation</td>
+<td>supports read-only code, non-executable data, and guard pages</td>
+</tr>
+<tr class="odd">
+<td>accessed/reference</td>
+<td>records recent use</td>
+<td>helps software choose replacement candidates</td>
+</tr>
+<tr class="even">
+<td>dirty/modified</td>
+<td>records a successful write</td>
+<td>tells software whether an evicted page needs write-back</td>
+</tr>
+<tr class="odd">
+<td>software state</td>
+<td>stores OS-specific metadata</td>
+<td>may identify copy-on-write, swap location, or bookkeeping state</td>
+</tr>
+</tbody>
+</table>
+<p>A non-leaf PTE points to another page-table page; a leaf PTE describes a mapped page. Permissions must be checked on a TLB hit as well as during a page walk, so a TLB entry caches protection information together with the PPN.</p>
+<details>
+<summary>
+Python model: apply PTE permission checks
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PTE:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    ppn: <span class="bu">int</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    present: <span class="bu">bool</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">bool</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    read: <span class="bu">bool</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    write: <span class="bu">bool</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    execute: <span class="bu">bool</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    accessed: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    dirty: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> authorize(pte, mode, operation):</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> pte.present:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">'page-fault:not-present'</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> mode <span class="op">==</span> <span class="st">'user'</span> <span class="kw">and</span> <span class="kw">not</span> pte.user:</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">'page-fault:privilege'</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    allowed <span class="op">=</span> {<span class="st">'read'</span>: pte.read, <span class="st">'write'</span>: pte.write, <span class="st">'execute'</span>: pte.execute}</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> allowed[operation]:</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f'page-fault:</span><span class="sc">{</span>operation<span class="sc">}</span><span class="ss">-denied'</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Successful accesses update usage state.</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    pte.accessed <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> operation <span class="op">==</span> <span class="st">'write'</span>:</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>        pte.dirty <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">'allowed'</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>data_page <span class="op">=</span> PTE(<span class="bn">0x2BEEF</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">False</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> authorize(data_page, <span class="st">'user'</span>, <span class="st">'write'</span>) <span class="op">==</span> <span class="st">'allowed'</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> data_page.accessed <span class="kw">and</span> data_page.dirty</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> authorize(data_page, <span class="st">'user'</span>, <span class="st">'execute'</span>) <span class="op">==</span> <span class="st">'page-fault:execute-denied'</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(data_page)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="translation-lookaside-buffers" class="level3">
+<h3 class="anchored" data-anchor-id="translation-lookaside-buffers"><strong>Translation Lookaside Buffers</strong></h3>
+<p>A <strong>translation lookaside buffer (TLB)</strong> is a small associative cache of recently used page translations. Its key is conceptually <code>(ASID, VPN)</code> and its value contains the PPN plus permission and status information. It caches where a page is mapped; it does <strong>not</strong> cache the requested instruction or data bytes.</p>
+<p>On a TLB hit, the MMU obtains the PPN without walking the page table. On a TLB miss, hardware or a privileged software handler looks up the page table. A valid leaf PTE refills the TLB and the original access continues. Only a missing, invalid, or prohibited mapping produces a page fault. Therefore, <code>TLB miss</code> and <code>page fault</code> are not synonyms.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tlb-address-resolution-wikimedia.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="A simplified virtual-to-physical translation flow checks the TLB first, consults the page table on a TLB miss, and reaches backing storage only for the diagram’s nonresident-page case."><img src="assets/tlb-address-resolution-wikimedia.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="A simplified virtual-to-physical translation flow checks the TLB first, consults the page table on a TLB miss, and reaches backing storage only for the diagram’s nonresident-page case."></a></p>
+</figure>
+</div>
+<figcaption>A simplified virtual-to-physical translation flow checks the TLB first, consults the page table on a TLB miss, and reaches backing storage only for the diagram’s nonresident-page case.</figcaption>
+</figure>
+</div>
+<p><em>Image source: <a href="https://commons.wikimedia.org/wiki/File:TLB.svg">Arilou, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. The source diagram uses ‘page table miss’ for a simplified nonresident-page path; real page faults also include permission failures, lazy allocation, and copy-on-write.</em></p>
+<p>The amount of virtual memory that can be represented simultaneously is the <strong>TLB reach</strong>:</p>
+<p><span class="math display">\[
+R_{TLB}=N_{entries}\times P.
+\]</span></p>
+<p><span class="math inline">\(R_{TLB}\)</span> is the reachable byte range if entries map distinct pages, <span class="math inline">\(N_{entries}\)</span> is the number of cached translations, and <span class="math inline">\(P\)</span> is page size. A 64-entry TLB with 4 KiB pages reaches 256 KiB; the same number of 2 MiB mappings reaches 128 MiB. Larger pages improve reach but retain the allocation and fragmentation trade-offs described earlier.</p>
+<p>TLBs are commonly split into instruction and data structures near the pipeline, with a larger shared second-level TLB on some processors. Replacement, associativity, ASID capacity, page-size support, and separate read/write/execute permissions all affect behavior.</p>
+<details>
+<summary>
+Python model: an ASID-aware LRU TLB
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> OrderedDict</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TLB:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, entries):</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.entries <span class="op">=</span> entries</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines <span class="op">=</span> OrderedDict()</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> lookup(<span class="va">self</span>, asid, vpn):</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (asid, vpn)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> key <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.lines:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> <span class="va">self</span>.lines.pop(key)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines[key] <span class="op">=</span> value  <span class="co"># most recently used</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> insert(<span class="va">self</span>, asid, vpn, ppn):</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (asid, vpn)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines.pop(key, <span class="va">None</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines[key] <span class="op">=</span> ppn</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.lines) <span class="op">&gt;</span> <span class="va">self</span>.entries:</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.lines.popitem(last<span class="op">=</span><span class="va">False</span>)  <span class="co"># evict least recently used</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>tlb <span class="op">=</span> TLB(entries<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>tlb.insert(asid<span class="op">=</span><span class="dv">7</span>, vpn<span class="op">=</span><span class="bn">0x12345</span>, ppn<span class="op">=</span><span class="bn">0x2BEEF</span>)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>tlb.insert(asid<span class="op">=</span><span class="dv">12</span>, vpn<span class="op">=</span><span class="bn">0x12345</span>, ppn<span class="op">=</span><span class="bn">0x01020</span>)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> tlb.lookup(<span class="dv">7</span>, <span class="bn">0x12345</span>) <span class="op">==</span> <span class="bn">0x2BEEF</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> tlb.lookup(<span class="dv">12</span>, <span class="bn">0x12345</span>) <span class="op">==</span> <span class="bn">0x01020</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(tlb.lines)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="page-faults-and-demand-paging" class="level3">
+<h3 class="anchored" data-anchor-id="page-faults-and-demand-paging"><strong>Page Faults and Demand Paging</strong></h3>
+<p>A <strong>page fault</strong> is a precise exception raised when the current translation and protection state cannot complete a memory access. The processor records enough architectural state for the operating system to inspect the fault and either repair the mapping or report an error. If repaired, the faulting instruction is restarted and behaves as if it had simply taken a long time.</p>
+<p>Demand paging deliberately begins with some valid virtual regions marked nonresident. The first access faults, the operating system obtains a frame, prepares its contents, updates the PTE and relevant TLB state, and restarts the instruction. Preparing the page may mean reading a file or swap area, but it may instead mean zero-filling a fresh anonymous page or copying an existing page for copy-on-write. Thus, not every page fault performs storage I/O.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-fault-handling-flow.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="A page fault traps to the operating system, which rejects invalid accesses or prepares a frame, updates translation state, and restarts the instruction."><img src="assets/page-fault-handling-flow.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="A page fault traps to the operating system, which rejects invalid accesses or prepares a frame, updates translation state, and restarts the instruction."></a></p>
+</figure>
+</div>
+<figcaption>A page fault traps to the operating system, which rejects invalid accesses or prepares a frame, updates translation state, and restarts the instruction.</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Fault situation</th>
+<th>Mapping meaning</th>
+<th>Typical handling</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>lazy anonymous allocation</td>
+<td>valid region, no frame yet</td>
+<td>allocate and zero-fill a frame</td>
+</tr>
+<tr class="even">
+<td>file-backed demand page</td>
+<td>valid file mapping, page not resident</td>
+<td>read the required file page</td>
+</tr>
+<tr class="odd">
+<td>swapped-out page</td>
+<td>prior contents stored outside RAM</td>
+<td>read page from swap/storage</td>
+</tr>
+<tr class="even">
+<td>copy-on-write store</td>
+<td>shared read-only mapping marked for COW</td>
+<td>copy frame, install private writable PTE</td>
+</tr>
+<tr class="odd">
+<td>protection violation</td>
+<td>operation conflicts with R/W/X or privilege bits</td>
+<td>reject access or signal the process</td>
+</tr>
+<tr class="even">
+<td>unmapped address</td>
+<td>no valid virtual region</td>
+<td>reject access, often as a segmentation fault</td>
+</tr>
+</tbody>
+</table>
+<p>A replacement decision may be required when no free frame exists. If the victim page is dirty, its current bytes must be preserved before the frame is reused; a clean file-backed page may simply be discarded because it can be read again. These are operating-system policies built on the accessed and dirty information exposed by the architecture.</p>
+<details>
+<summary>
+Python model: classify and resolve simplified page faults
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>regions <span class="op">=</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x10</span>: {<span class="st">'kind'</span>: <span class="st">'anonymous'</span>, <span class="st">'write'</span>: <span class="va">True</span>, <span class="st">'present'</span>: <span class="va">False</span>},</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x20</span>: {<span class="st">'kind'</span>: <span class="st">'file'</span>, <span class="st">'write'</span>: <span class="va">False</span>, <span class="st">'present'</span>: <span class="va">False</span>},</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x30</span>: {<span class="st">'kind'</span>: <span class="st">'cow'</span>, <span class="st">'write'</span>: <span class="va">False</span>, <span class="st">'present'</span>: <span class="va">True</span>},</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>next_free_ppn <span class="op">=</span> <span class="bu">iter</span>([<span class="dv">100</span>, <span class="dv">101</span>, <span class="dv">102</span>])</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> handle_access(vpn, operation):</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    region <span class="op">=</span> regions.get(vpn)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> region <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">'fatal:unmapped'</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> operation <span class="op">==</span> <span class="st">'write'</span> <span class="kw">and</span> <span class="kw">not</span> region[<span class="st">'write'</span>]:</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> region[<span class="st">'kind'</span>] <span class="op">!=</span> <span class="st">'cow'</span>:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="st">'fatal:write-protection'</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Copy-on-write creates a private writable page.</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        region.update(kind<span class="op">=</span><span class="st">'anonymous'</span>, write<span class="op">=</span><span class="va">True</span>, ppn<span class="op">=</span><span class="bu">next</span>(next_free_ppn))</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">'resolved:copy-on-write'</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> region[<span class="st">'present'</span>]:</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        region.update(present<span class="op">=</span><span class="va">True</span>, ppn<span class="op">=</span><span class="bu">next</span>(next_free_ppn))</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"resolved:fill-</span><span class="sc">{</span>region[<span class="st">'kind'</span>]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">'hit:resident'</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x10</span>, <span class="st">'write'</span>) <span class="op">==</span> <span class="st">'resolved:fill-anonymous'</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x20</span>, <span class="st">'read'</span>) <span class="op">==</span> <span class="st">'resolved:fill-file'</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x30</span>, <span class="st">'write'</span>) <span class="op">==</span> <span class="st">'resolved:copy-on-write'</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x99</span>, <span class="st">'read'</span>) <span class="op">==</span> <span class="st">'fatal:unmapped'</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(regions)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="protection-privilege-and-sharing" class="level3">
+<h3 class="anchored" data-anchor-id="protection-privilege-and-sharing"><strong>Protection, Privilege, and Sharing</strong></h3>
+<p>Address translation provides a natural place to enforce protection because every instruction fetch, load, and store already passes through the MMU. A page can be readable but not writable, executable but not writable, accessible only in supervisor mode, or completely inaccessible as a guard region. These rules are checked before the requested cache access is allowed to affect architectural state.</p>
+<p>Page granularity also makes sharing selective. Two processes can map the same read-only executable frame at different virtual addresses while keeping writable data private. Shared-memory pages may be writable in both processes when synchronization is intentional. Copy-on-write initially maps one frame read-only into several processes; the first writer faults and receives a private copy.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/protection-sharing-mappings.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="Two processes share code and copy-on-write frames while retaining private writable data and being blocked from supervisor-only memory."><img src="assets/protection-sharing-mappings.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="Two processes share code and copy-on-write frames while retaining private writable data and being blocked from supervisor-only memory."></a></p>
+</figure>
+</div>
+<figcaption>Two processes share code and copy-on-write frames while retaining private writable data and being blocked from supervisor-only memory.</figcaption>
+</figure>
+</div>
+</div>
+<p>The same physical frame can have different permissions in different virtual mappings. Permission belongs to the mapping, not inherently to the RAM cells. This supports a shared library that is executable in user mode, a kernel alias with different privilege, or a file mapping that is read-only in one process and private copy-on-write in another.</p>
+<p>Security depends on keeping all translation caches coherent with page-table changes. After revoking access or remapping a page, privileged software must invalidate stale TLB entries on every affected processor. Otherwise, an old cached translation could continue to authorize an access after the PTE has changed.</p>
+<details>
+<summary>
+Python model: copy-on-write separates one shared frame on the first store
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> {<span class="dv">27</span>: <span class="bu">bytearray</span>(<span class="st">b'shared page'</span>)}</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>mappings <span class="op">=</span> {</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">'A'</span>: {<span class="st">'pfn'</span>: <span class="dv">27</span>, <span class="st">'writable'</span>: <span class="va">False</span>, <span class="st">'cow'</span>: <span class="va">True</span>},</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">'B'</span>: {<span class="st">'pfn'</span>: <span class="dv">27</span>, <span class="st">'writable'</span>: <span class="va">False</span>, <span class="st">'cow'</span>: <span class="va">True</span>},</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_first_byte(process, value):</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    mapping <span class="op">=</span> mappings[process]</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> mapping[<span class="st">'writable'</span>]:</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> mapping[<span class="st">'cow'</span>]:</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">PermissionError</span>(<span class="st">'read-only mapping'</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Fault handler allocates and copies before granting write access.</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        new_pfn <span class="op">=</span> <span class="bu">max</span>(frames) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        frames[new_pfn] <span class="op">=</span> <span class="bu">bytearray</span>(frames[mapping[<span class="st">'pfn'</span>]])</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        mapping.update(pfn<span class="op">=</span>new_pfn, writable<span class="op">=</span><span class="va">True</span>, cow<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    frames[mapping[<span class="st">'pfn'</span>]][<span class="dv">0</span>] <span class="op">=</span> value</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>write_first_byte(<span class="st">'A'</span>, <span class="bu">ord</span>(<span class="st">'S'</span>))</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> mappings[<span class="st">'A'</span>][<span class="st">'pfn'</span>] <span class="op">!=</span> mappings[<span class="st">'B'</span>][<span class="st">'pfn'</span>]</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frames[mappings[<span class="st">'A'</span>][<span class="st">'pfn'</span>]] <span class="op">==</span> <span class="bu">bytearray</span>(<span class="st">b'Shared page'</span>)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frames[mappings[<span class="st">'B'</span>][<span class="st">'pfn'</span>]] <span class="op">==</span> <span class="bu">bytearray</span>(<span class="st">b'shared page'</span>)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(mappings)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="the-complete-tlb-cache-memory-access-path" class="level3">
+<h3 class="anchored" data-anchor-id="the-complete-tlb-cache-memory-access-path"><strong>The Complete TLB-Cache-Memory Access Path</strong></h3>
+<p>The complete path joins this chapter’s translation machinery to Chapter 08’s cache hierarchy. For a typical physically tagged cache, the conceptual sequence is:</p>
+<ol type="1">
+<li>The instruction produces a virtual address and an operation type.</li>
+<li>The page offset is separated from the VPN.</li>
+<li>The TLB searches for <code>(ASID, VPN)</code> and checks permissions.</li>
+<li>On a TLB miss, the MMU walks the page table; a valid leaf refills the TLB, while an unusable mapping raises a page fault.</li>
+<li>The PPN and unchanged page offset form the physical address.</li>
+<li>The cache checks the physical block; a cache miss continues through lower cache levels and possibly DRAM.</li>
+</ol>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/complete-translation-cache-path.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="A virtual address checks the TLB, walks page tables on a translation miss, forms a physical address, and then checks the cache hierarchy."><img src="assets/complete-translation-cache-path.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="A virtual address checks the TLB, walks page tables on a translation miss, forms a physical address, and then checks the cache hierarchy."></a></p>
+</figure>
+</div>
+<figcaption>A virtual address checks the TLB, walks page tables on a translation miss, forms a physical address, and then checks the cache hierarchy.</figcaption>
+</figure>
+</div>
+</div>
+<p>This produces independent outcomes. A TLB miss can be followed by a cache hit after the walk supplies a valid physical address. A TLB hit can be followed by a cache miss because the translation is cached but the requested data block is not. A page fault stops the requested data access before it can complete, although the page-table walk itself may have generated cache traffic.</p>
+<p>Modern L1 caches often overlap part of translation with cache indexing using a <strong>virtually indexed, physically tagged (VIPT)</strong> organization. Because translation preserves the page offset, index bits taken entirely from that offset are available before the PPN arrives. A useful design condition is</p>
+<p><span class="math display">\[
+S\times B\le P,
+\]</span></p>
+<p>where <span class="math inline">\(S\)</span> is the number of cache sets, <span class="math inline">\(B\)</span> is cache-block size, and <span class="math inline">\(P\)</span> is page size. The product <span class="math inline">\(S\times B\)</span> is cache capacity per way. Keeping it within one page ensures that all set-index bits lie in the unchanged page offset; the physical tag can then arrive from the TLB while the indexed set is being read. More aggressive designs need additional alias handling.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Translation result</th>
+<th>Cache result</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>TLB hit</td>
+<td>cache hit</td>
+<td>common fast path: translation and data are both cached</td>
+</tr>
+<tr class="even">
+<td>TLB miss, valid PTE</td>
+<td>cache hit</td>
+<td>translation must be reconstructed, requested block is resident</td>
+</tr>
+<tr class="odd">
+<td>TLB hit</td>
+<td>cache miss</td>
+<td>translation is available, data comes from a lower cache or DRAM</td>
+</tr>
+<tr class="even">
+<td>page fault</td>
+<td>no completed requested lookup</td>
+<td>software must repair or reject the mapping first</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python model: distinguish TLB, cache, and page-fault outcomes
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TranslationCachePath:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, page_table, page_size<span class="op">=</span><span class="dv">4096</span>, block_size<span class="op">=</span><span class="dv">64</span>):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.page_table <span class="op">=</span> page_table</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.page_size <span class="op">=</span> page_size</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.block_size <span class="op">=</span> block_size</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tlb <span class="op">=</span> {}</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cache_blocks <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> access(<span class="va">self</span>, virtual_address):</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(virtual_address, <span class="va">self</span>.page_size)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        tlb_hit <span class="op">=</span> vpn <span class="kw">in</span> <span class="va">self</span>.tlb</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> tlb_hit:</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>            ppn <span class="op">=</span> <span class="va">self</span>.tlb[vpn]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            ppn <span class="op">=</span> <span class="va">self</span>.page_table.get(vpn)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> ppn <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> {<span class="st">'page_fault'</span>: <span class="va">True</span>, <span class="st">'tlb_hit'</span>: <span class="va">False</span>, <span class="st">'cache_hit'</span>: <span class="va">None</span>}</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.tlb[vpn] <span class="op">=</span> ppn  <span class="co"># successful page walk refills the TLB</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        physical_address <span class="op">=</span> ppn <span class="op">*</span> <span class="va">self</span>.page_size <span class="op">+</span> offset</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        block <span class="op">=</span> physical_address <span class="op">//</span> <span class="va">self</span>.block_size</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        cache_hit <span class="op">=</span> block <span class="kw">in</span> <span class="va">self</span>.cache_blocks</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cache_blocks.add(block)  <span class="co"># model a refill after any miss</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>            <span class="st">'page_fault'</span>: <span class="va">False</span>,</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">'tlb_hit'</span>: tlb_hit,</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">'cache_hit'</span>: cache_hit,</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>            <span class="st">'physical_address'</span>: physical_address,</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>system <span class="op">=</span> TranslationCachePath({<span class="bn">0x12345</span>: <span class="bn">0x2BEEF</span>, <span class="bn">0x22222</span>: <span class="bn">0x2BEEF</span>})</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> [</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x12345000</span>),  <span class="co"># TLB miss, cache miss</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x12345004</span>),  <span class="co"># TLB hit, same cache block hits</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x22222000</span>),  <span class="co"># TLB miss, aliased physical block hits</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x22222080</span>),  <span class="co"># TLB hit, different cache block misses</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x33333000</span>),  <span class="co"># no mapping: page fault</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [(r[<span class="st">'page_fault'</span>], r[<span class="st">'tlb_hit'</span>], r[<span class="st">'cache_hit'</span>]) <span class="cf">for</span> r <span class="kw">in</span> results] <span class="op">==</span> [</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">False</span>, <span class="va">False</span>),</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">True</span>, <span class="va">True</span>),</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">False</span>, <span class="va">True</span>),</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">True</span>, <span class="va">False</span>),</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>    (<span class="va">True</span>, <span class="va">False</span>, <span class="va">None</span>),</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(results)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="translation-performance-and-memory-overheads" class="level3">
+<h3 class="anchored" data-anchor-id="translation-performance-and-memory-overheads"><strong>Translation Performance and Memory Overheads</strong></h3>
+<p>Translation affects performance in three different ways: page tables consume memory, TLB misses add ordinary access latency, and page faults introduce a much rarer but potentially enormous delay. Keeping these scales separate prevents misleading averages.</p>
+<p>A simplified average for accesses that do not page fault is</p>
+<p><span class="math display">\[
+EAT_{normal}=hT_{hit}+(1-h)T_{miss}.
+\]</span></p>
+<p><span class="math inline">\(EAT_{normal}\)</span> is effective time for ordinary resident accesses, <span class="math inline">\(h\)</span> is TLB hit rate, <span class="math inline">\(T_{hit}\)</span> is the complete TLB-hit path, and <span class="math inline">\(T_{miss}\)</span> is the path including page-table walk, TLB refill, and the requested cache access. This formula is deliberately abstract because each PTE read can hit at a different cache level and processors may overlap parts of the walk.</p>
+<p>A separate model includes page-fault probability <span class="math inline">\(p\)</span>:</p>
+<p><span class="math display">\[
+EAT=(1-p)T_{normal}+pT_{fault}.
+\]</span></p>
+<p><span class="math inline">\(T_{normal}\)</span> is the resident path, while <span class="math inline">\(T_{fault}\)</span> includes trap handling and whatever work resolves the fault. If <span class="math inline">\(T_{normal}=100\)</span> ns and a storage-backed fault costs 8 ms, keeping the average below 200 ns requires approximately</p>
+<p><span class="math display">\[
+p\le\frac{200-100}{8{,}000{,}000-100}\approx1.25\times10^{-5}.
+\]</span></p>
+<p>That is fewer than roughly one such fault per 80,000 memory accesses. The precise numbers vary greatly, but the orders-of-magnitude difference explains why sustained paging can dominate execution time.</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/translation-performance-overheads.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="Translation performance combines TLB coverage, weighted hit and miss paths, and the rare but extremely costly page-fault path."><img src="assets/translation-performance-overheads.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="Translation performance combines TLB coverage, weighted hit and miss paths, and the rare but extremely costly page-fault path."></a></p>
+</figure>
+</div>
+<figcaption>Translation performance combines TLB coverage, weighted hit and miss paths, and the rare but extremely costly page-fault path.</figcaption>
+</figure>
+</div>
+</div>
+<p>Page-table memory must also be counted. A flat table pays for every possible VPN. A multi-level table pays for a root plus allocated lower-level pages. Huge pages reduce the number of leaf entries and increase TLB reach, while potentially increasing internal fragmentation and making contiguous allocation harder.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Primary benefit</th>
+<th>Main cost or limit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>larger or more associative TLB</td>
+<td>fewer replacement/conflict misses</td>
+<td>more area, energy, and lookup complexity</td>
+</tr>
+<tr class="even">
+<td>ASID/PCID tagging</td>
+<td>retains translations across context switches</td>
+<td>finite identifier space and invalidation complexity</td>
+</tr>
+<tr class="odd">
+<td>page-walk cache</td>
+<td>avoids repeated upper-level PTE reads</td>
+<td>does not cache all leaf translations like a TLB</td>
+</tr>
+<tr class="even">
+<td>multi-level page table</td>
+<td>allocates metadata only for populated regions</td>
+<td>more dependent reads on an uncached walk</td>
+</tr>
+<tr class="odd">
+<td>huge pages</td>
+<td>greater TLB reach and shorter walks</td>
+<td>fragmentation, alignment, and promotion/demotion cost</td>
+</tr>
+<tr class="even">
+<td>demand paging</td>
+<td>avoids loading untouched pages</td>
+<td>first use faults and may require slow I/O</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python example: compare TLB reach and page-fault sensitivity
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tlb_reach(entries, page_bytes):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> entries <span class="op">*</span> page_bytes</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> effective_access_time(normal_ns, fault_ns, fault_probability):</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="dv">1</span> <span class="op">-</span> fault_probability) <span class="op">*</span> normal_ns <span class="op">+</span> fault_probability <span class="op">*</span> fault_ns</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>small_page_reach <span class="op">=</span> tlb_reach(<span class="dv">64</span>, <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>huge_page_reach <span class="op">=</span> tlb_reach(<span class="dv">64</span>, <span class="dv">2</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> small_page_reach <span class="op">==</span> <span class="dv">256</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> huge_page_reach <span class="op">==</span> <span class="dv">128</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>normal_ns <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>fault_ns <span class="op">=</span> <span class="dv">8_000_000</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>target_ns <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>max_fault_probability <span class="op">=</span> (target_ns <span class="op">-</span> normal_ns) <span class="op">/</span> (fault_ns <span class="op">-</span> normal_ns)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> effective_access_time(normal_ns, fault_ns, max_fault_probability) <span class="op">==</span> target_ns</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f'4 KiB reach: </span><span class="sc">{</span>small_page_reach <span class="op">/</span> <span class="dv">1024</span><span class="sc">:.0f}</span><span class="ss"> KiB'</span>)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f'2 MiB reach: </span><span class="sc">{</span>huge_page_reach <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span><span class="sc">:.0f}</span><span class="ss"> MiB'</span>)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f'maximum storage-backed fault probability: </span><span class="sc">{</span>max_fault_probability<span class="sc">:.3e}</span><span class="ss">'</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>Chapter summary.</strong> Virtual memory gives each process a protected address space whose pages can be relocated, allocated on demand, and deliberately shared. The MMU divides a virtual address into VPN and page offset, translates the VPN through page tables or a cached TLB entry, enforces privilege and R/W/X permissions, and combines the resulting PPN with the unchanged offset. Flat page tables offer direct indexing but consume fixed space; multi-level tables exploit sparse address spaces at the cost of dependent walks. A TLB miss requests a translation lookup, a cache miss requests a data block, and a page fault transfers control to software because the current mapping cannot complete the access. Performance depends on page-table memory, TLB reach, walk latency, and the much larger cost of storage-backed faults. Chapter 10 will follow the I/O, interrupt, DMA, and storage mechanisms that let devices move data and that ultimately service some page-fault paths.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"descPosition":"bottom","openEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
