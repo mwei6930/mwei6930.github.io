@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Computer Networks: Routing and the Internet Control Plane</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="04-routing-and-control-plane_files/libs/clipboard/clipboard.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/quarto.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/popper.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/anchor.min.js"></script>
+<link href="04-routing-and-control-plane_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="04-routing-and-control-plane_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="04-routing-and-control-plane_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="04-routing-and-control-plane_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="04-routing-and-control-plane_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="04-routing-and-control-plane_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="04-routing-and-control-plane_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="04-routing-and-control-plane_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#routing-and-the-internet-control-plane" id="toc-routing-and-the-internet-control-plane" class="nav-link active" data-scroll-target="#routing-and-the-internet-control-plane"><strong>Routing and the Internet Control Plane</strong></a>
+  <ul>
+  <li><a href="#the-routing-problem" id="toc-the-routing-problem" class="nav-link" data-scroll-target="#the-routing-problem"><strong>The Routing Problem</strong></a>
+  <ul>
+  <li><a href="#topology-metrics-paths-and-policies" id="toc-topology-metrics-paths-and-policies" class="nav-link" data-scroll-target="#topology-metrics-paths-and-policies"><strong>Topology, Metrics, Paths, and Policies</strong></a></li>
+  <li><a href="#centralized-vs-distributed-routing" id="toc-centralized-vs-distributed-routing" class="nav-link" data-scroll-target="#centralized-vs-distributed-routing"><strong>Centralized vs Distributed Routing</strong></a></li>
+  <li><a href="#static-vs-dynamic-routes" id="toc-static-vs-dynamic-routes" class="nav-link" data-scroll-target="#static-vs-dynamic-routes"><strong>Static vs Dynamic Routes</strong></a></li>
+  <li><a href="#convergence-stability-and-failure-recovery" id="toc-convergence-stability-and-failure-recovery" class="nav-link" data-scroll-target="#convergence-stability-and-failure-recovery"><strong>Convergence, Stability, and Failure Recovery</strong></a></li>
+  </ul></li>
+  <li><a href="#distance-vector-routing" id="toc-distance-vector-routing" class="nav-link" data-scroll-target="#distance-vector-routing"><strong>Distance-Vector Routing</strong></a>
+  <ul>
+  <li><a href="#bellman-ford-recurrence" id="toc-bellman-ford-recurrence" class="nav-link" data-scroll-target="#bellman-ford-recurrence"><strong>Bellman-Ford Recurrence</strong></a></li>
+  <li><a href="#distributed-route-advertisement" id="toc-distributed-route-advertisement" class="nav-link" data-scroll-target="#distributed-route-advertisement"><strong>Distributed Route Advertisement</strong></a></li>
+  <li><a href="#count-to-infinity-and-routing-loops" id="toc-count-to-infinity-and-routing-loops" class="nav-link" data-scroll-target="#count-to-infinity-and-routing-loops"><strong>Count-to-Infinity and Routing Loops</strong></a></li>
+  <li><a href="#split-horizon-poison-reverse-and-hold-down" id="toc-split-horizon-poison-reverse-and-hold-down" class="nav-link" data-scroll-target="#split-horizon-poison-reverse-and-hold-down"><strong>Split Horizon, Poison Reverse, and Hold-Down</strong></a></li>
+  </ul></li>
+  <li><a href="#link-state-routing" id="toc-link-state-routing" class="nav-link" data-scroll-target="#link-state-routing"><strong>Link-State Routing</strong></a>
+  <ul>
+  <li><a href="#topology-discovery-and-link-state-flooding" id="toc-topology-discovery-and-link-state-flooding" class="nav-link" data-scroll-target="#topology-discovery-and-link-state-flooding"><strong>Topology Discovery and Link-State Flooding</strong></a></li>
+  <li><a href="#dijkstras-shortest-path-algorithm" id="toc-dijkstras-shortest-path-algorithm" class="nav-link" data-scroll-target="#dijkstras-shortest-path-algorithm"><strong>Dijkstra’s Shortest-Path Algorithm</strong></a></li>
+  <li><a href="#sequence-numbers-aging-and-reliable-flooding" id="toc-sequence-numbers-aging-and-reliable-flooding" class="nav-link" data-scroll-target="#sequence-numbers-aging-and-reliable-flooding"><strong>Sequence Numbers, Aging, and Reliable Flooding</strong></a></li>
+  <li><a href="#distance-vector-vs-link-state" id="toc-distance-vector-vs-link-state" class="nav-link" data-scroll-target="#distance-vector-vs-link-state"><strong>Distance Vector vs Link State</strong></a></li>
+  </ul></li>
+  <li><a href="#intradomain-routing" id="toc-intradomain-routing" class="nav-link" data-scroll-target="#intradomain-routing"><strong>Intradomain Routing</strong></a>
+  <ul>
+  <li><a href="#routing-information-protocol" id="toc-routing-information-protocol" class="nav-link" data-scroll-target="#routing-information-protocol"><strong>Routing Information Protocol</strong></a></li>
+  <li><a href="#open-shortest-path-first" id="toc-open-shortest-path-first" class="nav-link" data-scroll-target="#open-shortest-path-first"><strong>Open Shortest Path First</strong></a></li>
+  <li><a href="#is-is-and-operational-differences" id="toc-is-is-and-operational-differences" class="nav-link" data-scroll-target="#is-is-and-operational-differences"><strong>IS-IS and Operational Differences</strong></a></li>
+  <li><a href="#areas-summarization-ecmp-and-redistribution" id="toc-areas-summarization-ecmp-and-redistribution" class="nav-link" data-scroll-target="#areas-summarization-ecmp-and-redistribution"><strong>Areas, Summarization, ECMP, and Redistribution</strong></a></li>
+  </ul></li>
+  <li><a href="#autonomous-systems-and-internet-economics" id="toc-autonomous-systems-and-internet-economics" class="nav-link" data-scroll-target="#autonomous-systems-and-internet-economics"><strong>Autonomous Systems and Internet Economics</strong></a>
+  <ul>
+  <li><a href="#transit-peering-and-customer-provider-relationships" id="toc-transit-peering-and-customer-provider-relationships" class="nav-link" data-scroll-target="#transit-peering-and-customer-provider-relationships"><strong>Transit, Peering, and Customer-Provider Relationships</strong></a></li>
+  <li><a href="#policy-routing-vs-shortest-path-routing" id="toc-policy-routing-vs-shortest-path-routing" class="nav-link" data-scroll-target="#policy-routing-vs-shortest-path-routing"><strong>Policy Routing vs Shortest-Path Routing</strong></a></li>
+  <li><a href="#valley-free-paths-and-export-policies" id="toc-valley-free-paths-and-export-policies" class="nav-link" data-scroll-target="#valley-free-paths-and-export-policies"><strong>Valley-Free Paths and Export Policies</strong></a></li>
+  </ul></li>
+  <li><a href="#border-gateway-protocol" id="toc-border-gateway-protocol" class="nav-link" data-scroll-target="#border-gateway-protocol"><strong>Border Gateway Protocol</strong></a>
+  <ul>
+  <li><a href="#ebgp-and-ibgp-sessions" id="toc-ebgp-and-ibgp-sessions" class="nav-link" data-scroll-target="#ebgp-and-ibgp-sessions"><strong>eBGP and iBGP Sessions</strong></a></li>
+  <li><a href="#bgp-route-advertisements-and-path-attributes" id="toc-bgp-route-advertisements-and-path-attributes" class="nav-link" data-scroll-target="#bgp-route-advertisements-and-path-attributes"><strong>BGP Route Advertisements and Path Attributes</strong></a></li>
+  <li><a href="#route-selection-and-policy" id="toc-route-selection-and-policy" class="nav-link" data-scroll-target="#route-selection-and-policy"><strong>Route Selection and Policy</strong></a></li>
+  <li><a href="#import-policy-export-policy-and-the-fib" id="toc-import-policy-export-policy-and-the-fib" class="nav-link" data-scroll-target="#import-policy-export-policy-and-the-fib"><strong>Import Policy, Export Policy, and the FIB</strong></a></li>
+  <li><a href="#route-reflection-and-scaling-ibgp" id="toc-route-reflection-and-scaling-ibgp" class="nav-link" data-scroll-target="#route-reflection-and-scaling-ibgp"><strong>Route Reflection and Scaling iBGP</strong></a></li>
+  </ul></li>
+  <li><a href="#convergence-and-interdomain-failure-modes" id="toc-convergence-and-interdomain-failure-modes" class="nav-link" data-scroll-target="#convergence-and-interdomain-failure-modes"><strong>Convergence and Interdomain Failure Modes</strong></a>
+  <ul>
+  <li><a href="#path-exploration-and-slow-convergence" id="toc-path-exploration-and-slow-convergence" class="nav-link" data-scroll-target="#path-exploration-and-slow-convergence"><strong>Path Exploration and Slow Convergence</strong></a></li>
+  <li><a href="#route-leaks-and-prefix-hijacking" id="toc-route-leaks-and-prefix-hijacking" class="nav-link" data-scroll-target="#route-leaks-and-prefix-hijacking"><strong>Route Leaks and Prefix Hijacking</strong></a></li>
+  <li><a href="#filtering-rpki-and-route-origin-validation" id="toc-filtering-rpki-and-route-origin-validation" class="nav-link" data-scroll-target="#filtering-rpki-and-route-origin-validation"><strong>Filtering, RPKI, and Route Origin Validation</strong></a></li>
+  <li><a href="#operational-tradeoffs-in-routing-security" id="toc-operational-tradeoffs-in-routing-security" class="nav-link" data-scroll-target="#operational-tradeoffs-in-routing-security"><strong>Operational Tradeoffs in Routing Security</strong></a></li>
+  </ul></li>
+  <li><a href="#anycast-multicast-and-specialized-routing" id="toc-anycast-multicast-and-specialized-routing" class="nav-link" data-scroll-target="#anycast-multicast-and-specialized-routing"><strong>Anycast, Multicast, and Specialized Routing</strong></a>
+  <ul>
+  <li><a href="#ip-anycast-and-service-replication" id="toc-ip-anycast-and-service-replication" class="nav-link" data-scroll-target="#ip-anycast-and-service-replication"><strong>IP Anycast and Service Replication</strong></a></li>
+  <li><a href="#multicast-trees-and-group-membership-overview" id="toc-multicast-trees-and-group-membership-overview" class="nav-link" data-scroll-target="#multicast-trees-and-group-membership-overview"><strong>Multicast Trees and Group Membership Overview</strong></a></li>
+  </ul></li>
+  <li><a href="#simulating-distance-vector-and-link-state-routing" id="toc-simulating-distance-vector-and-link-state-routing" class="nav-link" data-scroll-target="#simulating-distance-vector-and-link-state-routing"><strong>Simulating Distance-Vector and Link-State Routing</strong></a></li>
+  <li><a href="#tracing-an-internet-route-across-autonomous-systems" id="toc-tracing-an-internet-route-across-autonomous-systems" class="nav-link" data-scroll-target="#tracing-an-internet-route-across-autonomous-systems"><strong>Tracing an Internet Route Across Autonomous Systems</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Computer Networks: Routing and the Internet Control Plane</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<p><a href="Computer-Networks.html">Back to Computer Networks guideline</a></p>
+<section id="routing-and-the-internet-control-plane" class="level2">
+<h2 class="anchored" data-anchor-id="routing-and-the-internet-control-plane"><strong>Routing and the Internet Control Plane</strong></h2>
+<p>Chapter 3 treated the forwarding table as an input: a router validated one packet, performed longest-prefix matching, chose a next hop, and transmitted through the data plane. This chapter asks where that forwarding state comes from. Routers must discover reachability, compare alternatives, distribute changes, reject loops, and translate administrative policy into entries that the fast path can use.</p>
+<p>The running case remains an HTTPS packet for <code>203.0.113.0/24</code>. Inside a campus network, a link-state protocol finds a path from the access router to a border router. At the border, BGP compares customer, peer, and provider advertisements. Beyond the campus, independently operated networks make their own decisions, so the end-to-end path emerges from many local policies rather than one global optimizer.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>On a first reading, prioritize the Bellman-Ford idea behind distance vector, the flood-then-Dijkstra idea behind link state, the difference between an IGP and BGP, and the roles of <code>AS_PATH</code>, <code>LOCAL_PREF</code>, and route export policy. Protocol timers, OSPF LSA types, route reflection, and RPKI add implementation and operational depth after that model is stable.</p>
+</div>
+</div>
+<p>Routing is a distributed-systems problem. Information arrives late, messages can be lost, links fail during calculation, and no router initially sees the whole Internet. A good design must eventually find useful paths while preventing transient disagreement from becoming persistent loops or widespread instability.</p>
+<section id="the-routing-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-routing-problem"><strong>The Routing Problem</strong></h3>
+<section id="topology-metrics-paths-and-policies" class="level4">
+<h4 class="anchored" data-anchor-id="topology-metrics-paths-and-policies"><strong>Topology, Metrics, Paths, and Policies</strong></h4>
+<p>A routing calculation commonly models a network as a directed graph <span class="math inline">\(G=(V,E)\)</span>. A vertex represents a router or another routing object; an edge represents usable adjacency. A non-negative cost <span class="math inline">\(c(u,v)\)</span> describes the configured cost of forwarding from <span class="math inline">\(u\)</span> to <span class="math inline">\(v\)</span>. Direction matters because capacity, policy, and even reachability can be asymmetric.</p>
+<p>For an additive metric, the cost of path <span class="math inline">\(p=(v_0,v_1,\ldots,v_k)\)</span> is</p>
+<p><span class="math display">\[
+C(p)=\sum_{i=0}^{k-1}c(v_i,v_{i+1}).
+\]</span></p>
+<p>The least-cost path is the path with minimum <span class="math inline">\(C(p)\)</span> among eligible paths. The mathematics is simple only after the network has defined what an edge and a cost mean. A cost might approximate delay, inverse bandwidth, hop count, administrative preference, or a composite value. Some objectives are not additive: path capacity is constrained by the minimum-capacity edge, while commercial policy can reject a numerically short path entirely.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/routing-objectives.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="The same topology selects different paths for latency, configured cost, capacity, or policy."><img src="assets/routing-objectives.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two paths between routers have different latency, capacity, configured cost, and policy preference"></a></p>
+<figcaption>The same topology selects different paths for latency, configured cost, capacity, or policy.</figcaption>
+</figure>
+</div>
+<p>The figure’s upper route minimizes latency, while the lower route minimizes configured cost and offers more bottleneck capacity. A policy may prefer neither. There is therefore no universal “shortest” route independent of the metric and eligibility rules.</p>
+<p>A route also needs more than a path cost. Practical state can include destination prefix, next hop, outgoing interface, source protocol, administrative preference, metric, age, route tag, and attributes used for advertisement. The control plane typically follows a lifecycle:</p>
+<pre class="text"><code>receive or originate candidate reachability
+    -&gt; validate syntax, next hop, loop and policy conditions
+    -&gt; compare eligible candidates for the same prefix
+    -&gt; select one or more best paths
+    -&gt; resolve their next hops and install forwarding state
+    -&gt; advertise only what export policy permits</code></pre>
+<p>The selected control-plane route is not itself the forwarded packet. It programs the FIB described in Chapter 3, and the FIB may contain equal-cost next hops, a discard action, a summary, or a more-specific exception.</p>
+</section>
+<section id="centralized-vs-distributed-routing" class="level4">
+<h4 class="anchored" data-anchor-id="centralized-vs-distributed-routing"><strong>Centralized vs Distributed Routing</strong></h4>
+<p>In a <strong>distributed</strong> protocol, routers exchange information and each computes local state. Distance-vector, OSPF, IS-IS, and BGP follow this broad model, although they distribute different information. No single participant must calculate every path.</p>
+<p>A <strong>logically centralized</strong> controller collects topology or policy, calculates intent, and programs devices through control interfaces. Software-defined networking often uses this approach within one administrative domain. “Logically centralized” does not require one physical server; controllers can be replicated while exposing one coherent control service.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Design</th>
+<th>Knowledge during calculation</th>
+<th>Strength</th>
+<th>Main risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Distributed</td>
+<td>Partial or replicated through protocol messages</td>
+<td>Autonomy and failure tolerance</td>
+<td>Convergence and inconsistent intermediate views</td>
+</tr>
+<tr class="even">
+<td>Logically centralized</td>
+<td>Controller assembles a wider view</td>
+<td>Global optimization and uniform policy</td>
+<td>Stale controller state, control reachability, scaling</td>
+</tr>
+<tr class="odd">
+<td>Hybrid</td>
+<td>Distributed base plus controller guidance</td>
+<td>Practical balance</td>
+<td>Interactions between two sources of intent</td>
+</tr>
+</tbody>
+</table>
+<p>The Internet is necessarily distributed across organizations. A campus or data centre can use stronger central coordination, but it still needs behavior for controller partitions, device restarts, and links that fail faster than new state can be installed.</p>
+</section>
+<section id="static-vs-dynamic-routes" class="level4">
+<h4 class="anchored" data-anchor-id="static-vs-dynamic-routes"><strong>Static vs Dynamic Routes</strong></h4>
+<p>A <strong>static route</strong> is installed by configuration rather than learned from a routing protocol. Static routes are predictable and useful for defaults, stubs, discard summaries, management paths, and controlled failover. They do not automatically discover arbitrary topology changes.</p>
+<p>A <strong>dynamic route</strong> is learned and withdrawn through a protocol. Dynamic routing adapts, but adaptation introduces messages, timers, authentication, algorithmic state, and transient behavior. A common design combines connected routes, selected static routes, an intradomain protocol, and BGP, then ranks candidates by route source before comparing each protocol’s own metric.</p>
+<p>The administrative preference between route sources is separate from the protocol metric. An OSPF cost of 10 and a BGP AS-path length of 3 are not values in one shared numeric scale. The router first decides which kinds of candidate are eligible and preferred, then applies protocol-specific comparison.</p>
+</section>
+<section id="convergence-stability-and-failure-recovery" class="level4">
+<h4 class="anchored" data-anchor-id="convergence-stability-and-failure-recovery"><strong>Convergence, Stability, and Failure Recovery</strong></h4>
+<p><strong>Convergence</strong> is the process by which participants incorporate a change and settle on mutually compatible forwarding state. Useful dimensions include:</p>
+<ul>
+<li><strong>detection time:</strong> how quickly a node recognizes neighbor or link failure;</li>
+<li><strong>propagation time:</strong> how quickly new information reaches affected routers;</li>
+<li><strong>calculation time:</strong> how quickly routes are recomputed and selected;</li>
+<li><strong>installation time:</strong> how quickly the FIB changes across devices;</li>
+<li><strong>traffic recovery time:</strong> when packets again reach a valid destination.</li>
+</ul>
+<p>During convergence, some routers use old state while others use new state. This can produce a temporary black hole, loop, path stretch, duplication, or reordering. Even if every router runs a correct algorithm, unsynchronized FIB installation can create a <strong>microloop</strong>. Fast failure detection is not automatically safe: reacting to every brief signal fluctuation can cause route flapping and repeated recalculation.</p>
+<p>Routing therefore balances liveness and stability. It must react fast enough to real failure, but cautiously enough to avoid amplifying noise. Timers, dampening, ordered updates, loop-free alternates, graceful restart, and fast reroute address different parts of that trade-off.</p>
+<div id="routing-objectives-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.231610Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.231206Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.236532Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.235996Z&quot;}" data-execution_count="1">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>paths <span class="op">=</span> {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"upper R1-R2-R4"</span>: {<span class="st">"latency_ms"</span>: <span class="dv">8</span>, <span class="st">"admin_cost"</span>: <span class="dv">10</span>, <span class="st">"bottleneck_gbps"</span>: <span class="dv">1</span>},</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"lower R1-R3-R4"</span>: {<span class="st">"latency_ms"</span>: <span class="dv">15</span>, <span class="st">"admin_cost"</span>: <span class="dv">4</span>, <span class="st">"bottleneck_gbps"</span>: <span class="dv">10</span>},</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Different routing objectives order exactly the same candidate paths differently.</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>lowest_latency <span class="op">=</span> <span class="bu">min</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"latency_ms"</span>])</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>lowest_cost <span class="op">=</span> <span class="bu">min</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"admin_cost"</span>])</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>highest_capacity <span class="op">=</span> <span class="bu">max</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"bottleneck_gbps"</span>])</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"lowest latency: "</span>, lowest_latency)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"lowest cost:    "</span>, lowest_cost)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"highest capacity:"</span>, highest_capacity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>lowest latency:  upper R1-R2-R4
+lowest cost:     lower R1-R3-R4
+highest capacity: lower R1-R3-R4</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="distance-vector-routing" class="level3">
+<h3 class="anchored" data-anchor-id="distance-vector-routing"><strong>Distance-Vector Routing</strong></h3>
+<section id="bellman-ford-recurrence" class="level4">
+<h4 class="anchored" data-anchor-id="bellman-ford-recurrence"><strong>Bellman-Ford Recurrence</strong></h4>
+<p>In distance-vector routing, router <span class="math inline">\(x\)</span> maintains an estimated distance <span class="math inline">\(D_x(y)\)</span> to each destination <span class="math inline">\(y\)</span> and learns its neighbors’ estimates. If <span class="math inline">\(N(x)\)</span> is the set of neighbors of <span class="math inline">\(x\)</span>, the Bellman-Ford recurrence is</p>
+<p><span class="math display">\[
+D_x(y)=\min_{v\in N(x)}\left(c(x,v)+D_v(y)\right).
+\]</span></p>
+<p>The expression says: to reach <span class="math inline">\(y\)</span>, choose a neighbor <span class="math inline">\(v\)</span>, pay the local cost to <span class="math inline">\(v\)</span>, then rely on <span class="math inline">\(v\)</span>’s advertised distance to <span class="math inline">\(y\)</span>. The minimizing neighbor becomes the next hop. A router does not initially need the full topology; it needs local link costs and vectors received from adjacent routers.</p>
+<p>At initialization, a router knows distance zero to itself, direct cost to each neighbor, and infinity to other destinations. Every received vector can improve or invalidate entries. Repeated relaxation propagates knowledge farther: after one exchange, a router can learn useful two-hop paths; after more exchanges, information crosses a larger network.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/distance-vector-overview.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Distance-vector routers exchange their current destination costs with adjacent routers."><img src="assets/distance-vector-overview.svg" class="img-fluid figure-img" style="width:78.0%" alt="Distance vector routing diagram with neighboring routers exchanging cost vectors"></a></p>
+<figcaption>Distance-vector routers exchange their current destination costs with adjacent routers.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:DVA.svg">Webaware, DVA, Wikimedia Commons</a>, released into the public domain.</em></p>
+<p>The conceptual update is:</p>
+<pre class="text"><code>ON_VECTOR_FROM(neighbor v, advertised_vector)
+    for each destination y in advertised_vector
+        candidate &lt;- cost_to(v) + advertised_vector[y]
+        compare candidate with current route to y
+    if any selected route changed
+        advertise the new vector according to protocol policy</code></pre>
+<p>Real implementations retain next hop, timers, route source, subnet mask, and changed-state flags rather than only one number. Updates may be periodic, triggered by change, or both. Asynchronous execution means neighbors need not process the same event in the same order.</p>
+</section>
+<section id="distributed-route-advertisement" class="level4">
+<h4 class="anchored" data-anchor-id="distributed-route-advertisement"><strong>Distributed Route Advertisement</strong></h4>
+<p>Distance-vector messages reveal selected distances, not a complete graph. This reduces topology state at each router but creates dependence on neighbors’ claims. Router A can know that B reports cost 3 to a prefix without knowing every link inside B’s route.</p>
+<p>The following executable model uses synchronous rounds only to make convergence visible. Infinity is a large teaching value, direct links are bidirectional, and every router advertises its complete vector each round. Real protocols optimize message format, timing, and changed entries.</p>
+<div id="distance-vector-convergence-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.238542Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.238287Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.244110Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.243451Z&quot;}" data-execution_count="2">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> copy <span class="im">import</span> deepcopy</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>graph <span class="op">=</span> {</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A"</span>: {<span class="st">"B"</span>: <span class="dv">1</span>, <span class="st">"C"</span>: <span class="dv">4</span>},</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"B"</span>: {<span class="st">"A"</span>: <span class="dv">1</span>, <span class="st">"C"</span>: <span class="dv">1</span>, <span class="st">"D"</span>: <span class="dv">7</span>},</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C"</span>: {<span class="st">"A"</span>: <span class="dv">4</span>, <span class="st">"B"</span>: <span class="dv">1</span>, <span class="st">"D"</span>: <span class="dv">2</span>, <span class="st">"E"</span>: <span class="dv">6</span>},</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"D"</span>: {<span class="st">"B"</span>: <span class="dv">7</span>, <span class="st">"C"</span>: <span class="dv">2</span>, <span class="st">"E"</span>: <span class="dv">1</span>},</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"E"</span>: {<span class="st">"C"</span>: <span class="dv">6</span>, <span class="st">"D"</span>: <span class="dv">1</span>},</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> distance_vector_rounds(topology: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">int</span>]]):</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run synchronous Bellman-Ford rounds and retain each vector snapshot."""</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    nodes <span class="op">=</span> <span class="bu">sorted</span>(topology)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    vectors <span class="op">=</span> {</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        node: {</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>            destination: (</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>                <span class="dv">0</span> <span class="cf">if</span> destination <span class="op">==</span> node</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span> topology[node].get(destination, inf)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> destination <span class="kw">in</span> nodes</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node <span class="kw">in</span> nodes</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> [deepcopy(vectors)]</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>        updated <span class="op">=</span> deepcopy(vectors)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node <span class="kw">in</span> nodes:</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> destination <span class="kw">in</span> nodes:</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> node <span class="op">==</span> destination:</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>                    updated[node][destination] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>                updated[node][destination] <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>                    link_cost <span class="op">+</span> vectors[neighbor][destination]</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> neighbor, link_cost <span class="kw">in</span> topology[node].items()</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>        history.append(updated)</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> updated <span class="op">==</span> vectors:</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> history</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>        vectors <span class="op">=</span> updated</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>history <span class="op">=</span> distance_vector_rounds(graph)</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"round | A-&gt;D | A-&gt;E | B-&gt;E"</span>)</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> round_number, vectors <span class="kw">in</span> <span class="bu">enumerate</span>(history):</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>round_number<span class="sc">:5}</span><span class="ss"> | </span><span class="sc">{</span>vectors[<span class="st">'A'</span>][<span class="st">'D'</span>]<span class="sc">:4}</span><span class="ss"> | "</span></span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>vectors[<span class="st">'A'</span>][<span class="st">'E'</span>]<span class="sc">:4}</span><span class="ss"> | </span><span class="sc">{</span>vectors[<span class="st">'B'</span>][<span class="st">'E'</span>]<span class="sc">:4}</span><span class="ss">"</span></span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"converged rounds:"</span>, <span class="bu">len</span>(history) <span class="op">-</span> <span class="dv">1</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>round | A-&gt;D | A-&gt;E | B-&gt;E
+    0 |  inf |  inf |  inf
+    1 |    6 |   10 |    7
+    2 |    4 |    7 |    4
+    3 |    4 |    5 |    4
+    4 |    4 |    5 |    4
+converged rounds: 4</code></pre>
+</div>
+</div>
+</section>
+<section id="count-to-infinity-and-routing-loops" class="level4">
+<h4 class="anchored" data-anchor-id="count-to-infinity-and-routing-loops"><strong>Count-to-Infinity and Routing Loops</strong></h4>
+<p>Good news often propagates naturally: a newly shorter route is immediately attractive. Bad news is harder. If a destination disappears, two routers can each mistake the other’s stale advertisement for an independent alternative.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dv-count-to-infinity.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Routers A and B repeatedly increase a false distance after destination X becomes unreachable."><img src="assets/dv-count-to-infinity.svg" class="img-fluid figure-img" style="width:98.0%" alt="Distance vector count to infinity timeline after a destination fails behind router C"></a></p>
+<figcaption>Routers A and B repeatedly increase a false distance after destination X becomes unreachable.</figcaption>
+</figure>
+</div>
+<p>In the figure, B once reached X through C with cost 1 and A reached X through B with cost 2. After C loses X, B can hear A’s stale claim of 2 and infer a route of 3 through A. A then hears B’s 3 and infers 4. Packets loop between A and B while the metric increases. This is <strong>count-to-infinity</strong>: participants slowly discover that no finite route exists.</p>
+<p>The problem is epistemic, not an arithmetic bug. A vector says “I can reach X at cost 2” but does not reveal whether that claimed route secretly comes back through the recipient. Path-vector protocols address this differently by carrying the sequence of autonomous systems.</p>
+<div id="count-to-infinity-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.245953Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.245704Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.249497Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.248979Z&quot;}" data-execution_count="3">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> count_to_infinity(rounds: <span class="bu">int</span> <span class="op">=</span> <span class="dv">8</span>, protocol_infinity: <span class="bu">int</span> <span class="op">=</span> <span class="dv">16</span>):</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Model A and B reinforcing stale routes after C loses destination X."""</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    distance_a, distance_b <span class="op">=</span> <span class="dv">2</span>, <span class="dv">1</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> [(<span class="dv">0</span>, distance_a, distance_b)]</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> round_number <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, rounds <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Both routers calculate from the previous round's advertisement.</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        new_a <span class="op">=</span> <span class="bu">min</span>(protocol_infinity, <span class="dv">1</span> <span class="op">+</span> distance_b)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        new_b <span class="op">=</span> <span class="bu">min</span>(protocol_infinity, <span class="dv">1</span> <span class="op">+</span> distance_a)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        distance_a, distance_b <span class="op">=</span> new_a, new_b</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        timeline.append((round_number, distance_a, distance_b))</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"round | A advertises | B advertises"</span>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> round_number, distance_a, distance_b <span class="kw">in</span> count_to_infinity():</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>round_number<span class="sc">:5}</span><span class="ss"> | </span><span class="sc">{</span>distance_a<span class="sc">:12}</span><span class="ss"> | </span><span class="sc">{</span>distance_b<span class="sc">:12}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>round | A advertises | B advertises
+    0 |            2 |            1
+    1 |            2 |            3
+    2 |            4 |            3
+    3 |            4 |            5
+    4 |            6 |            5
+    5 |            6 |            7
+    6 |            8 |            7
+    7 |            8 |            9
+    8 |           10 |            9</code></pre>
+</div>
+</div>
+</section>
+<section id="split-horizon-poison-reverse-and-hold-down" class="level4">
+<h4 class="anchored" data-anchor-id="split-horizon-poison-reverse-and-hold-down"><strong>Split Horizon, Poison Reverse, and Hold-Down</strong></h4>
+<p>Distance-vector protocols combine several defenses:</p>
+<ul>
+<li><strong>Split horizon:</strong> do not advertise a route back over the interface from which it was learned.</li>
+<li><strong>Poison reverse:</strong> advertise that reverse route with infinity, explicitly telling the supplier not to use the receiver as an alternative.</li>
+<li><strong>Triggered updates:</strong> send important changes without waiting for the next periodic update.</li>
+<li><strong>Route poisoning:</strong> mark a failed route unreachable while retaining it long enough for the bad news to propagate.</li>
+<li><strong>Hold-down or invalidation timers:</strong> avoid immediately accepting suspicious alternatives after failure.</li>
+<li><strong>Bounded infinity:</strong> use a finite unreachable value so counting terminates.</li>
+</ul>
+<p>Split horizon and poison reverse stop common two-router loops but not every loop involving several routers or complex redistribution. Hold-down improves stability at the cost of delaying legitimate recovery. The correct lesson is not that one timer “solves loops”; several mechanisms constrain different failure sequences.</p>
+<p>RIP Version 2, defined by <a href="https://datatracker.ietf.org/doc/rfc2453/">RFC 2453</a>, uses hop count, valid metrics 1 through 15, and 16 as infinity. That small limit bounds count-to-infinity but also makes RIP unsuitable for paths requiring 16 or more hops.</p>
+</section>
+</section>
+<section id="link-state-routing" class="level3">
+<h3 class="anchored" data-anchor-id="link-state-routing"><strong>Link-State Routing</strong></h3>
+<section id="topology-discovery-and-link-state-flooding" class="level4">
+<h4 class="anchored" data-anchor-id="topology-discovery-and-link-state-flooding"><strong>Topology Discovery and Link-State Flooding</strong></h4>
+<p>Link-state routing distributes a different object. Each router describes its own local adjacencies and costs in a <strong>Link-State Advertisement (LSA)</strong> or protocol data unit. These records are reliably flooded through a defined scope, allowing routers in that scope to construct a consistent <strong>Link-State Database (LSDB)</strong>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/link-state-flooding.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Routers originate local link state, flood it reliably, build a shared database, and run shortest-path first independently."><img src="assets/link-state-flooding.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three phases of link state routing from neighbor discovery through flooding to Dijkstra shortest path calculation"></a></p>
+<figcaption>Routers originate local link state, flood it reliably, build a shared database, and run shortest-path first independently.</figcaption>
+</figure>
+</div>
+<p>A link-state record needs identity and freshness, commonly including an originator, link descriptions, metric, sequence number, age or lifetime, and checksum. Only the originator should create authoritative new state for its own links. Other routers flood the record and reject stale duplicates.</p>
+<p>The broad pipeline is:</p>
+<ol type="1">
+<li>Discover neighbors and establish required adjacencies.</li>
+<li>Measure or configure local link costs.</li>
+<li>Originate newer link-state information after change and periodically refresh it.</li>
+<li>Reliably flood it through the area or level.</li>
+<li>Build a graph from the newest accepted records.</li>
+<li>Run shortest-path first with the local router as root.</li>
+<li>derive next hops and install eligible prefixes in the FIB.</li>
+</ol>
+<p>All routers can hold the same area graph but produce different shortest-path trees because each uses itself as root. The database represents topology facts; the tree and FIB represent one router’s perspective.</p>
+</section>
+<section id="dijkstras-shortest-path-algorithm" class="level4">
+<h4 class="anchored" data-anchor-id="dijkstras-shortest-path-algorithm"><strong>Dijkstra’s Shortest-Path Algorithm</strong></h4>
+<p>Dijkstra’s algorithm finds shortest paths from one source when edge costs are non-negative. It maintains tentative distances and repeatedly settles the unsettled vertex with smallest known distance.</p>
+<pre class="text"><code>DIJKSTRA(graph, source)
+    distance[source] &lt;- 0; all other distances &lt;- infinity
+    candidate queue &lt;- source
+    while candidate queue is not empty
+        u &lt;- unsettled vertex with minimum distance
+        settle u
+        for each edge (u, v) with cost w
+            if distance[u] + w &lt; distance[v]
+                distance[v] &lt;- distance[u] + w
+                parent[v] &lt;- u
+                update v in candidate queue
+    return distances and predecessor tree</code></pre>
+<p>The update <code>distance[u] + w &lt; distance[v]</code> is <strong>relaxation</strong>. Once the minimum candidate is removed from a correct priority queue, no later non-negative route can make it cheaper. With an adjacency list and binary heap, the usual complexity is <span class="math inline">\(O((|V|+|E|)\log |V|)\)</span>; implementation details and graph density affect the practical cost.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dijkstra-animation.gif" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Animated execution of Dijkstra’s algorithm on a weighted graph."><img src="assets/dijkstra-animation.gif" class="img-fluid figure-img" style="width:44.0%" alt="Animation showing Dijkstra settling vertices and relaxing weighted edges"></a></p>
+<figcaption>Animated execution of Dijkstra’s algorithm on a weighted graph.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:Dijkstra_Animation.gif">Ibmua, Dijkstra Animation, Wikimedia Commons</a>, released into the public domain.</em></p>
+<p>An IGP must define deterministic tie behavior and preserve equal-cost alternatives where ECMP is supported. The algorithm returns path costs, but route installation still needs prefix attachment, first-hop derivation, next-hop resolution, and protocol preference.</p>
+<div id="dijkstra-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.251100Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.250950Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.255651Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.254994Z&quot;}" data-execution_count="4">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> heapq <span class="im">import</span> heappop, heappush</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dijkstra(topology: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">int</span>]], source: <span class="bu">str</span>):</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return distances, parents, and settlement order for a weighted graph."""</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    distances <span class="op">=</span> {node: inf <span class="cf">for</span> node <span class="kw">in</span> topology}</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    parents <span class="op">=</span> {node: <span class="va">None</span> <span class="cf">for</span> node <span class="kw">in</span> topology}</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    distances[source] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    queue <span class="op">=</span> [(<span class="dv">0</span>, source)]</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    settled_order <span class="op">=</span> []</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> queue:</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        distance_u, node_u <span class="op">=</span> heappop(queue)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> distance_u <span class="op">!=</span> distances[node_u]:</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span>                     <span class="co"># Ignore an outdated heap entry.</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>        settled_order.append((node_u, distance_u))</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node_v, edge_cost <span class="kw">in</span> topology[node_u].items():</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>            candidate <span class="op">=</span> distance_u <span class="op">+</span> edge_cost</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> candidate <span class="op">&lt;</span> distances[node_v]:</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>                distances[node_v] <span class="op">=</span> candidate</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>                parents[node_v] <span class="op">=</span> node_u</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>                heappush(queue, (candidate, node_v))</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> distances, parents, settled_order</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reconstruct_path(parents: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>], destination: <span class="bu">str</span>):</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    path <span class="op">=</span> []</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> destination</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> current <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        path.append(current)</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>        current <span class="op">=</span> parents[current]</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">list</span>(<span class="bu">reversed</span>(path))</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>distances, parents, settled <span class="op">=</span> dijkstra(graph, <span class="st">"A"</span>)</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"settlement order:"</span>, settled)</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> destination <span class="kw">in</span> <span class="bu">sorted</span>(graph):</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"A -&gt; </span><span class="sc">{</span>destination<span class="sc">}</span><span class="ss">: cost=</span><span class="sc">{</span>distances[destination]<span class="sc">:2}</span><span class="ss">, "</span></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"path=</span><span class="sc">{</span><span class="st">'-'</span><span class="sc">.</span>join(reconstruct_path(parents, destination))<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>settlement order: [('A', 0), ('B', 1), ('C', 2), ('D', 4), ('E', 5)]
+A -&gt; A: cost= 0, path=A
+A -&gt; B: cost= 1, path=A-B
+A -&gt; C: cost= 2, path=A-B-C
+A -&gt; D: cost= 4, path=A-B-C-D
+A -&gt; E: cost= 5, path=A-B-C-D-E</code></pre>
+</div>
+</div>
+</section>
+<section id="sequence-numbers-aging-and-reliable-flooding" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-numbers-aging-and-reliable-flooding"><strong>Sequence Numbers, Aging, and Reliable Flooding</strong></h4>
+<p>Flooding must distinguish a new description from a delayed duplicate. A larger sequence number normally identifies a newer instance from the same originator. Age or lifetime eventually removes records whose originator has disappeared. Checksums detect damaged LSA content, while acknowledgments and retransmission improve reliable distribution.</p>
+<p>These mechanisms interact with restart. A router that reboots cannot safely originate a sequence number that every neighbor considers older than the pre-restart record. Protocols define initialization, maximum-sequence, flush, and refresh behavior to recover a coherent database.</p>
+<p>Reliable flooding does not mean every router changes its FIB simultaneously. One receives the LSA first, another receives it later, and SPF scheduling can batch changes. Operators tune detection, flooding, SPF throttling, and installation to limit CPU storms while meeting recovery goals.</p>
+</section>
+<section id="distance-vector-vs-link-state" class="level4">
+<h4 class="anchored" data-anchor-id="distance-vector-vs-link-state"><strong>Distance Vector vs Link State</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Distance vector</th>
+<th>Link state</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Advertised knowledge</td>
+<td>Selected distance/reachability</td>
+<td>Local links and attributes</td>
+</tr>
+<tr class="even">
+<td>Router’s topology view</td>
+<td>Usually incomplete</td>
+<td>Replicated within flooding scope</td>
+</tr>
+<tr class="odd">
+<td>Core computation</td>
+<td>Bellman-Ford relaxation</td>
+<td>Dijkstra SPF</td>
+</tr>
+<tr class="even">
+<td>Loop information</td>
+<td>Next hop and metric may hide dependency</td>
+<td>Full scoped topology enables explicit paths</td>
+</tr>
+<tr class="odd">
+<td>Failure behavior</td>
+<td>Bad news can count or loop</td>
+<td>Flood new state, then recompute; microloops remain possible</td>
+</tr>
+<tr class="even">
+<td>State and processing</td>
+<td>Vectors per destination</td>
+<td>LSDB plus SPF structures</td>
+</tr>
+<tr class="odd">
+<td>Typical examples</td>
+<td>RIP</td>
+<td>OSPF and IS-IS</td>
+</tr>
+</tbody>
+</table>
+<p>Neither family is universally “better.” Scope, scale, topology, convergence goals, implementation quality, and operational tooling matter. BGP is a path-vector protocol: it shares some incremental, neighbor-to-neighbor behavior with distance vector, but carries an AS path and rich policy attributes rather than one additive distance.</p>
+</section>
+</section>
+<section id="intradomain-routing" class="level3">
+<h3 class="anchored" data-anchor-id="intradomain-routing"><strong>Intradomain Routing</strong></h3>
+<p>An <strong>Interior Gateway Protocol (IGP)</strong> operates within one administrative routing domain. The organization controls metrics, addressing, failure policy, authentication, and hierarchy, so it can pursue consistent internal objectives. IGP reachability is also used to resolve BGP next hops: BGP may select an external route, while OSPF or IS-IS determines how an internal router reaches the chosen border.</p>
+<section id="routing-information-protocol" class="level4">
+<h4 class="anchored" data-anchor-id="routing-information-protocol"><strong>Routing Information Protocol</strong></h4>
+<p>RIP is a distance-vector IGP whose metric is hop count. A directly reachable route normally has metric 1; 16 is unreachable. RIPv2 adds classless masks, route tags, next-hop information, multicast updates, and authentication support compared with classful RIP behavior.</p>
+<p>Its small diameter and timer-driven convergence make RIP useful for teaching and limited simple networks, not for a large modern backbone. A path with two slow links can appear better than one fast link because hop count ignores bandwidth and delay. The protocol demonstrates why metric semantics matter as much as algorithm correctness.</p>
+</section>
+<section id="open-shortest-path-first" class="level4">
+<h4 class="anchored" data-anchor-id="open-shortest-path-first"><strong>Open Shortest Path First</strong></h4>
+<p>OSPFv2 is specified by <a href="https://datatracker.ietf.org/doc/rfc2328/">RFC 2328</a>. Its operation connects several state machines:</p>
+<ol type="1">
+<li><strong>Hello processing</strong> discovers neighbors, checks compatible parameters, and detects liveness.</li>
+<li><strong>Adjacency formation</strong> decides which neighbors exchange complete database state. On multi-access networks, a Designated Router and Backup Designated Router reduce adjacency and flooding complexity.</li>
+<li><strong>Database synchronization</strong> exchanges summaries and requests missing or newer LSAs.</li>
+<li><strong>Reliable flooding</strong> distributes LSAs within their defined scope.</li>
+<li><strong>SPF calculation</strong> builds a shortest-path tree from the LSDB.</li>
+<li><strong>Route calculation and installation</strong> derives intra-area, inter-area, and external routes plus next hops.</li>
+</ol>
+<p>OSPF cost is additive and administratively derived, often from reference bandwidth divided by interface bandwidth. Defaults can make several high-speed links appear equal unless the reference is updated. Cost is not measured application latency and does not automatically react to transient queueing.</p>
+<p>OSPF uses areas to bound LSDB size and recalculation scope. <strong>Area 0</strong> is the backbone for inter-area distribution. An Area Border Router connects areas; an Autonomous System Boundary Router redistributes external reachability. Summarization at boundaries reduces state and hides churn, but a summary must not attract traffic that cannot be delivered. Equal-cost paths can produce ECMP next hops.</p>
+<p>OSPF route types and LSA scopes matter when debugging. Two routers can agree on physical links yet choose differently because one route is intra-area and another is external, because area configuration is inconsistent, or because redistribution changed type and metric semantics.</p>
+</section>
+<section id="is-is-and-operational-differences" class="level4">
+<h4 class="anchored" data-anchor-id="is-is-and-operational-differences"><strong>IS-IS and Operational Differences</strong></h4>
+<p>IS-IS is also a link-state IGP and runs SPF over a flooded database. Integrated IS-IS carries IP reachability using extensible Type-Length-Value fields. Unlike OSPF’s IP protocol transport, IS-IS control packets run directly over the link layer, so an IP-addressing failure does not necessarily prevent adjacency formation.</p>
+<p>Its hierarchy uses Level 1 for routing within an area and Level 2 between areas; a router can participate in both. OSPF and IS-IS differ in packet formats, terminology, area attachment, flooding details, and operational culture, but both implement the central pattern of neighbor discovery, topology flooding, SPF, hierarchy, and route installation.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Concern</th>
+<th>OSPF</th>
+<th>IS-IS</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Control transport</td>
+<td>Directly over IP</td>
+<td>Directly over link layer</td>
+</tr>
+<tr class="even">
+<td>Hierarchy</td>
+<td>Area 0 backbone plus other areas</td>
+<td>Level 1 within area, Level 2 between areas</td>
+</tr>
+<tr class="odd">
+<td>Extensibility</td>
+<td>LSA and protocol extensions</td>
+<td>Strong TLV-based extensibility</td>
+</tr>
+<tr class="even">
+<td>IPv4/IPv6 deployment</td>
+<td>OSPFv2 for IPv4, OSPFv3 commonly for IPv6</td>
+<td>Multi-protocol reachability in integrated IS-IS</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="areas-summarization-ecmp-and-redistribution" class="level4">
+<h4 class="anchored" data-anchor-id="areas-summarization-ecmp-and-redistribution"><strong>Areas, Summarization, ECMP, and Redistribution</strong></h4>
+<p>Hierarchy limits the blast radius of detailed topology changes. Summaries reduce table size and update frequency; ECMP uses multiple equal-cost next hops, normally hashing a flow to avoid reordering. These are not free optimizations. Summaries can hide failure, ECMP can expose flows to unequal path quality, and hierarchy can create suboptimal paths.</p>
+<p><strong>Redistribution</strong> imports routes from another protocol or source. It is a frequent source of loops because the imported route can be exported back without its original meaning. Safe design uses explicit direction, tags or communities, metric mapping, filtering, and a clear ownership boundary. “Redistribute everything both ways” makes two independently correct protocols form one ambiguous feedback system.</p>
+</section>
+</section>
+<section id="autonomous-systems-and-internet-economics" class="level3">
+<h3 class="anchored" data-anchor-id="autonomous-systems-and-internet-economics"><strong>Autonomous Systems and Internet Economics</strong></h3>
+<p>An <strong>Autonomous System (AS)</strong> is a set of routed networks under coordinated administration that presents routing policy to other networks. It is identified in BGP by an Autonomous System Number (ASN). An AS is an administrative and policy object, not necessarily one company, one building, or one IGP area.</p>
+<section id="transit-peering-and-customer-provider-relationships" class="level4">
+<h4 class="anchored" data-anchor-id="transit-peering-and-customer-provider-relationships"><strong>Transit, Peering, and Customer-Provider Relationships</strong></h4>
+<p>Interdomain routing reflects business relationships because carrying third-party traffic consumes capacity and has economic value.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/inter-as-peering-transit.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="Representative customer, provider, peering, and Internet exchange relationships among autonomous systems."><img src="assets/inter-as-peering-transit.svg" class="img-fluid figure-img" style="width:84.0%" alt="Autonomous systems connect through customer provider transit and peer relationships at Internet exchanges"></a></p>
+<figcaption>Representative customer, provider, peering, and Internet exchange relationships among autonomous systems.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:Inter-AS_peering_and_transit_relationships_01.svg">Bill Woodcock, Inter-AS peering and transit relationships, Wikimedia Commons</a>, licensed under CC BY-SA 4.0.</em></p>
+<ul>
+<li>A <strong>customer</strong> pays a <strong>provider</strong> for transit to destinations the provider can reach. A provider usually advertises broad reachability to its customer.</li>
+<li><strong>Peers</strong> exchange traffic for their own and their customers’ destinations, commonly without agreeing to carry traffic between unrelated providers.</li>
+<li>An <strong>Internet Exchange Point (IXP)</strong> supplies shared switching infrastructure where networks establish bilateral sessions or use a route server to simplify multilateral exchange. The IXP itself is not automatically the transit provider for all exchanged traffic.</li>
+</ul>
+<p>Commercial terms are more nuanced than three labels: paid peering, partial transit, regional constraints, traffic ratios, capacity commitments, and private interconnects exist. The simple model is still valuable because it explains common import preference and export restrictions.</p>
+</section>
+<section id="policy-routing-vs-shortest-path-routing" class="level4">
+<h4 class="anchored" data-anchor-id="policy-routing-vs-shortest-path-routing"><strong>Policy Routing vs Shortest-Path Routing</strong></h4>
+<p>An AS commonly prefers customer-learned routes over peer routes and peer routes over provider routes, because customer traffic produces revenue while provider traffic incurs cost. This local preference can dominate AS-path length. The globally observed route is therefore not guaranteed to minimize hops, latency, or geography.</p>
+<p>Within an AS, <strong>hot-potato routing</strong> often sends traffic to the nearest acceptable egress according to the IGP, reducing the AS’s own internal carriage. A different egress could have better end-to-end latency. BGP chooses an external policy path; the IGP cost to the BGP next hop can then choose where the traffic exits.</p>
+</section>
+<section id="valley-free-paths-and-export-policies" class="level4">
+<h4 class="anchored" data-anchor-id="valley-free-paths-and-export-policies"><strong>Valley-Free Paths and Export Policies</strong></h4>
+<p>A simplified economically consistent path goes “up” zero or more customer-to-provider links, optionally crosses one peer link, then goes “down” zero or more provider-to-customer links. It does not go down to a customer and then back up through that customer’s provider, because the middle AS would be giving free transit between providers or peers.</p>
+<p>Typical export behavior is:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 26%">
+<col style="width: 26%">
+<col style="width: 26%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Route learned from</th>
+<th style="text-align: right;">Export to customers</th>
+<th style="text-align: right;">Export to peers</th>
+<th style="text-align: right;">Export to providers</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Own prefix</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+</tr>
+<tr class="even">
+<td>Customer</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">Yes</td>
+</tr>
+<tr class="odd">
+<td>Peer</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+</tr>
+<tr class="even">
+<td>Provider</td>
+<td style="text-align: right;">Yes</td>
+<td style="text-align: right;">No</td>
+<td style="text-align: right;">No</td>
+</tr>
+</tbody>
+</table>
+<p>This table expresses a common model, not a protocol-enforced law. A route leak occurs when advertisement violates intended propagation policy. Because BGP neighbors cannot infer private business contracts from packet fields alone, prevention requires filters, communities, relationship signaling, monitoring, and coordination.</p>
+<div id="valley-free-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.258018Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.257852Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.261173Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.260802Z&quot;}" data-execution_count="5">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_valley_free(relationships: <span class="bu">list</span>[<span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Check the simplified c2p* p2p? p2c* relationship pattern."""</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    phase <span class="op">=</span> <span class="st">"up"</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> relationship <span class="kw">in</span> relationships:</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> phase <span class="op">==</span> <span class="st">"up"</span>:</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"c2p"</span>:</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2p"</span>:</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"peer"</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"down"</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> phase <span class="op">==</span> <span class="st">"peer"</span>:</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"down"</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> phase <span class="op">==</span> <span class="st">"down"</span> <span class="kw">and</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>examples <span class="op">=</span> {</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"customer -&gt; provider -&gt; peer -&gt; customer"</span>: [<span class="st">"c2p"</span>, <span class="st">"p2p"</span>, <span class="st">"p2c"</span>],</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"provider -&gt; customer -&gt; provider"</span>: [<span class="st">"p2c"</span>, <span class="st">"c2p"</span>],</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"customer -&gt; provider -&gt; provider -&gt; customer"</span>: [<span class="st">"c2p"</span>, <span class="st">"c2p"</span>, <span class="st">"p2c"</span>],</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"peer -&gt; peer"</span>: [<span class="st">"p2p"</span>, <span class="st">"p2p"</span>],</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> description, relationships <span class="kw">in</span> examples.items():</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>description<span class="sc">:46}</span><span class="ss"> -&gt; </span><span class="sc">{</span>is_valley_free(relationships)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>customer -&gt; provider -&gt; peer -&gt; customer       -&gt; True
+provider -&gt; customer -&gt; provider               -&gt; False
+customer -&gt; provider -&gt; provider -&gt; customer   -&gt; True
+peer -&gt; peer                                   -&gt; False</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="border-gateway-protocol" class="level3">
+<h3 class="anchored" data-anchor-id="border-gateway-protocol"><strong>Border Gateway Protocol</strong></h3>
+<p>BGP-4, specified by <a href="https://datatracker.ietf.org/doc/rfc4271/">RFC 4271</a>, is the Internet’s inter-AS routing protocol. It is a <strong>path-vector</strong> protocol: an advertisement associates a prefix with an <code>AS_PATH</code> and other attributes. The path supports loop rejection and policy, while incremental UPDATE messages announce and withdraw reachability.</p>
+<section id="ebgp-and-ibgp-sessions" class="level4">
+<h4 class="anchored" data-anchor-id="ebgp-and-ibgp-sessions"><strong>eBGP and iBGP Sessions</strong></h4>
+<p><strong>eBGP</strong> exchanges routes between different autonomous systems. <strong>iBGP</strong> distributes BGP routes among speakers inside one AS. Both normally use long-lived TCP sessions on port 179. The TCP connection carries control messages; user packets do not travel “inside the BGP session.”</p>
+<p>A BGP speaker passes through a session state machine and exchanges:</p>
+<ul>
+<li><strong>OPEN</strong> to negotiate identity and capabilities;</li>
+<li><strong>KEEPALIVE</strong> to confirm an established session remains active;</li>
+<li><strong>UPDATE</strong> to announce reachable prefixes with path attributes or withdraw them;</li>
+<li><strong>NOTIFICATION</strong> to report an error and close the session;</li>
+<li><strong>ROUTE-REFRESH</strong> capability and related mechanisms to request readvertisement without resetting the session.</li>
+</ul>
+<p>BGP is incremental. Once peers have exchanged their initial routing state, they send changes rather than periodically retransmitting the complete Internet table. TCP provides ordered reliable delivery between peers, but it does not make the advertised routes truthful or globally consistent.</p>
+</section>
+<section id="bgp-route-advertisements-and-path-attributes" class="level4">
+<h4 class="anchored" data-anchor-id="bgp-route-advertisements-and-path-attributes"><strong>BGP Route Advertisements and Path Attributes</strong></h4>
+<p>An UPDATE can carry Network Layer Reachability Information (NLRI), withdrawn routes, and attributes. Important attributes include:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Attribute</th>
+<th>Meaning in selection or propagation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>AS_PATH</code></td>
+<td>AS sequence traversed; rejects a route containing the local ASN and often prefers shorter paths after local policy</td>
+</tr>
+<tr class="even">
+<td><code>NEXT_HOP</code></td>
+<td>IP next hop that must be reachable through the local routing system</td>
+</tr>
+<tr class="odd">
+<td><code>LOCAL_PREF</code></td>
+<td>Preference used inside one AS; higher is commonly preferred and it is not sent to external peers</td>
+</tr>
+<tr class="even">
+<td><code>MED</code></td>
+<td>Suggestion to a neighboring AS about preferred entry; lower is commonly preferred among comparable routes</td>
+</tr>
+<tr class="odd">
+<td><code>ORIGIN</code></td>
+<td>How the route entered BGP: IGP, EGP, or incomplete</td>
+</tr>
+<tr class="even">
+<td><code>COMMUNITIES</code></td>
+<td>Policy tags used to group routes and control preference or export</td>
+</tr>
+</tbody>
+</table>
+<p>Communities, defined initially by <a href="https://datatracker.ietf.org/doc/rfc1997/">RFC 1997</a>, carry policy labels rather than physical topology. An operator might tag customer routes, request that a provider not export a route in one region, or mark a route for blackholing under an agreed convention.</p>
+<p><code>AS_PATH</code> is not a cryptographic proof of every hop. It is an attribute propagated and modified according to BGP rules. Origin validation and emerging path-validation mechanisms address different portions of trust.</p>
+</section>
+<section id="route-selection-and-policy" class="level4">
+<h4 class="anchored" data-anchor-id="route-selection-and-policy"><strong>Route Selection and Policy</strong></h4>
+<p>BGP first rejects infeasible or policy-denied candidates, then applies a decision process. A useful conceptual order is:</p>
+<ol type="1">
+<li>highest local preference or locally computed degree of preference;</li>
+<li>shortest <code>AS_PATH</code> among routes still tied;</li>
+<li>preferred <code>ORIGIN</code> type;</li>
+<li>lowest MED where the routes are meaningfully comparable;</li>
+<li>eBGP-learned over iBGP-learned in a tie;</li>
+<li>lowest IGP cost to the BGP next hop;</li>
+<li>deterministic implementation-specific tie-breakers.</li>
+</ol>
+<p>Exact ordering and additional stages vary by implementation and configuration. Vendor-specific values such as weight should not be mistaken for a universal BGP attribute.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bgp-policy-selection.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="Three routes to one prefix are compared; a longer customer path wins because LOCAL_PREF is evaluated before AS_PATH length."><img src="assets/bgp-policy-selection.svg" class="img-fluid figure-img" style="width:98.0%" alt="BGP route selection prefers customer local preference 200 over shorter peer and provider AS paths"></a></p>
+<figcaption>Three routes to one prefix are compared; a longer customer path wins because LOCAL_PREF is evaluated before AS_PATH length.</figcaption>
+</figure>
+</div>
+<p>Only routes tied at an earlier stage reach a later stage. A provider path with one AS hop does not beat a customer path with three AS hops when local preference already selected the customer route.</p>
+<div id="bgp-selection-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.263043Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.262818Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.267432Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.267063Z&quot;}" data-execution_count="6">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass, replace</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BGPRoute:</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    learned_from: <span class="bu">str</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    local_pref: <span class="bu">int</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    as_path: <span class="bu">tuple</span>[<span class="bu">int</span>, ...]</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    origin: <span class="bu">str</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    ebgp: <span class="bu">bool</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    igp_cost_to_next_hop: <span class="bu">int</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    router_id: <span class="bu">str</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>ORIGIN_RANK <span class="op">=</span> {<span class="st">"IGP"</span>: <span class="dv">0</span>, <span class="st">"EGP"</span>: <span class="dv">1</span>, <span class="st">"INCOMPLETE"</span>: <span class="dv">2</span>}</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bgp_selection_key(route: BGPRoute):</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A transparent teaching subset of a common BGP decision process."""</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>        <span class="op">-</span>route.local_pref,                 <span class="co"># Higher LOCAL_PREF wins.</span></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>        <span class="bu">len</span>(route.as_path),                <span class="co"># Then prefer the shorter AS path.</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>        ORIGIN_RANK[route.origin],         <span class="co"># IGP before EGP before incomplete.</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>        <span class="dv">0</span> <span class="cf">if</span> route.ebgp <span class="cf">else</span> <span class="dv">1</span>,            <span class="co"># Prefer eBGP in this simplified tie.</span></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>        route.igp_cost_to_next_hop,        <span class="co"># Hot-potato exit among remaining ties.</span></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>        route.router_id,                   <span class="co"># Deterministic final tie-break.</span></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> [</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"customer"</span>, <span class="dv">200</span>, (<span class="dv">65100</span>, <span class="dv">65210</span>, <span class="dv">65300</span>), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">30</span>, <span class="st">"10.0.0.3"</span>),</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"peer"</span>, <span class="dv">150</span>, (<span class="dv">65400</span>, <span class="dv">65300</span>), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">10</span>, <span class="st">"10.0.0.2"</span>),</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"provider"</span>, <span class="dv">100</span>, (<span class="dv">65500</span>,), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">5</span>, <span class="st">"10.0.0.1"</span>),</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>best_policy_route <span class="op">=</span> <span class="bu">min</span>(candidates, key<span class="op">=</span>bgp_selection_key)</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>equal_local_pref <span class="op">=</span> [replace(route, local_pref<span class="op">=</span><span class="dv">100</span>) <span class="cf">for</span> route <span class="kw">in</span> candidates]</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>best_short_path <span class="op">=</span> <span class="bu">min</span>(equal_local_pref, key<span class="op">=</span>bgp_selection_key)</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"normal policy winner:   "</span>, best_policy_route.learned_from,</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>      best_policy_route.as_path)</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"if LOCAL_PREF is equal: "</span>, best_short_path.learned_from,</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>      best_short_path.as_path)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>normal policy winner:    customer (65100, 65210, 65300)
+if LOCAL_PREF is equal:  provider (65500,)</code></pre>
+</div>
+</div>
+</section>
+<section id="import-policy-export-policy-and-the-fib" class="level4">
+<h4 class="anchored" data-anchor-id="import-policy-export-policy-and-the-fib"><strong>Import Policy, Export Policy, and the FIB</strong></h4>
+<p><strong>Import policy</strong> decides which received routes are accepted and how attributes such as local preference are set. The decision process selects a best route for local use. <strong>Export policy</strong> then decides whether and how that route is announced to each neighbor. Receiving, selecting, installing, and advertising are separate events.</p>
+<p>The selected BGP route must have a resolvable next hop. An internal router may use OSPF or IS-IS to reach an egress router named by <code>NEXT_HOP</code>. This recursion connects the control planes:</p>
+<pre class="text"><code>BGP selects external prefix and egress
+    -&gt; IGP supplies path to BGP next hop
+    -&gt; adjacency resolves the immediate link neighbor
+    -&gt; FIB installs prefix and one or more forwarding actions</code></pre>
+<p>Changing the IGP cost can move traffic between already-acceptable BGP exits without changing the external AS path. Conversely, a BGP withdrawal can remove the external route while internal connectivity remains healthy.</p>
+</section>
+<section id="route-reflection-and-scaling-ibgp" class="level4">
+<h4 class="anchored" data-anchor-id="route-reflection-and-scaling-ibgp"><strong>Route Reflection and Scaling iBGP</strong></h4>
+<p>Under the traditional rule, <span class="math inline">\(n\)</span> iBGP speakers need</p>
+<p><span class="math display">\[
+\frac{n(n-1)}{2}
+\]</span></p>
+<p>sessions for a full mesh. That grows quadratically. Route reflection, standardized by <a href="https://datatracker.ietf.org/doc/rfc4456/">RFC 4456</a>, lets a <strong>Route Reflector (RR)</strong> advertise selected iBGP routes to clients that do not peer with one another.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bgp-route-reflection.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="A BGP route reflector distributes routes among client and non-client iBGP speakers."><img src="assets/bgp-route-reflection.svg" class="img-fluid figure-img" style="width:70.0%" alt="BGP route reflection topology with route reflector clients and external peers"></a></p>
+<figcaption>A BGP route reflector distributes routes among client and non-client iBGP speakers.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:RR_BGP.svg">Shiyu Ji, RR BGP, Wikimedia Commons</a>, licensed under CC BY-SA 4.0.</em></p>
+<p><code>ORIGINATOR_ID</code> and <code>CLUSTER_LIST</code> help prevent reflection loops. Route reflection reduces session count but can hide alternative paths because an RR normally advertises only its selected best path. Placement and policy can therefore produce suboptimal routing, inconsistent visibility, or control-plane paths that do not align with forwarding topology. Redundant reflectors, add-path mechanisms, and careful design address different scaling and path-diversity needs.</p>
+</section>
+</section>
+<section id="convergence-and-interdomain-failure-modes" class="level3">
+<h3 class="anchored" data-anchor-id="convergence-and-interdomain-failure-modes"><strong>Convergence and Interdomain Failure Modes</strong></h3>
+<section id="path-exploration-and-slow-convergence" class="level4">
+<h4 class="anchored" data-anchor-id="path-exploration-and-slow-convergence"><strong>Path Exploration and Slow Convergence</strong></h4>
+<p>When a BGP route is withdrawn, a router may try several previously advertised alternatives, announce one, later learn that it is invalid, and try another. This <strong>path exploration</strong> spreads through ASes and can take much longer than one link propagation delay. Policy, update ordering, session timers, route-reflector visibility, and rate controls all influence convergence.</p>
+<p>A route flap repeatedly announces and withdraws reachability. Dampening can suppress unstable routes but may also delay recovery of a route that became stable. Modern operation therefore combines selective dampening, session protection, prefix limits, fast failure detection where appropriate, and monitoring rather than applying one aggressive timer everywhere.</p>
+</section>
+<section id="route-leaks-and-prefix-hijacking" class="level4">
+<h4 class="anchored" data-anchor-id="route-leaks-and-prefix-hijacking"><strong>Route Leaks and Prefix Hijacking</strong></h4>
+<p>A <strong>prefix hijack</strong> occurs when an AS originates or propagates unauthorized reachability that attracts traffic for another network’s prefix. A <strong>route leak</strong>, classified in <a href="https://datatracker.ietf.org/doc/html/rfc7908">RFC 7908</a>, propagates a learned route beyond its intended scope, often violating customer-provider or peer export policy. A leak can involve the legitimate origin AS and still create an unintended transit path.</p>
+<p>More-specific prefixes normally win longest-prefix matching, so an unauthorized <code>/24</code> can attract traffic away from a legitimate covering <code>/20</code> even when the <code>/20</code> has attractive BGP attributes. LPM occurs in the data plane after control-plane selection; BGP preference does not override a different prefix length.</p>
+<p>Consequences include blackholing, interception, congestion, asymmetric paths, and widespread instability. Some incidents are malicious, but configuration errors and incorrect redistribution are sufficient.</p>
+</section>
+<section id="filtering-rpki-and-route-origin-validation" class="level4">
+<h4 class="anchored" data-anchor-id="filtering-rpki-and-route-origin-validation"><strong>Filtering, RPKI, and Route Origin Validation</strong></h4>
+<p>The <strong>Resource Public Key Infrastructure (RPKI)</strong> binds IP address and ASN resources to signed objects. A Route Origin Authorization (ROA) states that an AS may originate a prefix up to a maximum length. A relying-party validator verifies repositories and supplies validated ROA payloads to routers.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rpki-origin-validation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="A ROA produces Valid, Invalid, and Not Found route-origin-validation states for different BGP announcements."><img src="assets/rpki-origin-validation.svg" class="img-fluid figure-img" style="width:98.0%" alt="RPKI route origin validation compares prefix maximum length and origin AS to classify BGP routes"></a></p>
+<figcaption>A ROA produces Valid, Invalid, and Not Found route-origin-validation states for different BGP announcements.</figcaption>
+</figure>
+</div>
+<p>As described by <a href="https://datatracker.ietf.org/doc/html/rfc6811">RFC 6811</a>, an announcement is conceptually:</p>
+<ul>
+<li><strong>Valid</strong> when a covering ROA permits both its origin AS and prefix length;</li>
+<li><strong>Invalid</strong> when a covering ROA exists but the origin or allowed length does not match;</li>
+<li><strong>Not Found</strong> when no validated ROA covers it.</li>
+</ul>
+<p>The validation state is an input to local policy; RPKI does not directly change BGP packets on the wire. Common policy rejects Invalid routes while treating Not Found according to deployment strategy. Incorrect ROAs can invalidate legitimate announcements, so certificate and ROA operations are part of production routing reliability.</p>
+<p>ROV validates the origin, not every AS in <code>AS_PATH</code>, the commercial relationship between neighbors, or end-to-end service identity. It helps with mis-origination but does not by itself stop all route leaks or path manipulation.</p>
+<p>Other controls remain necessary:</p>
+<ul>
+<li>prefix and maximum-length filters based on customer authorization;</li>
+<li>maximum-prefix limits to contain accidental table floods;</li>
+<li>bogon and unallocated-space filtering;</li>
+<li>AS-path and community policy;</li>
+<li>source-address validation at network edges;</li>
+<li>monitoring of unexpected origins, path changes, and reachability;</li>
+<li>protected routing sessions and disciplined configuration change.</li>
+</ul>
+</section>
+<section id="operational-tradeoffs-in-routing-security" class="level4">
+<h4 class="anchored" data-anchor-id="operational-tradeoffs-in-routing-security"><strong>Operational Tradeoffs in Routing Security</strong></h4>
+<p>Strict filters reduce attack and error propagation but can discard legitimate emergency announcements if authorization data is stale. Permissive policy preserves reachability but spreads mistakes. Partial deployment means protected networks still interact with unvalidated paths. Safe rollout needs observability, staged enforcement, fail-safe validator architecture, accurate resource records, and a process for correcting false invalids.</p>
+<div id="rpki-validation-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.269077Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.268857Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.273148Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.272786Z&quot;}" data-execution_count="7">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ipaddress <span class="im">import</span> ip_network</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ROA:</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    prefix: <span class="bu">object</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    max_length: <span class="bu">int</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    origin_as: <span class="bu">int</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> origin_validation(announced_prefix: <span class="bu">str</span>, origin_as: <span class="bu">int</span>, roas: <span class="bu">list</span>[ROA]):</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return the RFC 6811-style Valid, Invalid, or Not Found state."""</span></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    announcement <span class="op">=</span> ip_network(announced_prefix)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>    covering <span class="op">=</span> [roa <span class="cf">for</span> roa <span class="kw">in</span> roas <span class="cf">if</span> announcement.subnet_of(roa.prefix)]</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> covering:</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"Not Found"</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>        origin_as <span class="op">==</span> roa.origin_as</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>        <span class="kw">and</span> announcement.prefixlen <span class="op">&lt;=</span> roa.max_length</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> roa <span class="kw">in</span> covering</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    ):</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"Valid"</span></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"Invalid"</span></span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>validated_roas <span class="op">=</span> [ROA(ip_network(<span class="st">"203.0.113.0/24"</span>), <span class="dv">24</span>, <span class="dv">65001</span>)]</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>announcements <span class="op">=</span> [</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/24"</span>, <span class="dv">65001</span>),  <span class="co"># Authorized exact prefix.</span></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/24"</span>, <span class="dv">65009</span>),  <span class="co"># Wrong origin.</span></span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/25"</span>, <span class="dv">65001</span>),  <span class="co"># Too specific for maxLength 24.</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"198.51.100.0/24"</span>, <span class="dv">65008</span>), <span class="co"># No covering ROA.</span></span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb17-34"><a href="#cb17-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-35"><a href="#cb17-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> prefix, origin <span class="kw">in</span> announcements:</span>
+<span id="cb17-36"><a href="#cb17-36" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>prefix<span class="sc">:18}</span><span class="ss"> origin AS</span><span class="sc">{</span>origin<span class="sc">}</span><span class="ss"> -&gt; "</span></span>
+<span id="cb17-37"><a href="#cb17-37" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"</span><span class="sc">{</span>origin_validation(prefix, origin, validated_roas)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>203.0.113.0/24     origin AS65001 -&gt; Valid
+203.0.113.0/24     origin AS65009 -&gt; Invalid
+203.0.113.0/25     origin AS65001 -&gt; Invalid
+198.51.100.0/24    origin AS65008 -&gt; Not Found</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="anycast-multicast-and-specialized-routing" class="level3">
+<h3 class="anchored" data-anchor-id="anycast-multicast-and-specialized-routing"><strong>Anycast, Multicast, and Specialized Routing</strong></h3>
+<section id="ip-anycast-and-service-replication" class="level4">
+<h4 class="anchored" data-anchor-id="ip-anycast-and-service-replication"><strong>IP Anycast and Service Replication</strong></h4>
+<p>With <strong>anycast</strong>, several service sites originate reachability to the same service prefix. Ordinary routing selects one instance according to topology and policy. The address is the same; the chosen physical server or site depends on the client-side routing view.</p>
+<p>Anycast is used for DNS infrastructure, content systems, attack absorption, and other replicated services. It can localize traffic and provide coarse failover when an unhealthy site withdraws its route. However, “nearest” means best according to routing policy, not necessarily lowest geographic distance or measured latency.</p>
+<p><a href="https://datatracker.ietf.org/doc/rfc4786/">RFC 4786</a> emphasizes routing stability relative to transaction duration. If a route changes during a stateful session, later packets can reach a different site that lacks the connection state. Designs use stable routing, short transactions, state replication, application retries, or connection-aware architecture according to service requirements.</p>
+<p>Anycast is also not uniform load balancing. One site may attract much more traffic because AS policies and prefix propagation are uneven. Health signaling must withdraw only when the service, not merely the router interface, is unusable.</p>
+</section>
+<section id="multicast-trees-and-group-membership-overview" class="level4">
+<h4 class="anchored" data-anchor-id="multicast-trees-and-group-membership-overview"><strong>Multicast Trees and Group Membership Overview</strong></h4>
+<p>Unicast sends one packet toward one destination address. Multicast sends traffic to a group, and routers replicate packets only where delivery paths branch. This can avoid sending many identical unicast copies over the same upstream link.</p>
+<p>Hosts signal local group interest with IGMP for IPv4 or MLD for IPv6. Routing protocols such as PIM build distribution trees. Source-Specific Multicast uses an <code>(S,G)</code> channel for one source and group; Any-Source Multicast can use shared-tree and rendezvous-point mechanisms before switching toward a source-specific path.</p>
+<p>Multicast introduces per-group state, receiver membership changes, reverse-path forwarding checks, tree construction, and boundary policy. It is effective in controlled domains for live media, market data, and replication, but global deployment is operationally more complex than ordinary unicast.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Delivery model</th>
+<th>Address meaning</th>
+<th>Selection</th>
+<th>Main operational concern</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Unicast</td>
+<td>One endpoint</td>
+<td>Route to that destination</td>
+<td>Path quality and failover</td>
+</tr>
+<tr class="even">
+<td>Anycast</td>
+<td>One replicated service address</td>
+<td>Routing chooses one instance</td>
+<td>Stability and uneven attraction</td>
+</tr>
+<tr class="odd">
+<td>Multicast</td>
+<td>Receiver group</td>
+<td>Tree reaches joined receivers</td>
+<td>Group state, replication, and scope</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="simulating-distance-vector-and-link-state-routing" class="level3">
+<h3 class="anchored" data-anchor-id="simulating-distance-vector-and-link-state-routing"><strong>Simulating Distance-Vector and Link-State Routing</strong></h3>
+<p>The earlier code cells used one topology for two views. Distance vector propagated destination costs over several rounds. Link state assumed that flooding had produced a graph, then Dijkstra calculated all paths locally. A failure changes both systems, but through different control sequences:</p>
+<pre class="text"><code>Distance vector:
+detect -&gt; change local vector -&gt; advertise -&gt; neighbors relax -&gt; repeat until stable
+
+Link state:
+detect -&gt; originate newer LSA -&gt; flood -&gt; each router reruns SPF -&gt; install</code></pre>
+<p>The comparison below removes the low-cost B-C link. It does not simulate packet timing or asynchronous messages; it verifies the route that a correctly converged link-state database should produce before and after the event.</p>
+<div id="routing-failure-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.275831Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.275620Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.279238Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.278826Z&quot;}" data-execution_count="8">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> remove_undirected_link(topology, node_a: <span class="bu">str</span>, node_b: <span class="bu">str</span>):</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    changed <span class="op">=</span> deepcopy(topology)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">del</span> changed[node_a][node_b]</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">del</span> changed[node_b][node_a]</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> changed</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>failed_graph <span class="op">=</span> remove_undirected_link(graph, <span class="st">"B"</span>, <span class="st">"C"</span>)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>before_distances, before_parents, _ <span class="op">=</span> dijkstra(graph, <span class="st">"A"</span>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>after_distances, after_parents, _ <span class="op">=</span> dijkstra(failed_graph, <span class="st">"A"</span>)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"before B-C failure:"</span>,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>      reconstruct_path(before_parents, <span class="st">"E"</span>), <span class="st">"cost"</span>, before_distances[<span class="st">"E"</span>])</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"after B-C failure: "</span>,</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>      reconstruct_path(after_parents, <span class="st">"E"</span>), <span class="st">"cost"</span>, after_distances[<span class="st">"E"</span>])</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a><span class="co"># A reasonableness check: the failed edge must not appear in the new path.</span></span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>new_edges <span class="op">=</span> <span class="bu">set</span>(<span class="bu">zip</span>(</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    reconstruct_path(after_parents, <span class="st">"E"</span>),</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>    reconstruct_path(after_parents, <span class="st">"E"</span>)[<span class="dv">1</span>:],</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (<span class="st">"B"</span>, <span class="st">"C"</span>) <span class="kw">not</span> <span class="kw">in</span> new_edges <span class="kw">and</span> (<span class="st">"C"</span>, <span class="st">"B"</span>) <span class="kw">not</span> <span class="kw">in</span> new_edges</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>before B-C failure: ['A', 'B', 'C', 'D', 'E'] cost 5
+after B-C failure:  ['A', 'C', 'D', 'E'] cost 7</code></pre>
+</div>
+</div>
+<p>The new path is more expensive but valid. A production convergence test would additionally model asynchronous detection, message loss, protocol timers, SPF scheduling, FIB installation, and packets in flight. Algorithmic convergence and traffic recovery are related measurements, not synonyms.</p>
+<p>For a network with <span class="math inline">\(|V|\)</span> routers and <span class="math inline">\(|E|\)</span> links, a heap-based SPF calculation is commonly described as <span class="math inline">\(O((|V|+|E|)\log |V|)\)</span>. Flooding one changed LSA requires transmissions across the flooding topology. A naive distance-vector round sends destination vectors over neighbor adjacencies and may require many rounds. These asymptotic descriptions help compare mechanisms but do not predict convergence time without protocol timing, hardware, topology, and failure details.</p>
+</section>
+<section id="tracing-an-internet-route-across-autonomous-systems" class="level3">
+<h3 class="anchored" data-anchor-id="tracing-an-internet-route-across-autonomous-systems"><strong>Tracing an Internet Route Across Autonomous Systems</strong></h3>
+<p>Return to the HTTPS packet for <code>203.0.113.0/24</code>:</p>
+<ol type="1">
+<li>The host’s default route sends the packet to the campus gateway.</li>
+<li>The gateway’s FIB contains a route derived from the campus IGP toward a border router.</li>
+<li>The border router has several BGP candidates and selects one according to local policy.</li>
+<li>Its <code>NEXT_HOP</code> is resolved through the IGP and installed as a forwarding action.</li>
+<li>The provider AS selects and exports its own BGP path; later ASes repeat the process.</li>
+<li>The destination AS, or an anycast service site originating the same prefix, delivers the packet internally.</li>
+</ol>
+<p>The visible IP-hop trace and BGP AS path are different evidence:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Evidence</th>
+<th>Shows</th>
+<th>Does not directly show</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>tracert</code> / traceroute</td>
+<td>Interfaces returning TTL-expired responses and RTT samples</td>
+<td>Every hidden hop, complete router identity, or exact AS policy</td>
+</tr>
+<tr class="even">
+<td>Local route table</td>
+<td>Selected local prefix, next hop, interface, metric/source</td>
+<td>Remote AS decisions</td>
+</tr>
+<tr class="odd">
+<td>BGP looking glass</td>
+<td>Routes visible to one BGP speaker</td>
+<td>The exact path used by every client</td>
+</tr>
+<tr class="even">
+<td>Route collector</td>
+<td>Historical or current control-plane advertisements</td>
+<td>Guaranteed data-plane forwarding</td>
+</tr>
+<tr class="odd">
+<td>RPKI validator</td>
+<td>Route-origin authorization state</td>
+<td>Full AS-path validity or service ownership</td>
+</tr>
+</tbody>
+</table>
+<p>Mapping traceroute addresses to ASNs is imperfect. Router interfaces can use addresses from another organization, IXPs provide shared subnets, MPLS can hide hops, and the return path for ICMP can differ. Per-flow load balancing can also show different interfaces when probe headers vary.</p>
+<p>On Windows, useful local commands include:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode powershell code-with-copy"><code class="sourceCode powershell"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>Get-NetRoute <span class="op">-</span>AddressFamily IPv4</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>route print</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>tracert <span class="dv">203.0</span><span class="op">.</span><span class="dv">113.8</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="dt">Test</span><span class="op">-</span>NetConnection <span class="dv">203.0</span><span class="op">.</span><span class="dv">113.8</span> <span class="op">-</span>Port <span class="dv">443</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Use documentation addresses only for examples; they are not expected to provide a real service. For a live investigation, record time, source network, destination, address family, probe method, and route-collector viewpoint. Routing changes while evidence is being collected.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Do not confuse</th>
+<th>First concept</th>
+<th>Second concept</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Forwarding vs routing</td>
+<td>Applies installed state to each packet</td>
+<td>Learns, selects, and distributes paths</td>
+</tr>
+<tr class="even">
+<td>Metric vs policy</td>
+<td>Numeric comparison inside an objective</td>
+<td>Eligibility and preference rules that can dominate metrics</td>
+</tr>
+<tr class="odd">
+<td>Distance vector vs link state</td>
+<td>Exchanges selected distances</td>
+<td>Floods local topology state and runs SPF</td>
+</tr>
+<tr class="even">
+<td>IGP vs BGP</td>
+<td>Optimizes reachability inside one administration</td>
+<td>Exchanges policy reachability among autonomous systems</td>
+</tr>
+<tr class="odd">
+<td>eBGP vs iBGP</td>
+<td>Connects different ASes</td>
+<td>Distributes BGP routes within one AS</td>
+</tr>
+<tr class="even">
+<td><code>AS_PATH</code> vs physical hop list</td>
+<td>Control-plane sequence used for policy and loop rejection</td>
+<td>Every router or interface traversed by packets</td>
+</tr>
+<tr class="odd">
+<td>Route leak vs hijack</td>
+<td>Exports legitimate learned reachability beyond intended scope</td>
+<td>Attracts traffic through unauthorized origin/propagation</td>
+</tr>
+<tr class="even">
+<td>RPKI ROV vs full path security</td>
+<td>Validates prefix length and origin authorization</td>
+<td>Does not validate every AS relationship or application endpoint</td>
+</tr>
+<tr class="odd">
+<td>Anycast vs multicast</td>
+<td>Routing chooses one replicated service instance</td>
+<td>A tree delivers to multiple joined receivers</td>
+</tr>
+</tbody>
+</table>
+<p>Inside one AS, RIP illustrates Bellman-Ford distance exchange, while OSPF and IS-IS flood topology and compute shortest-path trees. Between ASes, BGP carries paths and attributes so each organization can apply economic, security, and engineering policy. Convergence is never just an algorithm finishing: detection, propagation, calculation, installation, and traffic behavior all matter.</p>
+<p>The routing system has now selected a path and the IP data plane can forward packets along it. Chapter 5 moves to the endpoints and asks how TCP, UDP, and QUIC identify applications, detect loss, order data, manage flow control, and build reliable end-to-end communication over those changing best-effort paths.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","loop":false,"descPosition":"bottom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
