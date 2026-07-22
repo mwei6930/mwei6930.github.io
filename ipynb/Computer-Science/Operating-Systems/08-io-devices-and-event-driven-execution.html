@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: I/O Devices and Event-Driven Execution</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="08-io-devices-and-event-driven-execution_files/libs/clipboard/clipboard.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/quarto.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/popper.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/anchor.min.js"></script>
+<link href="08-io-devices-and-event-driven-execution_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="08-io-devices-and-event-driven-execution_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#io-devices-and-event-driven-execution" id="toc-io-devices-and-event-driven-execution" class="nav-link active" data-scroll-target="#io-devices-and-event-driven-execution"><strong>I/O Devices and Event-Driven Execution</strong></a>
+  <ul>
+  <li><a href="#the-operating-systems-io-problem" id="toc-the-operating-systems-io-problem" class="nav-link" data-scroll-target="#the-operating-systems-io-problem"><strong>The Operating System’s I/O Problem</strong></a>
+  <ul>
+  <li><a href="#uniform-interfaces-over-heterogeneous-devices" id="toc-uniform-interfaces-over-heterogeneous-devices" class="nav-link" data-scroll-target="#uniform-interfaces-over-heterogeneous-devices"><strong>Uniform Interfaces Over Heterogeneous Devices</strong></a></li>
+  </ul></li>
+  <li><a href="#device-controllers-and-drivers" id="toc-device-controllers-and-drivers" class="nav-link" data-scroll-target="#device-controllers-and-drivers"><strong>Device Controllers and Drivers</strong></a>
+  <ul>
+  <li><a href="#registers-queues-and-command-completion" id="toc-registers-queues-and-command-completion" class="nav-link" data-scroll-target="#registers-queues-and-command-completion"><strong>Registers, Queues, and Command Completion</strong></a></li>
+  <li><a href="#driver-responsibilities-and-trust" id="toc-driver-responsibilities-and-trust" class="nav-link" data-scroll-target="#driver-responsibilities-and-trust"><strong>Driver Responsibilities and Trust</strong></a></li>
+  </ul></li>
+  <li><a href="#the-path-of-an-io-system-call" id="toc-the-path-of-an-io-system-call" class="nav-link" data-scroll-target="#the-path-of-an-io-system-call"><strong>The Path of an I/O System Call</strong></a></li>
+  <li><a href="#programmed-io-polling-interrupts-and-dma" id="toc-programmed-io-polling-interrupts-and-dma" class="nav-link" data-scroll-target="#programmed-io-polling-interrupts-and-dma"><strong>Programmed I/O, Polling, Interrupts, and DMA</strong></a>
+  <ul>
+  <li><a href="#choosing-between-interrupts-and-polling" id="toc-choosing-between-interrupts-and-polling" class="nav-link" data-scroll-target="#choosing-between-interrupts-and-polling"><strong>Choosing Between Interrupts and Polling</strong></a></li>
+  </ul></li>
+  <li><a href="#blocking-and-nonblocking-io" id="toc-blocking-and-nonblocking-io" class="nav-link" data-scroll-target="#blocking-and-nonblocking-io"><strong>Blocking and Nonblocking I/O</strong></a></li>
+  <li><a href="#io-multiplexing-and-readiness" id="toc-io-multiplexing-and-readiness" class="nav-link" data-scroll-target="#io-multiplexing-and-readiness"><strong>I/O Multiplexing and Readiness</strong></a>
+  <ul>
+  <li><a href="#select-poll-epoll-and-kqueue" id="toc-select-poll-epoll-and-kqueue" class="nav-link" data-scroll-target="#select-poll-epoll-and-kqueue"><strong>select, poll, epoll, and kqueue</strong></a></li>
+  </ul></li>
+  <li><a href="#asynchronous-io-and-completion-interfaces" id="toc-asynchronous-io-and-completion-interfaces" class="nav-link" data-scroll-target="#asynchronous-io-and-completion-interfaces"><strong>Asynchronous I/O and Completion Interfaces</strong></a>
+  <ul>
+  <li><a href="#io_uring-and-submission-completion-queues" id="toc-io_uring-and-submission-completion-queues" class="nav-link" data-scroll-target="#io_uring-and-submission-completion-queues"><strong>io_uring and Submission-Completion Queues</strong></a></li>
+  </ul></li>
+  <li><a href="#buffering-caching-and-backpressure" id="toc-buffering-caching-and-backpressure" class="nav-link" data-scroll-target="#buffering-caching-and-backpressure"><strong>Buffering, Caching, and Backpressure</strong></a></li>
+  <li><a href="#character-block-and-network-devices" id="toc-character-block-and-network-devices" class="nav-link" data-scroll-target="#character-block-and-network-devices"><strong>Character, Block, and Network Devices</strong></a></li>
+  <li><a href="#errors-timeouts-cancellation-and-hotplug" id="toc-errors-timeouts-cancellation-and-hotplug" class="nav-link" data-scroll-target="#errors-timeouts-cancellation-and-hotplug"><strong>Errors, Timeouts, Cancellation, and Hotplug</strong></a></li>
+  <li><a href="#observing-io-behavior" id="toc-observing-io-behavior" class="nav-link" data-scroll-target="#observing-io-behavior"><strong>Observing I/O Behavior</strong></a></li>
+  <li><a href="#following-the-pipeline-through-the-io-stack" id="toc-following-the-pipeline-through-the-io-stack" class="nav-link" data-scroll-target="#following-the-pipeline-through-the-io-stack"><strong>Following the Pipeline Through the I/O Stack</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: I/O Devices and Event-Driven Execution</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/08-io-devices-and-event-driven-execution.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="io-devices-and-event-driven-execution" class="level2">
+<h2 class="anchored" data-anchor-id="io-devices-and-event-driven-execution"><strong>I/O Devices and Event-Driven Execution</strong></h2>
+<p>The previous chapter ended with a <strong>major page fault</strong> waiting for storage. This chapter follows that wait across the rest of the machine. A request must cross a protection boundary, find the kernel object behind a file descriptor, enter a subsystem, reach a device driver, become a controller command, move data, and eventually produce a completion that wakes a task or notifies an event loop.</p>
+<p>I/O is difficult because the CPU and a device are independent agents. A function call appears sequential, but the physical operation has two separated moments:</p>
+<ol type="1">
+<li><strong>submission</strong>, when software describes and publishes work; and</li>
+<li><strong>completion</strong>, when the device or kernel reports what actually happened.</li>
+</ol>
+<p>Between those moments, the calling thread might sleep, the CPU might run another process, the controller might reorder commands, and the device might disappear. This is why I/O cannot be understood as simply “copy bytes and return.” It is a problem of <strong>concurrency, ownership, notification, flow control, and recovery</strong>.</p>
+<p>A useful mental model for the whole chapter is:</p>
+<blockquote class="blockquote">
+<p><strong>An I/O interface is a contract for submitting operations and observing their results. It does not make the external device synchronous, reliable, or semantically identical to every other object.</strong></p>
+</blockquote>
+<p>The chapter develops that contract from basic registers and interrupts to readiness-based event loops and <code>io_uring</code>. File-system naming, inode structure, block allocation, journaling, and <code>fsync()</code> semantics belong to the next chapter. Here, a regular file is one possible source or destination in the I/O pipeline.</p>
+<section id="the-operating-systems-io-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-operating-systems-io-problem"><strong>The Operating System’s I/O Problem</strong></h3>
+<p>An operating system sits between programs that want a small, stable API and hardware that differs in transfer unit, latency, ordering, failure behavior, and control protocol. A keyboard may deliver a few bytes unpredictably. An NVMe drive may accept thousands of commands across multiple queues. A network interface may DMA bursts of packets into memory. A GPU may run long command streams and signal fences later. Treating these devices identically at the hardware level would be impossible; exposing every hardware protocol directly to every application would be unsafe and unmaintainable.</p>
+<p>The kernel therefore solves several related mismatches:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mismatch</th>
+<th>What the kernel must provide</th>
+<th>Failure if it does not</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Interface</strong></td>
+<td>Stable operations such as open, read, write, control, map, and wait</td>
+<td>Every program must know each controller protocol</td>
+</tr>
+<tr class="even">
+<td><strong>Timing</strong></td>
+<td>Sleep, notification, and asynchronous progress while devices are slow</td>
+<td>CPU time is wasted spinning or the whole program freezes</td>
+</tr>
+<tr class="odd">
+<td><strong>Granularity</strong></td>
+<td>Buffering and translation between bytes, blocks, packets, and device descriptors</td>
+<td>Tiny requests dominate overhead or boundaries are corrupted</td>
+</tr>
+<tr class="even">
+<td><strong>Protection</strong></td>
+<td>Validate requests and restrict DMA and register access</td>
+<td>A process or device can overwrite unrelated kernel memory</td>
+</tr>
+<tr class="odd">
+<td><strong>Concurrency</strong></td>
+<td>Queueing, ordering, cancellation, and ownership rules</td>
+<td>Results are associated with the wrong request or buffers are reused early</td>
+</tr>
+<tr class="even">
+<td><strong>Failure</strong></td>
+<td>Timeouts, error propagation, reset, and hotplug handling</td>
+<td>A lost interrupt or removed device leaves work stuck forever</td>
+</tr>
+<tr class="odd">
+<td><strong>Policy</strong></td>
+<td>Fairness, priorities, queue limits, and accounting</td>
+<td>One workload monopolizes the device or consumes unbounded memory</td>
+</tr>
+</tbody>
+</table>
+<p>I/O performance also spans several time scales. A cached read may complete in microseconds without reaching hardware. A storage request may wait behind other work before the device services it. A human-facing device may remain idle for seconds. An API that is efficient for one regime can be wasteful in another, so the kernel offers both blocking and event-driven forms rather than one universal waiting mechanism.</p>
+<section id="uniform-interfaces-over-heterogeneous-devices" class="level4">
+<h4 class="anchored" data-anchor-id="uniform-interfaces-over-heterogeneous-devices"><strong>Uniform Interfaces Over Heterogeneous Devices</strong></h4>
+<p>Unix-like systems make a <strong>file descriptor</strong> a small process-local handle to a kernel object. The descriptor is not the object itself and is not necessarily a disk file. It selects an entry in the process’s descriptor table, which refers to an open kernel object carrying access mode, current state, operation methods, and references to the underlying resource.</p>
+<p>This design is powerful because the same operations can be composed across files, pipes, terminals, sockets, and many devices. Redirection works because a program can write to descriptor 1 without knowing whether it currently denotes a terminal, pipe, regular file, or socket. Readiness APIs can wait on several kinds of descriptors together. Access control is checked when the handle is created and again when an operation requires it.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-uniform-interface-boundaries.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/io-uniform-interface-boundaries.svg" class="img-fluid figure-img" style="width:96.0%" alt="Applications call read, write, ioctl, mmap, polling, or io_uring through file descriptors; kernel objects and drivers translate those calls to regular files, pipes, sockets, and devices with different semantics."></a></p>
+<figcaption>Uniform calls cross an abstraction boundary and then recover object-specific behavior.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram informed by the <a href="https://docs.kernel.org/filesystems/vfs.html">Linux VFS documentation</a> and the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-devices.pdf">OSTEP I/O devices chapter</a>.</em></p>
+<p>Uniform syntax does <strong>not</strong> imply uniform semantics:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Object</th>
+<th>What <code>read()</code> consumes</th>
+<th>Meaning of <code>0</code></th>
+<th>Is seeking meaningful?</th>
+<th>Typical readiness caveat</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Regular file</td>
+<td>Bytes at a file offset</td>
+<td>End of file</td>
+<td>Usually yes</td>
+<td>Usually appears immediately ready even if later storage I/O may block</td>
+</tr>
+<tr class="even">
+<td>Pipe/FIFO</td>
+<td>Bytes produced by writers</td>
+<td>All writers closed after buffered bytes drain</td>
+<td>No</td>
+<td>Readable can mean data <strong>or</strong> EOF</td>
+</tr>
+<tr class="odd">
+<td>TCP socket</td>
+<td>Ordered byte stream from a peer</td>
+<td>Peer performed an orderly shutdown</td>
+<td>No</td>
+<td>Readable can mean data, shutdown, or pending error</td>
+</tr>
+<tr class="even">
+<td>Datagram socket</td>
+<td>One queued message at a time</td>
+<td>A zero-length datagram can be valid data</td>
+<td>No</td>
+<td>Message boundaries and truncation matter</td>
+</tr>
+<tr class="odd">
+<td>Terminal/device node</td>
+<td>Driver-defined byte stream or records</td>
+<td>Device-specific</td>
+<td>Often no</td>
+<td><code>ioctl()</code> and device state can be essential</td>
+</tr>
+</tbody>
+</table>
+<p>The abstraction should therefore be read as “a common vocabulary with object-specific contracts.” Correct software still asks whether operations can be partial, what establishes end-of-stream, whether order is preserved, and which state changes are durable. <code>ioctl()</code> exists precisely because not every useful control operation can be reduced to byte transfer, although each ioctl command must be designed and validated carefully.</p>
+</section>
+</section>
+<section id="device-controllers-and-drivers" class="level3">
+<h3 class="anchored" data-anchor-id="device-controllers-and-drivers"><strong>Device Controllers and Drivers</strong></h3>
+<p>A <strong>device</strong> is the physical or virtual resource that performs work. A <strong>controller</strong> is hardware or firmware that exposes a programmable interface to the host. A <strong>device driver</strong> is privileged software that translates kernel requests into that controller interface and translates controller events back into kernel results.</p>
+<p>The boundaries vary. A simple timer may expose a handful of registers. A modern SSD contains processors, firmware, caches, and many command queues. A virtual device may be implemented by a hypervisor rather than physical electronics. The useful distinction is functional: the driver runs as host software; the controller accepts commands and progresses independently.</p>
+<section id="registers-queues-and-command-completion" class="level4">
+<h4 class="anchored" data-anchor-id="registers-queues-and-command-completion"><strong>Registers, Queues, and Command Completion</strong></h4>
+<p>The smallest controller model has three conceptual register classes:</p>
+<ul>
+<li>a <strong>status register</strong> says whether the device is busy, ready, complete, or in error;</li>
+<li>a <strong>command register</strong> tells the controller what operation to start; and</li>
+<li>one or more <strong>data registers</strong> carry payload bytes or parameters.</li>
+</ul>
+<p>Registers are often exposed through <strong>memory-mapped I/O (MMIO)</strong>. Their physical addresses are mapped into a privileged virtual range, but loads and stores to that range have device semantics rather than ordinary RAM semantics. Architectures and kernels provide special accessors because compiler optimization, CPU reordering, bus ordering, register width, and endianness all matter. A write may be <strong>posted</strong>, meaning the CPU instruction retires before the controller has observed the write. Reading a status register or using an architecture-specific barrier may be required at a protocol-defined point.</p>
+<p>Modern high-throughput devices avoid programming every operation through several individual register writes. Instead, host memory holds <strong>descriptors</strong>. A descriptor may contain an operation code, DMA address, byte count, flags, and request identity. Software fills one or more descriptors, publishes a producer index, and writes a small MMIO <strong>doorbell</strong>. The controller fetches descriptors, performs work, and writes completion records into another queue.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/controller-register-command-queues.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/controller-register-command-queues.svg" class="img-fluid figure-img" style="width:96.0%" alt="A driver prepares and publishes a descriptor ring entry, orders memory before ringing an MMIO doorbell, and later consumes a completion written by a concurrently executing controller."></a></p>
+<figcaption>A driver publishes descriptors and a controller later publishes completions.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the register protocol in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-devices.pdf">OSTEP I/O Devices</a>, the Linux <a href="https://docs.kernel.org/core-api/dma-api-howto.html">DMA API guide</a>, and the queue model documented by <a href="https://nvmexpress.org/specifications/">NVMe</a>.</em></p>
+<p>Queue correctness depends on explicit <strong>ownership transitions</strong>. Before submission, the driver owns and may modify a descriptor and its buffer. After publishing the descriptor, the controller may read or write them; the driver must not recycle those resources merely because the submission function returned. Only a matching completion, successful cancellation, or completed reset protocol returns ownership.</p>
+<p>A simplified producer protocol is:</p>
+<pre class="text"><code>descriptor[i] &lt;- operation, DMA address, length, request_id
+memory_barrier()              // descriptor must become visible first
+submission_tail &lt;- next(i)    // publish ownership to the controller
+write_mmio(DOORBELL, tail)    // tell the controller to look
+
+... controller runs concurrently ...
+
+wait until completion[j].request_id is valid
+memory_barrier()              // observe completion fields before reuse
+consume result
+completion_head &lt;- next(j)</code></pre>
+<p>This pseudocode does not prescribe one universal barrier. The correct primitive depends on the architecture, whether memory is coherent, the DMA API, and the controller specification. “Coherent DMA” means CPU and device observe a coherent memory view; it does not remove all ordering requirements between descriptor fields and an ownership bit.</p>
+<p>Queue depth also changes performance. If an operation’s average latency is <span class="math inline">\(W\)</span> seconds and the system needs throughput <span class="math inline">\(\lambda\)</span> operations per second, Little’s law suggests an average of</p>
+<p><span class="math display">\[
+L = \lambda W
+\]</span></p>
+<p>operations must be in the system. For example, sustaining 100,000 operations/s with 200 microseconds of end-to-end latency requires roughly <span class="math inline">\(100{,}000 \times 0.0002 = 20\)</span> operations in flight on average. More queueing can expose device parallelism, but queueing beyond useful parallelism mostly increases waiting time.</p>
+</section>
+<section id="driver-responsibilities-and-trust" class="level4">
+<h4 class="anchored" data-anchor-id="driver-responsibilities-and-trust"><strong>Driver Responsibilities and Trust</strong></h4>
+<p>A driver’s work begins before the first <code>read()</code> and continues after the last one. Through the kernel’s driver model, it normally:</p>
+<ol type="1">
+<li>matches a discovered device to a supported driver;</li>
+<li>probes capabilities and validates firmware-visible state;</li>
+<li>claims MMIO ranges, interrupt vectors, DMA resources, clocks, and queues;</li>
+<li>registers the device with an appropriate kernel subsystem;</li>
+<li>translates requests, enforces limits, and tracks every outstanding operation;</li>
+<li>handles interrupts or polling, decodes completion status, and releases resources;</li>
+<li>participates in suspend, resume, reset, error recovery, and hot removal; and</li>
+<li>stops admission and drains callbacks before teardown.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/driver-lifecycle-trust-boundary.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/driver-lifecycle-trust-boundary.svg" class="img-fluid figure-img" style="width:96.0%" alt="A driver discovers, probes, claims resources, serves, recovers, and removes a device while validating untrusted inputs, constraining DMA, and preventing use-after-removal."></a></p>
+<figcaption>Driver correctness spans discovery, steady-state service, recovery, teardown, and security.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux <a href="https://docs.kernel.org/driver-api/driver-model/overview.html">driver-model overview</a>, <a href="https://docs.kernel.org/core-api/genericirq.html">generic IRQ documentation</a>, and <a href="https://docs.kernel.org/core-api/dma-api-howto.html">DMA API guide</a>.</em></p>
+<p>Drivers are part of the trusted kernel on many systems. A bounds error, stale pointer, or double completion can corrupt the whole machine. They also consume data produced by hardware and firmware, which should not automatically be considered trustworthy. Defensive drivers validate descriptor lengths and indexes, confirm that completions refer to live requests, limit mapped DMA ranges, and cope with impossible-looking status values.</p>
+<p>An <strong>IOMMU</strong> strengthens this boundary. Without it, a bus-mastering device may be able to DMA to broad physical-address ranges. With an IOMMU, the kernel establishes device-visible mappings so a device can reach only selected buffers. This is analogous to virtual memory for device transactions, although the address spaces, caches, and invalidation mechanisms are distinct from a process page table.</p>
+</section>
+</section>
+<section id="the-path-of-an-io-system-call" class="level3">
+<h3 class="anchored" data-anchor-id="the-path-of-an-io-system-call"><strong>The Path of an I/O System Call</strong></h3>
+<p>Consider a call <code>read(fd, buffer, count)</code>. The exact functions differ between kernels and object types, but the logical path is stable:</p>
+<ol type="1">
+<li><strong>Enter the kernel.</strong> The system-call mechanism changes privilege and transfers control to a kernel entry point while preserving the calling context.</li>
+<li><strong>Validate scalar arguments.</strong> The kernel checks the descriptor number, count, access mode, object state, and arithmetic for overflow.</li>
+<li><strong>Resolve the descriptor.</strong> The process descriptor table yields a referenced open object and its operation methods.</li>
+<li><strong>Validate the userspace range.</strong> The destination must be writable for the requested range. The kernel may later copy to it, pin/map pages for direct access, or use an intermediate buffer.</li>
+<li><strong>Ask the relevant subsystem.</strong> A file, pipe, socket, terminal, and device follow different internal paths. A cache or in-kernel queue may satisfy the request immediately.</li>
+<li><strong>Build lower-level work on a miss.</strong> The subsystem allocates request metadata, maps buffers for DMA if needed, and submits work to a driver/controller queue.</li>
+<li><strong>Choose a waiting policy.</strong> A blocking call can put the task on a wait queue. A nonblocking call can return <code>EAGAIN</code>. An asynchronous interface records how a later completion should be reported.</li>
+<li><strong>Handle completion.</strong> An interrupt, polling loop, or kernel worker recognizes the result, records bytes/error status, releases mappings, and wakes or notifies interested consumers.</li>
+<li><strong>Return an observable result.</strong> The kernel may copy data to userspace and returns a positive byte count, zero, or an error. The result may be shorter than <code>count</code>.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-system-call-completion-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/io-system-call-completion-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated request and completion tokens show read submission through validation, subsystem, driver, and controller, then completion through request finishing, notification, rescheduling, and return."></a></p>
+<figcaption>An I/O request follows a submission path and a later completion path.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation synthesizing the <a href="https://docs.kernel.org/filesystems/vfs.html">Linux VFS</a>, <a href="https://docs.kernel.org/core-api/genericirq.html">generic IRQ</a>, and <a href="https://docs.kernel.org/core-api/dma-api-howto.html">DMA API</a> execution paths.</em></p>
+<p>The fast and slow paths must have the same external contract. A page-cache hit can copy bytes and return without a physical device. A pipe read can consume bytes already in a kernel ring. A socket read can consume data that arrived earlier. Only a miss or empty queue needs to wait for lower-level progress.</p>
+<p>That distinction matters when measuring latency. A <code>read()</code> duration can include validation, lock contention, queueing, device service, completion handling, wakeup delay, and copying. Conversely, a short <code>read()</code> can consume data whose device transfer happened before the timer started. System-call timing alone does not identify which layer was slow.</p>
+</section>
+<section id="programmed-io-polling-interrupts-and-dma" class="level3">
+<h3 class="anchored" data-anchor-id="programmed-io-polling-interrupts-and-dma"><strong>Programmed I/O, Polling, Interrupts, and DMA</strong></h3>
+<p>Four terms are often taught together but answer two different questions:</p>
+<ul>
+<li><strong>Programmed I/O (PIO) versus DMA:</strong> who moves the payload bytes?</li>
+<li><strong>Polling versus interrupts:</strong> how does the CPU learn that state changed or work completed?</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pio-poll-interrupt-dma.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/pio-poll-interrupt-dma.svg" class="img-fluid figure-img" style="width:97.0%" alt="Four panels show the CPU moving payload via programmed I/O, repeatedly checking a status register, receiving a device interrupt, and configuring DMA so a device transfers directly to memory before completion notification."></a></p>
+<figcaption>PIO and DMA concern payload movement; polling and interrupts concern notification.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-devices.pdf">OSTEP I/O Devices</a> and the Linux <a href="https://docs.kernel.org/core-api/dma-api-howto.html">DMA API guide</a>.</em></p>
+<p>With <strong>PIO</strong>, CPU instructions explicitly move each payload word through a device register. It is simple and remains suitable for tiny control values, but a large transfer consumes many CPU instructions and occupies the interconnect inefficiently.</p>
+<p>With <strong>polling</strong>, the CPU repeatedly reads a status location until a condition changes. Polling is not inherently primitive: when events arrive continuously and each status check is cheap, a dedicated polling loop can have lower latency and fewer context disruptions than an interrupt per event. Its cost is the CPU time spent checking when there is no useful work.</p>
+<p>With an <strong>interrupt</strong>, the controller sends an asynchronous notification through an interrupt controller. The processor saves enough execution state, enters a registered handler, acknowledges or masks the interrupt as required, and arranges further processing. The hard-interrupt portion should be bounded because it delays other work. Kernels commonly defer larger tasks to threaded handlers, softirqs, work queues, or subsystem-specific poll loops.</p>
+<p>With <strong>DMA</strong>, the CPU prepares a transfer and the device/controller moves payload between the device and memory. A DMA-capable device does not normally understand a process virtual address. The Linux DMA model distinguishes:</p>
+<p><span class="math display">\[
+\text{CPU virtual address } X
+\longrightarrow
+\text{CPU physical address } Y
+\longrightarrow
+\text{device DMA address } Z.
+\]</span></p>
+<p>The last translation may be identity-like on a simple system or may pass through an IOMMU. A driver asks the DMA API to create the mapping instead of assuming these addresses are equal. It also obeys mapping direction and lifetime so caches, bounce buffers, and IOMMU entries can be managed correctly.</p>
+<p>The total latency of a bulk transfer can be decomposed approximately as</p>
+<p><span class="math display">\[
+T_{operation} = T_{setup} + T_{queue} + \frac{B}{R} + T_{completion},
+\]</span></p>
+<p>where <span class="math inline">\(B\)</span> is the number of bytes and <span class="math inline">\(R\)</span> is the effective transfer rate. DMA primarily reduces CPU work per byte; it does not eliminate setup, queueing, device service, or completion cost. For very small <span class="math inline">\(B\)</span>, setup can dominate, which is why controllers batch commands and operating systems coalesce work.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>CPU work while data moves</th>
+<th>Idle behavior</th>
+<th>Strong use case</th>
+<th>Main risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>PIO</td>
+<td>CPU executes payload loads/stores</td>
+<td>No independent transfer</td>
+<td>Small control/status data</td>
+<td>Poor bulk throughput and high CPU cost</td>
+</tr>
+<tr class="even">
+<td>DMA</td>
+<td>CPU sets up and finishes transfer</td>
+<td>Device works independently</td>
+<td>Blocks, packets, audio/video buffers</td>
+<td>Mapping, ownership, ordering, and isolation complexity</td>
+</tr>
+<tr class="odd">
+<td>Polling</td>
+<td>CPU repeatedly checks progress</td>
+<td>Consumes CPU even with no event</td>
+<td>Sustained high event rate, dedicated core</td>
+<td>Power use and starvation</td>
+</tr>
+<tr class="even">
+<td>Interrupt</td>
+<td>CPU is notified on event</td>
+<td>Nearly no notification work when idle</td>
+<td>Sparse or bursty events</td>
+<td>Fixed interrupt cost and interrupt storms</td>
+</tr>
+</tbody>
+</table>
+<section id="choosing-between-interrupts-and-polling" class="level4">
+<h4 class="anchored" data-anchor-id="choosing-between-interrupts-and-polling"><strong>Choosing Between Interrupts and Polling</strong></h4>
+<p>Suppose a status probe costs <span class="math inline">\(c_p\)</span> CPU cycles and occurs every <span class="math inline">\(\Delta\)</span> seconds during a wait of <span class="math inline">\(T_w\)</span>. A rough polling cost is</p>
+<p><span class="math display">\[
+C_{poll} \approx \frac{T_w}{\Delta}c_p.
+\]</span></p>
+<p>If <span class="math inline">\(N\)</span> events each incur interrupt entry, acknowledgement, cache disruption, and deferred processing cost <span class="math inline">\(c_i\)</span>, then</p>
+<p><span class="math display">\[
+C_{interrupt} \approx N c_i.
+\]</span></p>
+<p>These are not complete performance models, but they expose the crossover. Sparse events make <span class="math inline">\(C_{poll}\)</span> mostly wasted probes. Dense events make <span class="math inline">\(C_{interrupt}\)</span> repeat fixed overhead many times. The crossover changes with batching, CPU frequency, cache locality, interrupt affinity, latency requirements, and whether a core can be dedicated.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/interrupt-polling-hybrid.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/interrupt-polling-hybrid.svg" class="img-fluid figure-img" style="width:96.0%" alt="A conceptual cost crossover compares polling and interrupts, while a Linux NAPI-style timeline starts with an interrupt, masks further interrupts, polls to a budget, and unmasks when the queue drains."></a></p>
+<figcaption>Sparse events favor interrupts, sustained load can favor polling, and hybrid paths switch between them.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux <a href="https://docs.kernel.org/networking/napi.html">NAPI documentation</a> and <a href="https://docs.kernel.org/core-api/genericirq.html">generic IRQ documentation</a>. The cost curves are conceptual, not benchmark data.</em></p>
+<p>Production systems frequently use a <strong>hybrid</strong>:</p>
+<ul>
+<li>an interrupt wakes the CPU when an idle queue first receives work;</li>
+<li>the handler masks or suppresses further notifications;</li>
+<li>software polls and drains several completions up to a budget;</li>
+<li>if work remains, polling is rescheduled for fairness;</li>
+<li>when the queue drains, interrupts are enabled again.</li>
+</ul>
+<p>Linux NAPI applies this pattern to network receive processing. Storage drivers also batch completions and modern controllers provide multiple interrupt vectors so queues can be assigned to CPUs. <strong>Interrupt coalescing</strong> reduces interrupt rate by waiting for several events or a short timer, trading lower CPU overhead for additional notification latency. There is no context-free best setting: an interactive RPC service and a bulk-transfer server optimize different tails of the latency distribution.</p>
+</section>
+</section>
+<section id="blocking-and-nonblocking-io" class="level3">
+<h3 class="anchored" data-anchor-id="blocking-and-nonblocking-io"><strong>Blocking and Nonblocking I/O</strong></h3>
+<p>A <strong>blocking operation</strong> allows the kernel to suspend the calling thread when the operation cannot currently make progress. It does not freeze the CPU and it does not necessarily freeze the whole process: the scheduler runs another runnable thread or process. Blocking is often the clearest model when one thread owns one sequential flow.</p>
+<p>A <strong>nonblocking operation</strong> returns control instead of sleeping when progress would require waiting. On Unix-like systems, <code>O_NONBLOCK</code> commonly causes an operation to return <code>-1</code> with <code>errno == EAGAIN</code> or <code>EWOULDBLOCK</code>. This is not a failure of the connection or device; it means “the requested operation cannot make progress now under this waiting policy.”</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/blocking-nonblocking-read-state.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/blocking-nonblocking-read-state.svg" class="img-fluid figure-img" style="width:96.0%" alt="A read decision tree checks whether progress is possible; a blocking descriptor sleeps and rechecks, a nonblocking descriptor returns EAGAIN, and ready operations return bytes, EOF, or an error."></a></p>
+<figcaption>Blocking sleeps and rechecks; nonblocking returns EAGAIN, while both share data, EOF, partial, and error outcomes.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://man7.org/linux/man-pages/man2/open.2.html"><code>open(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/read.2.html"><code>read(2)</code></a>, and <a href="https://man7.org/linux/man-pages/man2/poll.2.html"><code>poll(2)</code></a> semantics.</em></p>
+<p>For a byte-stream <code>read()</code>, callers must distinguish all of the following:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Result</th>
+<th>Meaning</th>
+<th>Normal response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>n &gt; 0</code></td>
+<td><code>n</code> bytes were transferred; <code>n</code> may be less than requested</td>
+<td>Process those bytes and continue according to the protocol</td>
+</tr>
+<tr class="even">
+<td><code>n == 0</code></td>
+<td>End of file / orderly stream shutdown for the relevant object</td>
+<td>Finish input; do not spin retrying the same EOF</td>
+</tr>
+<tr class="odd">
+<td><code>-1, EAGAIN</code></td>
+<td>No progress now under nonblocking policy</td>
+<td>Return to event loop or apply backoff</td>
+</tr>
+<tr class="even">
+<td><code>-1, EINTR</code></td>
+<td>A signal interrupted the call before a result was produced</td>
+<td>Retry only if application cancellation/deadline policy allows it</td>
+</tr>
+<tr class="odd">
+<td><code>-1, other errno</code></td>
+<td>Persistent or object-specific error</td>
+<td>Propagate, recover, or close according to the contract</td>
+</tr>
+</tbody>
+</table>
+<p>Partial success is fundamental. A successful <code>read()</code> or <code>write()</code> promises only the returned number of bytes, not the requested number. A socket send buffer may accept a prefix. A pipe may have limited free space. A signal can arrive after some bytes have transferred. Correct code advances by the returned count and keeps the remaining state explicitly.</p>
+<p>Nonblocking mode is most useful for objects whose availability genuinely changes, such as sockets, pipes, terminals, and event descriptors. Linux documents that <code>O_NONBLOCK</code> currently has no useful effect on ordinary file and block-device I/O: even if a descriptor is marked nonblocking, a regular-file operation may still block on page faults, storage, allocation, or metadata. Event-driven applications often use worker threads or a true asynchronous interface for such work.</p>
+<p>Finally, readiness is a <strong>hint about state at one instant</strong>, not a reservation. Another thread can consume the data before the current thread calls <code>read()</code>, or an error can replace the expected condition. Event-driven code therefore keeps descriptors nonblocking even after a readiness notification and treats <code>EAGAIN</code> as an ordinary race outcome.</p>
+</section>
+<section id="io-multiplexing-and-readiness" class="level3">
+<h3 class="anchored" data-anchor-id="io-multiplexing-and-readiness"><strong>I/O Multiplexing and Readiness</strong></h3>
+<p>Creating one blocking thread per connection gives each flow a simple sequential program, but large numbers of mostly idle connections make thread stacks, scheduler activity, and shared-state synchronization expensive. <strong>I/O multiplexing</strong> lets one thread wait for state changes across many descriptors and then run the handlers associated with the ready subset.</p>
+<p>A descriptor is <strong>readable</strong> when a read-like operation would not block. This includes more than “payload bytes exist”: EOF, a pending error, or an incoming connection can also make a descriptor readable. A descriptor is <strong>writable</strong> when a write-like operation can accept at least some progress without blocking. It does not promise that an entire application message fits, that the peer will receive it, or that future writes remain nonblocking.</p>
+<p>An event loop repeatedly performs five jobs:</p>
+<ol type="1">
+<li>wait for descriptor readiness, a timer deadline, or queued cross-thread work;</li>
+<li>map each returned event to application state;</li>
+<li>perform nonblocking operations until progress stops or a fairness budget is reached;</li>
+<li>update which events are interesting; and</li>
+<li>return to the wait point without retaining stale pointers or starving other work.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/readiness-event-loop-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/readiness-event-loop-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="An animated token moves around a readiness event loop from waiting to ready-set dispatch, nonblocking draining, interest updates, timer work, and back to waiting."></a></p>
+<figcaption>A readiness loop waits, dispatches, drains nonblocking operations, updates state, and runs timers.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation informed by the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-events.pdf">OSTEP event-based concurrency chapter</a> and Linux <a href="https://man7.org/linux/man-pages/man7/epoll.7.html"><code>epoll(7)</code></a>.</em></p>
+<p>The handler budget is not an implementation detail. If one busy connection is drained forever, timers and other connections never run. If a handler processes too little, the program pays more event-loop and system-call overhead. Mature loops therefore combine a byte/operation budget with explicit output-queue limits and timer deadlines.</p>
+<section id="select-poll-epoll-and-kqueue" class="level4">
+<h4 class="anchored" data-anchor-id="select-poll-epoll-and-kqueue"><strong>select, poll, epoll, and kqueue</strong></h4>
+<p>The major readiness APIs differ in where the <strong>interest set</strong> lives and how the ready subset is returned.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multiplexing-api-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/multiplexing-api-comparison.svg" class="img-fluid figure-img" style="width:97.0%" alt="Four columns compare select bit sets, poll arrays, Linux epoll persistent ready lists, and BSD kqueue filters by interest representation, kernel work, result delivery, and important constraints."></a></p>
+<figcaption>select and poll pass interests on each wait, while epoll and kqueue maintain persistent kernel registrations.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory comparison based on Linux <a href="https://man7.org/linux/man-pages/man2/select.2.html"><code>select(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/poll.2.html"><code>poll(2)</code></a>, <a href="https://man7.org/linux/man-pages/man7/epoll.7.html"><code>epoll(7)</code></a>, and FreeBSD <a href="https://man.freebsd.org/cgi/man.cgi?kqueue%282%29"><code>kqueue(2)</code></a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>API</th>
+<th>Interest model</th>
+<th>Returned work</th>
+<th>Important property</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>select()</code></td>
+<td>Caller supplies bit sets on every call; sets are modified on return</td>
+<td>Application scans descriptors up to <code>nfds</code></td>
+<td>Widely portable but limited by <code>FD_SETSIZE</code> on common implementations; Linux recommends modern alternatives</td>
+</tr>
+<tr class="even">
+<td><code>poll()</code></td>
+<td>Caller supplies an array of <code>pollfd</code> records on every call</td>
+<td>Kernel and application inspect the array</td>
+<td>No bit-set limit and simple semantics; repeated scan/copy cost grows with registered descriptors</td>
+</tr>
+<tr class="odd">
+<td><code>epoll</code></td>
+<td>Linux kernel stores a persistent interest set and ready list</td>
+<td><code>epoll_wait()</code> returns ready event records</td>
+<td>Scales well for many mostly idle descriptors; supports level, edge, and one-shot modes</td>
+</tr>
+<tr class="even">
+<td><code>kqueue</code></td>
+<td>BSD-family kernel stores filters registered through <code>kevent()</code></td>
+<td><code>kevent()</code> returns triggered records and filter metadata</td>
+<td>General event filters cover descriptors, signals, timers, processes, and more</td>
+</tr>
+</tbody>
+</table>
+<p><code>select()</code> and <code>poll()</code> are still good choices for small, portable programs because their state is explicit in each call. <code>epoll</code> and <code>kqueue</code> avoid resubmitting a large mostly idle set and return records only for reported events, but they introduce persistent kernel registration that must be kept consistent with application object lifetime.</p>
+<p>Readiness delivery has two common modes:</p>
+<ul>
+<li><strong>Level-triggered:</strong> a condition is reported while it remains true. If data remains unread, the next wait reports readability again. This is easier to reason about but can repeatedly return a descriptor the handler only partially services.</li>
+<li><strong>Edge-triggered:</strong> a transition produces notification. After receiving an edge, the handler must drain the nonblocking operation until <code>EAGAIN</code>; otherwise unread work may remain without another transition to wake the loop.</li>
+</ul>
+<p><code>EPOLLONESHOT</code> adds an explicit rearm step and can help coordinate one descriptor across worker threads, but the application must not forget to rearm it. Errors and hangups must be handled even when the originally requested data event is absent. In particular, a hangup can coexist with buffered bytes, so a handler should drain available input before treating EOF as final.</p>
+<p>The following Linux example uses an edge-triggered <code>epoll</code> loop around a nonblocking pipe. A child writes three bursts. The parent drains until <code>EAGAIN</code>, recognizes EOF, and never assumes that one event corresponds to one complete message.</p>
+<details>
+<summary>
+<strong>C example: edge-triggered epoll with a nonblocking pipe</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/epoll.h&gt;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;time.h&gt;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> die<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> child_write_all<span class="op">(</span><span class="dt">int</span> fd<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>text<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> used <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> length <span class="op">=</span> strlen<span class="op">(</span>text<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>used <span class="op">&lt;</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> n <span class="op">=</span> write<span class="op">(</span>fd<span class="op">,</span> text <span class="op">+</span> used<span class="op">,</span> length <span class="op">-</span> used<span class="op">);</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>            used <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">;</span>          <span class="co">// A successful write may be partial.</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span>                   <span class="co">// Retry only because this demo has no cancellation policy.</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EAGAIN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>            <span class="kw">struct</span> timespec pause <span class="op">=</span> <span class="op">{.</span>tv_sec <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>tv_nsec <span class="op">=</span> <span class="dv">1000000</span><span class="op">};</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>            nanosleep<span class="op">(&amp;</span>pause<span class="op">,</span> NULL<span class="op">);</span>     <span class="co">// Real code would wait for writable readiness.</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>            die<span class="op">(</span><span class="st">"write"</span><span class="op">);</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> pipefd<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe2<span class="op">(</span>pipefd<span class="op">,</span> O_NONBLOCK <span class="op">|</span> O_CLOEXEC<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"pipe2"</span><span class="op">);</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>        <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>bursts<span class="op">[]</span> <span class="op">=</span> <span class="op">{</span><span class="st">"first burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> <span class="st">"second burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> <span class="st">"final burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">};</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="kw">sizeof</span> bursts <span class="op">/</span> <span class="kw">sizeof</span> bursts<span class="op">[</span><span class="dv">0</span><span class="op">];</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>            child_write_all<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">],</span> bursts<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>            <span class="kw">struct</span> timespec pause <span class="op">=</span> <span class="op">{.</span>tv_sec <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>tv_nsec <span class="op">=</span> <span class="dv">150000000</span><span class="op">};</span></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>            nanosleep<span class="op">(&amp;</span>pause<span class="op">,</span> NULL<span class="op">);</span>     <span class="co">// Make separate readiness transitions visible.</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span>                <span class="co">// Reader will eventually observe EOF.</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span>EXIT_SUCCESS<span class="op">);</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> epfd <span class="op">=</span> epoll_create1<span class="op">(</span>EPOLL_CLOEXEC<span class="op">);</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>epfd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"epoll_create1"</span><span class="op">);</span></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> epoll_event registration <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>events <span class="op">=</span> EPOLLIN <span class="op">|</span> EPOLLET<span class="op">,</span></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>data<span class="op">.</span>fd <span class="op">=</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>epoll_ctl<span class="op">(</span>epfd<span class="op">,</span> EPOLL_CTL_ADD<span class="op">,</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> <span class="op">&amp;</span>registration<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"epoll_ctl"</span><span class="op">);</span></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> finished <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>finished<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a>        <span class="kw">struct</span> epoll_event events<span class="op">[</span><span class="dv">8</span><span class="op">];</span></span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> ready <span class="op">=</span> epoll_wait<span class="op">(</span>epfd<span class="op">,</span> events<span class="op">,</span> <span class="dv">8</span><span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">);</span></span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ready <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ready <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> die<span class="op">(</span><span class="st">"epoll_wait"</span><span class="op">);</span></span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> ready<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>events<span class="op">[</span>i<span class="op">].</span>data<span class="op">.</span>fd <span class="op">!=</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">])</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a>            <span class="co">// EPOLLET rule: drain every currently available byte.</span></span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> <span class="op">(;;)</span> <span class="op">{</span></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true" tabindex="-1"></a>                <span class="dt">char</span> buffer<span class="op">[</span><span class="dv">16</span><span class="op">];</span></span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true" tabindex="-1"></a>                <span class="dt">ssize_t</span> n <span class="op">=</span> read<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> buffer<span class="op">,</span> <span class="kw">sizeof</span> buffer<span class="op">);</span></span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true" tabindex="-1"></a>                    <span class="co">// write() to stdout is kept simple for the teaching example.</span></span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> buffer<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> die<span class="op">(</span><span class="st">"stdout"</span><span class="op">);</span></span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true" tabindex="-1"></a>                    finished <span class="op">=</span> <span class="dv">1</span><span class="op">;</span>        <span class="co">// All writers closed and buffered data is gone.</span></span>
+<span id="cb2-92"><a href="#cb2-92" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb2-93"><a href="#cb2-93" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EAGAIN <span class="op">||</span> errno <span class="op">==</span> EWOULDBLOCK<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span><span class="op">;</span>               <span class="co">// Fully drained; return to epoll_wait().</span></span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true" tabindex="-1"></a>                    die<span class="op">(</span><span class="st">"read"</span><span class="op">);</span></span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span></span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>events<span class="op">[</span>i<span class="op">].</span>events <span class="op">&amp;</span> EPOLLERR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true" tabindex="-1"></a>                fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"epoll reported an error condition</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true" tabindex="-1"></a>            <span class="co">// EPOLLHUP is not handled before draining because bytes can coexist with HUP.</span></span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>epfd<span class="op">);</span></span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb2-113"><a href="#cb2-113" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile and run on Linux:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> epoll_pipe.c <span class="at">-o</span> epoll_pipe</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./epoll_pipe</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The example uses a pipe to isolate readiness semantics from network protocols. A production server additionally needs per-connection input framing, bounded output queues, idle timeouts, signal handling, safe descriptor removal, and a policy for distributing CPU-heavy work.</p>
+</section>
+</section>
+<section id="asynchronous-io-and-completion-interfaces" class="level3">
+<h3 class="anchored" data-anchor-id="asynchronous-io-and-completion-interfaces"><strong>Asynchronous I/O and Completion Interfaces</strong></h3>
+<p>Nonblocking and asynchronous are related but not synonymous. <strong>Nonblocking</strong> describes what an individual operation does when it would have to wait. <strong>Asynchronous I/O</strong> describes a lifecycle in which the application submits an operation and later receives that operation’s result.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/readiness-vs-completion.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/readiness-vs-completion.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two timelines compare registering interest and receiving a readiness hint before calling read with submitting an asynchronous read and later receiving a correlated completion result."></a></p>
+<figcaption>Readiness precedes an operation attempt, while completion follows a submitted operation.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://man7.org/linux/man-pages/man7/epoll.7.html"><code>epoll(7)</code></a> and <a href="https://man7.org/linux/man-pages/man7/io_uring.7.html"><code>io_uring(7)</code></a>.</em></p>
+<p>Three implementation strategies are common:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Strategy</th>
+<th>What application code sees</th>
+<th>How waiting happens underneath</th>
+<th>Main trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Blocking calls</td>
+<td>One call returns one result</td>
+<td>Calling thread sleeps</td>
+<td>Simple control flow; many blocked flows can require many threads</td>
+</tr>
+<tr class="even">
+<td>Readiness + nonblocking calls</td>
+<td>Event says which object is worth trying</td>
+<td>Kernel tracks object state; application performs operation</td>
+<td>Efficient for many sockets/pipes; application owns a state machine</td>
+</tr>
+<tr class="odd">
+<td>Completion API</td>
+<td>Submit operation now, receive result later</td>
+<td>Kernel, device, or worker completes operation</td>
+<td>Natural batching and in-flight concurrency; buffer/request lifetime is harder</td>
+</tr>
+</tbody>
+</table>
+<p>A thread pool can expose a completion-style application API while workers execute blocking calls. This is often practical for regular-file I/O and libraries that are not natively asynchronous. It bounds the number of blocked kernel threads but does not eliminate thread scheduling, stack memory, or pool saturation. A true kernel completion interface can issue supported operations without dedicating one userspace worker per wait.</p>
+<p>Completions also change correlation. In readiness code, a descriptor identifies an object and application state decides what to try next. In completion code, the application normally attaches an operation-specific identity because several reads, writes, timeouts, and cancellations can be in flight on one object and may complete out of order.</p>
+<section id="io_uring-and-submission-completion-queues" class="level4">
+<h4 class="anchored" data-anchor-id="io_uring-and-submission-completion-queues"><strong>io_uring and Submission-Completion Queues</strong></h4>
+<p>Linux <code>io_uring</code> exposes a <strong>submission queue (SQ)</strong> and <strong>completion queue (CQ)</strong> through memory shared between userspace and the kernel. Userspace prepares a submission queue entry (SQE), publishes its index to the SQ ring, and asks the kernel to consume submissions. The kernel later publishes a completion queue entry (CQE) containing a result, flags, and the application-provided <code>user_data</code> value.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-uring-sq-cq-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/io-uring-sq-cq-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="An animated SQE moves from userspace preparation through the shared submission ring into kernel and device execution, then a CQE carrying result and user_data returns through the completion ring."></a></p>
+<figcaption>io_uring carries SQEs toward the kernel and correlated CQEs back to userspace.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation based on Linux <a href="https://man7.org/linux/man-pages/man7/io_uring.7.html"><code>io_uring(7)</code></a>, <a href="https://man7.org/linux/man-pages/man2/io_uring_setup.2.html"><code>io_uring_setup(2)</code></a>, and <a href="https://man7.org/linux/man-pages/man2/io_uring_enter.2.html"><code>io_uring_enter(2)</code></a>.</em></p>
+<p>The shared rings reduce repeated copying of operation descriptions and can amortize system calls across batches. Optional modes can poll submissions, register frequently used files and buffers, link operations, attach timeouts, or produce multiple completions from a multishot request. These features are optimizations around the same ownership protocol:</p>
+<ol type="1">
+<li>allocate request state and choose a unique <code>user_data</code> identity;</li>
+<li>keep every referenced buffer, file, and metadata object valid;</li>
+<li>prepare and publish the SQE with correct memory ordering;</li>
+<li>submit or wake the configured kernel consumer;</li>
+<li>process CQEs, noting that order can differ from submission order;</li>
+<li>interpret <code>cqe-&gt;res</code> as a nonnegative result or negative errno value; and</li>
+<li>release/reuse resources only after the terminal completion or confirmed cancellation.</li>
+</ol>
+<p>Shared command rings do <strong>not</strong> imply universal zero-copy data transfer. An operation may still copy between a user buffer and kernel cache, protocol buffer, or intermediate representation. Registered buffers can reduce mapping/pinning overhead for supported paths, while <code>splice</code>, direct I/O, device DMA, and protocol-specific facilities address different copies. Each claim must name which copy and which path were removed.</p>
+<p>The following example submits one asynchronous file read with <code>liburing</code>. It deliberately stores a pointer to request state in <code>user_data</code> and keeps the buffer alive until the CQE has been consumed.</p>
+<details>
+<summary>
+<strong>C example: submit and reap one io_uring read</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;liburing.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> request <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> <span class="op">*</span>buffer<span class="op">;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> capacity<span class="op">;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> fail_liburing<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">,</span> <span class="dt">int</span> negative_errno<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st">: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> what<span class="op">,</span> strerror<span class="op">(-</span>negative_errno<span class="op">));</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="op">**</span>argv<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>argc <span class="op">!=</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"usage: </span><span class="sc">%s</span><span class="st"> FILE</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> fd <span class="op">=</span> open<span class="op">(</span>argv<span class="op">[</span><span class="dv">1</span><span class="op">],</span> O_RDONLY <span class="op">|</span> O_CLOEXEC<span class="op">);</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open"</span><span class="op">);</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring ring<span class="op">;</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> rc <span class="op">=</span> io_uring_queue_init<span class="op">(</span><span class="dv">8</span><span class="op">,</span> <span class="op">&amp;</span>ring<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_queue_init"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> request <span class="op">*</span>req <span class="op">=</span> calloc<span class="op">(</span><span class="dv">1</span><span class="op">,</span> <span class="kw">sizeof</span> <span class="op">*</span>req<span class="op">);</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>req <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"calloc request"</span><span class="op">);</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    req<span class="op">-&gt;</span>capacity <span class="op">=</span> <span class="dv">4096</span><span class="op">;</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    req<span class="op">-&gt;</span>buffer <span class="op">=</span> malloc<span class="op">(</span>req<span class="op">-&gt;</span>capacity<span class="op">);</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>req<span class="op">-&gt;</span>buffer <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"malloc buffer"</span><span class="op">);</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring_sqe <span class="op">*</span>sqe <span class="op">=</span> io_uring_get_sqe<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sqe <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"submission queue is full</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Describe a read at file offset zero. The operation has not completed here.</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>    io_uring_prep_read<span class="op">(</span>sqe<span class="op">,</span> fd<span class="op">,</span> req<span class="op">-&gt;</span>buffer<span class="op">,</span> req<span class="op">-&gt;</span>capacity<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    io_uring_sqe_set_data<span class="op">(</span>sqe<span class="op">,</span> req<span class="op">);</span>  <span class="co">// Copied into CQE user_data for correlation.</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    rc <span class="op">=</span> io_uring_submit<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_submit"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"expected one submitted SQE, got </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring_cqe <span class="op">*</span>cqe <span class="op">=</span> NULL<span class="op">;</span></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>    rc <span class="op">=</span> io_uring_wait_cqe<span class="op">(&amp;</span>ring<span class="op">,</span> <span class="op">&amp;</span>cqe<span class="op">);</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_wait_cqe"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> request <span class="op">*</span>completed <span class="op">=</span> io_uring_cqe_get_data<span class="op">(</span>cqe<span class="op">);</span></span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> result <span class="op">=</span> cqe<span class="op">-&gt;</span>res<span class="op">;</span>             <span class="co">// Nonnegative byte count or negative errno.</span></span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"asynchronous read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(-</span>result<span class="op">));</span></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>        <span class="dt">size_t</span> written <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="op">(</span>written <span class="op">&lt;</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>            <span class="dt">ssize_t</span> n <span class="op">=</span> write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>                              completed<span class="op">-&gt;</span>buffer <span class="op">+</span> written<span class="op">,</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>                              <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result <span class="op">-</span> written<span class="op">);</span></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> written <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">;</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span> <span class="op">{</span> perror<span class="op">(</span><span class="st">"write stdout"</span><span class="op">);</span> <span class="cf">break</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a>    io_uring_cqe_seen<span class="op">(&amp;</span>ring<span class="op">,</span> cqe<span class="op">);</span>     <span class="co">// Return this CQ slot to the kernel/user ring.</span></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>completed<span class="op">-&gt;</span>buffer<span class="op">);</span>           <span class="co">// Safe only after the operation completed.</span></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>completed<span class="op">);</span></span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>    io_uring_queue_exit<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">?</span> EXIT_FAILURE <span class="op">:</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile on Linux after installing the <code>liburing</code> development package:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> uring_read.c <span class="at">-luring</span> <span class="at">-o</span> uring_read</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./uring_read</span> example.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Real <code>io_uring</code> programs must also handle queue saturation, short operations, CQ capacity, feature detection, cancellation races, and shutdown. A multishot SQE can produce several CQEs; conversely, flags that suppress successful completions can intentionally produce none. The request’s documented terminal rule, not an assumption of “one SQE equals one CQE,” must govern cleanup.</p>
+</section>
+</section>
+<section id="buffering-caching-and-backpressure" class="level3">
+<h3 class="anchored" data-anchor-id="buffering-caching-and-backpressure"><strong>Buffering, Caching, and Backpressure</strong></h3>
+<p>A <strong>buffer</strong> temporarily holds data to reconcile differences in timing, transfer size, alignment, or execution context. A <strong>cache</strong> retains data because a future request may reuse it. The same memory can serve both roles: the page cache buffers writes and caches file contents, while a socket send buffer queues bytes for transmission but is not normally an application-visible content cache.</p>
+<p>Buffering enables:</p>
+<ul>
+<li>a producer and consumer to run at different instants;</li>
+<li>small operations to be batched into efficient device transfers;</li>
+<li>interrupt handlers to hand off work quickly;</li>
+<li>double buffering, where one region is filled while another is consumed; and</li>
+<li>queueing that exposes device or pipeline parallelism.</li>
+</ul>
+<p>It does not make sustained overload disappear. If arrivals average <span class="math inline">\(\lambda\)</span> bytes/s and the consumer sustainably serves only <span class="math inline">\(\mu &lt; \lambda\)</span>, queue occupancy grows until memory is exhausted unless admission is reduced or work is dropped. A bounded queue turns that hidden catastrophe into an explicit policy decision.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/buffering-backpressure.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/buffering-backpressure.svg" class="img-fluid figure-img" style="width:96.0%" alt="A producer fills a bounded queue faster than a consumer drains it; at a high-water mark the system throttles admission, and a queue-occupancy graph shows the buffer filling then draining."></a></p>
+<figcaption>A bounded queue uses high- and low-water marks to propagate pressure to a faster producer.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram applying Little’s law and bounded-queue flow control to operating-system I/O.</em></p>
+<p>For a stable system, Little’s law again gives</p>
+<p><span class="math display">\[
+L = \lambda W,
+\]</span></p>
+<p>where <span class="math inline">\(L\)</span> is average queued/in-flight work, <span class="math inline">\(\lambda\)</span> is average completed throughput, and <span class="math inline">\(W\)</span> is average time in the system. If throughput is fixed, doubling average queued work roughly doubles average residence time. A larger buffer can absorb a longer burst and reduce drops, but it can also hide congestion and produce <strong>bufferbloat</strong>, where requests wait far longer without improving service rate.</p>
+<p>Backpressure mechanisms differ by interface:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layer</th>
+<th>Pressure signal</th>
+<th>Expected response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Nonblocking stream write</td>
+<td>Partial count or <code>EAGAIN</code></td>
+<td>Retain only a bounded remainder; enable writable interest; stop reading upstream if needed</td>
+</tr>
+<tr class="even">
+<td>Pipe or socket producer</td>
+<td>Blocking write sleeps</td>
+<td>Scheduler prevents busy waiting, but application still needs cancellation and memory limits</td>
+</tr>
+<tr class="odd">
+<td>Device submission ring</td>
+<td>No free descriptor / queue full</td>
+<td>Stop admission or select another queue; reap completions</td>
+</tr>
+<tr class="even">
+<td>Event-loop output queue</td>
+<td>High-water mark</td>
+<td>Disable producer input, shed work, or apply protocol flow control</td>
+</tr>
+<tr class="odd">
+<td>Network stack</td>
+<td>Congestion/loss/receiver window</td>
+<td>Transport and application reduce sending rate</td>
+</tr>
+</tbody>
+</table>
+<p>High- and low-water marks prevent rapid on/off oscillation. Admission stops at the high mark and resumes only after occupancy falls below a lower mark. The gap provides <strong>hysteresis</strong>. A complete design also decides who is allowed to wait, how long, what can be discarded, and how pressure crosses process or protocol boundaries.</p>
+</section>
+<section id="character-block-and-network-devices" class="level3">
+<h3 class="anchored" data-anchor-id="character-block-and-network-devices"><strong>Character, Block, and Network Devices</strong></h3>
+<p>Device classes are abstractions chosen because different hardware benefits from different request shapes.</p>
+<ul>
+<li>A <strong>character-style device</strong> exposes a sequential byte stream or device-defined records. Terminals, serial links, and many sensors fit this model. <code>read()</code>, <code>write()</code>, and device-specific <code>ioctl()</code> commands dominate.</li>
+<li>A <strong>block device</strong> exposes fixed-size addressable storage units and supports requests at chosen offsets. The block layer can merge, prioritize, and dispatch multiple requests while a controller executes them concurrently.</li>
+<li>A <strong>network device</strong> exchanges packets with the kernel network stack through descriptor rings. Applications normally use sockets, which represent transport endpoints and protocol state rather than direct handles to a NIC.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/device-class-paths.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/device-class-paths.svg" class="img-fluid figure-img" style="width:96.0%" alt="Three columns trace character devices from byte-oriented calls, block devices through request queues to addressable sectors, and network sockets through protocol queues to NIC descriptor rings."></a></p>
+<figcaption>Character, block, and network paths differ in transfer unit, internal queues, and application abstraction.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram informed by Linux <a href="https://docs.kernel.org/admin-guide/devices.html">device-number assignments</a>, <a href="https://docs.kernel.org/block/stat.html">block-layer statistics</a>, and <a href="https://docs.kernel.org/networking/napi.html">NAPI</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Character-style</th>
+<th>Block</th>
+<th>Network</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Natural transfer unit</td>
+<td>Byte or device-specific record</td>
+<td>Sector/block range</td>
+<td>Packet/frame below the socket layer</td>
+</tr>
+<tr class="even">
+<td>Addressing</td>
+<td>Usually sequential</td>
+<td>Random offset/range</td>
+<td>Flow and protocol addresses, not storage offsets</td>
+</tr>
+<tr class="odd">
+<td>Important queues</td>
+<td>Input/output buffers</td>
+<td>Software request queues and hardware submission/completion queues</td>
+<td>Socket buffers, qdisc, protocol queues, NIC rings</td>
+</tr>
+<tr class="even">
+<td>Reordering</td>
+<td>Often preserves stream order</td>
+<td>Scheduler/controller may reorder independent requests</td>
+<td>Packets may reorder/drop; transport may reconstruct an ordered stream</td>
+</tr>
+<tr class="odd">
+<td>Common application API</td>
+<td><code>read</code>, <code>write</code>, <code>ioctl</code></td>
+<td>Usually file-system or direct-I/O APIs</td>
+<td><code>socket</code>, <code>send</code>, <code>recv</code>, readiness/completion APIs</td>
+</tr>
+<tr class="even">
+<td>Dominant policy concerns</td>
+<td>Latency, flow control, device state</td>
+<td>Throughput, tail latency, fairness, durability boundary</td>
+<td>Bursts, drops, CPU affinity, congestion, protocol state</td>
+</tr>
+</tbody>
+</table>
+<p>These classes are not physical laws. A single PCIe device can expose several functions and queue types. A virtual block device may ultimately send network requests. A network interface can support control channels that look character-like. The class determines which kernel subsystem owns policy and presents a stable contract; the driver still translates that contract to hardware.</p>
+</section>
+<section id="errors-timeouts-cancellation-and-hotplug" class="level3">
+<h3 class="anchored" data-anchor-id="errors-timeouts-cancellation-and-hotplug"><strong>Errors, Timeouts, Cancellation, and Hotplug</strong></h3>
+<p>An I/O error is rarely just “the function returned -1.” The request may be queued, executing, partially transferred, completed but not yet observed, or affected by a reset. Recovery begins by defining the request state and who owns each resource in that state.</p>
+<p>A <strong>timeout</strong> means a deadline passed before the observer received a terminal result. It does not prove the device performed no work. A write could have reached hardware while its completion interrupt was lost. A network request could have reached a remote service while its response was delayed. Retrying blindly can duplicate a non-idempotent side effect.</p>
+<p>A <strong>cancellation request</strong> is also a race. If cancellation removes queued work before execution, a canceled result is appropriate. If completion wins, the original result may remain authoritative. Some devices can abort active commands; others require a queue or device reset that also affects unrelated requests. Correct APIs document whether cancellation is best-effort and how its own completion relates to the target operation.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-error-cancel-hotplug.svg" class="lightbox" data-gallery="quarto-lightbox-inline-14"><img src="assets/io-error-cancel-hotplug.svg" class="img-fluid figure-img" style="width:96.0%" alt="A request state machine moves from prepared to submitted, in flight, completed, and reaped; timeout or cancellation can race with completion or require reset, while hot unplug drains every request exactly once."></a></p>
+<figcaption>Timeout, cancellation, reset, completion, and hot unplug converge on one terminal ownership rule.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux USB <a href="https://docs.kernel.org/driver-api/usb/usb.html">synchronous and asynchronous I/O</a>, the <a href="https://docs.kernel.org/driver-api/libata.html">libATA error-handling model</a>, and <a href="https://man7.org/linux/man-pages/man7/io_uring.7.html"><code>io_uring(7)</code></a>.</em></p>
+<p>The central invariant is:</p>
+<blockquote class="blockquote">
+<p><strong>Each submitted request reaches one terminal ownership transition, and its buffers, identifiers, and device references remain valid until that transition is observed.</strong></p>
+</blockquote>
+<p>This invariant prevents double completion, use-after-free, stale CQEs, and a late interrupt operating on a replacement device. Generation numbers or unique request IDs help distinguish an old completion from new work that reused the same queue slot.</p>
+<p>Hotplug applies the same reasoning to every outstanding request:</p>
+<ol type="1">
+<li>mark the device unavailable and stop accepting new work;</li>
+<li>prevent new callbacks or interrupts from racing with teardown;</li>
+<li>cancel, drain, or fail each outstanding request according to hardware capability;</li>
+<li>wait for references and deferred handlers to leave critical sections;</li>
+<li>release DMA mappings, queues, IRQs, MMIO ranges, and subsystem registration; and</li>
+<li>report a stable error to applications still holding handles.</li>
+</ol>
+<p>Errors should be classified before choosing a response:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Error class</th>
+<th>Example</th>
+<th>Sensible first response</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Transient resource pressure</td>
+<td>Queue full, <code>EAGAIN</code>, temporary memory shortage</td>
+<td>Apply backpressure or bounded retry</td>
+</tr>
+<tr class="even">
+<td>Request-specific input error</td>
+<td>Invalid command, bad address, unsupported operation</td>
+<td>Fail the request; do not reset healthy hardware</td>
+</tr>
+<tr class="odd">
+<td>Media/link error</td>
+<td>Unreadable block, link loss, CRC failure</td>
+<td>Report detail; retry only under subsystem policy</td>
+</tr>
+<tr class="even">
+<td>Lost progress / timeout</td>
+<td>No completion before deadline</td>
+<td>Inspect queue/controller; abort or reset with race handling</td>
+</tr>
+<tr class="odd">
+<td>Device removal</td>
+<td>USB unplug, PCIe removal</td>
+<td>Stop admission, fail/drain requests, detach safely</td>
+</tr>
+<tr class="even">
+<td>Driver invariant violation</td>
+<td>Unknown completion ID, impossible queue index</td>
+<td>Contain damage, record diagnostics, avoid memory corruption</td>
+</tr>
+</tbody>
+</table>
+<p>Retry policies need bounded attempts, deadlines, jitter where many clients can synchronize, and an idempotency argument. “Retry three times” is not a recovery design unless it explains what state may already have changed.</p>
+</section>
+<section id="observing-io-behavior" class="level3">
+<h3 class="anchored" data-anchor-id="observing-io-behavior"><strong>Observing I/O Behavior</strong></h3>
+<p>I/O latency is layered, so diagnosis should be layered too. Begin with the application’s symptom and descend only when evidence points lower. A throughput graph without queue depth cannot distinguish efficient parallelism from growing delay. A device-utilization graph without application latency cannot show whether users are meeting their goals.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-io-observability.svg" class="lightbox" data-gallery="quarto-lightbox-inline-15"><img src="assets/linux-io-observability.svg" class="img-fluid figure-img" style="width:96.0%" alt="A layered Linux observability map connects application latency to strace, process I/O counters, scheduler statistics, interrupt and softirq counters, kernel tracing, block statistics, and network-device counters."></a></p>
+<figcaption>Linux tools expose application, syscall, process, queue, interrupt, block, and network layers.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://docs.kernel.org/filesystems/proc.html"><code>/proc</code> documentation</a>, <a href="https://docs.kernel.org/block/stat.html">block statistics</a>, and <a href="https://docs.kernel.org/core-api/tracepoint.html">kernel tracepoints</a>.</em></p>
+<p>Useful questions and evidence include:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Evidence</th>
+<th>Important caution</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Which call is waiting or failing?</td>
+<td><code>strace -ttT</code>, <code>perf trace</code>, application spans</td>
+<td>A syscall duration can include sleeping and rescheduling</td>
+</tr>
+<tr class="even">
+<td>Is the process issuing the expected volume?</td>
+<td><code>/proc/$pid/io</code>, <code>pidstat -d</code></td>
+<td><code>rchar/wchar</code> count syscall bytes; <code>read_bytes/write_bytes</code> describe storage-backed accounting and can differ</td>
+</tr>
+<tr class="odd">
+<td>Are interrupts or deferred handlers concentrated?</td>
+<td><code>/proc/interrupts</code>, <code>/proc/softirqs</code>, CPU affinity</td>
+<td>High counts are not automatically bad; compare useful work and latency</td>
+</tr>
+<tr class="even">
+<td>Is block queueing growing?</td>
+<td><code>iostat -xz</code>, <code>/sys/block/&lt;dev&gt;/stat</code>, block tracepoints</td>
+<td>Utilization alone is not comparable across all parallel devices</td>
+</tr>
+<tr class="odd">
+<td>Is the network dropping or erroring?</td>
+<td><code>ip -s link</code>, <code>/sys/class/net/*/statistics</code>, <code>ethtool -S</code></td>
+<td>Driver-specific counters require hardware documentation</td>
+</tr>
+<tr class="even">
+<td>Where is tail latency introduced?</td>
+<td>ftrace/eBPF tracepoints with request IDs and timestamps</td>
+<td>Tracing has overhead and often requires privileges</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+<strong>Shell workflow: inspect an I/O-bound process from the API boundary downward</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Observe relevant system calls and their elapsed time.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Attach briefly in production; tracing every call can perturb the workload.</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> strace <span class="at">-ttT</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=read,write,pread64,pwrite64,poll,ppoll,epoll_wait,io_uring_enter</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Compare process-level logical I/O with storage-backed accounting.</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/proc/</span><span class="va">$PID</span><span class="st">/io"</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="ex">pidstat</span> <span class="at">-d</span> <span class="at">-w</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span> 1</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Check whether interrupt or deferred-network work is concentrated by CPU.</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/interrupts</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/softirqs</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Inspect block-device queueing and latency. Replace DEVICE explicitly.</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="ex">iostat</span> <span class="at">-xz</span> 1</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/sys/block/</span><span class="va">$DEVICE</span><span class="st">/stat"</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Inspect network-interface drops and driver counters. Replace IFACE explicitly.</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="ex">ip</span> <span class="at">-s</span> link show dev <span class="st">"</span><span class="va">$IFACE</span><span class="st">"</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> ethtool <span class="at">-S</span> <span class="st">"</span><span class="va">$IFACE</span><span class="st">"</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. Use kernel tracing only after choosing a concrete question and time window.</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Available event names vary by kernel; list before enabling.</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf list <span class="st">'block:*'</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf trace <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Interpret counters as transitions, not decorations. <code>/sys/block/&lt;device&gt;/stat</code> includes requests in flight and cumulative time fields; differences over a known interval are meaningful, whereas a single cumulative number is not a current latency. <code>/proc/interrupts</code> can reveal queue affinity, but a balanced count is not necessarily optimal if it destroys cache locality. Correlating one request identity across layers is usually more informative than collecting every available metric.</p>
+</section>
+<section id="following-the-pipeline-through-the-io-stack" class="level3">
+<h3 class="anchored" data-anchor-id="following-the-pipeline-through-the-io-stack"><strong>Following the Pipeline Through the I/O Stack</strong></h3>
+<p>The following representative path is a blocking, buffered regular-file <code>read()</code> whose requested page is absent from the page cache. It intentionally leaves file-system offset-to-block mapping as a black box for the next chapter:</p>
+<ol type="1">
+<li>The application calls <code>read(fd, buffer, count)</code> and enters the kernel.</li>
+<li>The kernel resolves <code>fd</code>, checks permissions and the userspace destination, and asks the file object for bytes at the current offset.</li>
+<li>The page cache does not contain the needed page, so the file and block layers construct lower-level work.</li>
+<li>The driver allocates request metadata, maps destination pages for DMA, fills a submission descriptor, orders memory, and rings a doorbell.</li>
+<li>The calling task sleeps on a wait queue. The CPU runs other work while the controller fetches the command.</li>
+<li>The storage device services the request and DMA writes data into mapped memory.</li>
+<li>The controller publishes a completion and signals an interrupt, or a host poll loop observes it.</li>
+<li>The driver and block layer validate the completion, unmap DMA state, mark the page valid, and wake the waiter.</li>
+<li>After the scheduler runs the task, the kernel copies requested bytes to userspace, advances the file position as specified, and returns a byte count.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-request-end-to-end-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-16"><img src="assets/io-request-end-to-end-timeline.svg" class="img-fluid figure-img" style="width:98.0%" alt="A swimlane timeline follows a buffered read from userspace through descriptor lookup, page-cache miss, driver and DMA submission, device service, interrupt completion, page validation, wakeup, copy, and return."></a></p>
+<figcaption>A cache-missing file read crosses the syscall, cache, block, driver, device, completion, and scheduler layers.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory timeline synthesizing the Linux <a href="https://docs.kernel.org/filesystems/vfs.html">VFS</a>, <a href="https://docs.kernel.org/core-api/dma-api-howto.html">DMA API</a>, <a href="https://docs.kernel.org/core-api/genericirq.html">generic IRQ</a>, and <a href="https://docs.kernel.org/block/stat.html">block statistics</a> models.</em></p>
+<p>One approximate latency decomposition is</p>
+<p><span class="math display">\[
+T_{read} = T_{entry} + T_{lookup} + T_{queue} + T_{device}
+         + T_{completion} + T_{copy} + T_{schedule}.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(T_{entry}\)</span> covers privilege transition and basic system-call handling.</li>
+<li><span class="math inline">\(T_{lookup}\)</span> covers descriptor/object work and locating the requested cached/backing state.</li>
+<li><span class="math inline">\(T_{queue}\)</span> covers software and hardware waiting before service begins.</li>
+<li><span class="math inline">\(T_{device}\)</span> is controller/device service and payload transfer.</li>
+<li><span class="math inline">\(T_{completion}\)</span> covers IRQ/poll detection and subsystem completion work.</li>
+<li><span class="math inline">\(T_{copy}\)</span> moves requested bytes between kernel-managed storage and the user buffer on this buffered path.</li>
+<li><span class="math inline">\(T_{schedule}\)</span> is delay until a woken task actually runs.</li>
+</ul>
+<p>The sum explains one request but not aggregate throughput, because stages overlap across requests. While one request is at the device, a CPU can prepare another and complete a third. Queue depth enables overlap until a bottleneck saturates; beyond that point, additional depth primarily raises <span class="math inline">\(T_{queue}\)</span>.</p>
+<p>Nearby variants alter the route:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variant</th>
+<th>What changes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Page-cache hit</td>
+<td>The path ends before block submission and physical device service</td>
+</tr>
+<tr class="even">
+<td><code>mmap()</code> access</td>
+<td>A page fault initiates population; the final user access is a restarted load/store rather than a <code>read()</code> copy</td>
+</tr>
+<tr class="odd">
+<td>Direct I/O</td>
+<td>The path attempts to transfer between device and suitably aligned user pages while bypassing ordinary page-cache data flow; alignment and coherence rules tighten</td>
+</tr>
+<tr class="even">
+<td>Readiness loop</td>
+<td>Appropriate for sockets/pipes; it waits for object state and then issues nonblocking operations</td>
+</tr>
+<tr class="odd">
+<td><code>io_uring</code></td>
+<td>Submission and completion are queue records; the calling thread need not block and several operations can remain in flight</td>
+</tr>
+<tr class="even">
+<td>Worker pool</td>
+<td>A worker follows a blocking path while another thread receives a future/promise-style completion</td>
+</tr>
+</tbody>
+</table>
+<p>The most useful debugging habit is to name the variant before interpreting measurements. “I/O is slow” is not yet a hypothesis; “block requests spend 12 ms in the software queue while device service remains 0.4 ms” is one.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>The I/O stack separates a stable application contract from device-specific execution, but every abstraction preserves several facts: operations can be partial, devices progress concurrently, results arrive later, queues are finite, and failure can race with completion.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Decision</th>
+<th>Prefer this when</th>
+<th>Cost or obligation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Blocking call</td>
+<td>Flow is sequential, concurrency is modest, or a worker pool bounds waits</td>
+<td>One thread context is occupied by each active blocking operation</td>
+</tr>
+<tr class="even">
+<td>Nonblocking + readiness</td>
+<td>Many descriptors are usually idle and operations are naturally readiness-driven</td>
+<td>Application must maintain state, drain correctly, and implement backpressure</td>
+</tr>
+<tr class="odd">
+<td>Completion API</td>
+<td>Many operations should be batched/in flight, especially supported file/network operations</td>
+<td>Buffer lifetime, request correlation, cancellation, and queue management are explicit</td>
+</tr>
+<tr class="even">
+<td>Interrupt notification</td>
+<td>Events are sparse or a queue has gone idle</td>
+<td>Fixed interrupt and scheduling cost; coalescing adds latency</td>
+</tr>
+<tr class="odd">
+<td>Polling</td>
+<td>Event rate is sustained and a CPU budget/core is available</td>
+<td>Burns CPU while checking and must preserve fairness</td>
+</tr>
+<tr class="even">
+<td>Hybrid interrupt/poll</td>
+<td>Workload alternates between idle and bursts</td>
+<td>More policy and tuning; requires correct transition between modes</td>
+</tr>
+<tr class="odd">
+<td>PIO</td>
+<td>Payload is tiny or hardware is extremely simple</td>
+<td>CPU moves every word</td>
+</tr>
+<tr class="even">
+<td>DMA</td>
+<td>Payload is large or frequent</td>
+<td>Mapping, synchronization, isolation, and ownership become critical</td>
+</tr>
+</tbody>
+</table>
+<p>Common misconceptions can now be corrected precisely:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Misconception</th>
+<th>More accurate statement</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“A file descriptor is a file.”</td>
+<td>It is a process-local handle to a kernel object, which may be a file, pipe, socket, event source, or device.</td>
+</tr>
+<tr class="even">
+<td>“Blocking I/O blocks the CPU.”</td>
+<td>It can suspend the calling thread; the scheduler normally runs other work.</td>
+</tr>
+<tr class="odd">
+<td>“Readable means bytes are available.”</td>
+<td>It means a read-like operation should not block; EOF and errors can also satisfy the condition.</td>
+</tr>
+<tr class="even">
+<td>“One readiness event means one message.”</td>
+<td>Readiness reports state, not application framing. Drain according to the object’s contract.</td>
+</tr>
+<tr class="odd">
+<td>“Interrupts are always faster than polling.”</td>
+<td>Interrupts save idle CPU; polling can reduce per-event overhead at sustained high rates.</td>
+</tr>
+<tr class="even">
+<td>“DMA means zero CPU involvement.”</td>
+<td>The CPU still prepares mappings/descriptors, handles completion, and may copy at other layers.</td>
+</tr>
+<tr class="odd">
+<td>“io_uring is zero-copy.”</td>
+<td>Its shared SQ/CQ reduces command/completion overhead; payload copies depend on the selected operation and data path.</td>
+</tr>
+<tr class="even">
+<td>“A timeout means nothing happened.”</td>
+<td>It means no terminal result was observed by the deadline; the operation may have partially or fully executed.</td>
+</tr>
+<tr class="odd">
+<td>“A bigger buffer fixes overload.”</td>
+<td>It postpones pressure and increases possible waiting; sustained arrival must not exceed sustainable service.</td>
+</tr>
+</tbody>
+</table>
+<p>A sound I/O design can answer these questions:</p>
+<ol type="1">
+<li>What operation is submitted, and which object owns its semantics?</li>
+<li>Which agent moves the payload, and through which address/mapping?</li>
+<li>How is completion detected and correlated with the request?</li>
+<li>When may each descriptor, buffer, and device reference be reused?</li>
+<li>How are partial progress, EOF, errors, deadlines, cancellation, and hotplug represented?</li>
+<li>Where is queue capacity bounded, and how does backpressure reach the producer?</li>
+<li>Which measurements separate syscall, queue, device, completion, and scheduling time?</li>
+</ol>
+<p>With those answers, event-driven execution becomes less mysterious. It is the explicit organization of work that was always asynchronous at the hardware boundary: submit, relinquish ownership, let independent agents progress, observe one terminal result, and propagate pressure or failure without losing track of state.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

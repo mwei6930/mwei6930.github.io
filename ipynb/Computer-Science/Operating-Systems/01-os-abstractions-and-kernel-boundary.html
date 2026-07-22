@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Operating System Abstractions and the Kernel Boundary</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/clipboard/clipboard.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/quarto.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/popper.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/anchor.min.js"></script>
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#operating-system-abstractions-and-the-kernel-boundary" id="toc-operating-system-abstractions-and-the-kernel-boundary" class="nav-link active" data-scroll-target="#operating-system-abstractions-and-the-kernel-boundary"><strong>Operating System Abstractions and the Kernel Boundary</strong></a>
+  <ul>
+  <li><a href="#what-does-an-operating-system-do" id="toc-what-does-an-operating-system-do" class="nav-link" data-scroll-target="#what-does-an-operating-system-do"><strong>What Does an Operating System Do?</strong></a>
+  <ul>
+  <li><a href="#abstraction-multiplexing-and-isolation" id="toc-abstraction-multiplexing-and-isolation" class="nav-link" data-scroll-target="#abstraction-multiplexing-and-isolation"><strong>Abstraction, Multiplexing, and Isolation</strong></a></li>
+  <li><a href="#mechanism-and-policy" id="toc-mechanism-and-policy" class="nav-link" data-scroll-target="#mechanism-and-policy"><strong>Mechanism and Policy</strong></a></li>
+  </ul></li>
+  <li><a href="#hardware-foundations-for-protection" id="toc-hardware-foundations-for-protection" class="nav-link" data-scroll-target="#hardware-foundations-for-protection"><strong>Hardware Foundations for Protection</strong></a>
+  <ul>
+  <li><a href="#user-mode-and-kernel-mode" id="toc-user-mode-and-kernel-mode" class="nav-link" data-scroll-target="#user-mode-and-kernel-mode"><strong>User Mode and Kernel Mode</strong></a></li>
+  <li><a href="#privileged-instructions-and-memory-protection" id="toc-privileged-instructions-and-memory-protection" class="nav-link" data-scroll-target="#privileged-instructions-and-memory-protection"><strong>Privileged Instructions and Memory Protection</strong></a></li>
+  </ul></li>
+  <li><a href="#events-that-enter-the-kernel" id="toc-events-that-enter-the-kernel" class="nav-link" data-scroll-target="#events-that-enter-the-kernel"><strong>Events That Enter the Kernel</strong></a>
+  <ul>
+  <li><a href="#system-calls" id="toc-system-calls" class="nav-link" data-scroll-target="#system-calls"><strong>System Calls</strong></a></li>
+  <li><a href="#exceptions-and-faults" id="toc-exceptions-and-faults" class="nav-link" data-scroll-target="#exceptions-and-faults"><strong>Exceptions and Faults</strong></a></li>
+  <li><a href="#hardware-interrupts" id="toc-hardware-interrupts" class="nav-link" data-scroll-target="#hardware-interrupts"><strong>Hardware Interrupts</strong></a></li>
+  <li><a href="#trap-entry-and-return" id="toc-trap-entry-and-return" class="nav-link" data-scroll-target="#trap-entry-and-return"><strong>Trap Entry and Return</strong></a></li>
+  </ul></li>
+  <li><a href="#the-system-call-interface" id="toc-the-system-call-interface" class="nav-link" data-scroll-target="#the-system-call-interface"><strong>The System Call Interface</strong></a>
+  <ul>
+  <li><a href="#api-abi-and-calling-convention" id="toc-api-abi-and-calling-convention" class="nav-link" data-scroll-target="#api-abi-and-calling-convention"><strong>API, ABI, and Calling Convention</strong></a></li>
+  <li><a href="#validating-arguments-across-the-trust-boundary" id="toc-validating-arguments-across-the-trust-boundary" class="nav-link" data-scroll-target="#validating-arguments-across-the-trust-boundary"><strong>Validating Arguments Across the Trust Boundary</strong></a></li>
+  <li><a href="#system-call-cost-and-security" id="toc-system-call-cost-and-security" class="nav-link" data-scroll-target="#system-call-cost-and-security"><strong>System Call Cost and Security</strong></a></li>
+  </ul></li>
+  <li><a href="#kernel-organization" id="toc-kernel-organization" class="nav-link" data-scroll-target="#kernel-organization"><strong>Kernel Organization</strong></a>
+  <ul>
+  <li><a href="#monolithic-and-modular-kernels" id="toc-monolithic-and-modular-kernels" class="nav-link" data-scroll-target="#monolithic-and-modular-kernels"><strong>Monolithic and Modular Kernels</strong></a></li>
+  <li><a href="#layered-systems" id="toc-layered-systems" class="nav-link" data-scroll-target="#layered-systems"><strong>Layered Systems</strong></a></li>
+  <li><a href="#microkernels-and-message-passing" id="toc-microkernels-and-message-passing" class="nav-link" data-scroll-target="#microkernels-and-message-passing"><strong>Microkernels and Message Passing</strong></a></li>
+  <li><a href="#hybrid-exokernel-and-library-os-ideas" id="toc-hybrid-exokernel-and-library-os-ideas" class="nav-link" data-scroll-target="#hybrid-exokernel-and-library-os-ideas"><strong>Hybrid, Exokernel, and Library-OS Ideas</strong></a></li>
+  </ul></li>
+  <li><a href="#booting-an-operating-system" id="toc-booting-an-operating-system" class="nav-link" data-scroll-target="#booting-an-operating-system"><strong>Booting an Operating System</strong></a>
+  <ul>
+  <li><a href="#firmware-and-the-bootloader" id="toc-firmware-and-the-bootloader" class="nav-link" data-scroll-target="#firmware-and-the-bootloader"><strong>Firmware and the Bootloader</strong></a></li>
+  <li><a href="#kernel-initialization-and-the-first-user-process" id="toc-kernel-initialization-and-the-first-user-process" class="nav-link" data-scroll-target="#kernel-initialization-and-the-first-user-process"><strong>Kernel Initialization and the First User Process</strong></a></li>
+  </ul></li>
+  <li><a href="#observing-the-user-kernel-boundary" id="toc-observing-the-user-kernel-boundary" class="nav-link" data-scroll-target="#observing-the-user-kernel-boundary"><strong>Observing the User-Kernel Boundary</strong></a>
+  <ul>
+  <li><a href="#tracing-system-calls" id="toc-tracing-system-calls" class="nav-link" data-scroll-target="#tracing-system-calls"><strong>Tracing System Calls</strong></a></li>
+  <li><a href="#inspecting-kernel-exposed-process-state" id="toc-inspecting-kernel-exposed-process-state" class="nav-link" data-scroll-target="#inspecting-kernel-exposed-process-state"><strong>Inspecting Kernel-Exposed Process State</strong></a></li>
+  </ul></li>
+  <li><a href="#following-the-running-case-into-the-kernel" id="toc-following-the-running-case-into-the-kernel" class="nav-link" data-scroll-target="#following-the-running-case-into-the-kernel"><strong>Following the Running Case into the Kernel</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Operating System Abstractions and the Kernel Boundary</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/01-os-abstractions-and-kernel-boundary.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="operating-system-abstractions-and-the-kernel-boundary" class="level2">
+<h2 class="anchored" data-anchor-id="operating-system-abstractions-and-the-kernel-boundary"><strong>Operating System Abstractions and the Kernel Boundary</strong></h2>
+<p>An ordinary program appears to own a processor, a continuous address space, files, and devices. The machine underneath provides none of those objects in that convenient form. It provides CPU execution modes, physical memory, storage blocks, interrupt lines, timers, and device registers. The operating system turns those mechanisms into stable abstractions and decides how many mutually untrusted programs may share them.</p>
+<p>This chapter builds the boundary on which the rest of operating systems depends. The recurring example is:</p>
+<pre class="text"><code>cat input.txt | grep kernel &gt; result.txt</code></pre>
+<p>The command looks like one line of shell syntax. In reality it causes process creation, executable loading, file-descriptor manipulation, protected system calls, scheduling, memory translation, file-system access, and device I/O. This chapter first asks a narrower question: <strong>what must happen whenever that command needs the kernel?</strong></p>
+<section id="what-does-an-operating-system-do" class="level3">
+<h3 class="anchored" data-anchor-id="what-does-an-operating-system-do"><strong>What Does an Operating System Do?</strong></h3>
+<p>An <strong>operating system</strong> is the software environment that makes a computer usable as a shared, protected, and persistent system. The <strong>kernel</strong> is its privileged core. Shells, system libraries, service managers, and command-line utilities are usually part of the operating-system environment, but they normally execute in user mode and are not themselves the kernel.</p>
+<p>This distinction matters. Calling <code>printf()</code> does not automatically mean entering the kernel: a C library may format text entirely in user space and buffer it. Eventually, however, emitting those bytes to a terminal or file requires a service such as <code>write()</code>, and that request crosses into the kernel.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/os-placement.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/os-placement.svg" class="img-fluid figure-img" style="width:38.0%" alt="A hierarchy showing users and applications above the operating system, with hardware below it."></a></p>
+<figcaption>Basic placement of an operating system between applications and hardware</figcaption>
+</figure>
+</div>
+<p><em>Figure source: Golftheman, <a href="https://commons.wikimedia.org/wiki/File:Operating_system_placement.svg">Operating system placement</a>, CC BY-SA 3.0.</em></p>
+<p>The operating system has several simultaneous responsibilities:</p>
+<ul>
+<li><strong>Convenience:</strong> expose files instead of raw disk sectors, processes instead of an undivided CPU, and sockets instead of direct network-controller commands.</li>
+<li><strong>Multiplexing:</strong> share finite processors, memory frames, storage bandwidth, and device time among competing activities.</li>
+<li><strong>Isolation:</strong> prevent one program from reading, corrupting, or monopolizing another program’s resources without authorization.</li>
+<li><strong>Coordination:</strong> provide controlled ways for programs to synchronize, exchange data, and share persistent objects.</li>
+<li><strong>Recovery and accounting:</strong> detect failures, reclaim resources, record ownership and usage, and restore consistent state when possible.</li>
+</ul>
+<p>The kernel is therefore not merely a library of useful routines. A normal library trusts its caller and runs with the caller’s authority. A kernel must assume that every user request may be malformed, stale, accidental, or hostile, while still serving valid requests efficiently.</p>
+<section id="abstraction-multiplexing-and-isolation" class="level4">
+<h4 class="anchored" data-anchor-id="abstraction-multiplexing-and-isolation"><strong>Abstraction, Multiplexing, and Isolation</strong></h4>
+<p>These three ideas describe the same resource from different viewpoints.</p>
+<p>An <strong>abstraction</strong> gives software a simpler and more stable object than the hardware exposes. A file is a named byte sequence even though its contents may be scattered across storage blocks. A process is an execution environment containing registers, an address space, credentials, and open files even though its instructions occupy a physical CPU only intermittently.</p>
+<p><strong>Multiplexing</strong> maps many logical objects onto fewer physical resources. Time multiplexing lets many runnable threads take turns on a CPU. Space multiplexing assigns different memory frames or disk blocks to different owners. The mapping can change over time without changing the abstraction visible to a program.</p>
+<p><strong>Isolation</strong> constrains those mappings. Page-table permissions stop one process from casually addressing another process’s memory. File permissions and credentials constrain which persistent objects a process may open. Preemptive scheduling prevents a user program from keeping the processor forever simply by refusing to return control voluntarily.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Physical resource</th>
+<th>OS abstraction</th>
+<th>Multiplexing decision</th>
+<th>Isolation rule</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU cores</td>
+<td>Processes and threads</td>
+<td>Which runnable thread executes next, and for how long</td>
+<td>User code can be preempted; privileged state is protected</td>
+</tr>
+<tr class="even">
+<td>Physical memory</td>
+<td>Virtual address spaces and mappings</td>
+<td>Which virtual pages occupy which frames</td>
+<td>Page permissions and per-process mappings restrict access</td>
+</tr>
+<tr class="odd">
+<td>Storage blocks</td>
+<td>Files, directories, and volumes</td>
+<td>Placement, caching, and I/O ordering</td>
+<td>Ownership, permissions, namespaces, and access checks</td>
+</tr>
+<tr class="even">
+<td>Network interface</td>
+<td>Sockets</td>
+<td>Queueing packets among flows and processes</td>
+<td>Binding rules, credentials, firewall policy, namespaces</td>
+</tr>
+<tr class="odd">
+<td>Device registers</td>
+<td>Device files and driver operations</td>
+<td>Serialize or schedule device requests</td>
+<td>Direct access is restricted to trusted code or delegated capabilities</td>
+</tr>
+</tbody>
+</table>
+<p>A useful mental model is <strong>request -&gt; check -&gt; bind -&gt; use -&gt; release</strong>. A process requests an object or operation; the kernel checks arguments and authority; it binds the request to kernel state; the process uses the resulting handle; and the kernel eventually releases or reclaims the state. File descriptors, virtual-memory mappings, sockets, and process identifiers all follow variations of this lifecycle.</p>
+<p>The abstractions are also fault-containment boundaries. If <code>grep</code> dereferences an invalid pointer, the operating system can terminate <code>grep</code> while leaving the shell and unrelated processes alive. Without protected boundaries, an ordinary application bug could overwrite the scheduler, device driver, or another program.</p>
+</section>
+<section id="mechanism-and-policy" class="level4">
+<h4 class="anchored" data-anchor-id="mechanism-and-policy"><strong>Mechanism and Policy</strong></h4>
+<p>A <strong>mechanism</strong> describes what the system is capable of doing. A <strong>policy</strong> chooses what it should do in a particular situation. Separating them lets the same low-level machinery support different goals.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Area</th>
+<th>Mechanism</th>
+<th>Example policy question</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU</td>
+<td>Timer interrupt, context switch, run queues</td>
+<td>Which thread should run next?</td>
+</tr>
+<tr class="even">
+<td>Memory</td>
+<td>Page tables, faults, frame allocation</td>
+<td>Which page should be evicted under pressure?</td>
+</tr>
+<tr class="odd">
+<td>Storage</td>
+<td>Block I/O, cache, journaling primitives</td>
+<td>When should dirty data be written back?</td>
+</tr>
+<tr class="even">
+<td>Protection</td>
+<td>User/kernel mode, page permissions, credentials</td>
+<td>Which principal may perform this operation?</td>
+</tr>
+<tr class="odd">
+<td>Networking</td>
+<td>Packet queues and scheduling hooks</td>
+<td>Which traffic receives priority or a rate limit?</td>
+</tr>
+</tbody>
+</table>
+<p>For example, a timer interrupt is a mechanism that lets the kernel regain control. Round-robin, priority scheduling, and fair scheduling are policies built on that mechanism. Page tables provide a mechanism for mapping and protecting memory; demand paging and page replacement are policies that decide when mappings are created and which frames are reclaimed.</p>
+<p>The separation is a design principle, not an absolute law. A mechanism exposes some choices and hides others, so it always shapes policy. A scheduler that only supports one global queue cannot efficiently express every locality-aware policy. Good operating-system design therefore asks two questions together: <em>what decisions should remain configurable, and what mechanism makes those decisions enforceable?</em></p>
+</section>
+</section>
+<section id="hardware-foundations-for-protection" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-foundations-for-protection"><strong>Hardware Foundations for Protection</strong></h3>
+<p>Software cannot create a trustworthy boundary using ordinary instructions alone. If every program could rewrite page tables, disable interrupts, or program storage devices directly, a malicious program could bypass any rule expressed by the kernel. Modern processors provide privilege modes, protected control registers, address translation, and controlled entry instructions so that the operating system can enforce its abstractions.</p>
+<section id="user-mode-and-kernel-mode" class="level4">
+<h4 class="anchored" data-anchor-id="user-mode-and-kernel-mode"><strong>User Mode and Kernel Mode</strong></h4>
+<p>The processor records a current <strong>privilege level</strong>. In user mode, code can perform ordinary computation but cannot execute selected privileged operations or access kernel-only mappings. In kernel mode, trusted code can configure the machine and access protected resources.</p>
+<p>The familiar two-mode explanation is a simplification of architecture-specific designs:</p>
+<ul>
+<li>x86 defines four rings, numbered 0 through 3. Mainstream operating systems normally use ring 0 for the kernel and ring 3 for applications; rings 1 and 2 are rarely used by general-purpose kernels.</li>
+<li>RISC-V defines machine, supervisor, and user modes. Firmware commonly occupies machine mode, the operating-system kernel runs in supervisor mode, and applications run in user mode.</li>
+<li>Virtualization adds another control layer. A hypervisor can constrain a guest kernel even though that guest believes it is managing a machine.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/x86-privilege-rings.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/x86-privilege-rings.svg" class="img-fluid figure-img" style="width:58.0%" alt="Concentric x86 privilege rings, with applications in the least privileged outer ring and the operating-system kernel in the most privileged inner ring."></a></p>
+<figcaption>Privilege rings on x86</figcaption>
+</figure>
+</div>
+<p><em>Figure source: Hertzsprung, <a href="https://commons.wikimedia.org/wiki/File:Priv_rings.svg">Privilege rings for x86</a>, CC BY-SA 3.0.</em></p>
+<p>Privilege is attached to the currently executing CPU context, not permanently to a source file or programming language. A C program normally runs in user mode. A kernel written in C normally runs in supervisor or kernel mode. The decisive difference is how execution was entered, which mappings and stacks are active, and what the processor permits at that moment.</p>
+<p>Three terms are often confused:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Transition</th>
+<th>What changes</th>
+<th>Must another process run?</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Function call</td>
+<td>Program counter, call stack, selected registers</td>
+<td>No</td>
+</tr>
+<tr class="even">
+<td>Mode switch</td>
+<td>Processor privilege and protected execution context</td>
+<td>No</td>
+</tr>
+<tr class="odd">
+<td>Context switch</td>
+<td>Saved execution state changes from one thread/process to another</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p>A system call causes a mode switch, but it need not cause a context switch. If the requested operation completes immediately, the kernel may return to the same thread. If a <code>read()</code> must wait for data, the kernel can block that thread and schedule another one, adding a context switch.</p>
+</section>
+<section id="privileged-instructions-and-memory-protection" class="level4">
+<h4 class="anchored" data-anchor-id="privileged-instructions-and-memory-protection"><strong>Privileged Instructions and Memory Protection</strong></h4>
+<p>Privileged instructions and registers control system-wide state. Exact details vary by architecture, but kernels typically need exclusive control over operations such as:</p>
+<ul>
+<li>installing or modifying page-table roots and memory-protection settings;</li>
+<li>configuring interrupt delivery, timers, and interrupt masks;</li>
+<li>entering low-power or halted states;</li>
+<li>accessing protected device-control interfaces;</li>
+<li>changing privilege-control and virtualization state.</li>
+</ul>
+<p>Memory protection is especially important because kernel code and data must remain inaccessible while user code is running. The memory-management unit translates a virtual address through page tables and checks permissions such as readable, writable, executable, user-accessible, and present. A user load from a supervisor-only page does not simply return arbitrary bytes: the processor raises a fault and transfers control to the kernel.</p>
+<p>This produces a layered defense:</p>
+<ol type="1">
+<li>The application can name only virtual addresses in its own address space.</li>
+<li>Page-table entries determine whether those addresses are mapped and which accesses are legal.</li>
+<li>User mode prevents the application from replacing the page tables with permissive ones.</li>
+<li>The kernel decides whether a fault can be resolved, should become a user-visible signal, or indicates a kernel bug.</li>
+</ol>
+<p>The timer completes the protection story. Even a program containing an infinite loop cannot indefinitely prevent the operating system from running, because a hardware timer can interrupt it and transfer control to the kernel. The scheduler may then return to the same thread or choose another.</p>
+<p>The detailed hardware side of privilege, address translation, and interrupts is developed in <a href="../Computer-Organization/06-processor-datapath-and-control.html">Processor Datapath and Control</a>, <a href="../Computer-Organization/09-virtual-memory-and-translation.html">Virtual Memory and Address Translation</a>, and <a href="../Computer-Organization/10-io-interrupts-dma-storage.html">I/O, Interrupts, and DMA</a>. Here the focus is how an operating system uses those mechanisms.</p>
+</section>
+</section>
+<section id="events-that-enter-the-kernel" class="level3">
+<h3 class="anchored" data-anchor-id="events-that-enter-the-kernel"><strong>Events That Enter the Kernel</strong></h3>
+<p>An operating system needs controlled ways to regain control of a CPU. The broad term <strong>trap</strong> is often used for any event that redirects execution to a privileged handler. Three major sources are system calls, synchronous exceptions, and asynchronous hardware interrupts.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-entry-and-return.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/kernel-entry-and-return.svg" class="img-fluid figure-img" style="width:96.0%" alt="Three event types converge on architecture-defined trap entry, register saving, kernel handlers, state restoration, and protected return."></a></p>
+<figcaption>System calls, exceptions, and interrupts entering and returning from the kernel</figcaption>
+</figure>
+</div>
+<p><em>Figure: original diagram for this chapter, based on the trap model in the <a href="https://pdos.csail.mit.edu/6.1810/2025/xv6/book-riscv-rev5.pdf">MIT xv6 book, Chapter 4</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>System call</th>
+<th>Exception or fault</th>
+<th>Hardware interrupt</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Immediate source</td>
+<td>Current instruction deliberately requests a service</td>
+<td>Current instruction violates a rule or needs kernel assistance</td>
+<td>Timer, device, or another processor</td>
+</tr>
+<tr class="even">
+<td>Timing</td>
+<td>Synchronous</td>
+<td>Synchronous</td>
+<td>Asynchronous to the current instruction stream</td>
+</tr>
+<tr class="odd">
+<td>Expected by the program</td>
+<td>Yes</td>
+<td>Sometimes; often not</td>
+<td>Usually no</td>
+</tr>
+<tr class="even">
+<td>Typical examples</td>
+<td><code>read</code>, <code>write</code>, <code>mmap</code>, <code>fork</code></td>
+<td>Page fault, illegal instruction, divide error</td>
+<td>Timer tick, keyboard input, completed disk or network I/O</td>
+</tr>
+<tr class="odd">
+<td>Possible outcome</td>
+<td>Return value or error</td>
+<td>Retry, signal/termination, or kernel failure</td>
+<td>Resume, wake a waiter, or trigger scheduling</td>
+</tr>
+</tbody>
+</table>
+<section id="system-calls" class="level4">
+<h4 class="anchored" data-anchor-id="system-calls"><strong>System Calls</strong></h4>
+<p>A <strong>system call</strong> is an intentional request for a kernel service. User code places a system-call number and arguments where the platform ABI requires, then executes a special instruction such as x86-64 <code>syscall</code> or RISC-V <code>ecall</code>. Hardware raises privilege and transfers control to a configured entry point; it does not let the application choose an arbitrary kernel function.</p>
+<p>The kernel uses the system-call number to dispatch to a handler. The handler validates the request, performs or initiates the operation, stores a result, and eventually returns through an architecture-defined privileged return instruction. From the application’s perspective, this often looks like a normal C function call because the C library hides the ABI details.</p>
+<p>System calls are deliberately narrow. A process cannot call the kernel’s internal VFS helper or scheduler function by address. It can invoke only exported operations, with arguments that cross a checked interface. This reduces the attack surface and allows kernel implementation details to change without recompiling every application.</p>
+</section>
+<section id="exceptions-and-faults" class="level4">
+<h4 class="anchored" data-anchor-id="exceptions-and-faults"><strong>Exceptions and Faults</strong></h4>
+<p>An <strong>exception</strong> is tied to the instruction currently being executed. The instruction may be illegal, its operands may be invalid, or it may require operating-system intervention. Common examples include an invalid opcode, a protection violation, and a page-table entry that is absent.</p>
+<p>The word <strong>fault</strong> usually describes a synchronous exception that may be handled so the instruction can be retried. Demand paging is the classic example: the virtual address is valid, but its page is not resident. The kernel obtains or creates the page, updates the mapping, and returns to the faulting instruction. The program experiences a longer memory access, not an explicit system call.</p>
+<p>Terminology such as <em>fault</em>, <em>trap</em>, and <em>abort</em> differs across architectures and textbooks, so the useful questions are more concrete:</p>
+<ol type="1">
+<li>Which instruction and address caused the event?</li>
+<li>Is the state precise enough to retry or resume?</li>
+<li>Does the current process have a valid mapping or registered handler?</li>
+<li>Should the kernel repair the condition, report it to user space, terminate the process, or stop because kernel integrity is compromised?</li>
+</ol>
+<p>A user-space segmentation fault and a kernel page fault are therefore not equivalent. The first usually means one process violated its address-space rules. The second may indicate a bug in privileged code and can threaten the whole system, unless it occurred during a carefully guarded copy from user memory.</p>
+</section>
+<section id="hardware-interrupts" class="level4">
+<h4 class="anchored" data-anchor-id="hardware-interrupts"><strong>Hardware Interrupts</strong></h4>
+<p>A <strong>hardware interrupt</strong> reports an event external to the current instruction stream. A timer expires, a network interface receives packets, or a storage controller completes a request. The interrupt controller routes the event to a CPU, and the CPU transfers control at an instruction boundary when the event is eligible for delivery.</p>
+<p>Interrupt handlers must usually do little work on the immediate path. While an interrupt is being serviced, latency-sensitive work may be delayed and some interrupts may be masked. A common design is:</p>
+<ol type="1">
+<li>acknowledge the hardware so it can continue;</li>
+<li>capture minimal completion state;</li>
+<li>queue or mark deferred work;</li>
+<li>wake threads waiting for the event;</li>
+<li>return, allowing normal scheduling to decide when longer processing runs.</li>
+</ol>
+<p>Interrupts make blocking I/O efficient. Instead of repeatedly asking whether a disk request has finished, a process can sleep. The CPU runs other work, and the device interrupt later lets the kernel mark the request complete and wake the process.</p>
+</section>
+<section id="trap-entry-and-return" class="level4">
+<h4 class="anchored" data-anchor-id="trap-entry-and-return"><strong>Trap Entry and Return</strong></h4>
+<p>Trap handling is a cooperation between hardware, assembly-language entry code, and higher-level kernel code. The exact registers differ, but the conceptual path is stable:</p>
+<ol type="1">
+<li><strong>Finish or identify the interrupted instruction.</strong> The architecture records a resume address and a cause code.</li>
+<li><strong>Raise privilege and redirect control.</strong> The CPU selects a previously configured trap vector. User code cannot provide the target at the moment of entry.</li>
+<li><strong>Preserve user state.</strong> Entry assembly saves general-purpose registers that the hardware did not save automatically.</li>
+<li><strong>Establish kernel context.</strong> The path selects a protected kernel stack and any required kernel address-space state.</li>
+<li><strong>Build a trap frame.</strong> Saved registers, status, cause, and resume information become a structured snapshot.</li>
+<li><strong>Classify and handle the event.</strong> Kernel code dispatches to a system-call routine, exception logic, or device driver.</li>
+<li><strong>Prepare the result.</strong> The kernel may update return registers, process state, mappings, pending signals, or scheduling state.</li>
+<li><strong>Restore and return.</strong> Entry state is restored, privilege is lowered, and execution resumes or starts at a kernel-selected user address.</li>
+</ol>
+<p>The <strong>trap frame</strong> is crucial because entering the kernel does not erase the interrupted computation. It gives the kernel a representation of the user context that can be inspected, modified when semantics require it, and restored later. If the thread blocks, that restoration may occur long after another thread has run on the same CPU.</p>
+<p>In xv6 on RISC-V, the user stub places the system-call number in <code>a7</code> and executes <code>ecall</code>. Trap entry uses the trampoline and saves registers into a per-process trap frame; <code>usertrap()</code> inspects the cause, and the kernel eventually prepares a return to user mode. This small path is an excellent concrete model, while Linux adds architecture support, tracing, security hooks, signals, preemption, and many more subsystems around the same core idea.</p>
+</section>
+</section>
+<section id="the-system-call-interface" class="level3">
+<h3 class="anchored" data-anchor-id="the-system-call-interface"><strong>The System Call Interface</strong></h3>
+<p>The system-call interface is the most important explicit contract between ordinary programs and the kernel. It should be stable enough for binaries to keep working, small enough to audit, expressive enough to support libraries and runtimes, and defensive enough to process untrusted inputs.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-system-call-interface.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/linux-system-call-interface.svg" class="img-fluid figure-img" style="width:72.0%" alt="Applications use the GNU C Library and other APIs, which invoke the Linux kernel system-call interface above hardware."></a></p>
+<figcaption>Linux system-call interface and the GNU C Library</figcaption>
+</figure>
+</div>
+<p><em>Figure source: ScotXW, <a href="https://commons.wikimedia.org/wiki/File:Linux_kernel_System_Call_Interface_and_glibc.svg">Linux kernel System Call Interface and glibc</a>, CC BY-SA 3.0.</em></p>
+<section id="api-abi-and-calling-convention" class="level4">
+<h4 class="anchored" data-anchor-id="api-abi-and-calling-convention"><strong>API, ABI, and Calling Convention</strong></h4>
+<p>An <strong>API</strong> is a source-level programming contract: function names, argument types, return meanings, and documented behavior. An <strong>ABI</strong> is a binary-level contract: register assignments, system-call numbers, data layouts, instruction choice, error encoding, and other details required for compiled code to interoperate.</p>
+<p>For a call such as <code>write(fd, buffer, count)</code>, several layers are involved:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layer</th>
+<th>Example responsibility</th>
+<th>Can it change without changing the others?</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Application API</td>
+<td>Calls the POSIX-style <code>write()</code> function</td>
+<td>Source can be recompiled against another compatible library</td>
+</tr>
+<tr class="even">
+<td>C library wrapper</td>
+<td>Adapts C calling convention to kernel ABI; sets <code>errno</code></td>
+<td>Library implementation can change while preserving its API</td>
+</tr>
+<tr class="odd">
+<td>System-call ABI</td>
+<td>Places number and arguments in defined registers</td>
+<td>Must remain stable for existing binaries</td>
+</tr>
+<tr class="even">
+<td>Kernel implementation</td>
+<td>Validates descriptor and memory, then reaches VFS/driver logic</td>
+<td>Internal organization can change behind the ABI</td>
+</tr>
+</tbody>
+</table>
+<p>On common 64-bit Linux targets, the essential register conventions are:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Architecture</th>
+<th>System-call instruction</th>
+<th>Number</th>
+<th>Arguments</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86-64</td>
+<td><code>syscall</code></td>
+<td><code>rax</code></td>
+<td><code>rdi</code>, <code>rsi</code>, <code>rdx</code>, <code>r10</code>, <code>r8</code>, <code>r9</code></td>
+<td><code>rax</code></td>
+</tr>
+<tr class="even">
+<td>RISC-V 64</td>
+<td><code>ecall</code></td>
+<td><code>a7</code></td>
+<td><code>a0</code> through <code>a5</code></td>
+<td><code>a0</code></td>
+</tr>
+</tbody>
+</table>
+<p>The x86-64 system-call convention is not identical to the ordinary System V C function convention: the fourth system-call argument uses <code>r10</code>, while ordinary C calls use <code>rcx</code>. Library wrappers handle details like this. The Linux <a href="https://man7.org/linux/man-pages/man2/syscall.2.html"><code>syscall(2)</code> manual</a> documents architecture-specific conventions, and <a href="https://man7.org/linux/man-pages/man2/syscalls.2.html"><code>syscalls(2)</code></a> distinguishes kernel calls from library wrapper functions.</p>
+<p>The following Linux C program performs one write through the normal libc wrapper and another through libc’s generic <code>syscall()</code> helper. The helper still belongs to libc, but it asks for a specific kernel system-call number and exposes the lower-level interface more directly.</p>
+<details>
+<summary>
+Show the annotated C example
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/syscall.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> wrapped<span class="op">[]</span> <span class="op">=</span> <span class="st">"libc write wrapper</span><span class="sc">\n</span><span class="st">"</span><span class="op">;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> raw<span class="op">[]</span> <span class="op">=</span> <span class="st">"SYS_write through syscall()</span><span class="sc">\n</span><span class="st">"</span><span class="op">;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Normal source-level API. libc selects the correct kernel ABI.</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> wrapped<span class="op">,</span> <span class="kw">sizeof</span> wrapped <span class="op">-</span> <span class="dv">1</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"write"</span><span class="op">);</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Lower-level request: explicitly provide Linux's SYS_write number.</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> syscall<span class="op">(</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        SYS_write<span class="op">,</span> STDOUT_FILENO<span class="op">,</span> raw<span class="op">,</span> <span class="kw">sizeof</span> raw <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">// syscall() converts the kernel error convention into errno.</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"SYS_write: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> syscall_write.c <span class="at">-o</span> syscall_write</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-e</span> trace=write ./syscall_write</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Both operations should appear as <code>write</code> events in <code>strace</code>. The source-level paths differ, but they converge on the same kernel service. This also demonstrates why ‘library call’ and ‘system call’ are not synonyms: <code>strlen()</code> needs no kernel service, while the <code>write()</code> wrapper normally does.</p>
+</section>
+<section id="validating-arguments-across-the-trust-boundary" class="level4">
+<h4 class="anchored" data-anchor-id="validating-arguments-across-the-trust-boundary"><strong>Validating Arguments Across the Trust Boundary</strong></h4>
+<p>At system-call entry, the kernel receives numbers and addresses supplied by untrusted code. A pointer is not an object that the kernel may blindly dereference; it is a numeric virtual address in the caller’s address space. The mapping can be absent, read-only, too short, or changed concurrently by another thread.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/syscall-validation-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/syscall-validation-path.svg" class="img-fluid figure-img" style="width:98.0%" alt="A system call moves from an application API through libc and the ABI into kernel dispatch, validation, a subsystem, and a protected return path."></a></p>
+<figcaption>Validation path across the system-call trust boundary</figcaption>
+</figure>
+</div>
+<p><em>Figure: original diagram for this chapter, informed by Linux and xv6 system-call interfaces.</em></p>
+<p>For a request resembling <code>write(fd, buffer, count)</code>, kernel-side reasoning includes at least:</p>
+<ol type="1">
+<li><strong>Dispatch validation:</strong> is the system-call number implemented for this architecture and process state?</li>
+<li><strong>Scalar validation:</strong> is <code>count</code> representable, bounded, and safe from arithmetic overflow?</li>
+<li><strong>Handle validation:</strong> does <code>fd</code> name an open object in this process, and is it writable?</li>
+<li><strong>Pointer validation:</strong> does the user range identify readable user pages for the requested length?</li>
+<li><strong>Permission validation:</strong> do credentials and object policy permit the operation?</li>
+<li><strong>State validation:</strong> is the object still open and in a state that accepts the operation?</li>
+<li><strong>Safe transfer:</strong> use guarded copy routines or pinned/mapped buffers rather than an unchecked kernel dereference.</li>
+<li><strong>Result discipline:</strong> report partial progress, interruption, or a precise error without leaking kernel data.</li>
+</ol>
+<p>The check and the use must also be considered together. If the kernel checks a user-space pathname and later reads it again, another thread might modify the memory between those actions. Kernels reduce such <strong>time-of-check to time-of-use</strong> risks by copying data into kernel-owned memory, taking references or locks on resolved objects, or using interfaces whose semantics explicitly tolerate concurrent change.</p>
+<p>User programs must respect the same contract from the other side. For byte-stream I/O, a successful <code>write()</code> may transfer fewer bytes than requested, and an interrupted operation may need to be retried. A robust loop tracks progress instead of assuming one call completes everything.</p>
+<details>
+<summary>
+Show a robust user-space write loop
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stddef.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> write_all<span class="op">(</span><span class="dt">int</span> fd<span class="op">,</span> <span class="dt">const</span> <span class="dt">void</span> <span class="op">*</span>buffer<span class="op">,</span> <span class="dt">size_t</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>bytes <span class="op">=</span> buffer<span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> offset <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>offset <span class="op">&lt;</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Ask the kernel to consume only the bytes still pending.</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> written <span class="op">=</span> write<span class="op">(</span>fd<span class="op">,</span> bytes <span class="op">+</span> offset<span class="op">,</span> length <span class="op">-</span> offset<span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>written <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            offset <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>written<span class="op">;</span>  <span class="co">// Preserve partial progress.</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>written <span class="op">==</span> <span class="op">-</span><span class="dv">1</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span>                  <span class="co">// A signal interrupted the call.</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span><span class="dv">1</span><span class="op">;</span>                     <span class="co">// Keep errno from the real failure.</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The kernel’s validation protects the system from the caller. The caller’s return-value checks protect the application from incorrect assumptions about asynchronous and resource-constrained execution.</p>
+</section>
+<section id="system-call-cost-and-security" class="level4">
+<h4 class="anchored" data-anchor-id="system-call-cost-and-security"><strong>System Call Cost and Security</strong></h4>
+<p>A protected transition costs more than an ordinary function call, but there is no single universal ‘system-call cost.’ It may include entry and return instructions, register saving, dispatch, security hooks, argument copying, cache effects, speculation mitigations, and the requested work itself. A system call that hits cached metadata can be far cheaper than one that blocks for storage or network I/O.</p>
+<p>Common techniques reduce crossings or amortize their fixed cost:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Technique</th>
+<th>Idea</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>User-space buffering</td>
+<td>Combine many small operations</td>
+<td><code>stdio</code> collects characters before <code>write()</code></td>
+</tr>
+<tr class="even">
+<td>Batching</td>
+<td>Describe multiple operations per entry</td>
+<td>vector I/O, batched message operations</td>
+</tr>
+<tr class="odd">
+<td>Shared mappings</td>
+<td>Exchange data through mapped pages</td>
+<td><code>mmap</code>, shared-memory queues</td>
+</tr>
+<tr class="even">
+<td>Asynchronous submission</td>
+<td>Submit work and collect completions separately</td>
+<td>Linux <code>io_uring</code></td>
+</tr>
+<tr class="odd">
+<td>Kernel-provided user mapping</td>
+<td>Read selected safe data without a trap</td>
+<td>Linux vDSO for some time-related functions</td>
+</tr>
+</tbody>
+</table>
+<p>Optimization must preserve semantics. Replacing many durable writes with one buffered write can improve throughput but may change what survives a crash. Sharing memory avoids copies but introduces synchronization and validation problems. The right question is not ‘how do I eliminate every syscall?’ but ‘which boundary crossings dominate this workload, and what semantic trade-off is acceptable?’</p>
+<p>The system-call surface is also a security surface. A smaller permitted set can reduce what a compromised process can ask the kernel to do. Linux mechanisms such as seccomp can restrict system calls, while credentials, capabilities, namespaces, and mandatory access controls constrain authority more broadly. Those mechanisms do not make kernel handlers safe by themselves: every allowed handler must still validate lengths, object lifetimes, pointer ranges, integer arithmetic, and concurrent state.</p>
+</section>
+</section>
+<section id="kernel-organization" class="level3">
+<h3 class="anchored" data-anchor-id="kernel-organization"><strong>Kernel Organization</strong></h3>
+<p>All kernels must implement protected services, but they disagree about which services should execute in the most privileged address space. This choice changes communication cost, failure containment, trusted-computing-base size, and extensibility.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-organization.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/kernel-organization.svg" class="img-fluid figure-img" style="width:100.0%" alt="A side-by-side comparison of monolithic, microkernel, and hybrid kernel structures, showing which services run in user or kernel space."></a></p>
+<figcaption>Monolithic, microkernel, and hybrid kernel organization</figcaption>
+</figure>
+</div>
+<p><em>Figure source: Golftheman, <a href="https://commons.wikimedia.org/wiki/File:OS-structure2.svg">OS-structure2</a>, public domain.</em></p>
+<p>The labels in this diagram describe architectural tendencies, not rigid boxes. Production systems often borrow ideas from several designs, and the placement of one service does not determine every other design choice.</p>
+<section id="monolithic-and-modular-kernels" class="level4">
+<h4 class="anchored" data-anchor-id="monolithic-and-modular-kernels"><strong>Monolithic and Modular Kernels</strong></h4>
+<p>In a <strong>monolithic kernel</strong>, major services such as virtual memory, file systems, networking, scheduling, and many drivers execute in one privileged kernel address space. They can call one another through ordinary in-kernel function calls and share data structures efficiently.</p>
+<p>Linux is commonly described as monolithic but modular. Loadable kernel modules let drivers or subsystems be added after boot, yet a loaded module normally has kernel privilege and shares the kernel’s failure domain. Modularity improves organization and deployment; it does not turn a driver into an isolated user process.</p>
+<p>Advantages include direct communication, mature shared infrastructure, and high performance on common paths. The cost is a large trusted computing base: a memory-safety or synchronization bug in a privileged driver can corrupt unrelated kernel state. Internal interfaces can also become tightly coupled because direct access is convenient.</p>
+<p>xv6 is deliberately monolithic and small. That makes complete control paths readable: a system call can proceed from trap handling into the file system or process subsystem without crossing multiple protection domains. It is a teaching advantage, not a claim that a tiny design contains every production requirement.</p>
+</section>
+<section id="layered-systems" class="level4">
+<h4 class="anchored" data-anchor-id="layered-systems"><strong>Layered Systems</strong></h4>
+<p>A <strong>layered design</strong> organizes services so that each layer uses lower-level interfaces and serves higher-level ones. A conceptual stack might place hardware support below interrupt and memory mechanisms, then process and I/O services, then file and network abstractions, and finally the system-call interface.</p>
+<p>Layering helps humans reason about dependencies. A narrow interface makes it easier to replace or test an implementation, and lower layers do not need to understand every higher-level policy. Strict layering can nevertheless force unnatural paths, duplicate work, or prevent an optimization that needs information from another layer. Most general-purpose kernels therefore use layering as an organizing principle while permitting carefully controlled cross-layer interactions.</p>
+</section>
+<section id="microkernels-and-message-passing" class="level4">
+<h4 class="anchored" data-anchor-id="microkernels-and-message-passing"><strong>Microkernels and Message Passing</strong></h4>
+<p>A <strong>microkernel</strong> keeps a smaller set of mechanisms in privileged mode, often including low-level address-space management, scheduling, interrupt handling, and interprocess communication. Services such as drivers, file systems, or network stacks can run as isolated user-space servers. A client requests a service by sending a message rather than calling a large in-kernel subsystem directly.</p>
+<p>This organization can improve fault isolation and reduce the most privileged trusted computing base. A failed user-space driver may be restartable without corrupting the microkernel. Explicit messages also make authority and component boundaries easier to analyze.</p>
+<p>The trade-off is that a logical operation may require extra domain crossings, scheduling decisions, and data transfers. High-performance microkernels reduce these costs with optimized IPC, shared-memory transfer, capability-based naming, careful scheduling, and designs that avoid unnecessary messages. Systems such as seL4 emphasize a small, analyzable kernel; QNX and MINIX illustrate service-oriented organization in different settings.</p>
+<p>Message passing is not automatically slower in every workload, and monolithic code is not automatically faster once failures, maintainability, and security are considered. Architecture determines where costs and guarantees are paid; implementation quality and workload determine their practical weight.</p>
+</section>
+<section id="hybrid-exokernel-and-library-os-ideas" class="level4">
+<h4 class="anchored" data-anchor-id="hybrid-exokernel-and-library-os-ideas"><strong>Hybrid, Exokernel, and Library-OS Ideas</strong></h4>
+<p>The term <strong>hybrid kernel</strong> is used for systems that retain many services in kernel space while adopting ideas associated with microkernels or layered component models. Windows NT and Apple’s XNU are often described this way, although the label hides substantial internal differences. ‘Hybrid’ should therefore prompt examination of actual protection domains and communication paths rather than serve as a complete explanation.</p>
+<p>An <strong>exokernel</strong> takes a different approach: keep protection and secure resource multiplexing in the kernel, but expose lower-level resources so application-specific library operating systems can build their own abstractions. A <strong>library OS</strong> packages operating-system services with an application or runtime. Unikernel-style systems push this idea toward a single-purpose image deployed on a virtual machine or similarly controlled platform.</p>
+<p>These approaches can specialize aggressively and reduce general-purpose overhead, but they shift compatibility, debugging, update, sharing, and isolation responsibilities. They are useful reminders that familiar abstractions such as a POSIX process or file system are design choices, not physical laws.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Organization</th>
+<th>Privileged code</th>
+<th>Communication style</th>
+<th>Main strength</th>
+<th>Main pressure point</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Monolithic</td>
+<td>Most core services and drivers</td>
+<td>Direct in-kernel calls</td>
+<td>Efficient, integrated common paths</td>
+<td>Large shared failure and trust domain</td>
+</tr>
+<tr class="even">
+<td>Modular monolithic</td>
+<td>Monolithic core plus loadable components</td>
+<td>Direct calls after loading</td>
+<td>Deployment flexibility with native speed</td>
+<td>Modules still have kernel authority</td>
+</tr>
+<tr class="odd">
+<td>Layered</td>
+<td>Depends on implementation</td>
+<td>Calls through ordered interfaces</td>
+<td>Clear dependencies and reasoning</td>
+<td>Rigid boundaries can add indirection</td>
+</tr>
+<tr class="even">
+<td>Microkernel</td>
+<td>Minimal mechanisms</td>
+<td>IPC among isolated servers</td>
+<td>Small privileged base and fault isolation</td>
+<td>IPC, scheduling, and coordination overhead</td>
+</tr>
+<tr class="odd">
+<td>Hybrid</td>
+<td>Many services remain privileged</td>
+<td>Calls plus component/message mechanisms</td>
+<td>Practical compatibility and mixed design</td>
+<td>Boundaries and guarantees can be hard to summarize</td>
+</tr>
+<tr class="even">
+<td>Exokernel/library OS</td>
+<td>Protection and multiplexing core</td>
+<td>Application-selected libraries</td>
+<td>Specialization and low-level control</td>
+<td>Portability, sharing, and ecosystem complexity</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="booting-an-operating-system" class="level3">
+<h3 class="anchored" data-anchor-id="booting-an-operating-system"><strong>Booting an Operating System</strong></h3>
+<p>The kernel cannot initialize itself before any code is running. Booting is a staged transfer of control in which each environment establishes enough machine state to load and trust the next one.</p>
+<section id="firmware-and-the-bootloader" class="level4">
+<h4 class="anchored" data-anchor-id="firmware-and-the-bootloader"><strong>Firmware and the Bootloader</strong></h4>
+<p>After reset, a processor begins at an architecture-defined location with limited initialized state. Platform firmware configures enough hardware to locate a boot target. On a modern PC, UEFI firmware maintains boot options in NVRAM and its boot manager can load a UEFI application, commonly an operating-system loader, according to platform policy.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/boot-to-user-space.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/boot-to-user-space.svg" class="img-fluid figure-img" style="width:98.0%" alt="A left-to-right sequence from CPU reset through firmware, boot manager, early kernel initialization, core subsystems, and the first user process."></a></p>
+<figcaption>Conceptual boot path from CPU reset to the first user process</figcaption>
+</figure>
+</div>
+<p><em>Figure: original diagram for this chapter, based on the <a href="https://uefi.org/specs/UEFI/2.11/03_Boot_Manager.html">UEFI 2.11 Boot Manager specification</a> and the Linux/xv6 initialization model.</em></p>
+<p>A bootloader may choose among kernels, load a kernel image and initial RAM file system into memory, supply a command line and hardware information, and transfer execution to the kernel’s entry point. Some platforms let the firmware load a kernel image more directly, so ‘firmware -&gt; bootloader -&gt; kernel’ is a useful model rather than an invariant sequence.</p>
+<p><strong>Secure Boot</strong> adds verification to the control chain. Each trusted stage verifies an acceptable signature before transferring control. It helps prevent unauthorized boot code, but it is not the same as full-disk encryption: signature verification answers <em>is this code trusted?</em>, whereas encryption answers <em>can someone read the stored data without a key?</em></p>
+<p>Older BIOS-style boot and modern UEFI boot differ significantly in interfaces and disk conventions, yet the conceptual purpose is the same: move from a tiny initial environment to code capable of loading and initializing the operating system.</p>
+</section>
+<section id="kernel-initialization-and-the-first-user-process" class="level4">
+<h4 class="anchored" data-anchor-id="kernel-initialization-and-the-first-user-process"><strong>Kernel Initialization and the First User Process</strong></h4>
+<p>Once control reaches the kernel, it cannot immediately run normal applications. It must construct the abstractions that those applications assume. A simplified Linux-style sequence is:</p>
+<ol type="1">
+<li><strong>Establish early execution state:</strong> set up an initial stack, architecture state, and enough address translation to execute reliably.</li>
+<li><strong>Discover CPUs and memory:</strong> identify usable physical ranges, reserve kernel regions, and initialize allocators.</li>
+<li><strong>Install exception and interrupt handling:</strong> configure vectors, controllers, and timers so protected events can be handled.</li>
+<li><strong>Initialize core subsystems:</strong> create scheduler, virtual-memory, device, VFS, networking, and security state in dependency order.</li>
+<li><strong>Find a root file system:</strong> use built-in drivers or an initial RAM file system to locate and mount the persistent root.</li>
+<li><strong>Create the first user context:</strong> start PID 1 on Linux or <code>init</code> in xv6.</li>
+<li><strong>Build ordinary user space:</strong> PID 1 starts services, reaps orphaned children, and eventually supports terminals, logins, or a graphical session.</li>
+</ol>
+<p>An <strong>initramfs</strong> solves an apparent dependency cycle. The real root file system may live on encrypted storage, a RAID set, a network device, or hardware whose modules are not yet available. A small file system loaded with the kernel provides temporary user-space tools and drivers that prepare the real root, then switch to it.</p>
+<p>Linux distributions often use <code>systemd</code> as PID 1, but PID 1 is a role rather than a required program name. Other init systems exist, containers can have their own PID-namespace init process, and xv6 starts a much smaller <code>init</code> program. The invariant is that the kernel creates an initial user execution context from which the rest of user space can be constructed.</p>
+<p>The running system exposes evidence about its own boot path. These commands are intended for Linux or WSL; availability and permissions differ by distribution.</p>
+<details>
+<summary>
+Show commands for inspecting a Linux boot
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Arguments supplied to the running kernel.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/cmdline</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Kernel messages from the current boot. Some systems restrict dmesg.</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="fu">dmesg</span> <span class="at">--human</span> <span class="kw">|</span> <span class="fu">less</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># On systemd systems, show time attributed to firmware, loader, kernel,</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># and user-space initialization, then inspect the critical dependency chain.</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-analyze</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-analyze</span> critical-chain</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Query logs only from the current boot.</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="ex">journalctl</span> <span class="at">-b</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>These observations should not be confused with universal stages. <code>systemd-analyze</code> reports a systemd-based boot model; an embedded system, xv6, or another init system exposes different evidence.</p>
+</section>
+</section>
+<section id="observing-the-user-kernel-boundary" class="level3">
+<h3 class="anchored" data-anchor-id="observing-the-user-kernel-boundary"><strong>Observing the User-Kernel Boundary</strong></h3>
+<p>The boundary is not only theoretical. Linux tracing and pseudo-filesystems let us observe requests and kernel-maintained process state without modifying the application.</p>
+<section id="tracing-system-calls" class="level4">
+<h4 class="anchored" data-anchor-id="tracing-system-calls"><strong>Tracing System Calls</strong></h4>
+<p><code>strace</code> records system calls and signals for a process. It can reveal which files a program opens, where it blocks, how child processes are created, and which error code caused a failure. It reports the interface, not every internal kernel function.</p>
+<p>For the earlier C program:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-e</span> trace=write ./syscall_write</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>A typical trace contains two <code>write(1, ..., length)</code> calls followed by process exit. File descriptor <code>1</code> is standard output. The exact addresses, quoting, and auxiliary calls depend on architecture, libc, loader, and <code>strace</code> version.</p>
+<p>For a compact quantitative view:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-c</span> ./syscall_write</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The summary counts calls and reports observed time. Tracing itself adds overhead and can change timing, especially for highly concurrent programs, so it is diagnostic evidence rather than an untouched performance measurement.</p>
+</section>
+<section id="inspecting-kernel-exposed-process-state" class="level4">
+<h4 class="anchored" data-anchor-id="inspecting-kernel-exposed-process-state"><strong>Inspecting Kernel-Exposed Process State</strong></h4>
+<p>Linux mounts <code>/proc</code> as a pseudo-filesystem. Files under <code>/proc/&lt;pid&gt;</code> are generated from kernel state when read; they are not ordinary records stored on disk. Useful views include:</p>
+<ul>
+<li><code>status</code>: identifiers, credentials, state, capabilities, memory summaries, and signal masks;</li>
+<li><code>maps</code>: current virtual-memory regions and permissions;</li>
+<li><code>fd/</code>: symbolic links representing the process’s open file descriptors;</li>
+<li><code>syscall</code>: the current system call and register-level arguments when access is permitted.</li>
+</ul>
+<p>The following sequence creates a process that is likely blocked in a sleep-related system call, inspects it, then waits for clean completion.</p>
+<details>
+<summary>
+Show process-state inspection commands
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sleep</span> 30 <span class="kw">&amp;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">$!</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Identity, state, threads, and a few memory/accounting fields.</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Name|State|Pid|PPid|Threads|VmRSS|voluntary_ctxt_switches)'</span> <span class="dt">\</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    /proc/<span class="va">$pid</span>/status</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Current system-call number and arguments, if kernel policy permits it.</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/<span class="va">$pid</span>/syscall</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Descriptor numbers mapped to kernel-managed objects.</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> /proc/<span class="va">$pid</span>/fd</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># First few virtual-memory mappings and their permissions.</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span> /proc/<span class="va">$pid</span>/maps</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">wait</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The <a href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html"><code>proc_pid_status(5)</code> manual</a> documents these fields. Access can be restricted by credentials, ptrace policy, namespaces, or how <code>/proc</code> is mounted. That restriction is itself an example of the kernel enforcing isolation around diagnostic information.</p>
+</section>
+</section>
+<section id="following-the-running-case-into-the-kernel" class="level3">
+<h3 class="anchored" data-anchor-id="following-the-running-case-into-the-kernel"><strong>Following the Running Case into the Kernel</strong></h3>
+<p>The shell pipeline combines nearly every boundary concept introduced in this chapter. The diagram shows causal relationships, not one fixed interleaving: the scheduler may run <code>cat</code>, <code>grep</code>, and the shell in many valid orders.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-kernel-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/pipeline-kernel-path.svg" class="img-fluid figure-img" style="width:100.0%" alt="The shell creates cat and grep processes, connects them through a kernel pipe, redirects output to result.txt, and waits for completion."></a></p>
+<figcaption>End-to-end kernel path for the recurring shell pipeline</figcaption>
+</figure>
+</div>
+<p><em>Figure: original diagram for this chapter.</em></p>
+<p>The execution unfolds approximately as follows:</p>
+<ol type="1">
+<li><strong>The shell parses syntax in user space.</strong> It recognizes a two-command pipeline and an output redirection. Parsing does not require the kernel unless the shell needs additional input or resources.</li>
+<li><strong>The shell creates kernel objects.</strong> <code>pipe2()</code> creates a pipe with read and write descriptors. <code>openat()</code> creates or truncates <code>result.txt</code> and returns another descriptor.</li>
+<li><strong>The shell creates child execution contexts.</strong> <code>fork()</code> or a related Linux primitive produces children whose descriptor tables initially refer to the same open kernel objects.</li>
+<li><strong>Each child installs its standard streams.</strong> <code>dup2()</code> makes <code>cat</code> standard output refer to the pipe’s write end. It makes <code>grep</code> standard input refer to the pipe’s read end and standard output refer to <code>result.txt</code>.</li>
+<li><strong>Unused descriptor copies are closed.</strong> This is semantic, not cosmetic. If any process retains an extra pipe write end, the reader may never observe end-of-file.</li>
+<li><strong><code>execve()</code> replaces program images.</strong> One child becomes <code>cat</code>; the other becomes <code>grep</code>. The processes keep descriptors that were not marked close-on-exec.</li>
+<li><strong>Data flows through kernel objects.</strong> <code>cat</code> opens <code>input.txt</code>, repeatedly reads bytes, and writes them to the pipe. <code>grep</code> reads from the pipe, searches in user space, and writes matching data to the output file. Reads and writes may block, wake, or complete partially.</li>
+<li><strong>Closure communicates completion.</strong> When every write end is closed, <code>grep</code> eventually reads end-of-file. Both programs exit, and the shell waits for their termination status before accepting the next foreground command.</li>
+</ol>
+<p>The pipe is not a direct memory pointer from <code>cat</code> to <code>grep</code>. It is a kernel-managed object reached through per-process descriptors. That indirection lets the kernel enforce access, coordinate blocking, preserve object lifetime while references exist, and wake the reader when data becomes available.</p>
+<p>We can ask Linux to record the important boundary crossings:</p>
+<details>
+<summary>
+Show a focused trace of the pipeline
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'kernel mode\nuser mode\nkernel boundary\n'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-o</span> pipeline.trace <span class="dt">\</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=clone,fork,vfork,execve,wait4,pipe,pipe2,dup2,openat,read,write,close <span class="dt">\</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> result.txt</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">less</span> pipeline.trace</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>In the trace, look for relationships rather than expecting identical descriptor numbers:</p>
+<ul>
+<li>a pipe is created before the two programs exchange data;</li>
+<li>the output file is opened by the shell-side setup path;</li>
+<li>child processes duplicate descriptors onto <code>0</code> or <code>1</code>;</li>
+<li><code>execve()</code> changes each child into the requested program;</li>
+<li><code>cat</code> opens and reads <code>input.txt</code>, then writes to the pipe;</li>
+<li><code>grep</code> reads from the pipe and writes matching lines to <code>result.txt</code>;</li>
+<li>the shell waits while the foreground pipeline runs.</li>
+</ul>
+<p>Loader behavior, locale files, dynamic libraries, shell implementation, and scheduling can add calls and change their order. This variability is a lesson in itself: a system-call trace is one execution of a concurrent system, not the only legal execution.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>The chapter’s ideas form one chain:</p>
+<pre class="text"><code>physical resources
+    -&gt; protected hardware mechanisms
+    -&gt; privileged kernel
+    -&gt; validated system-call interface
+    -&gt; process, memory, file, pipe, and device abstractions
+    -&gt; ordinary applications</code></pre>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Concept</th>
+<th>Question it answers</th>
+<th>Key idea to retain</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Abstraction</td>
+<td>What stable object does software use?</td>
+<td>Hide hardware detail behind a meaningful contract</td>
+</tr>
+<tr class="even">
+<td>Multiplexing</td>
+<td>How do many activities share finite resources?</td>
+<td>Map logical objects onto time or space slices</td>
+</tr>
+<tr class="odd">
+<td>Isolation</td>
+<td>Why can one failure remain local?</td>
+<td>Hardware protection plus kernel validation</td>
+</tr>
+<tr class="even">
+<td>Mechanism</td>
+<td>What operation can the system enforce?</td>
+<td>Trap, map, schedule, copy, block, wake</td>
+</tr>
+<tr class="odd">
+<td>Policy</td>
+<td>Which allowed choice should be made?</td>
+<td>Select according to goals such as fairness, latency, or security</td>
+</tr>
+<tr class="even">
+<td>System call</td>
+<td>How does a program intentionally request privilege?</td>
+<td>Enter through a numbered, validated ABI</td>
+</tr>
+<tr class="odd">
+<td>Exception</td>
+<td>How does the current instruction request or require intervention?</td>
+<td>Diagnose, repair and retry, or report failure</td>
+</tr>
+<tr class="even">
+<td>Interrupt</td>
+<td>How does external hardware get attention?</td>
+<td>Asynchronous entry followed by minimal handling and deferred work</td>
+</tr>
+<tr class="odd">
+<td>Kernel architecture</td>
+<td>Where should trusted services execute?</td>
+<td>Trade communication cost against isolation and trusted-base size</td>
+</tr>
+<tr class="even">
+<td>Boot</td>
+<td>How does an inert machine reach user space?</td>
+<td>Staged transfer of control and, optionally, trust</td>
+</tr>
+</tbody>
+</table>
+<p>Several misconceptions are worth removing early:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Misconception</th>
+<th>More accurate statement</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>‘The operating system and kernel are identical.’</td>
+<td>The kernel is the privileged core; the broader OS environment includes user-space libraries, tools, and services.</td>
+</tr>
+<tr class="even">
+<td>‘Every library function is a system call.’</td>
+<td>Many functions run entirely in user space; wrappers enter the kernel only when a protected service is needed.</td>
+</tr>
+<tr class="odd">
+<td>‘A system call always switches processes.’</td>
+<td>It switches privilege; a process switch occurs only if scheduling or blocking requires one.</td>
+</tr>
+<tr class="even">
+<td>‘All kernel entries are system calls.’</td>
+<td>Exceptions and hardware interrupts also enter privileged handlers.</td>
+</tr>
+<tr class="odd">
+<td>‘A loadable driver is isolated because it is modular.’</td>
+<td>A normal kernel module still shares kernel privilege and failure scope.</td>
+</tr>
+<tr class="even">
+<td>‘Fewer system calls always means faster code.’</td>
+<td>Work, blocking, copying, caching, batching, and required semantics dominate real performance.</td>
+</tr>
+<tr class="odd">
+<td>‘Boot ends when the kernel starts.’</td>
+<td>The kernel must initialize subsystems, mount a root, and create the first user process before ordinary services exist.</td>
+</tr>
+</tbody>
+</table>
+<p>The most useful invariant is this: <strong>user code never receives authority merely by asking for it</strong>. Hardware provides controlled entry and protected state; the kernel interprets a request, validates it against the caller and current objects, applies policy, performs work, and returns a constrained result. Every later chapter builds a richer abstraction on this same boundary.</p>
+<p><a href="02-processes-and-program-execution.html">Next: Processes and Program Execution</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

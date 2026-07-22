@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：地址空间、页表与 TLB</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/clipboard/clipboard.min.js"></script>
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/quarto.js"></script>
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/popper.min.js"></script>
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/anchor.min.js"></script>
+<link href="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="06-address-spaces-page-tables-and-tlb_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="06-address-spaces-page-tables-and-tlb_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="06-address-spaces-page-tables-and-tlb_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="06-address-spaces-page-tables-and-tlb_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#address-spaces-page-tables-and-the-tlb" id="toc-address-spaces-page-tables-and-the-tlb" class="nav-link active" data-scroll-target="#address-spaces-page-tables-and-the-tlb"><strong>地址空间、页表与 TLB</strong></a>
+  <ul>
+  <li><a href="#why-virtualize-memory" id="toc-why-virtualize-memory" class="nav-link" data-scroll-target="#why-virtualize-memory"><strong>为什么要虚拟化内存？</strong></a>
+  <ul>
+  <li><a href="#relocation-isolation-sharing-and-sparsity" id="toc-relocation-isolation-sharing-and-sparsity" class="nav-link" data-scroll-target="#relocation-isolation-sharing-and-sparsity"><strong>重定位、隔离、共享与稀疏性</strong></a></li>
+  </ul></li>
+  <li><a href="#address-spaces-and-memory-regions" id="toc-address-spaces-and-memory-regions" class="nav-link" data-scroll-target="#address-spaces-and-memory-regions"><strong>地址空间与内存区域</strong></a>
+  <ul>
+  <li><a href="#code-data-heap-stack-and-mapped-regions" id="toc-code-data-heap-stack-and-mapped-regions" class="nav-link" data-scroll-target="#code-data-heap-stack-and-mapped-regions"><strong>代码、数据、堆、栈与映射区域</strong></a></li>
+  </ul></li>
+  <li><a href="#early-address-translation-mechanisms" id="toc-early-address-translation-mechanisms" class="nav-link" data-scroll-target="#early-address-translation-mechanisms"><strong>早期地址翻译机制</strong></a>
+  <ul>
+  <li><a href="#base-and-bounds" id="toc-base-and-bounds" class="nav-link" data-scroll-target="#base-and-bounds"><strong>基址与界限</strong></a></li>
+  <li><a href="#segmentation-and-external-fragmentation" id="toc-segmentation-and-external-fragmentation" class="nav-link" data-scroll-target="#segmentation-and-external-fragmentation"><strong>分段与外部碎片</strong></a></li>
+  </ul></li>
+  <li><a href="#paging" id="toc-paging" class="nav-link" data-scroll-target="#paging"><strong>分页</strong></a>
+  <ul>
+  <li><a href="#pages-frames-and-offset-preservation" id="toc-pages-frames-and-offset-preservation" class="nav-link" data-scroll-target="#pages-frames-and-offset-preservation"><strong>页、页框与偏移保持</strong></a></li>
+  <li><a href="#internal-fragmentation-and-page-size" id="toc-internal-fragmentation-and-page-size" class="nav-link" data-scroll-target="#internal-fragmentation-and-page-size"><strong>内部碎片与页大小</strong></a></li>
+  </ul></li>
+  <li><a href="#page-table-entries-and-permissions" id="toc-page-table-entries-and-permissions" class="nav-link" data-scroll-target="#page-table-entries-and-permissions"><strong>页表项与权限</strong></a>
+  <ul>
+  <li><a href="#presence-access-dirty-execute-and-user-bits" id="toc-presence-access-dirty-execute-and-user-bits" class="nav-link" data-scroll-target="#presence-access-dirty-execute-and-user-bits"><strong>存在、访问、脏、执行与用户位</strong></a></li>
+  </ul></li>
+  <li><a href="#page-table-organizations" id="toc-page-table-organizations" class="nav-link" data-scroll-target="#page-table-organizations"><strong>页表组织</strong></a>
+  <ul>
+  <li><a href="#linear-and-multilevel-page-tables" id="toc-linear-and-multilevel-page-tables" class="nav-link" data-scroll-target="#linear-and-multilevel-page-tables"><strong>线性页表与多级页表</strong></a></li>
+  <li><a href="#hashed-and-inverted-page-tables" id="toc-hashed-and-inverted-page-tables" class="nav-link" data-scroll-target="#hashed-and-inverted-page-tables"><strong>哈希页表与反向页表</strong></a></li>
+  </ul></li>
+  <li><a href="#the-mmu-address-translation-path" id="toc-the-mmu-address-translation-path" class="nav-link" data-scroll-target="#the-mmu-address-translation-path"><strong>MMU 地址翻译路径</strong></a></li>
+  <li><a href="#translation-lookaside-buffers" id="toc-translation-lookaside-buffers" class="nav-link" data-scroll-target="#translation-lookaside-buffers"><strong>地址翻译旁路缓冲器</strong></a>
+  <ul>
+  <li><a href="#tlb-hits-misses-and-replacement" id="toc-tlb-hits-misses-and-replacement" class="nav-link" data-scroll-target="#tlb-hits-misses-and-replacement"><strong>TLB 命中、未命中与替换</strong></a></li>
+  <li><a href="#asids-pcids-and-context-switches" id="toc-asids-pcids-and-context-switches" class="nav-link" data-scroll-target="#asids-pcids-and-context-switches"><strong>ASID、PCID 与上下文切换</strong></a></li>
+  </ul></li>
+  <li><a href="#page-faults-as-controlled-exceptions" id="toc-page-faults-as-controlled-exceptions" class="nav-link" data-scroll-target="#page-faults-as-controlled-exceptions"><strong>缺页作为受控异常</strong></a></li>
+  <li><a href="#comparing-x86-64-and-risc-v-translation" id="toc-comparing-x86-64-and-risc-v-translation" class="nav-link" data-scroll-target="#comparing-x86-64-and-risc-v-translation"><strong>比较 x86-64 与 RISC-V 翻译</strong></a></li>
+  <li><a href="#building-a-minimal-page-table-walker" id="toc-building-a-minimal-page-table-walker" class="nav-link" data-scroll-target="#building-a-minimal-page-table-walker"><strong>构建最小页表遍历器</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：地址空间、页表与 TLB</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/06-address-spaces-page-tables-and-tlb.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="address-spaces-page-tables-and-the-tlb" class="level2">
+<h2 class="anchored" data-anchor-id="address-spaces-page-tables-and-the-tlb"><strong>地址空间、页表与 TLB</strong></h2>
+<p>进程看见从低地址到高地址的私有、连续虚拟空间，物理内存却由不连续页框组成，并被内核、设备和许多进程共享。<strong>虚拟内存</strong>通过 MMU 和页表把每次内存访问从虚拟地址翻译为物理地址，同时检查权限；<strong>TLB</strong> 缓存近期翻译，使这个保护过程在常见路径上足够快。</p>
+<p>本章关注“翻译与保护”本身，下一章再讨论页面不驻留时如何按需装入和置换。贯穿问题是：地址如何被分解，页表如何表示稀疏空间，TLB 命中/未命中如何改变访问成本，以及映射变化后如何让所有 CPU 停止使用旧翻译。</p>
+<section id="why-virtualize-memory" class="level3">
+<h3 class="anchored" data-anchor-id="why-virtualize-memory"><strong>为什么要虚拟化内存？</strong></h3>
+<section id="relocation-isolation-sharing-and-sparsity" class="level4">
+<h4 class="anchored" data-anchor-id="relocation-isolation-sharing-and-sparsity"><strong>重定位、隔离、共享与稀疏性</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/address-space-virtualization.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/address-space-virtualization.svg" class="img-fluid figure-img" style="width:98.0%" alt="两个进程把私有虚拟页映射到不同物理页框，可选择共享某个页框，并保留不占页框的未映射空洞。"></a></p>
+<figcaption>虚拟地址空间属性映射到共享物理内存</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>重定位：</strong>程序使用稳定虚拟地址，内核可把页面放在任意可用页框并随时迁移。</li>
+<li><strong>隔离：</strong>每进程页表和 user/supervisor、read/write/execute 权限阻止越权访问。</li>
+<li><strong>共享：</strong>多个地址空间可把不同虚拟页映射到同一物理页框，用于共享库、IPC 和文件缓存。</li>
+<li><strong>稀疏性：</strong>很大的虚拟范围可以保持未映射，不必为地址空洞分配物理内存。</li>
+</ul>
+<p>虚拟内存不会凭空增加 RAM。它增加一层命名与保护，使物理资源可灵活放置、共享和延迟分配，同时付出页表内存、TLB、缺页处理与一致性成本。</p>
+</section>
+</section>
+<section id="address-spaces-and-memory-regions" class="level3">
+<h3 class="anchored" data-anchor-id="address-spaces-and-memory-regions"><strong>地址空间与内存区域</strong></h3>
+<section id="code-data-heap-stack-and-mapped-regions" class="level4">
+<h4 class="anchored" data-anchor-id="code-data-heap-stack-and-mapped-regions"><strong>代码、数据、堆、栈与映射区域</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/process-address-space-regions.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/process-address-space-regions.svg" class="img-fluid figure-img" style="width:84.0%" alt="地址空间包含 text、data、heap、空洞、文件/库映射、guard page 和 stack，旁边是 VMA 与页表元数据。"></a></p>
+<figcaption>概念 Linux 用户地址空间与区域元数据</figcaption>
+</figure>
+</div>
+<p>内核通常先用 VMA/region 描述一段虚拟区间的语义：范围、权限、匿名或文件 backing、共享/私有、增长和故障处理方式；页表再记录当前每页翻译。区域存在不代表其每个页面已经有页框或 PTE，按需分页正依赖这种分离。</p>
+<p>代码常为读/执行，常量为只读，数据/堆/栈为读写且通常不可执行，guard page 保持不可访问以捕获越界。ASLR 随机化布局以增加利用固定地址的难度。</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看当前 shell 进程的内存区域。</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span> <span class="at">-n</span> 15 /proc/<span class="va">$$</span>/maps</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看可执行文件请求加载的 ELF 段。</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-W</span> <span class="at">-l</span> /proc/<span class="va">$$</span>/exe</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看当前用户空间环境暴露的基本页大小。</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="ex">getconf</span> PAGE_SIZE</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>/proc/&lt;pid&gt;/maps</code> 展示区域视图，<code>readelf -l</code> 展示 ELF 请求的 segment；二者不应与逐页驻留状态混淆。</p>
+</section>
+</section>
+<section id="early-address-translation-mechanisms" class="level3">
+<h3 class="anchored" data-anchor-id="early-address-translation-mechanisms"><strong>早期地址翻译机制</strong></h3>
+<section id="base-and-bounds" class="level4">
+<h4 class="anchored" data-anchor-id="base-and-bounds"><strong>基址与界限</strong></h4>
+<p>基址-界限把进程逻辑地址 <span class="math inline">\(v\)</span> 翻译为 <span class="math inline">\(base+v\)</span>，前提是 <span class="math inline">\(0\le v&lt;bound\)</span>。它只需少量寄存器、重定位快速，但整个进程必须占用一个连续物理区间，且不同区域不能独立设置细粒度权限。</p>
+</section>
+<section id="segmentation-and-external-fragmentation" class="level4">
+<h4 class="anchored" data-anchor-id="segmentation-and-external-fragmentation"><strong>分段与外部碎片</strong></h4>
+<p>分段让地址包含 segment 与 offset，每个代码、堆或栈段有独立 base、limit 和权限，能反映程序逻辑结构。但可变长度物理分配在段之间留下难以利用的孔洞，即<strong>外部碎片</strong>；压缩需要移动数据并更新映射，代价很高。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/base-bounds-segmentation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/base-bounds-segmentation.svg" class="img-fluid figure-img" style="width:98.0%" alt="基址界限重定位一个连续进程，分段独立重定位代码、堆和栈，却在物理内存留下外部孔洞。"></a></p>
+<figcaption>基址-界限重定位与分段比较</figcaption>
+</figure>
+</div>
+<p>现代通用系统主要使用分页，某些体系结构仍保留有限分段功能，语言运行时或对象系统也可能在更高层采用逻辑分段思想。</p>
+</section>
+</section>
+<section id="paging" class="level3">
+<h3 class="anchored" data-anchor-id="paging"><strong>分页</strong></h3>
+<section id="pages-frames-and-offset-preservation" class="level4">
+<h4 class="anchored" data-anchor-id="pages-frames-and-offset-preservation"><strong>页、页框与偏移保持</strong></h4>
+<p>分页把虚拟空间分成固定大小 <strong>page</strong>，物理内存分成相同大小 <strong>frame</strong>。若页大小为 <span class="math inline">\(P=2^k\)</span>：</p>
+<p><span class="math display">\[VA=VPN\times P+offset,\qquad 0\le offset&lt;P.\]</span></p>
+<p>页表把 VPN 映射到 PFN/PPN，物理地址为</p>
+<p><span class="math display">\[PA=PFN\times P+offset.\]</span></p>
+<p>低 <span class="math inline">\(k\)</span> 位 offset 原样保留，只有高位页号被替换。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/paging-offset-translation-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/paging-offset-translation-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="虚拟地址 0x2D3A 分成 VPN 0x0B 与 offset 0x13A，映射 PFN 0x15 后得到物理地址 0x553A。"></a></p>
+<figcaption>逐步分页翻译并保留页内偏移</figcaption>
+</figure>
+</div>
+<pre class="text"><code>地址转换(VA, operation)：
+    如果 VA &gt;= bounds：
+        触发 protection_fault
+    PA = base + VA
+    在 PA 执行 operation</code></pre>
+</section>
+<section id="internal-fragmentation-and-page-size" class="level4">
+<h4 class="anchored" data-anchor-id="internal-fragmentation-and-page-size"><strong>内部碎片与页大小</strong></h4>
+<p>固定页消除了进程放置的外部碎片，却在最后未填满页面产生<strong>内部碎片</strong>。页更大意味着更少 PTE、更高 TLB reach、更高连续 I/O 效率；也意味着分配粒度粗、COW/缺页时复制或读入更多无用数据，并要求更大连续页框。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-size-tradeoffs.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/page-size-tradeoffs.svg" class="img-fluid figure-img" style="width:98.0%" alt="比较 4 KiB 与 2 MiB 页的映射数、TLB reach、元数据、分配粒度和碎片。"></a></p>
+<figcaption>64 MiB 映射下不同页大小的权衡</figcaption>
+</figure>
+</div>
+<p>Huge page 是工作负载与平台相关优化，不应仅因为“TLB 更少”就默认启用；需同时测量内存浪费、缺页延迟、compaction 和 NUMA 放置。</p>
+</section>
+</section>
+<section id="page-table-entries-and-permissions" class="level3">
+<h3 class="anchored" data-anchor-id="page-table-entries-and-permissions"><strong>页表项与权限</strong></h3>
+<section id="presence-access-dirty-execute-and-user-bits" class="level4">
+<h4 class="anchored" data-anchor-id="presence-access-dirty-execute-and-user-bits"><strong>存在、访问、脏、执行与用户位</strong></h4>
+<p>PTE 除物理页号外，还包含 present/valid、read/write/execute、user/supervisor、accessed/reference、dirty 以及供 OS 使用的状态。不同 ISA 编码不同，但判断顺序相似：条目是否有效？请求模式和访问类型是否获准？若获准则形成物理地址并更新访问状态，否则触发 fault。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pte-permissions-and-faults.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/pte-permissions-and-faults.svg" class="img-fluid figure-img" style="width:98.0%" alt="PTE 包含页框号、valid、R/W/X、user、accessed、dirty 与软件位，随后执行有效性和权限检查。"></a></p>
+<figcaption>通用 PTE 字段及其访问决策</figcaption>
+</figure>
+</div>
+<p>W^X 尽量避免页面同时可写和可执行；user 位阻止用户态访问内核映射；accessed/dirty 位帮助置换与回写。内核修改映射还必须考虑 TLB 中缓存的旧权限。</p>
+<details>
+<summary>
+<strong>C：使用 mmap 与 mprotect 改变页权限</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> page_size <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>page_size <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> <span class="op">*</span>page <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">,</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>                      PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>                      MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>page <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 该映射最初允许普通写操作。</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    snprintf<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">,</span> <span class="st">"translation includes permissions"</span><span class="op">);</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">// mprotect 作用于页对齐映射，并改变后续访问权限。</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>mprotect<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">,</span> PROT_READ<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mprotect read-only"</span><span class="op">);</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">);</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"read-only page says: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> page<span class="op">);</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 此处写入 page[0] 会违反映射权限，通常触发 SIGSEGV。</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>mprotect<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mprotect restore"</span><span class="op">);</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">);</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    page<span class="op">[</span><span class="dv">0</span><span class="op">]</span> <span class="op">=</span> <span class="ch">'T'</span><span class="op">;</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">(</span>page<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> permissions.c <span class="at">-o</span> permissions</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./permissions</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="page-table-organizations" class="level3">
+<h3 class="anchored" data-anchor-id="page-table-organizations"><strong>页表组织</strong></h3>
+<section id="linear-and-multilevel-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="linear-and-multilevel-page-tables"><strong>线性页表与多级页表</strong></h4>
+<p>线性页表为每个可能 VPN 保留一个 PTE，查找简单，但 64 位稀疏地址空间会消耗巨大内存。多级 radix tree 把 VPN 分成多个索引，只为实际使用的分支分配下级表，从而让元数据成本与映射密度相关。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multilevel-page-table-walk.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/multilevel-page-table-walk.svg" class="img-fluid figure-img" style="width:98.0%" alt="四个 9 位索引和 12 位 offset 的 radix 页表，仅分配被选中的稀疏分支，叶 PTE 指向数据页框。"></a></p>
+<figcaption>四级稀疏页表遍历</figcaption>
+</figure>
+</div>
+<pre class="text"><code>table = physical_address(root_register)
+按 VPN 字段从最高级到最低级遍历 index：
+    entry = read(table[index])
+    如果 entry 无效：
+        触发 page_fault
+    如果 entry 是叶条目：
+        检查权限
+        将叶条目的 PFN 与剩余 VPN 位和页内偏移组合
+        返回 physical_address
+    table = physical_address(entry.next_table)</code></pre>
+<p>多级表节省稀疏空间，但 TLB miss 的硬件 page walk 可能需要多次串行内存访问；page-walk cache 和上层条目缓存可缓解成本。</p>
+</section>
+<section id="hashed-and-inverted-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="hashed-and-inverted-page-tables"><strong>哈希页表与反向页表</strong></h4>
+<p>哈希页表用 <code>(ASID, VPN)</code> 哈希到桶链，适合非常大且稀疏空间，但冲突和 worst-case 查找需要管理。反向页表按物理页框只保留一个所有者记录，元数据与物理内存而非虚拟空间成比例，但从虚拟地址反查映射更复杂，共享页也需额外结构。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/alternative-page-table-organizations.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/alternative-page-table-organizations.svg" class="img-fluid figure-img" style="width:98.0%" alt="哈希表把 ASID/VPN 映射到桶链，反向表每个物理页框存一条所有者记录。"></a></p>
+<figcaption>哈希与反向页表组织</figcaption>
+</figure>
+</div>
+<p>现代 ISA 常围绕硬件支持的多级 radix 表设计，其他组织仍帮助理解设计空间和软件管理 TLB 系统。</p>
+</section>
+</section>
+<section id="the-mmu-address-translation-path" class="level3">
+<h3 class="anchored" data-anchor-id="the-mmu-address-translation-path"><strong>MMU 地址翻译路径</strong></h3>
+<p>CPU 发出虚拟地址和操作类型，MMU 先检查地址格式与当前权限模式，再用 ASID/PCID 加 VPN 查询 TLB。命中后检查权限并拼接 PFN 与 offset；未命中时由硬件或软件遍历页表，成功则填充 TLB，失败则产生 page fault。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/mmu-tlb-page-walk-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/mmu-tlb-page-walk-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="带标签 TLB 命中进入权限检查，未命中调用页表遍历并回填 TLB 或触发 page fault。"></a></p>
+<figcaption>MMU 经过 TLB 命中、页表遍历或缺页的动态流程</figcaption>
+</figure>
+</div>
+<p>翻译与数据访问是两种不同内存活动。TLB miss 不等于 page fault：前者可能只需从驻留页表重建缓存，后者表示映射不存在、权限不符或需要 OS 介入。</p>
+</section>
+<section id="translation-lookaside-buffers" class="level3">
+<h3 class="anchored" data-anchor-id="translation-lookaside-buffers"><strong>地址翻译旁路缓冲器</strong></h3>
+<section id="tlb-hits-misses-and-replacement" class="level4">
+<h4 class="anchored" data-anchor-id="tlb-hits-misses-and-replacement"><strong>TLB 命中、未命中与替换</strong></h4>
+<p>TLB 是按 VPN、页大小、权限和地址空间标签缓存的翻译。命中让每次数据访问无需完整 page walk；未命中会触发硬件或软件 refill。容量、组相联、替换、不同级 TLB 和 instruction/data TLB 都会影响性能。</p>
+<p>TLB reach 约为条目数乘页大小。顺序扫描超大工作集可能不断替换翻译；huge page 能增大 reach，却带来上一节的分配和碎片权衡。</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 事件名称依赖平台；请先运行 `perf list | grep -i tlb`。</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> stat <span class="at">-e</span> dTLB-loads,dTLB-load-misses,iTLB-load-misses ./program</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 全系统页表与大页统计提供另一种观察视角。</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'PageTables|HugePages|AnonHugePages'</span> /proc/meminfo</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>性能计数器事件随 CPU 而异，必须先检查 <code>perf list</code>，并把 TLB miss 与 cache miss、page fault 分开解释。</p>
+</section>
+<section id="asids-pcids-and-context-switches" class="level4">
+<h4 class="anchored" data-anchor-id="asids-pcids-and-context-switches"><strong>ASID、PCID 与上下文切换</strong></h4>
+<p>如果 TLB 条目没有地址空间标签，每次切换进程都必须清空，导致重新升温。RISC-V ASID 与 x86 PCID 允许不同进程翻译共存；匹配时标签成为键的一部分。标签数量有限，复用时仍需失效处理。</p>
+<p>映射被撤销或权限降低后，本 CPU 和其他可能缓存该映射的 CPU 都必须丢弃旧条目。多核 <strong>TLB shootdown</strong> 发送跨处理器失效请求并等待确认，成本随活跃 CPU 和更新频率增加。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tagged-tlb-context-switch-shootdown.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/tagged-tlb-context-switch-shootdown.svg" class="img-fluid figure-img" style="width:98.0%" alt="上下文切换保留两个进程的 ASID/PCID 翻译，内核更新映射后向其他 CPU 发送失效并等待确认。"></a></p>
+<figcaption>带标签 TLB 与多核 shootdown</figcaption>
+</figure>
+</div>
+</section>
+</section>
+<section id="page-faults-as-controlled-exceptions" class="level3">
+<h3 class="anchored" data-anchor-id="page-faults-as-controlled-exceptions"><strong>缺页作为受控异常</strong></h3>
+<p>缺页不是都表示错误。内核根据 fault 地址、访问类型、用户/内核模式和区域元数据分类：地址不规范或不在 VMA 中通常拒绝；权限违规可能转为信号；合法但不 present 的页可按需分配、读文件或完成 COW；访问/脏状态异常也可能只需更新条目。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-fault-classification.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/page-fault-classification.svg" class="img-fluid figure-img" style="width:98.0%" alt="检查地址形式、映射区域、请求权限和 present 翻译，拒绝非法访问或修复合法缺页并重启指令。"></a></p>
+<figcaption>缺页分类与处理决策</figcaption>
+</figure>
+</div>
+<p>处理完成后必须更新 PTE、执行必要屏障/失效并重启产生故障的精确指令。若 fault 发生在内核访问用户指针时，内核还需使用可恢复 copy 路径，不能让坏用户地址崩溃全系统。</p>
+<details>
+<summary>
+<strong>C：在 Linux 上观察首次访问 minor fault</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/resource.h&gt;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> minor_faults<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> rusage usage<span class="op">;</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>getrusage<span class="op">(</span>RUSAGE_SELF<span class="op">,</span> <span class="op">&amp;</span>usage<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"getrusage"</span><span class="op">);</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> usage<span class="op">.</span>ru_minflt<span class="op">;</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">size_t</span> length <span class="op">=</span> <span class="dv">64</span><span class="bu">U</span> <span class="op">*</span> <span class="dv">1024</span><span class="bu">U</span> <span class="op">*</span> <span class="dv">1024</span><span class="bu">U</span><span class="op">;</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> page_size <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>page_size <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> before_map <span class="op">=</span> minor_faults<span class="op">();</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">volatile</span> <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>memory <span class="op">=</span> mmap<span class="op">(</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        NULL<span class="op">,</span> length<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>memory <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> after_map <span class="op">=</span> minor_faults<span class="op">();</span></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 在每个基本页间隔访问一个字节；volatile 指针可防止</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 编译器删除这些可观察的写操作。</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> offset <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> offset <span class="op">&lt;</span> length<span class="op">;</span> offset <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>page_size<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        memory<span class="op">[</span>offset<span class="op">]</span> <span class="op">=</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> after_touch <span class="op">=</span> minor_faults<span class="op">();</span></span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"minor faults during mmap:  </span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> after_map <span class="op">-</span> before_map<span class="op">);</span></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"minor faults during touch: </span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> after_touch <span class="op">-</span> after_map<span class="op">);</span></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">((</span><span class="dt">void</span> <span class="op">*)</span>memory<span class="op">,</span> length<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> first_touch.c <span class="at">-o</span> first_touch</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./first_touch</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="ex">/usr/bin/time</span> <span class="at">-v</span> ./first_touch</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="comparing-x86-64-and-risc-v-translation" class="level3">
+<h3 class="anchored" data-anchor-id="comparing-x86-64-and-risc-v-translation"><strong>比较 x86-64 与 RISC-V 翻译</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/x86-riscv-translation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/x86-riscv-translation.svg" class="img-fluid figure-img" style="width:98.0%" alt="并列展示虚拟地址字段、根寄存器、代表性 PTE 与失效操作。"></a></p>
+<figcaption>x86-64 四级分页与 RISC-V Sv39 概念比较</figcaption>
+</figure>
+</div>
+<p>x86-64 典型四级模式把虚拟地址分为多个 9 位索引与 12 位 offset，根由 CR3 指定，PTE 包含 present、R/W、U/S、A、D、NX 等；<code>invlpg</code> 或带 PCID 的机制负责失效。RISC-V Sv39 使用三个 9 位 VPN 与 12 位 offset，<code>satp</code> 保存 mode、ASID 和根 PPN，PTE 的 V/R/W/X/U/G/A/D 定义有效性与权限，<code>sfence.vma</code> 协调翻译更新。</p>
+<p>两者具体保留位、large page 叶层和 fault cause 不同，但共同不变量是：根上下文选择页表，逐级条目定位叶映射，叶权限与当前模式共同决定访问，软件修改后必须使旧翻译失效。</p>
+</section>
+<section id="building-a-minimal-page-table-walker" class="level3">
+<h3 class="anchored" data-anchor-id="building-a-minimal-page-table-walker"><strong>构建最小页表遍历器</strong></h3>
+<p>下面的 C 程序模拟 Sv39：验证 canonical 地址；从 <code>satp</code> 根 PPN 开始依次取 VPN[2:0]；检查 V 与非法 W-without-R 组合；遇到叶 PTE 时验证权限和 superpage 对齐；最后把 PPN 与 offset 组合。它是教学模拟，不读取真实进程页表。</p>
+<details>
+<summary>
+<strong>C：最小模拟 RISC-V Sv39 页表遍历器</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;inttypes.h&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdint.h&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    PAGE_SHIFT <span class="op">=</span> <span class="dv">12</span><span class="op">,</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    PAGE_SIZE <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> PAGE_SHIFT<span class="op">,</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    PT_ENTRIES <span class="op">=</span> <span class="dv">512</span><span class="op">,</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    RAM_PAGES <span class="op">=</span> <span class="dv">16</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    PTE_V <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    PTE_R <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    PTE_W <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">2</span><span class="op">,</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    PTE_X <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">3</span><span class="op">,</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    PTE_U <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">4</span><span class="op">,</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    PTE_A <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">6</span><span class="op">,</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    PTE_D <span class="op">=</span> <span class="dv">1</span><span class="bu">U</span> <span class="op">&lt;&lt;</span> <span class="dv">7</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    ACCESS_READ<span class="op">,</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    ACCESS_WRITE<span class="op">,</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    ACCESS_EXECUTE</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> access_t<span class="op">;</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">enum</span> <span class="op">{</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    WALK_OK<span class="op">,</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    WALK_NONCANONICAL<span class="op">,</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    WALK_INVALID<span class="op">,</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>    WALK_PERMISSION<span class="op">,</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    WALK_AD_MISSING<span class="op">,</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    WALK_MISALIGNED_SUPERPAGE<span class="op">,</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    WALK_OUT_OF_RAM</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> walk_status_t<span class="op">;</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">unsigned</span> <span class="dt">char</span> ram<span class="op">[</span>RAM_PAGES <span class="op">*</span> PAGE_SIZE<span class="op">];</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">bool</span> read_pte<span class="op">(</span><span class="dt">uint64_t</span> table_ppn<span class="op">,</span> <span class="dt">uint16_t</span> index<span class="op">,</span> <span class="dt">uint64_t</span> <span class="op">*</span>pte<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>index <span class="op">&gt;=</span> PT_ENTRIES<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> address <span class="op">=</span> <span class="op">(</span>table_ppn <span class="op">&lt;&lt;</span> PAGE_SHIFT<span class="op">)</span> <span class="op">+</span></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>                       <span class="op">(</span><span class="dt">uint64_t</span><span class="op">)</span>index <span class="op">*</span> <span class="kw">sizeof</span> <span class="op">*</span>pte<span class="op">;</span></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>address <span class="op">&gt;</span> <span class="kw">sizeof</span> ram <span class="op">-</span> <span class="kw">sizeof</span> <span class="op">*</span>pte<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>    memcpy<span class="op">(</span>pte<span class="op">,</span> <span class="op">&amp;</span>ram<span class="op">[</span>address<span class="op">],</span> <span class="kw">sizeof</span> <span class="op">*</span>pte<span class="op">);</span></span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">bool</span> write_pte<span class="op">(</span><span class="dt">uint64_t</span> table_ppn<span class="op">,</span> <span class="dt">uint16_t</span> index<span class="op">,</span> <span class="dt">uint64_t</span> pte<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>index <span class="op">&gt;=</span> PT_ENTRIES<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> address <span class="op">=</span> <span class="op">(</span>table_ppn <span class="op">&lt;&lt;</span> PAGE_SHIFT<span class="op">)</span> <span class="op">+</span></span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>                       <span class="op">(</span><span class="dt">uint64_t</span><span class="op">)</span>index <span class="op">*</span> <span class="kw">sizeof</span> pte<span class="op">;</span></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>address <span class="op">&gt;</span> <span class="kw">sizeof</span> ram <span class="op">-</span> <span class="kw">sizeof</span> pte<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a>    memcpy<span class="op">(&amp;</span>ram<span class="op">[</span>address<span class="op">],</span> <span class="op">&amp;</span>pte<span class="op">,</span> <span class="kw">sizeof</span> pte<span class="op">);</span></span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">bool</span> is_canonical_sv39<span class="op">(</span><span class="dt">uint64_t</span> virtual_address<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> upper <span class="op">=</span> virtual_address <span class="op">&gt;&gt;</span> <span class="dv">39</span><span class="op">;</span></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> expected <span class="op">=</span> <span class="op">((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">38</span><span class="op">)</span> <span class="op">&amp;</span> <span class="dv">1</span><span class="bu">U</span><span class="op">)</span></span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>                            <span class="op">?</span> <span class="op">((</span>UINT64_C<span class="op">(</span><span class="dv">1</span><span class="op">)</span> <span class="op">&lt;&lt;</span> <span class="dv">25</span><span class="op">)</span> <span class="op">-</span> <span class="dv">1</span><span class="bu">U</span><span class="op">)</span></span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a>                            <span class="op">:</span> <span class="dv">0</span><span class="bu">U</span><span class="op">;</span></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> upper <span class="op">==</span> expected<span class="op">;</span></span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> walk_status_t walk_sv39<span class="op">(</span><span class="dt">uint64_t</span> root_ppn<span class="op">,</span></span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>                               <span class="dt">uint64_t</span> virtual_address<span class="op">,</span></span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>                               access_t access<span class="op">,</span></span>
+<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>                               <span class="dt">bool</span> user_mode<span class="op">,</span></span>
+<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a>                               <span class="dt">uint64_t</span> <span class="op">*</span>physical_address<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>is_canonical_sv39<span class="op">(</span>virtual_address<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> WALK_NONCANONICAL<span class="op">;</span></span>
+<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint16_t</span> vpn<span class="op">[</span><span class="dv">3</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">12</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">),</span></span>
+<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">21</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">),</span></span>
+<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">30</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">)</span></span>
+<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> table_ppn <span class="op">=</span> root_ppn<span class="op">;</span></span>
+<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> level <span class="op">=</span> <span class="dv">2</span><span class="op">;</span> level <span class="op">&gt;=</span> <span class="dv">0</span><span class="op">;</span> <span class="op">--</span>level<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>        <span class="dt">uint64_t</span> pte<span class="op">;</span></span>
+<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(!</span>read_pte<span class="op">(</span>table_ppn<span class="op">,</span> vpn<span class="op">[</span>level<span class="op">],</span> <span class="op">&amp;</span>pte<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> WALK_OUT_OF_RAM<span class="op">;</span></span>
+<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a>        <span class="dt">bool</span> valid <span class="op">=</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_V<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-99"><a href="#cb9-99" aria-hidden="true" tabindex="-1"></a>        <span class="dt">bool</span> readable <span class="op">=</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_R<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-100"><a href="#cb9-100" aria-hidden="true" tabindex="-1"></a>        <span class="dt">bool</span> writable <span class="op">=</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_W<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-101"><a href="#cb9-101" aria-hidden="true" tabindex="-1"></a>        <span class="dt">bool</span> executable <span class="op">=</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_X<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-102"><a href="#cb9-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-103"><a href="#cb9-103" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Sv39 保留 W=1、R=0 的组合，并拒绝 V=0 的条目。</span></span>
+<span id="cb9-104"><a href="#cb9-104" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(!</span>valid <span class="op">||</span> <span class="op">(!</span>readable <span class="op">&amp;&amp;</span> writable<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-105"><a href="#cb9-105" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> WALK_INVALID<span class="op">;</span></span>
+<span id="cb9-106"><a href="#cb9-106" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-107"><a href="#cb9-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-108"><a href="#cb9-108" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>readable <span class="op">||</span> executable<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-109"><a href="#cb9-109" aria-hidden="true" tabindex="-1"></a>            <span class="co">// 已到达叶级映射。</span></span>
+<span id="cb9-110"><a href="#cb9-110" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>user_mode <span class="op">&amp;&amp;</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_U<span class="op">)</span> <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-111"><a href="#cb9-111" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> WALK_PERMISSION<span class="op">;</span></span>
+<span id="cb9-112"><a href="#cb9-112" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb9-113"><a href="#cb9-113" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">((</span>access <span class="op">==</span> ACCESS_READ <span class="op">&amp;&amp;</span> <span class="op">!</span>readable<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb9-114"><a href="#cb9-114" aria-hidden="true" tabindex="-1"></a>                <span class="op">(</span>access <span class="op">==</span> ACCESS_WRITE <span class="op">&amp;&amp;</span> <span class="op">!</span>writable<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb9-115"><a href="#cb9-115" aria-hidden="true" tabindex="-1"></a>                <span class="op">(</span>access <span class="op">==</span> ACCESS_EXECUTE <span class="op">&amp;&amp;</span> <span class="op">!</span>executable<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-116"><a href="#cb9-116" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> WALK_PERMISSION<span class="op">;</span></span>
+<span id="cb9-117"><a href="#cb9-117" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb9-118"><a href="#cb9-118" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">((</span>pte <span class="op">&amp;</span> PTE_A<span class="op">)</span> <span class="op">==</span> <span class="dv">0</span> <span class="op">||</span></span>
+<span id="cb9-119"><a href="#cb9-119" aria-hidden="true" tabindex="-1"></a>                <span class="op">(</span>access <span class="op">==</span> ACCESS_WRITE <span class="op">&amp;&amp;</span> <span class="op">(</span>pte <span class="op">&amp;</span> PTE_D<span class="op">)</span> <span class="op">==</span> <span class="dv">0</span><span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> WALK_AD_MISSING<span class="op">;</span></span>
+<span id="cb9-121"><a href="#cb9-121" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb9-122"><a href="#cb9-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-123"><a href="#cb9-123" aria-hidden="true" tabindex="-1"></a>            <span class="dt">uint64_t</span> ppn <span class="op">=</span> pte <span class="op">&gt;&gt;</span> <span class="dv">10</span><span class="op">;</span></span>
+<span id="cb9-124"><a href="#cb9-124" aria-hidden="true" tabindex="-1"></a>            <span class="dt">uint64_t</span> low_ppn_mask <span class="op">=</span> <span class="op">(</span>level <span class="op">==</span> <span class="dv">0</span><span class="op">)</span></span>
+<span id="cb9-125"><a href="#cb9-125" aria-hidden="true" tabindex="-1"></a>                                        <span class="op">?</span> <span class="dv">0</span><span class="bu">U</span></span>
+<span id="cb9-126"><a href="#cb9-126" aria-hidden="true" tabindex="-1"></a>                                        <span class="op">:</span> <span class="op">((</span>UINT64_C<span class="op">(</span><span class="dv">1</span><span class="op">)</span> <span class="op">&lt;&lt;</span> <span class="op">(</span><span class="dv">9</span> <span class="op">*</span> level<span class="op">))</span> <span class="op">-</span> <span class="dv">1</span><span class="bu">U</span><span class="op">);</span></span>
+<span id="cb9-127"><a href="#cb9-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-128"><a href="#cb9-128" aria-hidden="true" tabindex="-1"></a>            <span class="co">// 上层叶条目要求物理超级页对齐。</span></span>
+<span id="cb9-129"><a href="#cb9-129" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">((</span>ppn <span class="op">&amp;</span> low_ppn_mask<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-130"><a href="#cb9-130" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> WALK_MISALIGNED_SUPERPAGE<span class="op">;</span></span>
+<span id="cb9-131"><a href="#cb9-131" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb9-132"><a href="#cb9-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-133"><a href="#cb9-133" aria-hidden="true" tabindex="-1"></a>            <span class="co">// 对超级页而言，较低位 VPN 字段会成为较低位 PPN 字段。</span></span>
+<span id="cb9-134"><a href="#cb9-134" aria-hidden="true" tabindex="-1"></a>            ppn <span class="op">=</span> <span class="op">(</span>ppn <span class="op">&amp;</span> <span class="op">~</span>low_ppn_mask<span class="op">)</span> <span class="op">|</span></span>
+<span id="cb9-135"><a href="#cb9-135" aria-hidden="true" tabindex="-1"></a>                  <span class="op">((</span>virtual_address <span class="op">&gt;&gt;</span> PAGE_SHIFT<span class="op">)</span> <span class="op">&amp;</span> low_ppn_mask<span class="op">);</span></span>
+<span id="cb9-136"><a href="#cb9-136" aria-hidden="true" tabindex="-1"></a>            <span class="op">*</span>physical_address <span class="op">=</span> <span class="op">(</span>ppn <span class="op">&lt;&lt;</span> PAGE_SHIFT<span class="op">)</span> <span class="op">|</span></span>
+<span id="cb9-137"><a href="#cb9-137" aria-hidden="true" tabindex="-1"></a>                                <span class="op">(</span>virtual_address <span class="op">&amp;</span> <span class="op">(</span>PAGE_SIZE <span class="op">-</span> <span class="dv">1</span><span class="bu">U</span><span class="op">));</span></span>
+<span id="cb9-138"><a href="#cb9-138" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> WALK_OK<span class="op">;</span></span>
+<span id="cb9-139"><a href="#cb9-139" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-140"><a href="#cb9-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-141"><a href="#cb9-141" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 非叶条目指向下一级页表页。</span></span>
+<span id="cb9-142"><a href="#cb9-142" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>level <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-143"><a href="#cb9-143" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> WALK_INVALID<span class="op">;</span></span>
+<span id="cb9-144"><a href="#cb9-144" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-145"><a href="#cb9-145" aria-hidden="true" tabindex="-1"></a>        table_ppn <span class="op">=</span> pte <span class="op">&gt;&gt;</span> <span class="dv">10</span><span class="op">;</span></span>
+<span id="cb9-146"><a href="#cb9-146" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-147"><a href="#cb9-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-148"><a href="#cb9-148" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> WALK_INVALID<span class="op">;</span></span>
+<span id="cb9-149"><a href="#cb9-149" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-150"><a href="#cb9-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-151"><a href="#cb9-151" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-152"><a href="#cb9-152" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint64_t</span> root_ppn <span class="op">=</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb9-153"><a href="#cb9-153" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint64_t</span> level1_ppn <span class="op">=</span> <span class="dv">2</span><span class="op">;</span></span>
+<span id="cb9-154"><a href="#cb9-154" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint64_t</span> level0_ppn <span class="op">=</span> <span class="dv">3</span><span class="op">;</span></span>
+<span id="cb9-155"><a href="#cb9-155" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint64_t</span> data_ppn <span class="op">=</span> <span class="dv">8</span><span class="op">;</span></span>
+<span id="cb9-156"><a href="#cb9-156" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint64_t</span> virtual_address <span class="op">=</span> UINT64_C<span class="op">(</span><span class="bn">0x12345678</span><span class="op">);</span></span>
+<span id="cb9-157"><a href="#cb9-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-158"><a href="#cb9-158" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint16_t</span> vpn0 <span class="op">=</span> <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">12</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">);</span></span>
+<span id="cb9-159"><a href="#cb9-159" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint16_t</span> vpn1 <span class="op">=</span> <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">21</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">);</span></span>
+<span id="cb9-160"><a href="#cb9-160" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint16_t</span> vpn2 <span class="op">=</span> <span class="op">(</span><span class="dt">uint16_t</span><span class="op">)((</span>virtual_address <span class="op">&gt;&gt;</span> <span class="dv">30</span><span class="op">)</span> <span class="op">&amp;</span> <span class="bn">0x1ff</span><span class="bu">U</span><span class="op">);</span></span>
+<span id="cb9-161"><a href="#cb9-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-162"><a href="#cb9-162" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 构造根页表 -&gt; 第 1 级 -&gt; 第 0 级 -&gt; 数据页框映射。</span></span>
+<span id="cb9-163"><a href="#cb9-163" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>write_pte<span class="op">(</span>root_ppn<span class="op">,</span> vpn2<span class="op">,</span> <span class="op">(</span>level1_ppn <span class="op">&lt;&lt;</span> <span class="dv">10</span><span class="op">)</span> <span class="op">|</span> PTE_V<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb9-164"><a href="#cb9-164" aria-hidden="true" tabindex="-1"></a>        <span class="op">!</span>write_pte<span class="op">(</span>level1_ppn<span class="op">,</span> vpn1<span class="op">,</span> <span class="op">(</span>level0_ppn <span class="op">&lt;&lt;</span> <span class="dv">10</span><span class="op">)</span> <span class="op">|</span> PTE_V<span class="op">)</span> <span class="op">||</span></span>
+<span id="cb9-165"><a href="#cb9-165" aria-hidden="true" tabindex="-1"></a>        <span class="op">!</span>write_pte<span class="op">(</span>level0_ppn<span class="op">,</span> vpn0<span class="op">,</span></span>
+<span id="cb9-166"><a href="#cb9-166" aria-hidden="true" tabindex="-1"></a>                   <span class="op">(</span>data_ppn <span class="op">&lt;&lt;</span> <span class="dv">10</span><span class="op">)</span> <span class="op">|</span></span>
+<span id="cb9-167"><a href="#cb9-167" aria-hidden="true" tabindex="-1"></a>                       PTE_V <span class="op">|</span> PTE_R <span class="op">|</span> PTE_W <span class="op">|</span> PTE_U <span class="op">|</span> PTE_A <span class="op">|</span> PTE_D<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb9-168"><a href="#cb9-168" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"failed to construct simulated page tables</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb9-169"><a href="#cb9-169" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb9-170"><a href="#cb9-170" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-171"><a href="#cb9-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-172"><a href="#cb9-172" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint64_t</span> physical_address<span class="op">;</span></span>
+<span id="cb9-173"><a href="#cb9-173" aria-hidden="true" tabindex="-1"></a>    walk_status_t status <span class="op">=</span> walk_sv39<span class="op">(</span>root_ppn<span class="op">,</span> virtual_address<span class="op">,</span></span>
+<span id="cb9-174"><a href="#cb9-174" aria-hidden="true" tabindex="-1"></a>                                     ACCESS_WRITE<span class="op">,</span> <span class="kw">true</span><span class="op">,</span></span>
+<span id="cb9-175"><a href="#cb9-175" aria-hidden="true" tabindex="-1"></a>                                     <span class="op">&amp;</span>physical_address<span class="op">);</span></span>
+<span id="cb9-176"><a href="#cb9-176" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>status <span class="op">!=</span> WALK_OK<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-177"><a href="#cb9-177" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"walk failed with status </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> status<span class="op">);</span></span>
+<span id="cb9-178"><a href="#cb9-178" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb9-179"><a href="#cb9-179" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-180"><a href="#cb9-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-181"><a href="#cb9-181" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"VA 0x%08"</span> PRIx64 <span class="st">" -&gt; PA 0x%05"</span> PRIx64 <span class="st">"</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb9-182"><a href="#cb9-182" aria-hidden="true" tabindex="-1"></a>           virtual_address<span class="op">,</span> physical_address<span class="op">);</span></span>
+<span id="cb9-183"><a href="#cb9-183" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-184"><a href="#cb9-184" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> sv39_walk.c <span class="at">-o</span> sv39_walk</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./sv39_walk</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># VA 0x12345678 -&gt; PA 0x08678</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>遍历器最重要的价值是把“页表就是一个字典”的模糊理解变成逐层地址计算和错误检查。真实硬件还会处理 A/D 更新、PMP/PMA、TLB、缓存和 speculative walk。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>映射粒度</th>
+<th>主要优点</th>
+<th>主要成本/限制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Base/bounds</td>
+<td>整个连续进程</td>
+<td>状态少、翻译简单</td>
+<td>连续放置、权限粗、外部碎片</td>
+</tr>
+<tr class="even">
+<td>Segmentation</td>
+<td>可变长度逻辑段</td>
+<td>反映代码/堆/栈与独立权限</td>
+<td>外部碎片和分配复杂度</td>
+</tr>
+<tr class="odd">
+<td>Paging</td>
+<td>固定大小页面</td>
+<td>任意页框放置、隔离、共享、稀疏</td>
+<td>页表、内部碎片、TLB 与 fault</td>
+</tr>
+<tr class="even">
+<td>线性页表</td>
+<td>每个 VPN 一项</td>
+<td>索引直接</td>
+<td>大稀疏空间浪费</td>
+</tr>
+<tr class="odd">
+<td>多级页表</td>
+<td>只分配使用分支</td>
+<td>稀疏空间高效</td>
+<td>miss 时多次内存访问</td>
+</tr>
+<tr class="even">
+<td>哈希/反向表</td>
+<td>哈希 VPN 或按物理页框</td>
+<td>面向巨大稀疏空间或限制元数据</td>
+<td>冲突、反查和共享复杂</td>
+</tr>
+<tr class="odd">
+<td>TLB</td>
+<td>缓存近期翻译</td>
+<td>常见路径快速</td>
+<td>容量有限、失效与 shootdown</td>
+</tr>
+</tbody>
+</table>
+<p>地址空间不是“连续物理内存的假象”，而是一套由 region 语义、页表、TLB、权限和异常处理共同维护的受保护命名系统。理解虚拟页到物理页框的逐步路径后，下一章的 demand paging、COW 和页面置换才会成为同一机制的自然扩展。</p>
+<p><a href="07-demand-paging-and-memory-management.html">下一章：按需分页与内存管理</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

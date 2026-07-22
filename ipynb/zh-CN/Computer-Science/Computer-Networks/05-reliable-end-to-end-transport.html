@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机网络：可靠的端到端传输</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="05-reliable-end-to-end-transport_files/libs/clipboard/clipboard.min.js"></script>
+<script src="05-reliable-end-to-end-transport_files/libs/quarto-html/quarto.js"></script>
+<script src="05-reliable-end-to-end-transport_files/libs/quarto-html/popper.min.js"></script>
+<script src="05-reliable-end-to-end-transport_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="05-reliable-end-to-end-transport_files/libs/quarto-html/anchor.min.js"></script>
+<link href="05-reliable-end-to-end-transport_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="05-reliable-end-to-end-transport_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="05-reliable-end-to-end-transport_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="05-reliable-end-to-end-transport_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="05-reliable-end-to-end-transport_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#reliable-end-to-end-transport" id="toc-reliable-end-to-end-transport" class="nav-link active" data-scroll-target="#reliable-end-to-end-transport"><strong>可靠的端到端传输</strong></a>
+  <ul>
+  <li><a href="#transport-layer-services" id="toc-transport-layer-services" class="nav-link" data-scroll-target="#transport-layer-services"><strong>传输层服务</strong></a>
+  <ul>
+  <li><a href="#process-to-process-communication" id="toc-process-to-process-communication" class="nav-link" data-scroll-target="#process-to-process-communication"><strong>进程到进程通信</strong></a></li>
+  <li><a href="#ports-sockets-multiplexing-and-demultiplexing" id="toc-ports-sockets-multiplexing-and-demultiplexing" class="nav-link" data-scroll-target="#ports-sockets-multiplexing-and-demultiplexing"><strong>端口、套接字、复用与分用</strong></a></li>
+  <li><a href="#connectionless-and-connection-oriented-services" id="toc-connectionless-and-connection-oriented-services" class="nav-link" data-scroll-target="#connectionless-and-connection-oriented-services"><strong>无连接与面向连接的服务</strong></a></li>
+  <li><a href="#transport-guarantees-and-application-requirements" id="toc-transport-guarantees-and-application-requirements" class="nav-link" data-scroll-target="#transport-guarantees-and-application-requirements"><strong>传输保证与应用需求</strong></a></li>
+  </ul></li>
+  <li><a href="#user-datagram-protocol" id="toc-user-datagram-protocol" class="nav-link" data-scroll-target="#user-datagram-protocol"><strong>用户数据报协议</strong></a>
+  <ul>
+  <li><a href="#udp-header-and-checksum" id="toc-udp-header-and-checksum" class="nav-link" data-scroll-target="#udp-header-and-checksum"><strong>UDP 首部与校验和</strong></a></li>
+  <li><a href="#datagram-boundaries-and-message-loss" id="toc-datagram-boundaries-and-message-loss" class="nav-link" data-scroll-target="#datagram-boundaries-and-message-loss"><strong>数据报边界与消息丢失</strong></a></li>
+  <li><a href="#when-udp-is-the-right-abstraction" id="toc-when-udp-is-the-right-abstraction" class="nav-link" data-scroll-target="#when-udp-is-the-right-abstraction"><strong>何时 UDP 是合适抽象</strong></a></li>
+  </ul></li>
+  <li><a href="#principles-of-reliable-data-transfer" id="toc-principles-of-reliable-data-transfer" class="nav-link" data-scroll-target="#principles-of-reliable-data-transfer"><strong>可靠数据传输原理</strong></a>
+  <ul>
+  <li><a href="#bit-errors-loss-duplication-and-reordering" id="toc-bit-errors-loss-duplication-and-reordering" class="nav-link" data-scroll-target="#bit-errors-loss-duplication-and-reordering"><strong>比特错误、丢失、重复与乱序</strong></a></li>
+  <li><a href="#checksums-sequence-numbers-acks-and-nacks" id="toc-checksums-sequence-numbers-acks-and-nacks" class="nav-link" data-scroll-target="#checksums-sequence-numbers-acks-and-nacks"><strong>校验和、序号、ACK 与 NACK</strong></a></li>
+  <li><a href="#timers-and-retransmissions" id="toc-timers-and-retransmissions" class="nav-link" data-scroll-target="#timers-and-retransmissions"><strong>定时器与重传</strong></a></li>
+  <li><a href="#protocol-state-machines-and-safety-properties" id="toc-protocol-state-machines-and-safety-properties" class="nav-link" data-scroll-target="#protocol-state-machines-and-safety-properties"><strong>协议状态机与安全性质</strong></a></li>
+  </ul></li>
+  <li><a href="#stop-and-wait-protocols" id="toc-stop-and-wait-protocols" class="nav-link" data-scroll-target="#stop-and-wait-protocols"><strong>停等协议</strong></a>
+  <ul>
+  <li><a href="#alternating-bit-protocol" id="toc-alternating-bit-protocol" class="nav-link" data-scroll-target="#alternating-bit-protocol"><strong>交替位协议</strong></a></li>
+  <li><a href="#utilization-and-the-bandwidth-delay-product" id="toc-utilization-and-the-bandwidth-delay-product" class="nav-link" data-scroll-target="#utilization-and-the-bandwidth-delay-product"><strong>利用率与带宽时延积</strong></a></li>
+  <li><a href="#why-one-outstanding-packet-is-not-enough" id="toc-why-one-outstanding-packet-is-not-enough" class="nav-link" data-scroll-target="#why-one-outstanding-packet-is-not-enough"><strong>为什么一个在途分组不够</strong></a></li>
+  </ul></li>
+  <li><a href="#pipelined-reliable-transfer" id="toc-pipelined-reliable-transfer" class="nav-link" data-scroll-target="#pipelined-reliable-transfer"><strong>流水化可靠传输</strong></a>
+  <ul>
+  <li><a href="#sliding-windows" id="toc-sliding-windows" class="nav-link" data-scroll-target="#sliding-windows"><strong>滑动窗口</strong></a></li>
+  <li><a href="#go-back-n" id="toc-go-back-n" class="nav-link" data-scroll-target="#go-back-n"><strong>回退 N 帧</strong></a></li>
+  <li><a href="#selective-repeat" id="toc-selective-repeat" class="nav-link" data-scroll-target="#selective-repeat"><strong>选择重传</strong></a></li>
+  <li><a href="#sequence-space-and-window-size-constraints" id="toc-sequence-space-and-window-size-constraints" class="nav-link" data-scroll-target="#sequence-space-and-window-size-constraints"><strong>序号空间与窗口大小约束</strong></a></li>
+  <li><a href="#go-back-n-vs-selective-repeat" id="toc-go-back-n-vs-selective-repeat" class="nav-link" data-scroll-target="#go-back-n-vs-selective-repeat"><strong>GBN 与 SR 对比</strong></a></li>
+  </ul></li>
+  <li><a href="#transmission-control-protocol" id="toc-transmission-control-protocol" class="nav-link" data-scroll-target="#transmission-control-protocol"><strong>传输控制协议</strong></a>
+  <ul>
+  <li><a href="#byte-streams-and-tcp-segments" id="toc-byte-streams-and-tcp-segments" class="nav-link" data-scroll-target="#byte-streams-and-tcp-segments"><strong>字节流与 TCP 段</strong></a></li>
+  <li><a href="#tcp-header-fields" id="toc-tcp-header-fields" class="nav-link" data-scroll-target="#tcp-header-fields"><strong>TCP 首部字段</strong></a></li>
+  <li><a href="#sequence-and-acknowledgment-numbers" id="toc-sequence-and-acknowledgment-numbers" class="nav-link" data-scroll-target="#sequence-and-acknowledgment-numbers"><strong>序号与确认号</strong></a></li>
+  <li><a href="#cumulative-acks-and-selective-acknowledgment" id="toc-cumulative-acks-and-selective-acknowledgment" class="nav-link" data-scroll-target="#cumulative-acks-and-selective-acknowledgment"><strong>累计 ACK 与选择确认</strong></a></li>
+  </ul></li>
+  <li><a href="#tcp-connection-lifecycle" id="toc-tcp-connection-lifecycle" class="nav-link" data-scroll-target="#tcp-connection-lifecycle"><strong>TCP 连接生命周期</strong></a>
+  <ul>
+  <li><a href="#three-way-handshake" id="toc-three-way-handshake" class="nav-link" data-scroll-target="#three-way-handshake"><strong>三次握手</strong></a></li>
+  <li><a href="#connection-state-machine" id="toc-connection-state-machine" class="nav-link" data-scroll-target="#connection-state-machine"><strong>连接状态机</strong></a></li>
+  <li><a href="#graceful-close-reset-and-half-open-connections" id="toc-graceful-close-reset-and-half-open-connections" class="nav-link" data-scroll-target="#graceful-close-reset-and-half-open-connections"><strong>优雅关闭、复位与半开连接</strong></a></li>
+  <li><a href="#time_wait-and-delayed-segments" id="toc-time_wait-and-delayed-segments" class="nav-link" data-scroll-target="#time_wait-and-delayed-segments"><strong>TIME_WAIT 与延迟段</strong></a></li>
+  </ul></li>
+  <li><a href="#loss-detection-and-retransmission" id="toc-loss-detection-and-retransmission" class="nav-link" data-scroll-target="#loss-detection-and-retransmission"><strong>丢失检测与重传</strong></a>
+  <ul>
+  <li><a href="#rtt-estimation-and-retransmission-timeout" id="toc-rtt-estimation-and-retransmission-timeout" class="nav-link" data-scroll-target="#rtt-estimation-and-retransmission-timeout"><strong>RTT 估计与重传超时</strong></a></li>
+  <li><a href="#karns-algorithm-and-exponential-backoff" id="toc-karns-algorithm-and-exponential-backoff" class="nav-link" data-scroll-target="#karns-algorithm-and-exponential-backoff"><strong>Karn 算法与指数退避</strong></a></li>
+  <li><a href="#duplicate-acks-and-fast-retransmit" id="toc-duplicate-acks-and-fast-retransmit" class="nav-link" data-scroll-target="#duplicate-acks-and-fast-retransmit"><strong>重复 ACK 与快速重传</strong></a></li>
+  <li><a href="#spurious-retransmission-and-reordering" id="toc-spurious-retransmission-and-reordering" class="nav-link" data-scroll-target="#spurious-retransmission-and-reordering"><strong>虚假重传与乱序</strong></a></li>
+  </ul></li>
+  <li><a href="#flow-control" id="toc-flow-control" class="nav-link" data-scroll-target="#flow-control"><strong>流量控制</strong></a>
+  <ul>
+  <li><a href="#receive-windows-and-buffer-occupancy" id="toc-receive-windows-and-buffer-occupancy" class="nav-link" data-scroll-target="#receive-windows-and-buffer-occupancy"><strong>接收窗口与缓冲占用</strong></a></li>
+  <li><a href="#zero-windows-and-persist-timers" id="toc-zero-windows-and-persist-timers" class="nav-link" data-scroll-target="#zero-windows-and-persist-timers"><strong>零窗口与持续定时器</strong></a></li>
+  <li><a href="#flow-control-vs-congestion-control" id="toc-flow-control-vs-congestion-control" class="nav-link" data-scroll-target="#flow-control-vs-congestion-control"><strong>流量控制与拥塞控制</strong></a></li>
+  </ul></li>
+  <li><a href="#quic-as-a-modern-transport" id="toc-quic-as-a-modern-transport" class="nav-link" data-scroll-target="#quic-as-a-modern-transport"><strong>作为现代传输协议的 QUIC</strong></a>
+  <ul>
+  <li><a href="#transport-over-udp-and-user-space-evolution" id="toc-transport-over-udp-and-user-space-evolution" class="nav-link" data-scroll-target="#transport-over-udp-and-user-space-evolution"><strong>基于 UDP 的传输与用户态演进</strong></a></li>
+  <li><a href="#streams-connection-ids-and-migration" id="toc-streams-connection-ids-and-migration" class="nav-link" data-scroll-target="#streams-connection-ids-and-migration"><strong>流、连接 ID 与迁移</strong></a></li>
+  <li><a href="#handshake-integration-and-head-of-line-blocking" id="toc-handshake-integration-and-head-of-line-blocking" class="nav-link" data-scroll-target="#handshake-integration-and-head-of-line-blocking"><strong>握手整合与队头阻塞</strong></a></li>
+  </ul></li>
+  <li><a href="#implementing-tcp-and-udp-socket-programs" id="toc-implementing-tcp-and-udp-socket-programs" class="nav-link" data-scroll-target="#implementing-tcp-and-udp-socket-programs"><strong>实现 TCP 与 UDP 套接字程序</strong></a></li>
+  <li><a href="#building-a-minimal-reliable-byte-stream" id="toc-building-a-minimal-reliable-byte-stream" class="nav-link" data-scroll-target="#building-a-minimal-reliable-byte-stream"><strong>构建最小可靠字节流</strong></a></li>
+  <li><a href="#observing-and-troubleshooting-transport-behavior" id="toc-observing-and-troubleshooting-transport-behavior" class="nav-link" data-scroll-target="#observing-and-troubleshooting-transport-behavior"><strong>观察与排查传输行为</strong></a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><strong>总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机网络：可靠的端到端传输</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Networks/05-reliable-end-to-end-transport.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Computer-Networks/Computer-Networks.html">返回计算机网络总览</a>
+</p>
+<section id="reliable-end-to-end-transport" class="level2">
+<h2 class="anchored" data-anchor-id="reliable-end-to-end-transport"><strong>可靠的端到端传输</strong></h2>
+<p>IP 只提供尽力而为的数据报交付，而应用常希望看到进程到进程通信、完整消息、有序字节流、故障检测或并发多路流。传输层位于应用与 IP 之间，通过端口和套接字把主机可达性扩展成进程可达性，并根据应用需求选择极简数据报或复杂可靠连接。</p>
+<p>本章先从 UDP 的消息抽象出发，再从不可靠信道逐步构造可靠数据传输：校验和发现损坏，序号区分新旧数据，ACK 表达接收状态，定时器触发重传，滑动窗口让多份数据同时在途。随后把这些原理映射到 TCP 的字节序号、连接状态、RTO、流量控制与 SACK，并以 QUIC 展示现代传输如何在 UDP 之上重新组合可靠性、安全与多流能力。</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+注记
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>可靠传输不是“分组绝不丢失”，而是端点协议在允许的故障模型下，让应用最终只观察到符合契约的数据。网络仍会丢包、重复、乱序；协议通过状态、反馈和重传隐藏或报告这些事件。</p>
+</div>
+</div>
+<section id="transport-layer-services" class="level3">
+<h3 class="anchored" data-anchor-id="transport-layer-services"><strong>传输层服务</strong></h3>
+<section id="process-to-process-communication" class="level4">
+<h4 class="anchored" data-anchor-id="process-to-process-communication"><strong>进程到进程通信</strong></h4>
+<p>IP 地址把数据报带到主机接口，但同一主机可能同时运行浏览器、DNS、数据库和许多连接。传输层在端系统中运行，使用端口与连接状态把到达数据交给正确进程，并允许应用选择可靠字节流、无连接消息或多流安全传输。</p>
+<p>路由器通常只需要转发 IP；端到端传输状态由主机保存。这种命运共享让中间路由故障不必摧毁连接逻辑，也让传输协议能独立于核心网络演进。</p>
+</section>
+<section id="ports-sockets-multiplexing-and-demultiplexing" class="level4">
+<h4 class="anchored" data-anchor-id="ports-sockets-multiplexing-and-demultiplexing"><strong>端口、套接字、复用与分用</strong></h4>
+<p>端口号为 16 bit。<strong>套接字（socket）</strong>是应用访问传输服务的本地端点，通常由协议、地址和端口等状态标识。发送端把多个进程的数据<strong>复用</strong>到网络，接收端再<strong>分用</strong>到对应套接字。</p>
+<p>UDP 常按本地地址与目的端口分用；TCP 连接通常由四元组 <code>(源IP, 源端口, 目的IP, 目的端口)</code> 加协议唯一标识，因此同一服务器端口可同时服务大量客户端。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/transport-demultiplexing.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/transport-demultiplexing.svg" class="img-fluid figure-img" style="width:98.0%" alt="UDP 与 TCP 流按协议、地址和端口分类并交给 DNS、Web 与 API 进程"></a></p>
+<figcaption>传输分用把多个并发流交付给正确的本地套接字和进程。</figcaption>
+</figure>
+</div>
+</section>
+<section id="connectionless-and-connection-oriented-services" class="level4">
+<h4 class="anchored" data-anchor-id="connectionless-and-connection-oriented-services"><strong>无连接与面向连接的服务</strong></h4>
+<p>无连接服务无需先建立共享会话状态，每个数据报独立携带目的信息，启动快但应用自行处理丢失、顺序和重复。面向连接服务先同步状态并在生命周期内维护序号、窗口、定时器和关闭语义，提供更强抽象，但握手、状态与失败恢复都有成本。</p>
+<p>“连接”是端点协议状态，不是沿途预留了一条物理电路。TCP 连接的分组仍可在分组交换网络中经过变化的队列与路径。</p>
+</section>
+<section id="transport-guarantees-and-application-requirements" class="level4">
+<h4 class="anchored" data-anchor-id="transport-guarantees-and-application-requirements"><strong>传输保证与应用需求</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>应用需求</th>
+<th>可能选择</th>
+<th>需要权衡</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>完整、有序字节流</td>
+<td>TCP</td>
+<td>队头阻塞、连接状态与恢复时延</td>
+</tr>
+<tr class="even">
+<td>独立消息、最低机制</td>
+<td>UDP</td>
+<td>应用自行处理丢失、拥塞与安全</td>
+</tr>
+<tr class="odd">
+<td>多条可靠流、快速安全握手</td>
+<td>QUIC</td>
+<td>用户态复杂度、UDP 可达性与加密可观测性</td>
+</tr>
+<tr class="even">
+<td>实时音视频</td>
+<td>UDP/QUIC 上的应用协议</td>
+<td>迟到数据可能比少量丢失更糟</td>
+</tr>
+</tbody>
+</table>
+<p>没有“对所有应用最好的传输”。文件复制重视完整性，交互语音重视截止时间，DNS 查询重视短消息和快速失败，Web 则需要安全、并发、移动和拥塞适应。选择应从应用可观察契约开始。</p>
+<div id="4022b3c7" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.469590Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.469153Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.476029Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.475377Z&quot;}" data-execution_count="1">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Flow:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    protocol: <span class="bu">str</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    source_ip: <span class="bu">str</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    source_port: <span class="bu">int</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    destination_ip: <span class="bu">str</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    destination_port: <span class="bu">int</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>listeners <span class="op">=</span> {</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"UDP"</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">53</span>): <span class="st">"DNS socket"</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"TCP"</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">443</span>): <span class="st">"HTTPS listener"</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"TCP"</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">8080</span>): <span class="st">"API listener"</span>,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 已建立 TCP 连接拥有更具体的五元组表项。</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>established <span class="op">=</span> {</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"TCP"</span>, <span class="st">"10.0.0.8"</span>, <span class="dv">53001</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">443</span>): <span class="st">"HTTPS worker A"</span>,</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"TCP"</span>, <span class="st">"10.0.0.9"</span>, <span class="dv">53002</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">443</span>): <span class="st">"HTTPS worker B"</span>,</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> demultiplex(flow: Flow) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""优先匹配精确连接，否则回退到监听套接字。"""</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> flow <span class="kw">in</span> established:</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> established[flow]</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    listener_key <span class="op">=</span> (flow.protocol, flow.destination_ip, flow.destination_port)</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> listeners.get(listener_key, <span class="st">"no matching socket"</span>)</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>arrivals <span class="op">=</span> [</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"UDP"</span>, <span class="st">"10.0.0.8"</span>, <span class="dv">53000</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">53</span>),</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"TCP"</span>, <span class="st">"10.0.0.8"</span>, <span class="dv">53001</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">443</span>),</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"TCP"</span>, <span class="st">"10.0.0.9"</span>, <span class="dv">53002</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">443</span>),</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    Flow(<span class="st">"TCP"</span>, <span class="st">"10.0.0.8"</span>, <span class="dv">53003</span>, <span class="st">"192.0.2.80"</span>, <span class="dv">8080</span>),</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> arrival <span class="kw">in</span> arrivals:</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>arrival<span class="sc">.</span>protocol<span class="sc">:3}</span><span class="ss"> destination :</span><span class="sc">{</span>arrival<span class="sc">.</span>destination_port<span class="sc">:&lt;4}</span><span class="ss"> -&gt; </span><span class="sc">{</span>demultiplex(arrival)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>UDP destination :53   -&gt; DNS socket
+TCP destination :443  -&gt; HTTPS worker A
+TCP destination :443  -&gt; HTTPS worker B
+TCP destination :8080 -&gt; API listener</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="user-datagram-protocol" class="level3">
+<h3 class="anchored" data-anchor-id="user-datagram-protocol"><strong>用户数据报协议</strong></h3>
+<section id="udp-header-and-checksum" class="level4">
+<h4 class="anchored" data-anchor-id="udp-header-and-checksum"><strong>UDP 首部与校验和</strong></h4>
+<p>UDP 首部只有源端口、目的端口、长度和校验和四个 16-bit 字段。长度覆盖首部与载荷；校验和覆盖 UDP 数据及包含 IP 地址、协议号和长度的伪首部，从而也能发现错误交付到错误端点的情况。IPv4 中发送端在特定条件下可省略 UDP 校验和，IPv6 中通常必须使用。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/udp-header.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/udp-header.svg" class="img-fluid figure-img" style="width:72.0%" alt="UDP 首部的四个 16 位字段及后续数据"></a></p>
+<figcaption>UDP 首部包含源端口、目的端口、数据报长度与校验和。</figcaption>
+</figure>
+</div>
+<p>UDP 没有连接握手、确认、重传、排序、流量控制或内建拥塞控制。“首部小”只是表面优势，更重要的是应用能够决定哪些机制需要、在何时需要。</p>
+</section>
+<section id="datagram-boundaries-and-message-loss" class="level4">
+<h4 class="anchored" data-anchor-id="datagram-boundaries-and-message-loss"><strong>数据报边界与消息丢失</strong></h4>
+<p>每次 UDP <code>send</code> 产生一个逻辑数据报，接收端一次读取一个数据报并保留消息边界。若接收缓冲太小，多余部分可能被截断或丢弃；IP 分片丢失、队列丢包、校验失败或套接字缓冲溢出都会让整条消息消失。数据报可能重复、乱序，也可能来自伪造源地址。</p>
+<p>这与 TCP 字节流不同：TCP 不保留应用写入边界，一次 <code>send</code> 可能被分成多段，多次 <code>send</code> 也可能一次 <code>recv</code> 返回。使用 TCP 的应用必须自行定义长度字段、分隔符或固定格式来成帧。</p>
+</section>
+<section id="when-udp-is-the-right-abstraction" class="level4">
+<h4 class="anchored" data-anchor-id="when-udp-is-the-right-abstraction"><strong>何时 UDP 是合适抽象</strong></h4>
+<p>UDP 适合单次请求/响应、实时媒体、组播、应用自定义可靠性以及 QUIC 这类用户态传输。它避免强制有序重传，但应用仍必须限制发送速率、应对放大攻击、设置超时、验证来源，并在需要时实现拥塞控制。UDP 不是“无需负责”，而是把机制选择权交给应用。</p>
+<div id="3d6ff5f1" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.477696Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.477487Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.482696Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.482257Z&quot;}" data-execution_count="2">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> ipaddress</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> struct</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ones_complement_sum(data: <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回 UDP/TCP 使用的折叠反码和。"""</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(data) <span class="op">%</span> <span class="dv">2</span>:</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        data <span class="op">+=</span> <span class="st">b"</span><span class="ch">\x00</span><span class="st">"</span>  <span class="co"># 填充参与校验和计算，但不计入分组长度。</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="bu">sum</span>(struct.unpack(<span class="ss">f"!</span><span class="sc">{</span><span class="bu">len</span>(data) <span class="op">//</span> <span class="dv">2</span><span class="sc">}</span><span class="ss">H"</span>, data))</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> total <span class="op">&gt;&gt;</span> <span class="dv">16</span>:</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        total <span class="op">=</span> (total <span class="op">&amp;</span> <span class="bn">0xFFFF</span>) <span class="op">+</span> (total <span class="op">&gt;&gt;</span> <span class="dv">16</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> total</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> internet_checksum(data: <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> (<span class="op">~</span>ones_complement_sum(data)) <span class="op">&amp;</span> <span class="bn">0xFFFF</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bn">0xFFFF</span> <span class="cf">if</span> result <span class="op">==</span> <span class="dv">0</span> <span class="cf">else</span> result</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_udp_segment(source_ip: <span class="bu">str</span>, destination_ip: <span class="bu">str</span>,</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>                      source_port: <span class="bu">int</span>, destination_port: <span class="bu">int</span>,</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>                      payload: <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="bu">bytes</span>:</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    udp_length <span class="op">=</span> <span class="dv">8</span> <span class="op">+</span> <span class="bu">len</span>(payload)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    header_without_checksum <span class="op">=</span> struct.pack(</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"!HHHH"</span>, source_port, destination_port, udp_length, <span class="dv">0</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    pseudo_header <span class="op">=</span> (</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        ipaddress.IPv4Address(source_ip).packed</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> ipaddress.IPv4Address(destination_ip).packed</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> struct.pack(<span class="st">"!BBH"</span>, <span class="dv">0</span>, <span class="dv">17</span>, udp_length)  <span class="co"># 17 是 UDP 对应的 IP 协议号。</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    checksum <span class="op">=</span> internet_checksum(pseudo_header <span class="op">+</span> header_without_checksum <span class="op">+</span> payload)</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> struct.pack(</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"!HHHH"</span>, source_port, destination_port, udp_length, checksum</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">+</span> payload</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>payload <span class="op">=</span> <span class="st">b"transport"</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>segment <span class="op">=</span> build_udp_segment(<span class="st">"192.0.2.10"</span>, <span class="st">"198.51.100.20"</span>, <span class="dv">53000</span>, <span class="dv">53</span>, payload)</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>source_port, destination_port, udp_length, checksum <span class="op">=</span> struct.unpack(<span class="st">"!HHHH"</span>, segment[:<span class="dv">8</span>])</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>pseudo <span class="op">=</span> (</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    ipaddress.IPv4Address(<span class="st">"192.0.2.10"</span>).packed</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> ipaddress.IPv4Address(<span class="st">"198.51.100.20"</span>).packed</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> struct.pack(<span class="st">"!BBH"</span>, <span class="dv">0</span>, <span class="dv">17</span>, udp_length)</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>verified <span class="op">=</span> ones_complement_sum(pseudo <span class="op">+</span> segment) <span class="op">==</span> <span class="bn">0xFFFF</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"ports: </span><span class="sc">{</span>source_port<span class="sc">}</span><span class="ss"> -&gt; </span><span class="sc">{</span>destination_port<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"UDP length: </span><span class="sc">{</span>udp_length<span class="sc">}</span><span class="ss"> bytes; payload: </span><span class="sc">{</span><span class="bu">len</span>(payload)<span class="sc">}</span><span class="ss"> bytes"</span>)</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"checksum: 0x</span><span class="sc">{</span>checksum<span class="sc">:04x}</span><span class="ss">; verification passed: </span><span class="sc">{</span>verified<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>ports: 53000 -&gt; 53
+UDP length: 17 bytes; payload: 9 bytes
+checksum: 0x1778; verification passed: True</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="principles-of-reliable-data-transfer" class="level3">
+<h3 class="anchored" data-anchor-id="principles-of-reliable-data-transfer"><strong>可靠数据传输原理</strong></h3>
+<section id="bit-errors-loss-duplication-and-reordering" class="level4">
+<h4 class="anchored" data-anchor-id="bit-errors-loss-duplication-and-reordering"><strong>比特错误、丢失、重复与乱序</strong></h4>
+<p>不可靠信道可能改变比特、丢弃报文、延迟后又送达、重复交付，或让不同路径和重传造成乱序。可靠协议必须明确故障模型：若网络能无限延迟一个报文，就无法仅凭等待区分“丢失”与“非常慢”；因此超时只是重传决策，不是丢失的绝对证明。</p>
+</section>
+<section id="checksums-sequence-numbers-acks-and-nacks" class="level4">
+<h4 class="anchored" data-anchor-id="checksums-sequence-numbers-acks-and-nacks"><strong>校验和、序号、ACK 与 NACK</strong></h4>
+<p>校验和帮助接收端拒绝损坏报文；序号把新数据与重传/重复分开；<strong>ACK</strong> 表示已收到某些数据，<strong>NACK</strong> 明确指出错误或缺失。累计 ACK 表示“此序号之前均已连续收到”，选择确认则报告额外不连续区间。确认自身也会丢失，所以发送端不能把“没见到 ACK”直接等同于“数据没到”。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/reliable-transfer-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/reliable-transfer-timeline.svg" class="img-fluid figure-img" style="width:94.0%" alt="发送接收时间线：ACK 0 丢失，数据 0 重传，重复数据不会交付两次"></a></p>
+<figcaption>交替位协议中 ACK 丢失触发重传，但接收端抑制重复交付。</figcaption>
+</figure>
+</div>
+</section>
+<section id="timers-and-retransmissions" class="level4">
+<h4 class="anchored" data-anchor-id="timers-and-retransmissions"><strong>定时器与重传</strong></h4>
+<p>发送端为未确认数据维护定时器，超时后重传。超时过短会在网络只是变慢时产生虚假重传，加重拥塞；过长则恢复缓慢。协议通常根据测得 RTT 自适应，并对连续超时指数退避。ACK 触发的快速重传可在定时器到期前发现间隙。</p>
+</section>
+<section id="protocol-state-machines-and-safety-properties" class="level4">
+<h4 class="anchored" data-anchor-id="protocol-state-machines-and-safety-properties"><strong>协议状态机与安全性质</strong></h4>
+<p>可靠协议可表示为有限状态机：状态记录期望序号、窗口和定时器，事件包括应用提交、报文到达、ACK 到达与超时，转换产生发送、交付或重传动作。需要证明的<strong>安全性</strong>包括“不交付损坏数据”“不重复交付”“保持规定顺序”；<strong>活性</strong>则要求在信道最终能够传递且持续重试的条件下，数据最终前进。代码看似简单，边界时序却决定正确性。</p>
+<div id="92e97efc" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.484253Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.484029Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.487457Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.487093Z&quot;}" data-execution_count="3">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> alternating_bit_with_lost_ack(message: <span class="bu">str</span>):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""跟踪第一次 ACK 丢失时的一次传输。"""</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    sender_sequence <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    receiver_expected <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    delivered <span class="op">=</span> []</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    events <span class="op">=</span> []</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 第一次发送到达接收方。</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    events.append(<span class="ss">f"send DATA(</span><span class="sc">{</span>sender_sequence<span class="sc">}</span><span class="ss">, </span><span class="sc">{</span>message<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sender_sequence <span class="op">==</span> receiver_expected:</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        delivered.append(message)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        receiver_expected <span class="op">^=</span> <span class="dv">1</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        events.append(<span class="st">"receiver delivers message and sends ACK(0)"</span>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 信道丢失 ACK(0)，发送方不能安全推进。</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    events.append(<span class="st">"channel loses ACK(0); sender timer expires"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    events.append(<span class="ss">f"retransmit DATA(</span><span class="sc">{</span>sender_sequence<span class="sc">}</span><span class="ss">, </span><span class="sc">{</span>message<span class="sc">}</span><span class="ss">)"</span>)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 接收方此时期待 1，因此能识别序号 0 为重复。</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sender_sequence <span class="op">!=</span> receiver_expected:</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        events.append(<span class="st">"receiver suppresses duplicate and repeats ACK(0)"</span>)</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    events.append(<span class="st">"sender receives ACK(0) and advances to sequence 1"</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> events, delivered</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>trace, application_deliveries <span class="op">=</span> alternating_bit_with_lost_ack(<span class="st">"A"</span>)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> step, event <span class="kw">in</span> <span class="bu">enumerate</span>(trace, start<span class="op">=</span><span class="dv">1</span>):</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>step<span class="sc">}</span><span class="ss">. </span><span class="sc">{</span>event<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"application deliveries:"</span>, application_deliveries)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>1. send DATA(0, A)
+2. receiver delivers message and sends ACK(0)
+3. channel loses ACK(0); sender timer expires
+4. retransmit DATA(0, A)
+5. receiver suppresses duplicate and repeats ACK(0)
+6. sender receives ACK(0) and advances to sequence 1
+application deliveries: ['A']</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="stop-and-wait-protocols" class="level3">
+<h3 class="anchored" data-anchor-id="stop-and-wait-protocols"><strong>停等协议</strong></h3>
+<section id="alternating-bit-protocol" class="level4">
+<h4 class="anchored" data-anchor-id="alternating-bit-protocol"><strong>交替位协议</strong></h4>
+<p>发送端一次只允许一个未确认分组，并用 0/1 序号交替。接收端只接受当前期望位：正确新分组被交付并确认；重复分组不再次交付，但会重发相同 ACK。发送端收到匹配 ACK 后切换序号，否则超时重传。一个比特足够，是因为同时最多只有一代数据在途。</p>
+</section>
+<section id="utilization-and-the-bandwidth-delay-product" class="level4">
+<h4 class="anchored" data-anchor-id="utilization-and-the-bandwidth-delay-product"><strong>利用率与带宽时延积</strong></h4>
+<p>若发送一个长度 <span class="math inline">\(L\)</span> 的分组需要 <span class="math inline">\(L/R\)</span>，收到 ACK 约需一个 RTT，则忽略 ACK 发送时间时，停等发送方利用率近似为</p>
+<p><span class="math display">\[
+U\approx\frac{L/R}{RTT+L/R}.
+\]</span></p>
+<p>在高带宽、长 RTT 路径上，发送端绝大多数时间都在等待。路径的 BDP 很大，而停等协议只允许一个分组填充它。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/stop-and-wait-vs-pipeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/stop-and-wait-vs-pipeline.svg" class="img-fluid figure-img" style="width:98.0%" alt="比较每个 RTT 一个分组与多个分组流水化的时间线"></a></p>
+<figcaption>停等让发送端空闲，而流水窗口允许多个分组同时在途。</figcaption>
+</figure>
+</div>
+</section>
+<section id="why-one-outstanding-packet-is-not-enough" class="level4">
+<h4 class="anchored" data-anchor-id="why-one-outstanding-packet-is-not-enough"><strong>为什么一个在途分组不够</strong></h4>
+<p>要充分利用容量，窗口至少要覆盖约一个 BDP 的数据。允许 <span class="math inline">\(W\)</span> 个长度为 <span class="math inline">\(L\)</span> 的分组在途时，理想发送速率上限约为 <span class="math inline">\(WL/RTT\)</span>，并受瓶颈链路限制。扩大窗口提高吞吐，却需要更大的序号空间、发送/接收缓冲和更精确的丢失处理，这就引出滑动窗口协议。</p>
+<div id="08ca0446" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.489305Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.489090Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.492828Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.492434Z&quot;}" data-execution_count="4">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> ceil</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> stop_and_wait_metrics(rate_mbps: <span class="bu">float</span>, rtt_ms: <span class="bu">float</span>, packet_bytes: <span class="bu">int</span>):</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    rate_bps <span class="op">=</span> rate_mbps <span class="op">*</span> <span class="dv">1_000_000</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    packet_bits <span class="op">=</span> packet_bytes <span class="op">*</span> <span class="dv">8</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    transmission_s <span class="op">=</span> packet_bits <span class="op">/</span> rate_bps</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    rtt_s <span class="op">=</span> rtt_ms <span class="op">/</span> <span class="dv">1_000</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    utilization <span class="op">=</span> transmission_s <span class="op">/</span> (rtt_s <span class="op">+</span> transmission_s)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    throughput_mbps <span class="op">=</span> utilization <span class="op">*</span> rate_mbps</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    bdp_bytes <span class="op">=</span> rate_bps <span class="op">*</span> rtt_s <span class="op">/</span> <span class="dv">8</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    packets_for_bdp <span class="op">=</span> ceil(bdp_bytes <span class="op">/</span> packet_bytes)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> transmission_s <span class="op">*</span> <span class="dv">1_000</span>, utilization, throughput_mbps, bdp_bytes, packets_for_bdp</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>scenarios <span class="op">=</span> [</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">100</span>, <span class="dv">40</span>, <span class="dv">1500</span>),</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">1000</span>, <span class="dv">2</span>, <span class="dv">1500</span>),</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    (<span class="dv">1000</span>, <span class="dv">80</span>, <span class="dv">1500</span>),</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"rate   RTT   transmit   utilization   throughput   BDP window"</span>)</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> rate, rtt, packet_size <span class="kw">in</span> scenarios:</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    tx_ms, utilization, throughput, bdp_bytes, window <span class="op">=</span> stop_and_wait_metrics(</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        rate, rtt, packet_size</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>rate<span class="sc">:4}</span><span class="ss">M  </span><span class="sc">{</span>rtt<span class="sc">:3}</span><span class="ss">ms  </span><span class="sc">{</span>tx_ms<span class="sc">:7.3f}</span><span class="ss">ms   </span><span class="sc">{</span>utilization<span class="sc">:9.3%}</span><span class="ss">   "</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>throughput<span class="sc">:8.3f}</span><span class="ss">M   </span><span class="sc">{</span>bdp_bytes <span class="op">/</span> <span class="dv">1000</span><span class="sc">:7.1f}</span><span class="ss">KB (</span><span class="sc">{</span>window<span class="sc">}</span><span class="ss"> packets)"</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>rate   RTT   transmit   utilization   throughput   BDP window
+ 100M   40ms    0.120ms      0.299%      0.299M     500.0KB (334 packets)
+1000M    2ms    0.012ms      0.596%      5.964M     250.0KB (167 packets)
+1000M   80ms    0.012ms      0.015%      0.150M   10000.0KB (6667 packets)</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="pipelined-reliable-transfer" class="level3">
+<h3 class="anchored" data-anchor-id="pipelined-reliable-transfer"><strong>流水化可靠传输</strong></h3>
+<section id="sliding-windows" class="level4">
+<h4 class="anchored" data-anchor-id="sliding-windows"><strong>滑动窗口</strong></h4>
+<p>发送窗口描述当前允许发送但尚未全部确认的序号区间。ACK 到达后窗口基序号前移，新的数据获得发送资格。接收窗口描述当前可接受的序号。窗口把流量限制与序号状态结合，使多个分组同时占据路径。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/sliding-window.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/sliding-window.svg" class="img-fluid figure-img" style="width:64.0%" alt="滑动窗口序号空间及窗口内外分组"></a></p>
+<figcaption>确认到达后，滑动窗口在有限序号空间中向前移动。</figcaption>
+</figure>
+</div>
+</section>
+<section id="go-back-n" class="level4">
+<h4 class="anchored" data-anchor-id="go-back-n"><strong>回退 N 帧</strong></h4>
+<p>Go-Back-N（GBN）允许发送端有多个未确认分组，但接收端通常只接受下一个期望序号，并对最后连续收到的数据发送累计 ACK。若分组 <span class="math inline">\(k\)</span> 丢失，后续乱序分组被丢弃；发送端超时后从 <span class="math inline">\(k\)</span> 起重传所有未确认分组。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/go-back-n.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/go-back-n.svg" class="img-fluid figure-img" style="width:94.0%" alt="GBN 时间线：分组 2 丢失、分组 3 被丢弃、重复 ACK 1、从 2 开始重传"></a></p>
+<figcaption>分组 2 丢失后，GBN 丢弃后续乱序数据，并在超时后重传剩余窗口。</figcaption>
+</figure>
+</div>
+<p>GBN 接收端简单、状态少，但单个丢包会重复发送已到达数据，在大窗口或高损失路径上浪费明显。</p>
+</section>
+<section id="selective-repeat" class="level4">
+<h4 class="anchored" data-anchor-id="selective-repeat"><strong>选择重传</strong></h4>
+<p>Selective Repeat（SR）允许接收端缓存窗口内乱序分组并分别确认；发送端只重传缺失或超时的分组。它提高链路利用率，却要求每个分组定时器/状态、更多接收缓冲以及更严格的序号回绕处理。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/selective-repeat.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/selective-repeat.svg" class="img-fluid figure-img" style="width:78.0%" alt="选择重传时间线：孤立分组缺失并被定向重传"></a></p>
+<figcaption>SR 缓存间隙之后到达的分组，并只重传缺失分组。</figcaption>
+</figure>
+</div>
+</section>
+<section id="sequence-space-and-window-size-constraints" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-space-and-window-size-constraints"><strong>序号空间与窗口大小约束</strong></h4>
+<p>序号会按模 <span class="math inline">\(N\)</span> 回绕。对于 SR，若窗口过大，接收端可能无法区分很久以前延迟的旧分组与回绕后的新分组；常见安全约束为窗口大小不超过序号空间一半。GBN 的接收窗口较小，可允许发送窗口最多 <span class="math inline">\(N-1\)</span>。约束来自歧义避免，而非实现习惯。</p>
+</section>
+<section id="go-back-n-vs-selective-repeat" class="level4">
+<h4 class="anchored" data-anchor-id="go-back-n-vs-selective-repeat"><strong>GBN 与 SR 对比</strong></h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>Go-Back-N</th>
+<th>Selective Repeat</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>接收乱序数据</td>
+<td>通常丢弃</td>
+<td>缓存</td>
+</tr>
+<tr class="even">
+<td>ACK</td>
+<td>累计确认</td>
+<td>可逐个/选择确认</td>
+</tr>
+<tr class="odd">
+<td>丢一个分组后的重传</td>
+<td>从缺口起整段重传</td>
+<td>只重传缺失项</td>
+</tr>
+<tr class="even">
+<td>接收状态</td>
+<td>较少</td>
+<td>较多</td>
+</tr>
+<tr class="odd">
+<td>高 BDP/损失效率</td>
+<td>较低</td>
+<td>较高</td>
+</tr>
+</tbody>
+</table>
+<p>TCP 不是两者的纯粹复制：累计 ACK、SACK、快速重传和拥塞控制共同形成混合行为。</p>
+<div id="69616f74" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.494330Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.494111Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.497407Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.496957Z&quot;}" data-execution_count="5">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compare_recovery(total_packets: <span class="bu">int</span>, lost_packet: <span class="bu">int</span>):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""统计首轮发生一次孤立丢失时的发送次数。"""</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    initial <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(total_packets))</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># GBN 收到缺口后的分组但将其丢弃；当</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 最早未确认定时器到期时，从缺口开始的所有分组都会重传。</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    gbn_retransmissions <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(lost_packet, total_packets))</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># SR 缓存后续分组，只重传缺失项。</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    sr_retransmissions <span class="op">=</span> [lost_packet]</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"GBN"</span>: initial <span class="op">+</span> gbn_retransmissions,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Selective Repeat"</span>: initial <span class="op">+</span> sr_retransmissions,</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>traces <span class="op">=</span> compare_recovery(total_packets<span class="op">=</span><span class="dv">6</span>, lost_packet<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> protocol, transmissions <span class="kw">in</span> traces.items():</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>protocol<span class="sc">:16}</span><span class="ss">: </span><span class="sc">{</span>transmissions<span class="sc">}</span><span class="ss"> (</span><span class="sc">{</span><span class="bu">len</span>(transmissions)<span class="sc">}</span><span class="ss"> transmissions)"</span>)</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>avoided <span class="op">=</span> <span class="bu">len</span>(traces[<span class="st">"GBN"</span>]) <span class="op">-</span> <span class="bu">len</span>(traces[<span class="st">"Selective Repeat"</span>])</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"transmissions avoided by selective recovery:"</span>, avoided)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>GBN             : [0, 1, 2, 3, 4, 5, 2, 3, 4, 5] (10 transmissions)
+Selective Repeat: [0, 1, 2, 3, 4, 5, 2] (7 transmissions)
+transmissions avoided by selective recovery: 3</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="transmission-control-protocol" class="level3">
+<h3 class="anchored" data-anchor-id="transmission-control-protocol"><strong>传输控制协议</strong></h3>
+<section id="byte-streams-and-tcp-segments" class="level4">
+<h4 class="anchored" data-anchor-id="byte-streams-and-tcp-segments"><strong>字节流与 TCP 段</strong></h4>
+<p>TCP 向应用提供双向、可靠、有序<strong>字节流</strong>。它不保留应用消息边界；发送实现会按 MSS、拥塞窗口、Nagle 等因素把字节切成段，接收 API 则返回当前可用的任意连续字节数。应用必须自定义消息成帧。</p>
+</section>
+<section id="tcp-header-fields" class="level4">
+<h4 class="anchored" data-anchor-id="tcp-header-fields"><strong>TCP 首部字段</strong></h4>
+<p>TCP 首部包含源/目的端口、32-bit 序号与确认号、首部长度、控制标志、接收窗口、校验和、紧急指针和选项。SYN/FIN 各消耗一个序号；ACK 表示确认字段有效；RST 异常终止连接；选项可协商 MSS、窗口扩大、时间戳与 SACK。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tcp-header.png" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/tcp-header.png" class="img-fluid figure-img" style="width:78.0%" alt="TCP 首部布局：端口、序号、确认号、标志、窗口、校验和、选项与数据"></a></p>
+<figcaption>TCP 首部携带端口、字节序号状态、标志、接收窗口、校验和与选项。</figcaption>
+</figure>
+</div>
+</section>
+<section id="sequence-and-acknowledgment-numbers" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-and-acknowledgment-numbers"><strong>序号与确认号</strong></h4>
+<p>TCP 序号标识段中第一个数据字节在流中的位置；确认号表示“下一个期望字节”。若 ACK 为 1500，就意味着 1500 之前的所有字节均已连续收到。初始序号随机选择，避免旧连接中的延迟段与新连接混淆，并提高抵抗伪造的难度。</p>
+</section>
+<section id="cumulative-acks-and-selective-acknowledgment" class="level4">
+<h4 class="anchored" data-anchor-id="cumulative-acks-and-selective-acknowledgment"><strong>累计 ACK 与选择确认</strong></h4>
+<p>累计 ACK 遇到缺口时停在第一个缺失字节，即使更后的数据已缓存。SACK 选项额外报告已收到的不连续范围，使发送端只重传真正缺失字节。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tcp-sequence-ack.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/tcp-sequence-ack.svg" class="img-fluid figure-img" style="width:96.0%" alt="字节 1500-1999 丢失、2000-2499 已缓存、累计 ACK 1500 与 SACK 块"></a></p>
+<figcaption>TCP 累计 ACK 停在首个缺失字节，SACK 则报告后续乱序到达范围。</figcaption>
+</figure>
+</div>
+<p>ACK 也可以延迟或合并，因此发送端根据 ACK 进展和重复模式推断网络状态，而不能假定每个段都有独立 ACK。</p>
+<div id="e21efe64" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.499121Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.498922Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.503232Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.502852Z&quot;}" data-execution_count="6">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TcpLikeReceiver:</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""带累计 ACK 与 SACK 输出的小型字节区间重组器。"""</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, initial_sequence: <span class="bu">int</span>):</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_expected <span class="op">=</span> initial_sequence</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.buffered <span class="op">=</span> []  <span class="co"># 互不相交的左闭右开区间 [start, end)。</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> receive(<span class="va">self</span>, sequence: <span class="bu">int</span>, length: <span class="bu">int</span>):</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.buffered.append((sequence, sequence <span class="op">+</span> length))</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.buffered.sort()</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 合并重叠或相邻区间。</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        merged <span class="op">=</span> []</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> start, end <span class="kw">in</span> <span class="va">self</span>.buffered:</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="kw">not</span> merged <span class="kw">or</span> start <span class="op">&gt;</span> merged[<span class="op">-</span><span class="dv">1</span>][<span class="dv">1</span>]:</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>                merged.append([start, end])</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>                merged[<span class="op">-</span><span class="dv">1</span>][<span class="dv">1</span>] <span class="op">=</span> <span class="bu">max</span>(merged[<span class="op">-</span><span class="dv">1</span>][<span class="dv">1</span>], end)</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.buffered <span class="op">=</span> [<span class="bu">tuple</span>(interval) <span class="cf">for</span> interval <span class="kw">in</span> merged]</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 消费起点不晚于下一个期望字节的所有区间。</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>        advanced <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> advanced:</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>            advanced <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>            remaining <span class="op">=</span> []</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> start, end <span class="kw">in</span> <span class="va">self</span>.buffered:</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> start <span class="op">&lt;=</span> <span class="va">self</span>.next_expected <span class="op">&lt;</span> end:</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>                    <span class="va">self</span>.next_expected <span class="op">=</span> end</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>                    advanced <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>                <span class="cf">elif</span> end <span class="op">&gt;</span> <span class="va">self</span>.next_expected:</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>                    remaining.append((start, end))</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.buffered <span class="op">=</span> remaining</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>        sacks <span class="op">=</span> [interval <span class="cf">for</span> interval <span class="kw">in</span> <span class="va">self</span>.buffered <span class="cf">if</span> interval[<span class="dv">0</span>] <span class="op">&gt;</span> <span class="va">self</span>.next_expected]</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.next_expected, sacks</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>receiver <span class="op">=</span> TcpLikeReceiver(initial_sequence<span class="op">=</span><span class="dv">1000</span>)</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>arrivals <span class="op">=</span> [(<span class="dv">1000</span>, <span class="dv">500</span>), (<span class="dv">2000</span>, <span class="dv">500</span>), (<span class="dv">1500</span>, <span class="dv">500</span>)]</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sequence, length <span class="kw">in</span> arrivals:</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>    ack, sack_blocks <span class="op">=</span> receiver.receive(sequence, length)</span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"received [</span><span class="sc">{</span>sequence<span class="sc">}</span><span class="ss">, </span><span class="sc">{</span>sequence <span class="op">+</span> length<span class="sc">}</span><span class="ss">) -&gt; "</span></span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"ACK=</span><span class="sc">{</span>ack<span class="sc">}</span><span class="ss">, SACK=</span><span class="sc">{</span>sack_blocks <span class="kw">or</span> <span class="st">'none'</span><span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>received [1000, 1500) -&gt; ACK=1500, SACK=none
+received [2000, 2500) -&gt; ACK=1500, SACK=[(2000, 2500)]
+received [1500, 2000) -&gt; ACK=2500, SACK=none</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="tcp-connection-lifecycle" class="level3">
+<h3 class="anchored" data-anchor-id="tcp-connection-lifecycle"><strong>TCP 连接生命周期</strong></h3>
+<section id="three-way-handshake" class="level4">
+<h4 class="anchored" data-anchor-id="three-way-handshake"><strong>三次握手</strong></h4>
+<p>客户端发送 <code>SYN seq=x</code>，服务器回复 <code>SYN+ACK seq=y ack=x+1</code>，客户端再发送 <code>ACK ack=y+1</code>。三次消息让双方确认双向可达、同步各自初始序号，并协商 MSS、窗口扩大、SACK、时间戳等选项。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tcp-three-way-handshake.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/tcp-three-way-handshake.svg" class="img-fluid figure-img" style="width:88.0%" alt="客户端发 SYN x，服务器回 SYN ACK y/x+1，客户端确认 y+1"></a></p>
+<figcaption>TCP 三次握手同步双方初始序号，并使客户端和服务器进入 ESTABLISHED。</figcaption>
+</figure>
+</div>
+<p>两次消息不足以让服务器确认客户端已收到服务器的初始序号；三次也不是为“加密”，普通 TCP 握手不认证身份，TLS 在其后完成安全协商。</p>
+</section>
+<section id="connection-state-machine" class="level4">
+<h4 class="anchored" data-anchor-id="connection-state-machine"><strong>连接状态机</strong></h4>
+<p>客户端典型状态为 CLOSED → SYN-SENT → ESTABLISHED；服务器监听时处于 LISTEN，收到 SYN 后进入 SYN-RECEIVED。关闭涉及 FIN-WAIT、CLOSE-WAIT、LAST-ACK、TIME-WAIT 等状态。状态机解释了抓包中的标志，也能定位应用忘记关闭、半开连接或积压队列问题。</p>
+</section>
+<section id="graceful-close-reset-and-half-open-connections" class="level4">
+<h4 class="anchored" data-anchor-id="graceful-close-reset-and-half-open-connections"><strong>优雅关闭、复位与半开连接</strong></h4>
+<p>TCP 每个方向独立关闭。FIN 表示“我不会再发送字节”，对方仍可继续发送，因此完整优雅关闭通常交换两个 FIN 与相应 ACK。RST 表示连接不存在或必须立即终止，未读数据可能丢失。若一端崩溃或路径中断，另一端可能长时间保留半开状态，直到应用 keepalive、重传或超时发现。</p>
+</section>
+<section id="time_wait-and-delayed-segments" class="level4">
+<h4 class="anchored" data-anchor-id="time_wait-and-delayed-segments"><strong>TIME_WAIT 与延迟段</strong></h4>
+<p>主动关闭一方通常进入 TIME_WAIT，等待约两个最大报文寿命：既能重发最终 ACK，又避免旧连接延迟段被同一四元组的新连接误接收。大量短连接会产生许多 TIME_WAIT，但盲目缩短可能破坏正确性；连接复用与合理服务设计通常比关闭保护机制更好。</p>
+</section>
+</section>
+<section id="loss-detection-and-retransmission" class="level3">
+<h3 class="anchored" data-anchor-id="loss-detection-and-retransmission"><strong>丢失检测与重传</strong></h3>
+<section id="rtt-estimation-and-retransmission-timeout" class="level4">
+<h4 class="anchored" data-anchor-id="rtt-estimation-and-retransmission-timeout"><strong>RTT 估计与重传超时</strong></h4>
+<p>TCP 用指数加权平均平滑 RTT：</p>
+<p><span class="math display">\[
+SRTT\leftarrow(1-\alpha)SRTT+\alpha RTT_{sample},
+\]</span></p>
+<p>并估计偏差 <span class="math inline">\(RTTVAR\)</span>，设置</p>
+<p><span class="math display">\[
+RTO=SRTT+4\,RTTVAR
+\]</span></p>
+<p>（还受最小/最大值约束）。只跟随平均值会在抖动出现时过早超时；加入方差余量让 RTO 保持在典型 RTT 之上。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tcp-rto-estimator.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/tcp-rto-estimator.svg" class="img-fluid figure-img" style="width:94.0%" alt="RTT 样本、平滑 RTT 与基于 RFC 6298 方程的重传超时图"></a></p>
+<figcaption>原始 RTO 因包含 RTT 变化余量而保持在平滑 RTT 上方。</figcaption>
+</figure>
+</div>
+</section>
+<section id="karns-algorithm-and-exponential-backoff" class="level4">
+<h4 class="anchored" data-anchor-id="karns-algorithm-and-exponential-backoff"><strong>Karn 算法与指数退避</strong></h4>
+<p>重传段被确认时，发送端无法判断 ACK 对应原发送还是重传，因此 Karn 算法不使用这类模糊样本更新 RTT。连续超时通常将 RTO 加倍，避免在已拥塞或严重故障的路径上持续高频重传。</p>
+</section>
+<section id="duplicate-acks-and-fast-retransmit" class="level4">
+<h4 class="anchored" data-anchor-id="duplicate-acks-and-fast-retransmit"><strong>重复 ACK 与快速重传</strong></h4>
+<p>后续段到达但前方有缺口时，接收端重复确认相同下一个期望字节。经典 TCP 在收到三个重复 ACK 后推断某段很可能丢失，立即快速重传，无需等待 RTO。现代实现还结合 SACK、RACK 等基于范围和时间的方法，提高乱序环境下判断准确性。</p>
+</section>
+<section id="spurious-retransmission-and-reordering" class="level4">
+<h4 class="anchored" data-anchor-id="spurious-retransmission-and-reordering"><strong>虚假重传与乱序</strong></h4>
+<p>路径变化、无线延迟、ACK 压缩或队列抖动会让段迟到而非丢失；过短 RTO 或过度依赖重复 ACK 会产生虚假重传，浪费容量并错误触发拥塞响应。时间戳、DSACK 和更精细检测可帮助识别，但协议必须在“快速恢复真实丢包”和“容忍正常乱序”之间平衡。</p>
+<div id="e2081ea1" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.504729Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.504529Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.508531Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.508148Z&quot;}" data-execution_count="7">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RtoEstimator:</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""RFC 6298 核心估算器，同时暴露原始 RTO 与 1 秒下限 RTO。"""</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    ALPHA <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> <span class="dv">8</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    BETA <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> <span class="dv">4</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    K <span class="op">=</span> <span class="dv">4</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, clock_granularity<span class="op">=</span><span class="fl">0.001</span>):</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.g <span class="op">=</span> clock_granularity</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.srtt <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rttvar <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.raw_rto <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rto <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> observe(<span class="va">self</span>, sample_rtt: <span class="bu">float</span>):</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.srtt <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.srtt <span class="op">=</span> sample_rtt</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.rttvar <span class="op">=</span> sample_rtt <span class="op">/</span> <span class="dv">2</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>            old_srtt <span class="op">=</span> <span class="va">self</span>.srtt</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.rttvar <span class="op">=</span> (</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>                (<span class="dv">1</span> <span class="op">-</span> <span class="va">self</span>.BETA) <span class="op">*</span> <span class="va">self</span>.rttvar</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="va">self</span>.BETA <span class="op">*</span> <span class="bu">abs</span>(old_srtt <span class="op">-</span> sample_rtt)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.srtt <span class="op">=</span> (<span class="dv">1</span> <span class="op">-</span> <span class="va">self</span>.ALPHA) <span class="op">*</span> old_srtt <span class="op">+</span> <span class="va">self</span>.ALPHA <span class="op">*</span> sample_rtt</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.raw_rto <span class="op">=</span> <span class="va">self</span>.srtt <span class="op">+</span> <span class="bu">max</span>(<span class="va">self</span>.g, <span class="va">self</span>.K <span class="op">*</span> <span class="va">self</span>.rttvar)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rto <span class="op">=</span> <span class="bu">max</span>(<span class="fl">1.0</span>, <span class="va">self</span>.raw_rto)</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.srtt, <span class="va">self</span>.rttvar, <span class="va">self</span>.raw_rto, <span class="va">self</span>.rto</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> on_timeout(<span class="va">self</span>):</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 应用下限后，对当前真正启用的定时器执行退避。</span></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.rto <span class="op">*=</span> <span class="dv">2</span></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.rto</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>estimator <span class="op">=</span> RtoEstimator()</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>samples_ms <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">130</span>, <span class="dv">90</span>, <span class="dv">160</span>, <span class="dv">110</span>, <span class="dv">140</span>]</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"sample  SRTT   RTTVAR  raw RTO  RFC floor RTO"</span>)</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample_ms <span class="kw">in</span> samples_ms:</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a>    srtt, variation, raw_rto, effective_rto <span class="op">=</span> estimator.observe(sample_ms <span class="op">/</span> <span class="dv">1000</span>)</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>sample_ms<span class="sc">:4}</span><span class="ss">ms  </span><span class="sc">{</span>srtt <span class="op">*</span> <span class="dv">1000</span><span class="sc">:6.1f}</span><span class="ss">  </span><span class="sc">{</span>variation <span class="op">*</span> <span class="dv">1000</span><span class="sc">:7.1f}</span><span class="ss">  "</span></span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>raw_rto <span class="op">*</span> <span class="dv">1000</span><span class="sc">:7.1f}</span><span class="ss">ms  </span><span class="sc">{</span>effective_rto<span class="sc">:5.3f}</span><span class="ss">s"</span></span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"after timeout, backed-off RTO: </span><span class="sc">{</span>estimator<span class="sc">.</span>on_timeout()<span class="sc">:.3f}</span><span class="ss">s"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>sample  SRTT   RTTVAR  raw RTO  RFC floor RTO
+ 100ms   100.0     50.0    300.0ms  1.000s
+ 130ms   103.8     45.0    283.8ms  1.000s
+  90ms   102.0     37.2    250.8ms  1.000s
+ 160ms   109.3     42.4    278.8ms  1.000s
+ 110ms   109.4     32.0    237.2ms  1.000s
+ 140ms   113.2     31.6    239.7ms  1.000s
+after timeout, backed-off RTO: 2.000s</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="flow-control" class="level3">
+<h3 class="anchored" data-anchor-id="flow-control"><strong>流量控制</strong></h3>
+<section id="receive-windows-and-buffer-occupancy" class="level4">
+<h4 class="anchored" data-anchor-id="receive-windows-and-buffer-occupancy"><strong>接收窗口与缓冲占用</strong></h4>
+<p>接收应用读取速度可能低于网络到达速度。TCP 接收方在 ACK 中通告接收窗口 <code>rwnd</code>，表示从当前确认点起还能接收多少字节；发送端未确认数据受 <code>rwnd</code> 约束，避免覆盖接收缓冲。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tcp-flow-control.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/tcp-flow-control.svg" class="img-fluid figure-img" style="width:96.0%" alt="TCP 发送端、含 10 KiB 未读和 6 KiB 空闲的接收缓冲、应用读取与接收窗口 ACK"></a></p>
+<figcaption>接收方通告套接字缓冲区剩余空间，发送方据此限制未确认字节。</figcaption>
+</figure>
+</div>
+<p>大 BDP 路径需要窗口扩大选项突破 65,535 字节基本字段限制。窗口是动态的：应用读取会释放空间，乱序数据也会占用缓冲。</p>
+</section>
+<section id="zero-windows-and-persist-timers" class="level4">
+<h4 class="anchored" data-anchor-id="zero-windows-and-persist-timers"><strong>零窗口与持续定时器</strong></h4>
+<p>缓冲满时接收方通告零窗口。若之后的窗口更新丢失，双方可能永久等待：发送方不发数据，接收方也无新事件再次通告。因此发送方使用 persist timer 周期发送小窗口探测，迫使接收方回复当前窗口。</p>
+</section>
+<section id="flow-control-vs-congestion-control" class="level4">
+<h4 class="anchored" data-anchor-id="flow-control-vs-congestion-control"><strong>流量控制与拥塞控制</strong></h4>
+<p>流量控制保护<strong>接收主机缓冲</strong>，拥塞控制保护<strong>网络路径资源</strong>。发送端实际在途限制近似为</p>
+<p><span class="math display">\[
+FlightSize\leq\min(rwnd,cwnd),
+\]</span></p>
+<p>其中 <code>cwnd</code> 是拥塞窗口。即使接收方很快，拥塞路径也要求减速；即使路径空闲，慢应用也可能通过小 <code>rwnd</code> 限制发送。</p>
+<div id="88dd5405" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.510049Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.509854Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.514196Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.513826Z&quot;}" data-execution_count="8">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReceiveBuffer:</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    capacity_kib: <span class="bu">int</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    unread_kib: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">@property</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> advertised_window(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.capacity_kib <span class="op">-</span> <span class="va">self</span>.unread_kib</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> receive(<span class="va">self</span>, amount_kib: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        accepted <span class="op">=</span> <span class="bu">min</span>(amount_kib, <span class="va">self</span>.advertised_window)</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.unread_kib <span class="op">+=</span> accepted</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> accepted</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> application_read(<span class="va">self</span>, amount_kib: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        consumed <span class="op">=</span> <span class="bu">min</span>(amount_kib, <span class="va">self</span>.unread_kib)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.unread_kib <span class="op">-=</span> consumed</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> consumed</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a><span class="bu">buffer</span> <span class="op">=</span> ReceiveBuffer(capacity_kib<span class="op">=</span><span class="dv">16</span>)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>actions <span class="op">=</span> [</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"network"</span>, <span class="dv">8</span>),</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"network"</span>, <span class="dv">6</span>),</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"network"</span>, <span class="dv">5</span>),  <span class="co"># 此时只能再接收剩余的 2 KiB。</span></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"application"</span>, <span class="dv">10</span>),</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"network"</span>, <span class="dv">6</span>),</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"action              accepted/read   unread   advertised rwnd"</span>)</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> actor, amount <span class="kw">in</span> actions:</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> actor <span class="op">==</span> <span class="st">"network"</span>:</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>        changed <span class="op">=</span> <span class="bu">buffer</span>.receive(amount)</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="ss">f"receive </span><span class="sc">{</span>amount<span class="sc">:2}</span><span class="ss"> KiB"</span></span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>        changed <span class="op">=</span> <span class="bu">buffer</span>.application_read(amount)</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="ss">f"read    </span><span class="sc">{</span>amount<span class="sc">:2}</span><span class="ss"> KiB"</span></span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>label<span class="sc">:19}</span><span class="ss"> </span><span class="sc">{</span>changed<span class="sc">:3}</span><span class="ss"> KiB       </span><span class="sc">{</span><span class="bu">buffer</span><span class="sc">.</span>unread_kib<span class="sc">:3}</span><span class="ss"> KiB"</span></span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"       </span><span class="sc">{</span><span class="bu">buffer</span><span class="sc">.</span>advertised_window<span class="sc">:3}</span><span class="ss"> KiB"</span></span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a>congestion_window_kib <span class="op">=</span> <span class="dv">9</span></span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"effective sender window:"</span>, <span class="bu">min</span>(<span class="bu">buffer</span>.advertised_window, congestion_window_kib), <span class="st">"KiB"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>action              accepted/read   unread   advertised rwnd
+receive  8 KiB        8 KiB         8 KiB         8 KiB
+receive  6 KiB        6 KiB        14 KiB         2 KiB
+receive  5 KiB        2 KiB        16 KiB         0 KiB
+read    10 KiB       10 KiB         6 KiB        10 KiB
+receive  6 KiB        6 KiB        12 KiB         4 KiB
+effective sender window: 4 KiB</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="quic-as-a-modern-transport" class="level3">
+<h3 class="anchored" data-anchor-id="quic-as-a-modern-transport"><strong>作为现代传输协议的 QUIC</strong></h3>
+<section id="transport-over-udp-and-user-space-evolution" class="level4">
+<h4 class="anchored" data-anchor-id="transport-over-udp-and-user-space-evolution"><strong>基于 UDP 的传输与用户态演进</strong></h4>
+<p>QUIC 把可靠传输、拥塞控制、TLS 1.3 与多流封装在 UDP 数据报中，通常在应用/用户态实现。使用 UDP 让现有 NAT 与网络能够转发，而用户态发布使协议不必等待所有操作系统内核升级。QUIC 仍必须实现负责任的拥塞控制、安全和路径验证，UDP 只是承载方式。</p>
+</section>
+<section id="streams-connection-ids-and-migration" class="level4">
+<h4 class="anchored" data-anchor-id="streams-connection-ids-and-migration"><strong>流、连接 ID 与迁移</strong></h4>
+<p>一条 QUIC 连接可包含多条独立双向或单向流，每条流拥有自己的有序字节空间。连接由不直接绑定 IP/端口的 Connection ID 标识，使设备从 Wi-Fi 切换到蜂窝、地址或 NAT 映射改变时可以验证新路径并迁移，而不必重建整个应用会话。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/quic-streams.png" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/quic-streams.png" class="img-fluid figure-img" style="width:92.0%" alt="两条不同颜色的 QUIC 独立流连接同一对计算机"></a></p>
+<figcaption>多条独立 QUIC 流在同一连接上分别前进，无需跨流按序交付。</figcaption>
+</figure>
+</div>
+</section>
+<section id="handshake-integration-and-head-of-line-blocking" class="level4">
+<h4 class="anchored" data-anchor-id="handshake-integration-and-head-of-line-blocking"><strong>握手整合与队头阻塞</strong></h4>
+<p>QUIC 将传输参数与 TLS 1.3 握手整合，首次连接通常用 1 RTT 建立安全状态，恢复连接可发送 0-RTT 数据，但早期数据存在重放风险，只适合幂等操作。一个分组丢失时，其中某条流等待重传，其他流仍可交付；这消除了 TCP 在多路 HTTP/2 流之间的跨流队头阻塞，但同一流内部仍保持有序。</p>
+<p>QUIC 加密更多控制信息，减少中间盒僵化，却让传统被动监控更困难，需要端点日志、标准化自旋位或显式遥测补充可观测性。</p>
+<div id="3800a4d4" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.515904Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.515753Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.518905Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.518577Z&quot;}" data-execution_count="9">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> IndependentStream:</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""重组一条有序流，且不与其他流耦合。"""</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_offset <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fragments <span class="op">=</span> {}</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.delivered <span class="op">=</span> <span class="bu">bytearray</span>()</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> receive(<span class="va">self</span>, offset: <span class="bu">int</span>, data: <span class="bu">bytes</span>):</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fragments[offset] <span class="op">=</span> data</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">self</span>.next_offset <span class="kw">in</span> <span class="va">self</span>.fragments:</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>            fragment <span class="op">=</span> <span class="va">self</span>.fragments.pop(<span class="va">self</span>.next_offset)</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.delivered.extend(fragment)</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.next_offset <span class="op">+=</span> <span class="bu">len</span>(fragment)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">bytes</span>(<span class="va">self</span>.delivered)</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>streams <span class="op">=</span> {<span class="st">"A"</span>: IndependentStream(), <span class="st">"B"</span>: IndependentStream()}</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a><span class="co"># 流 A 缺少前四个字节，而流 B 完整到达。</span></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"A after offset 4:"</span>, streams[<span class="st">"A"</span>].receive(<span class="dv">4</span>, <span class="st">b"-page"</span>))</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"B after offset 0:"</span>, streams[<span class="st">"B"</span>].receive(<span class="dv">0</span>, <span class="st">b"style.css"</span>))</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"A after repair:  "</span>, streams[<span class="st">"A"</span>].receive(<span class="dv">0</span>, <span class="st">b"home"</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>A after offset 4: b''
+B after offset 0: b'style.css'
+A after repair:   b'home-page'</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="implementing-tcp-and-udp-socket-programs" class="level3">
+<h3 class="anchored" data-anchor-id="implementing-tcp-and-udp-socket-programs"><strong>实现 TCP 与 UDP 套接字程序</strong></h3>
+<p>后面的两个示例展示不同编程契约。UDP 服务器一次接收一个数据报并用来源地址回复；TCP 服务器先 <code>listen/accept</code> 得到连接套接字，再循环读取字节。代码必须处理超时、部分读取、对端关闭和资源释放。</p>
+<p>TCP 中 <code>send</code>/<code>recv</code> 返回的数量不能被假定等于应用消息大小，稳健程序要使用长度前缀、分隔符或固定结构，并循环直到收齐。UDP 程序则要验证消息长度、来源与请求标识，并限制回复大小，避免成为反射放大器。示例仅绑定回环地址，适合安全地观察本机行为。</p>
+<div id="2d69fe2a" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.520355Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.520202Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.523440Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.523093Z&quot;}" data-execution_count="10">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> socket</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 绑定端口 0，让操作系统选择未使用的本地 UDP 端口。</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> socket.socket(socket.AF_INET, socket.SOCK_DGRAM) <span class="im">as</span> receiver, <span class="op">\</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>     socket.socket(socket.AF_INET, socket.SOCK_DGRAM) <span class="im">as</span> sender:</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    receiver.bind((<span class="st">"127.0.0.1"</span>, <span class="dv">0</span>))</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    receiver.settimeout(<span class="fl">1.0</span>)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    local_endpoint <span class="op">=</span> receiver.getsockname()</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    request <span class="op">=</span> <span class="st">b"id=7;question=transport"</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>    sender.sendto(request, local_endpoint)</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    response, source <span class="op">=</span> receiver.recvfrom(<span class="dv">2048</span>)</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"received:"</span>, response)</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"source is loopback:"</span>, source[<span class="dv">0</span>] <span class="op">==</span> <span class="st">"127.0.0.1"</span>)</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"one sendto produced one received datagram:"</span>, response <span class="op">==</span> request)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>received: b'id=7;question=transport'
+source is loopback: True
+one sendto produced one received datagram: True</code></pre>
+</div>
+</div>
+<div id="35c855ce" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.524797Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.524612Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.528906Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.528514Z&quot;}" data-execution_count="11">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> socket</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> struct</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> encode_frame(payload: <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="bu">bytes</span>:</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> struct.pack(<span class="st">"!I"</span>, <span class="bu">len</span>(payload)) <span class="op">+</span> payload</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> decode_frames(<span class="bu">buffer</span>: <span class="bu">bytearray</span>):</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    messages <span class="op">=</span> []</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">len</span>(<span class="bu">buffer</span>) <span class="op">&gt;=</span> <span class="dv">4</span>:</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>        length <span class="op">=</span> struct.unpack(<span class="st">"!I"</span>, <span class="bu">buffer</span>[:<span class="dv">4</span>])[<span class="dv">0</span>]</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="bu">buffer</span>) <span class="op">&lt;</span> <span class="dv">4</span> <span class="op">+</span> length:</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>        messages.append(<span class="bu">bytes</span>(<span class="bu">buffer</span>[<span class="dv">4</span>:<span class="dv">4</span> <span class="op">+</span> length]))</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>        <span class="kw">del</span> <span class="bu">buffer</span>[:<span class="dv">4</span> <span class="op">+</span> length]</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> messages</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>left, right <span class="op">=</span> socket.socketpair()</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> left, right:</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 两条应用消息一起写入；TCP 只会暴露字节流。</span></span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    left.sendall(encode_frame(<span class="st">b"alpha"</span>) <span class="op">+</span> encode_frame(<span class="st">b"beta-beta"</span>))</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    left.shutdown(socket.SHUT_WR)</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>    receive_buffer <span class="op">=</span> <span class="bu">bytearray</span>()</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>    decoded <span class="op">=</span> []</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>        chunk <span class="op">=</span> right.recv(<span class="dv">5</span>)  <span class="co"># 故意使读取边界与帧边界无关。</span></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> chunk:</span>
+<span id="cb21-31"><a href="#cb21-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb21-32"><a href="#cb21-32" aria-hidden="true" tabindex="-1"></a>        receive_buffer.extend(chunk)</span>
+<span id="cb21-33"><a href="#cb21-33" aria-hidden="true" tabindex="-1"></a>        decoded.extend(decode_frames(receive_buffer))</span>
+<span id="cb21-34"><a href="#cb21-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-35"><a href="#cb21-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"decoded messages:"</span>, decoded)</span>
+<span id="cb21-36"><a href="#cb21-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"unconsumed bytes:"</span>, <span class="bu">len</span>(receive_buffer))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>decoded messages: [b'alpha', b'beta-beta']
+unconsumed bytes: 0</code></pre>
+</div>
+</div>
+</section>
+<section id="building-a-minimal-reliable-byte-stream" class="level3">
+<h3 class="anchored" data-anchor-id="building-a-minimal-reliable-byte-stream"><strong>构建最小可靠字节流</strong></h3>
+<p>教学实现把可靠性拆为清晰状态：发送端保存下一个序号、未确认字节、发送时间与重试次数；接收端保存下一个期望序号和乱序缓冲；ACK 推进连续前缀；超时只重传尚未确认范围。代码不试图复刻完整 TCP，而是用可测试模型展示不变量。</p>
+<p>建议用确定性事件序列测试：丢失数据、丢失 ACK、重复数据、乱序、延迟重传与序号边界。每次事件后检查“应用只收到一次且按序”“ACK 不越过缺口”“已确认数据不再保留”。可靠性来自这些状态约束，而不是调用一次 <code>send</code>。</p>
+<div id="6ec4b42e" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T10:25:19.530498Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T10:25:19.530310Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T10:25:19.535575Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T10:25:19.535215Z&quot;}" data-execution_count="12">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> zlib</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Segment:</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    offset: <span class="bu">int</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    payload: <span class="bu">bytes</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    checksum: <span class="bu">int</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">@classmethod</span></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> create(cls, offset: <span class="bu">int</span>, payload: <span class="bu">bytes</span>):</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a>        protected <span class="op">=</span> offset.to_bytes(<span class="dv">4</span>, <span class="st">"big"</span>) <span class="op">+</span> payload</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> cls(offset, payload, zlib.crc32(protected))</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> valid(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a>        protected <span class="op">=</span> <span class="va">self</span>.offset.to_bytes(<span class="dv">4</span>, <span class="st">"big"</span>) <span class="op">+</span> <span class="va">self</span>.payload</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> zlib.crc32(protected) <span class="op">==</span> <span class="va">self</span>.checksum</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MinimalByteReceiver:</span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_offset <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fragments <span class="op">=</span> {}</span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.application <span class="op">=</span> <span class="bu">bytearray</span>()</span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-27"><a href="#cb23-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> receive(<span class="va">self</span>, segment: Segment):</span>
+<span id="cb23-28"><a href="#cb23-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> segment.valid() <span class="kw">and</span> segment.offset <span class="op">&gt;=</span> <span class="va">self</span>.next_offset:</span>
+<span id="cb23-29"><a href="#cb23-29" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.fragments.setdefault(segment.offset, segment.payload)</span>
+<span id="cb23-30"><a href="#cb23-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">self</span>.next_offset <span class="kw">in</span> <span class="va">self</span>.fragments:</span>
+<span id="cb23-31"><a href="#cb23-31" aria-hidden="true" tabindex="-1"></a>            payload <span class="op">=</span> <span class="va">self</span>.fragments.pop(<span class="va">self</span>.next_offset)</span>
+<span id="cb23-32"><a href="#cb23-32" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.application.extend(payload)</span>
+<span id="cb23-33"><a href="#cb23-33" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.next_offset <span class="op">+=</span> <span class="bu">len</span>(payload)</span>
+<span id="cb23-34"><a href="#cb23-34" aria-hidden="true" tabindex="-1"></a>        sacks <span class="op">=</span> <span class="bu">sorted</span>(</span>
+<span id="cb23-35"><a href="#cb23-35" aria-hidden="true" tabindex="-1"></a>            (offset, offset <span class="op">+</span> <span class="bu">len</span>(payload))</span>
+<span id="cb23-36"><a href="#cb23-36" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> offset, payload <span class="kw">in</span> <span class="va">self</span>.fragments.items()</span>
+<span id="cb23-37"><a href="#cb23-37" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb23-38"><a href="#cb23-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.next_offset, sacks</span>
+<span id="cb23-39"><a href="#cb23-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-40"><a href="#cb23-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-41"><a href="#cb23-41" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> <span class="st">b"reliable-stream"</span></span>
+<span id="cb23-42"><a href="#cb23-42" aria-hidden="true" tabindex="-1"></a>segments <span class="op">=</span> [Segment.create(offset, data[offset:offset <span class="op">+</span> <span class="dv">4</span>]) <span class="cf">for</span> offset <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(data), <span class="dv">4</span>)]</span>
+<span id="cb23-43"><a href="#cb23-43" aria-hidden="true" tabindex="-1"></a>receiver <span class="op">=</span> MinimalByteReceiver()</span>
+<span id="cb23-44"><a href="#cb23-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-45"><a href="#cb23-45" aria-hidden="true" tabindex="-1"></a><span class="co"># 第一轮：偏移 4 丢失，后续段被乱序缓存。</span></span>
+<span id="cb23-46"><a href="#cb23-46" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> segment <span class="kw">in</span> [segments[<span class="dv">0</span>], segments[<span class="dv">2</span>], segments[<span class="dv">3</span>]]:</span>
+<span id="cb23-47"><a href="#cb23-47" aria-hidden="true" tabindex="-1"></a>    ack, sacks <span class="op">=</span> receiver.receive(segment)</span>
+<span id="cb23-48"><a href="#cb23-48" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"arrival offset=</span><span class="sc">{</span>segment<span class="sc">.</span>offset<span class="sc">:2}</span><span class="ss"> -&gt; ACK=</span><span class="sc">{</span>ack<span class="sc">:2}</span><span class="ss">, SACK=</span><span class="sc">{</span>sacks<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb23-49"><a href="#cb23-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-50"><a href="#cb23-50" aria-hidden="true" tabindex="-1"></a><span class="co"># 选择性修复第一个缺失区间后，释放已缓存后缀。</span></span>
+<span id="cb23-51"><a href="#cb23-51" aria-hidden="true" tabindex="-1"></a>ack, sacks <span class="op">=</span> receiver.receive(segments[<span class="dv">1</span>])</span>
+<span id="cb23-52"><a href="#cb23-52" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"repair  offset=</span><span class="sc">{</span>segments[<span class="dv">1</span>]<span class="sc">.</span>offset<span class="sc">:2}</span><span class="ss"> -&gt; ACK=</span><span class="sc">{</span>ack<span class="sc">:2}</span><span class="ss">, SACK=</span><span class="sc">{</span>sacks<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb23-53"><a href="#cb23-53" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"application received:"</span>, <span class="bu">bytes</span>(receiver.application))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>arrival offset= 0 -&gt; ACK= 4, SACK=[]
+arrival offset= 8 -&gt; ACK= 4, SACK=[(8, 12)]
+arrival offset=12 -&gt; ACK= 4, SACK=[(8, 12), (12, 15)]
+repair  offset= 4 -&gt; ACK=15, SACK=[]
+application received: b'reliable-stream'</code></pre>
+</div>
+</div>
+</section>
+<section id="observing-and-troubleshooting-transport-behavior" class="level3">
+<h3 class="anchored" data-anchor-id="observing-and-troubleshooting-transport-behavior"><strong>观察与排查传输行为</strong></h3>
+<p>Windows 上可从连接与端口状态开始：</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode powershell code-with-copy"><code class="sourceCode powershell"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 监听端口和活动 TCP 连接</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>Get-NetTCPConnection <span class="op">|</span> <span class="fu">Sort-Object</span> State<span class="op">,</span> LocalPort</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 测试某个远端 TCP 端口</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>Test-NetConnection example<span class="op">.</span><span class="fu">com</span> <span class="op">-</span>Port <span class="dv">443</span></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看 TCP 统计与重传相关计数</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>netstat <span class="op">-</span>s <span class="op">-</span>p tcp</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 观察 HTTP/TLS 连接过程</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="fu">curl</span><span class="op">.</span><span class="fu">exe</span> <span class="op">-</span>v https<span class="op">://</span>example<span class="op">.</span><span class="fu">com</span><span class="op">/</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>抓包时按时间线检查握手、初始 RTT、MSS/窗口/SACK 协商、序号推进、重复 ACK、重传、零窗口和关闭。必须考虑网卡卸载：本机抓包可能显示“超大段”或错误校验和，因为分段/校验将在网卡完成；这不一定是线上真实帧。</p>
+<p>症状与线索包括：SYN 重传而无 SYN-ACK 可能是路径、防火墙或服务未监听；握手成功但应用无数据可能是协议/服务器问题；重复 ACK 与 SACK 缺口提示丢失或乱序；窗口长期为零说明接收应用未及时读取；RTO 指数增长说明路径严重不通；大量短连接与 TIME_WAIT 则提示应考虑连接复用。</p>
+</section>
+<section id="summary" class="level3">
+<h3 class="anchored" data-anchor-id="summary"><strong>总结</strong></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>解决的问题</th>
+<th>不能单独解决</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>校验和</td>
+<td>发现比特损坏</td>
+<td>丢失、顺序和恶意篡改</td>
+</tr>
+<tr class="even">
+<td>序号</td>
+<td>区分新旧、恢复顺序</td>
+<td>判断何时重传</td>
+</tr>
+<tr class="odd">
+<td>ACK/SACK</td>
+<td>反馈连续与非连续接收状态</td>
+<td>ACK 自身丢失</td>
+</tr>
+<tr class="even">
+<td>定时器</td>
+<td>在反馈缺失时推动恢复</td>
+<td>准确证明分组已丢失</td>
+</tr>
+<tr class="odd">
+<td>滑动窗口</td>
+<td>让多份数据同时在途</td>
+<td>自动保证网络公平</td>
+</tr>
+<tr class="even">
+<td><code>rwnd</code></td>
+<td>保护接收缓冲</td>
+<td>保护网络队列</td>
+</tr>
+<tr class="odd">
+<td><code>cwnd</code></td>
+<td>根据网络信号限制在途量</td>
+<td>保护慢接收应用</td>
+</tr>
+<tr class="even">
+<td>QUIC 多流</td>
+<td>避免跨流 TCP 队头阻塞</td>
+<td>单流内部按序等待</td>
+</tr>
+</tbody>
+</table>
+<p>可靠端到端传输是一套相互依赖的状态机机制。UDP 提供最小消息服务，停等协议说明可靠性的必要构件，滑动窗口恢复路径利用率，TCP 把这些构件组织成广泛部署的字节流，而 QUIC 展示了在安全、多流和部署演进要求下的现代重新组合。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1580 820" role="img" aria-labelledby="title desc">
+  <title id="title">How a shell builds a two-process pipeline</title>
+  <desc id="desc">The shell creates a pipe and output file, forks children that inherit descriptors, redirects standard streams, executes cat and grep, closes unused ends, and waits.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3 z" fill="#355070"/></marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #17212b; }
+      .title { font-size: 31px; font-weight: 700; }
+      .step { font-size: 21px; font-weight: 700; }
+      .head { font-size: 19px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; }
+      .box { stroke: #355070; stroke-width: 2.2; rx: 7; }
+      .arrow { stroke: #355070; stroke-width: 2.8; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+  <rect width="1580" height="820" fill="#fff"/>
+  <text x="790" y="44" text-anchor="middle" class="title">Shell Construction of cat input.txt | grep kernel &gt; result.txt</text>
+
+  <rect x="45" y="80" width="350" height="625" class="box" fill="#e9f2fb"/>
+  <text x="220" y="118" text-anchor="middle" class="step">Create kernel objects</text>
+  <rect x="85" y="158" width="270" height="92" class="box" fill="#fff"/>
+  <text x="220" y="191" text-anchor="middle" class="head">Shell descriptor table</text>
+  <text x="220" y="221" text-anchor="middle" class="body">0 stdin | 1 stdout | 2 stderr</text>
+  <rect x="85" y="285" width="120" height="82" class="box" fill="#f1eef8"/>
+  <text x="145" y="318" text-anchor="middle" class="head">pipe read</text><text x="145" y="347" text-anchor="middle" class="body">fd 3</text>
+  <rect x="235" y="285" width="120" height="82" class="box" fill="#f1eef8"/>
+  <text x="295" y="318" text-anchor="middle" class="head">pipe write</text><text x="295" y="347" text-anchor="middle" class="body">fd 4</text>
+  <rect x="135" y="405" width="170" height="82" class="box" fill="#fdebea"/>
+  <text x="220" y="438" text-anchor="middle" class="head">result.txt</text><text x="220" y="467" text-anchor="middle" class="body">fd 5, create/truncate</text>
+  <text x="220" y="548" text-anchor="middle" class="body">pipe2() + openat()</text>
+  <text x="220" y="579" text-anchor="middle" class="small">objects exist before fork</text>
+  <text x="220" y="642" text-anchor="middle" class="small">Exact fd numbers are examples.</text>
+
+  <rect x="435" y="80" width="350" height="625" class="box" fill="#fff3d9"/>
+  <text x="610" y="118" text-anchor="middle" class="step">Fork two children</text>
+  <rect x="477" y="164" width="266" height="150" class="box" fill="#fff"/>
+  <text x="610" y="198" text-anchor="middle" class="head">Child for cat</text>
+  <text x="610" y="231" text-anchor="middle" class="body">inherits fd 0,1,2,3,4,5</text>
+  <text x="610" y="263" text-anchor="middle" class="body">same open-file descriptions</text>
+  <text x="610" y="291" text-anchor="middle" class="small">new descriptor table entries</text>
+  <rect x="477" y="361" width="266" height="150" class="box" fill="#fff"/>
+  <text x="610" y="395" text-anchor="middle" class="head">Child for grep</text>
+  <text x="610" y="428" text-anchor="middle" class="body">inherits fd 0,1,2,3,4,5</text>
+  <text x="610" y="460" text-anchor="middle" class="body">same pipe and output objects</text>
+  <text x="610" y="488" text-anchor="middle" class="small">independently schedulable</text>
+  <text x="610" y="579" text-anchor="middle" class="body">fork() twice</text>
+  <path d="M395 326 L435 326" class="arrow"/>
+
+  <rect x="825" y="80" width="350" height="625" class="box" fill="#f1eef8"/>
+  <text x="1000" y="118" text-anchor="middle" class="step">Redirect and exec</text>
+  <rect x="867" y="164" width="266" height="150" class="box" fill="#e6f5ef"/>
+  <text x="1000" y="198" text-anchor="middle" class="head">cat child</text>
+  <text x="1000" y="231" text-anchor="middle" class="body">dup2(fd 4, STDOUT_FILENO)</text>
+  <text x="1000" y="263" text-anchor="middle" class="body">close 3, 4, 5</text>
+  <text x="1000" y="291" text-anchor="middle" class="small">execvp("cat", ...)</text>
+  <rect x="867" y="361" width="266" height="150" class="box" fill="#fdebea"/>
+  <text x="1000" y="395" text-anchor="middle" class="head">grep child</text>
+  <text x="1000" y="428" text-anchor="middle" class="body">dup2(fd 3, stdin); dup2(fd 5, stdout)</text>
+  <text x="1000" y="460" text-anchor="middle" class="body">close 3, 4, 5</text>
+  <text x="1000" y="488" text-anchor="middle" class="small">execvp("grep", ...)</text>
+  <text x="1000" y="579" text-anchor="middle" class="body">descriptor graph survives exec</text>
+  <path d="M785 326 L825 326" class="arrow"/>
+
+  <rect x="1215" y="80" width="320" height="625" class="box" fill="#e6f5ef"/>
+  <text x="1375" y="118" text-anchor="middle" class="step">Run, close, and reap</text>
+  <rect x="1255" y="168" width="240" height="90" class="box" fill="#fff"/>
+  <text x="1375" y="201" text-anchor="middle" class="head">cat</text><text x="1375" y="231" text-anchor="middle" class="body">input.txt -> pipe write end</text>
+  <rect x="1255" y="300" width="240" height="90" class="box" fill="#fff"/>
+  <text x="1375" y="333" text-anchor="middle" class="head">grep</text><text x="1375" y="363" text-anchor="middle" class="body">pipe read end -> result.txt</text>
+  <rect x="1255" y="432" width="240" height="110" class="box" fill="#fff3d9"/>
+  <text x="1375" y="466" text-anchor="middle" class="head">Parent shell</text>
+  <text x="1375" y="496" text-anchor="middle" class="body">closes fd 3, 4, 5</text>
+  <text x="1375" y="523" text-anchor="middle" class="small">waitpid() for both children</text>
+  <path d="M1175 326 L1215 326" class="arrow"/>
+  <text x="1375" y="590" text-anchor="middle" class="body">last write end closes -> EOF</text>
+  <text x="1375" y="620" text-anchor="middle" class="small">status returns to the shell</text>
+
+  <rect x="180" y="744" width="1220" height="50" rx="8" fill="#f8fafb" stroke="#7c8794" stroke-width="2"/>
+  <text x="790" y="775" text-anchor="middle" class="body">Correctness depends on closing every unused pipe end in the parent and both children.</text>
+</svg>

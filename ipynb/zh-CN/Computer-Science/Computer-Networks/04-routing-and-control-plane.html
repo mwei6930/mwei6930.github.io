@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机网络：路由与互联网控制平面</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="04-routing-and-control-plane_files/libs/clipboard/clipboard.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/quarto.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/popper.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="04-routing-and-control-plane_files/libs/quarto-html/anchor.min.js"></script>
+<link href="04-routing-and-control-plane_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="04-routing-and-control-plane_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="04-routing-and-control-plane_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="04-routing-and-control-plane_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="04-routing-and-control-plane_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#routing-and-the-internet-control-plane" id="toc-routing-and-the-internet-control-plane" class="nav-link active" data-scroll-target="#routing-and-the-internet-control-plane"><strong>路由与互联网控制平面</strong></a>
+  <ul>
+  <li><a href="#the-routing-problem" id="toc-the-routing-problem" class="nav-link" data-scroll-target="#the-routing-problem"><strong>路由问题</strong></a>
+  <ul>
+  <li><a href="#topology-metrics-paths-and-policies" id="toc-topology-metrics-paths-and-policies" class="nav-link" data-scroll-target="#topology-metrics-paths-and-policies"><strong>拓扑、度量、路径与策略</strong></a></li>
+  <li><a href="#centralized-vs-distributed-routing" id="toc-centralized-vs-distributed-routing" class="nav-link" data-scroll-target="#centralized-vs-distributed-routing"><strong>集中式与分布式路由</strong></a></li>
+  <li><a href="#static-vs-dynamic-routes" id="toc-static-vs-dynamic-routes" class="nav-link" data-scroll-target="#static-vs-dynamic-routes"><strong>静态路由与动态路由</strong></a></li>
+  <li><a href="#convergence-stability-and-failure-recovery" id="toc-convergence-stability-and-failure-recovery" class="nav-link" data-scroll-target="#convergence-stability-and-failure-recovery"><strong>收敛、稳定性与故障恢复</strong></a></li>
+  </ul></li>
+  <li><a href="#distance-vector-routing" id="toc-distance-vector-routing" class="nav-link" data-scroll-target="#distance-vector-routing"><strong>距离向量路由</strong></a>
+  <ul>
+  <li><a href="#bellman-ford-recurrence" id="toc-bellman-ford-recurrence" class="nav-link" data-scroll-target="#bellman-ford-recurrence"><strong>Bellman–Ford 递推</strong></a></li>
+  <li><a href="#distributed-route-advertisement" id="toc-distributed-route-advertisement" class="nav-link" data-scroll-target="#distributed-route-advertisement"><strong>分布式路由通告</strong></a></li>
+  <li><a href="#count-to-infinity-and-routing-loops" id="toc-count-to-infinity-and-routing-loops" class="nav-link" data-scroll-target="#count-to-infinity-and-routing-loops"><strong>计数到无穷与路由环路</strong></a></li>
+  <li><a href="#split-horizon-poison-reverse-and-hold-down" id="toc-split-horizon-poison-reverse-and-hold-down" class="nav-link" data-scroll-target="#split-horizon-poison-reverse-and-hold-down"><strong>水平分割、毒性逆转与抑制定时器</strong></a></li>
+  </ul></li>
+  <li><a href="#link-state-routing" id="toc-link-state-routing" class="nav-link" data-scroll-target="#link-state-routing"><strong>链路状态路由</strong></a>
+  <ul>
+  <li><a href="#topology-discovery-and-link-state-flooding" id="toc-topology-discovery-and-link-state-flooding" class="nav-link" data-scroll-target="#topology-discovery-and-link-state-flooding"><strong>拓扑发现与链路状态泛洪</strong></a></li>
+  <li><a href="#dijkstras-shortest-path-algorithm" id="toc-dijkstras-shortest-path-algorithm" class="nav-link" data-scroll-target="#dijkstras-shortest-path-algorithm"><strong>Dijkstra 最短路径算法</strong></a></li>
+  <li><a href="#sequence-numbers-aging-and-reliable-flooding" id="toc-sequence-numbers-aging-and-reliable-flooding" class="nav-link" data-scroll-target="#sequence-numbers-aging-and-reliable-flooding"><strong>序列号、老化与可靠泛洪</strong></a></li>
+  <li><a href="#distance-vector-vs-link-state" id="toc-distance-vector-vs-link-state" class="nav-link" data-scroll-target="#distance-vector-vs-link-state"><strong>距离向量与链路状态对比</strong></a></li>
+  </ul></li>
+  <li><a href="#intradomain-routing" id="toc-intradomain-routing" class="nav-link" data-scroll-target="#intradomain-routing"><strong>域内路由</strong></a>
+  <ul>
+  <li><a href="#routing-information-protocol" id="toc-routing-information-protocol" class="nav-link" data-scroll-target="#routing-information-protocol"><strong>路由信息协议</strong></a></li>
+  <li><a href="#open-shortest-path-first" id="toc-open-shortest-path-first" class="nav-link" data-scroll-target="#open-shortest-path-first"><strong>开放最短路径优先</strong></a></li>
+  <li><a href="#is-is-and-operational-differences" id="toc-is-is-and-operational-differences" class="nav-link" data-scroll-target="#is-is-and-operational-differences"><strong>IS-IS 与运维差异</strong></a></li>
+  <li><a href="#areas-summarization-ecmp-and-redistribution" id="toc-areas-summarization-ecmp-and-redistribution" class="nav-link" data-scroll-target="#areas-summarization-ecmp-and-redistribution"><strong>区域、汇总、ECMP 与重分发</strong></a></li>
+  </ul></li>
+  <li><a href="#autonomous-systems-and-internet-economics" id="toc-autonomous-systems-and-internet-economics" class="nav-link" data-scroll-target="#autonomous-systems-and-internet-economics"><strong>自治系统与互联网经济关系</strong></a>
+  <ul>
+  <li><a href="#transit-peering-and-customer-provider-relationships" id="toc-transit-peering-and-customer-provider-relationships" class="nav-link" data-scroll-target="#transit-peering-and-customer-provider-relationships"><strong>转接、对等与客户—提供商关系</strong></a></li>
+  <li><a href="#policy-routing-vs-shortest-path-routing" id="toc-policy-routing-vs-shortest-path-routing" class="nav-link" data-scroll-target="#policy-routing-vs-shortest-path-routing"><strong>策略路由与最短路径路由</strong></a></li>
+  <li><a href="#valley-free-paths-and-export-policies" id="toc-valley-free-paths-and-export-policies" class="nav-link" data-scroll-target="#valley-free-paths-and-export-policies"><strong>无谷路径与导出策略</strong></a></li>
+  </ul></li>
+  <li><a href="#border-gateway-protocol" id="toc-border-gateway-protocol" class="nav-link" data-scroll-target="#border-gateway-protocol"><strong>边界网关协议</strong></a>
+  <ul>
+  <li><a href="#ebgp-and-ibgp-sessions" id="toc-ebgp-and-ibgp-sessions" class="nav-link" data-scroll-target="#ebgp-and-ibgp-sessions"><strong>eBGP 与 iBGP 会话</strong></a></li>
+  <li><a href="#bgp-route-advertisements-and-path-attributes" id="toc-bgp-route-advertisements-and-path-attributes" class="nav-link" data-scroll-target="#bgp-route-advertisements-and-path-attributes"><strong>BGP 路由通告与路径属性</strong></a></li>
+  <li><a href="#route-selection-and-policy" id="toc-route-selection-and-policy" class="nav-link" data-scroll-target="#route-selection-and-policy"><strong>路由选择与策略</strong></a></li>
+  <li><a href="#import-policy-export-policy-and-the-fib" id="toc-import-policy-export-policy-and-the-fib" class="nav-link" data-scroll-target="#import-policy-export-policy-and-the-fib"><strong>导入策略、导出策略与 FIB</strong></a></li>
+  <li><a href="#route-reflection-and-scaling-ibgp" id="toc-route-reflection-and-scaling-ibgp" class="nav-link" data-scroll-target="#route-reflection-and-scaling-ibgp"><strong>路由反射与 iBGP 扩展</strong></a></li>
+  </ul></li>
+  <li><a href="#convergence-and-interdomain-failure-modes" id="toc-convergence-and-interdomain-failure-modes" class="nav-link" data-scroll-target="#convergence-and-interdomain-failure-modes"><strong>收敛与域间故障模式</strong></a>
+  <ul>
+  <li><a href="#path-exploration-and-slow-convergence" id="toc-path-exploration-and-slow-convergence" class="nav-link" data-scroll-target="#path-exploration-and-slow-convergence"><strong>路径探索与慢收敛</strong></a></li>
+  <li><a href="#route-leaks-and-prefix-hijacking" id="toc-route-leaks-and-prefix-hijacking" class="nav-link" data-scroll-target="#route-leaks-and-prefix-hijacking"><strong>路由泄漏与前缀劫持</strong></a></li>
+  <li><a href="#filtering-rpki-and-route-origin-validation" id="toc-filtering-rpki-and-route-origin-validation" class="nav-link" data-scroll-target="#filtering-rpki-and-route-origin-validation"><strong>过滤、RPKI 与路由起源验证</strong></a></li>
+  <li><a href="#operational-tradeoffs-in-routing-security" id="toc-operational-tradeoffs-in-routing-security" class="nav-link" data-scroll-target="#operational-tradeoffs-in-routing-security"><strong>路由安全的运维权衡</strong></a></li>
+  </ul></li>
+  <li><a href="#anycast-multicast-and-specialized-routing" id="toc-anycast-multicast-and-specialized-routing" class="nav-link" data-scroll-target="#anycast-multicast-and-specialized-routing"><strong>任播、组播与专用路由</strong></a>
+  <ul>
+  <li><a href="#ip-anycast-and-service-replication" id="toc-ip-anycast-and-service-replication" class="nav-link" data-scroll-target="#ip-anycast-and-service-replication"><strong>IP 任播与服务复制</strong></a></li>
+  <li><a href="#multicast-trees-and-group-membership-overview" id="toc-multicast-trees-and-group-membership-overview" class="nav-link" data-scroll-target="#multicast-trees-and-group-membership-overview"><strong>组播树与组成员管理概览</strong></a></li>
+  </ul></li>
+  <li><a href="#simulating-distance-vector-and-link-state-routing" id="toc-simulating-distance-vector-and-link-state-routing" class="nav-link" data-scroll-target="#simulating-distance-vector-and-link-state-routing"><strong>模拟距离向量与链路状态路由</strong></a></li>
+  <li><a href="#tracing-an-internet-route-across-autonomous-systems" id="toc-tracing-an-internet-route-across-autonomous-systems" class="nav-link" data-scroll-target="#tracing-an-internet-route-across-autonomous-systems"><strong>跨自治系统追踪互联网路由</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机网络：路由与互联网控制平面</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Networks/04-routing-and-control-plane.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Computer-Networks/Computer-Networks.html">返回计算机网络总览</a>
+</p>
+<section id="routing-and-the-internet-control-plane" class="level2">
+<h2 class="anchored" data-anchor-id="routing-and-the-internet-control-plane"><strong>路由与互联网控制平面</strong></h2>
+<p>转发回答“这个分组现在送到哪个端口”，路由则回答“这些转发规则从哪里来”。网络拓扑、链路状态、商业关系和安全事件都在变化，控制平面必须让分散设备在有限信息和故障条件下形成足够一致、稳定且符合策略的路径。</p>
+<p>本章从两类经典算法开始：距离向量只向邻居交换目的距离，链路状态则向区域内传播拓扑并在本地运行最短路。随后把算法放入真实协议：RIP、OSPF 与 IS-IS 解决自治系统内部路由，BGP 在自治系统之间传播可达性与策略。最后讨论收敛、环路、路由泄漏、前缀劫持、RPKI、任播和组播。</p>
+<div class="callout callout-style-default callout-warning callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+警告
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>互联网路由不是单纯的“全局最短路”。AS 内可以优化度量，AS 间首先受商业与安全策略约束；路径长度只是决策属性之一。某条更长路径可能因为客户关系或本地策略而被有意优先选择。</p>
+</div>
+</div>
+<section id="the-routing-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-routing-problem"><strong>路由问题</strong></h3>
+<section id="topology-metrics-paths-and-policies" class="level4">
+<h4 class="anchored" data-anchor-id="topology-metrics-paths-and-policies"><strong>拓扑、度量、路径与策略</strong></h4>
+<p>把网络建模为图 <span class="math inline">\(G=(V,E)\)</span>：顶点是路由器或网络，边是链路，边权可表示配置成本、时延、带宽倒数或其他度量。路径是连接源与目的的一系列边；算法常尝试最小化路径代价</p>
+<p><span class="math display">\[
+C(P)=\sum_{e\in P}w(e),
+\]</span></p>
+<p>但运营目标还可能要求避开某个提供商、优先客户链路、满足容量或安全约束。<strong>度量</strong>把工程偏好编码成可比较数字，<strong>策略</strong>则可以直接允许、拒绝或排序路径。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/routing-objectives.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/routing-objectives.svg" class="img-fluid figure-img" style="width:96.0%" alt="两条路由路径在时延、容量、配置成本与策略偏好上不同"></a></p>
+<figcaption>同一拓扑会因时延、配置成本、容量或策略而选择不同路径。</figcaption>
+</figure>
+</div>
+<p>路由协议需要同时追求可达性、较好路径、无环、快速收敛、低开销和可扩展性，这些目标往往冲突。频繁追随瞬时最优可能造成振荡；过度抑制变化又会延长故障恢复。</p>
+</section>
+<section id="centralized-vs-distributed-routing" class="level4">
+<h4 class="anchored" data-anchor-id="centralized-vs-distributed-routing"><strong>集中式与分布式路由</strong></h4>
+<p>集中控制器可以收集拓扑与策略，统一计算并下发规则，便于全局优化和验证，但控制器本身需要复制、分片与故障处理。分布式协议让每台路由器和邻居交换信息并独立计算，天然适应跨组织管理，却只能看到部分状态，收敛过程也可能产生暂态环路。现代网络经常混合两者：设备运行本地协议，控制器提供策略、自动化和跨域视图。</p>
+</section>
+<section id="static-vs-dynamic-routes" class="level4">
+<h4 class="anchored" data-anchor-id="static-vs-dynamic-routes"><strong>静态路由与动态路由</strong></h4>
+<p>静态路由可预测、开销低，适合简单存根网络、默认出口、汇总和明确的黑洞策略；它不会自动感知故障，规模大时易发生配置漂移。动态路由自动发现变化并重新计算，但引入协议状态、收敛时间和错误传播风险。可靠设计通常让静态规则表达稳定意图，让动态协议处理变化，并为两者定义清楚的优先级。</p>
+</section>
+<section id="convergence-stability-and-failure-recovery" class="level4">
+<h4 class="anchored" data-anchor-id="convergence-stability-and-failure-recovery"><strong>收敛、稳定性与故障恢复</strong></h4>
+<p><strong>收敛</strong>是从拓扑/策略变化发生，到相关路由器形成一致可用转发状态的过程。在此期间可能丢包、环路、黑洞或路径绕行。恢复时间包括故障检测、信息传播、路径计算和 FIB 下装。检测越激进，越容易把短暂抖动误判为故障；抑制越强，真正故障恢复越慢。</p>
+<p>稳定性要求一次变化最终停止引发新变化。等价路径、策略反馈、重分发和定时器不协调都可能造成 route flapping。评价路由方案时既要看稳态路径，也要观察整个过渡过程。</p>
+<div id="routing-objectives-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.231610Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.231206Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.236532Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.235996Z&quot;}" data-execution_count="1">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>paths <span class="op">=</span> {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"upper R1-R2-R4"</span>: {<span class="st">"latency_ms"</span>: <span class="dv">8</span>, <span class="st">"admin_cost"</span>: <span class="dv">10</span>, <span class="st">"bottleneck_gbps"</span>: <span class="dv">1</span>},</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"lower R1-R3-R4"</span>: {<span class="st">"latency_ms"</span>: <span class="dv">15</span>, <span class="st">"admin_cost"</span>: <span class="dv">4</span>, <span class="st">"bottleneck_gbps"</span>: <span class="dv">10</span>},</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 不同路由目标会以不同顺序排列完全相同的候选路径。</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>lowest_latency <span class="op">=</span> <span class="bu">min</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"latency_ms"</span>])</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>lowest_cost <span class="op">=</span> <span class="bu">min</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"admin_cost"</span>])</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>highest_capacity <span class="op">=</span> <span class="bu">max</span>(paths, key<span class="op">=</span><span class="kw">lambda</span> name: paths[name][<span class="st">"bottleneck_gbps"</span>])</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"lowest latency: "</span>, lowest_latency)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"lowest cost:    "</span>, lowest_cost)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"highest capacity:"</span>, highest_capacity)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>lowest latency:  upper R1-R2-R4
+lowest cost:     lower R1-R3-R4
+highest capacity: lower R1-R3-R4</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="distance-vector-routing" class="level3">
+<h3 class="anchored" data-anchor-id="distance-vector-routing"><strong>距离向量路由</strong></h3>
+<section id="bellman-ford-recurrence" class="level4">
+<h4 class="anchored" data-anchor-id="bellman-ford-recurrence"><strong>Bellman–Ford 递推</strong></h4>
+<p>节点 <span class="math inline">\(x\)</span> 到目的 <span class="math inline">\(y\)</span> 的最小距离满足</p>
+<p><span class="math display">\[
+D_x(y)=\min_{v\in N(x)}\{c(x,v)+D_v(y)\},
+\]</span></p>
+<p>其中 <span class="math inline">\(N(x)\)</span> 是邻居集合，<span class="math inline">\(c(x,v)\)</span> 是到邻居 <span class="math inline">\(v\)</span> 的链路成本。含义很直观：询问每个邻居“你离目的还有多远”，再加上走到该邻居的成本，选择总和最小者。</p>
+<p>每台路由器只需保存每个目的的当前代价与下一跳，不必知道完整拓扑。这降低状态和计算复杂度，却意味着信息是“听邻居转述”的，错误或陈旧距离会逐跳传播。</p>
+</section>
+<section id="distributed-route-advertisement" class="level4">
+<h4 class="anchored" data-anchor-id="distributed-route-advertisement"><strong>分布式路由通告</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/distance-vector-overview.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/distance-vector-overview.svg" class="img-fluid figure-img" style="width:78.0%" alt="相邻路由器交换代价向量的距离向量路由图"></a></p>
+<figcaption>距离向量路由器向相邻路由器交换当前目的距离。</figcaption>
+</figure>
+</div>
+<p>初始时，路由器知道自身为 0、直连邻居成本以及其他目的为无穷。收到邻居向量后，它对每个目的执行 Bellman–Ford 更新；若结果变化，再向邻居通告。正常条件下信息一跳一跳扩散，最终形成最短路径。</p>
+<p>异步实现必须处理报文丢失、重复、乱序和邻居失效。定期更新可修复丢失状态，触发更新加快变化传播，超时让失联路由过期；但每种机制也会增加流量或不稳定性。</p>
+<div id="distance-vector-convergence-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.238542Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.238287Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.244110Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.243451Z&quot;}" data-execution_count="2">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> copy <span class="im">import</span> deepcopy</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>graph <span class="op">=</span> {</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A"</span>: {<span class="st">"B"</span>: <span class="dv">1</span>, <span class="st">"C"</span>: <span class="dv">4</span>},</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"B"</span>: {<span class="st">"A"</span>: <span class="dv">1</span>, <span class="st">"C"</span>: <span class="dv">1</span>, <span class="st">"D"</span>: <span class="dv">7</span>},</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C"</span>: {<span class="st">"A"</span>: <span class="dv">4</span>, <span class="st">"B"</span>: <span class="dv">1</span>, <span class="st">"D"</span>: <span class="dv">2</span>, <span class="st">"E"</span>: <span class="dv">6</span>},</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"D"</span>: {<span class="st">"B"</span>: <span class="dv">7</span>, <span class="st">"C"</span>: <span class="dv">2</span>, <span class="st">"E"</span>: <span class="dv">1</span>},</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"E"</span>: {<span class="st">"C"</span>: <span class="dv">6</span>, <span class="st">"D"</span>: <span class="dv">1</span>},</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> distance_vector_rounds(topology: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">int</span>]]):</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""运行同步 Bellman–Ford 轮次，并保留每轮向量快照。"""</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    nodes <span class="op">=</span> <span class="bu">sorted</span>(topology)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    vectors <span class="op">=</span> {</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        node: {</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>            destination: (</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>                <span class="dv">0</span> <span class="cf">if</span> destination <span class="op">==</span> node</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>                <span class="cf">else</span> topology[node].get(destination, inf)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> destination <span class="kw">in</span> nodes</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node <span class="kw">in</span> nodes</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> [deepcopy(vectors)]</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        updated <span class="op">=</span> deepcopy(vectors)</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node <span class="kw">in</span> nodes:</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> destination <span class="kw">in</span> nodes:</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> node <span class="op">==</span> destination:</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>                    updated[node][destination] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>                updated[node][destination] <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>                    link_cost <span class="op">+</span> vectors[neighbor][destination]</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> neighbor, link_cost <span class="kw">in</span> topology[node].items()</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>        history.append(updated)</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> updated <span class="op">==</span> vectors:</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> history</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>        vectors <span class="op">=</span> updated</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>history <span class="op">=</span> distance_vector_rounds(graph)</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"round | A-&gt;D | A-&gt;E | B-&gt;E"</span>)</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> round_number, vectors <span class="kw">in</span> <span class="bu">enumerate</span>(history):</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>round_number<span class="sc">:5}</span><span class="ss"> | </span><span class="sc">{</span>vectors[<span class="st">'A'</span>][<span class="st">'D'</span>]<span class="sc">:4}</span><span class="ss"> | "</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>vectors[<span class="st">'A'</span>][<span class="st">'E'</span>]<span class="sc">:4}</span><span class="ss"> | </span><span class="sc">{</span>vectors[<span class="st">'B'</span>][<span class="st">'E'</span>]<span class="sc">:4}</span><span class="ss">"</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"converged rounds:"</span>, <span class="bu">len</span>(history) <span class="op">-</span> <span class="dv">1</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>round | A-&gt;D | A-&gt;E | B-&gt;E
+    0 |  inf |  inf |  inf
+    1 |    6 |   10 |    7
+    2 |    4 |    7 |    4
+    3 |    4 |    5 |    4
+    4 |    4 |    5 |    4
+converged rounds: 4</code></pre>
+</div>
+</div>
+</section>
+<section id="count-to-infinity-and-routing-loops" class="level4">
+<h4 class="anchored" data-anchor-id="count-to-infinity-and-routing-loops"><strong>计数到无穷与路由环路</strong></h4>
+<p>距离向量“好消息传播快，坏消息传播慢”。若目的从路由器 C 后方失效，而 A、B 互相以为对方还有路径，它们会交替通告越来越大的距离：A 经 B，B 又经 A，形成转发环路，直到度量达到协议定义的“无穷”。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dv-count-to-infinity.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/dv-count-to-infinity.svg" class="img-fluid figure-img" style="width:98.0%" alt="目的在 C 后方失效后，距离向量发生计数到无穷的时间线"></a></p>
+<figcaption>目的 X 失效后，路由器 A 与 B 反复增加虚假距离。</figcaption>
+</figure>
+</div>
+<p>环路期间分组不断循环直到 TTL 归零，浪费链路与缓冲。把无穷设为较小值能限制持续时间，却同时限制可表达的最大网络直径。根因是路由器只知道邻居声明的距离，不知道该路径是否又经过自己。</p>
+<div id="count-to-infinity-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.245953Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.245704Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.249497Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.248979Z&quot;}" data-execution_count="3">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> count_to_infinity(rounds: <span class="bu">int</span> <span class="op">=</span> <span class="dv">8</span>, protocol_infinity: <span class="bu">int</span> <span class="op">=</span> <span class="dv">16</span>):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""模拟 C 失去目的 X 后，A 与 B 相互强化陈旧路由。"""</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    distance_a, distance_b <span class="op">=</span> <span class="dv">2</span>, <span class="dv">1</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> [(<span class="dv">0</span>, distance_a, distance_b)]</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> round_number <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, rounds <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 两台路由器都根据上一轮通告计算。</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        new_a <span class="op">=</span> <span class="bu">min</span>(protocol_infinity, <span class="dv">1</span> <span class="op">+</span> distance_b)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        new_b <span class="op">=</span> <span class="bu">min</span>(protocol_infinity, <span class="dv">1</span> <span class="op">+</span> distance_a)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        distance_a, distance_b <span class="op">=</span> new_a, new_b</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        timeline.append((round_number, distance_a, distance_b))</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"round | A advertises | B advertises"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> round_number, distance_a, distance_b <span class="kw">in</span> count_to_infinity():</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>round_number<span class="sc">:5}</span><span class="ss"> | </span><span class="sc">{</span>distance_a<span class="sc">:12}</span><span class="ss"> | </span><span class="sc">{</span>distance_b<span class="sc">:12}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>round | A advertises | B advertises
+    0 |            2 |            1
+    1 |            2 |            3
+    2 |            4 |            3
+    3 |            4 |            5
+    4 |            6 |            5
+    5 |            6 |            7
+    6 |            8 |            7
+    7 |            8 |            9
+    8 |           10 |            9</code></pre>
+</div>
+</div>
+</section>
+<section id="split-horizon-poison-reverse-and-hold-down" class="level4">
+<h4 class="anchored" data-anchor-id="split-horizon-poison-reverse-and-hold-down"><strong>水平分割、毒性逆转与抑制定时器</strong></h4>
+<p><strong>水平分割（split horizon）</strong>不把从某邻居学到的路由再通告回该邻居；<strong>毒性逆转（poison reverse）</strong>则明确向它通告无穷。这能消除常见两节点环路，但无法解决所有多节点环路。<strong>抑制定时器（hold-down）</strong>在路由失效后暂时拒绝可疑的较差替代，减少振荡，却可能延迟真实恢复。</p>
+<p>这些都是局部启发式而非全局证明。更稳健的协议会携带更多拓扑/路径信息，或使用可行性条件、序列号等机制判断新路径是否可能形成环路。</p>
+</section>
+</section>
+<section id="link-state-routing" class="level3">
+<h3 class="anchored" data-anchor-id="link-state-routing"><strong>链路状态路由</strong></h3>
+<section id="topology-discovery-and-link-state-flooding" class="level4">
+<h4 class="anchored" data-anchor-id="topology-discovery-and-link-state-flooding"><strong>拓扑发现与链路状态泛洪</strong></h4>
+<p>链路状态协议让每台路由器发现邻居和链路代价，生成链路状态通告（LSA/LSP），再可靠泛洪给同一区域的所有路由器。每台路由器最终拥有近似相同的链路状态数据库（LSDB），并独立计算以自己为根的最短路径树。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/link-state-flooding.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/link-state-flooding.svg" class="img-fluid figure-img" style="width:98.0%" alt="链路状态路由从邻居发现、泛洪到 Dijkstra 最短路径计算的三个阶段"></a></p>
+<figcaption>路由器产生本地链路状态、可靠泛洪、构建共享数据库并独立运行 SPF。</figcaption>
+</figure>
+</div>
+<p>泛洪不是普通广播：设备通过序列号识别新旧实例，确认接收，向除来源外的邻居继续发送，并限制作用域。协议开销与拓扑变化频率和区域大小相关。</p>
+</section>
+<section id="dijkstras-shortest-path-algorithm" class="level4">
+<h4 class="anchored" data-anchor-id="dijkstras-shortest-path-algorithm"><strong>Dijkstra 最短路径算法</strong></h4>
+<p>Dijkstra 在非负边权图上维护两组节点：已确定最短距离的集合 <span class="math inline">\(S\)</span>，以及尚未确定的候选。每次选择候选距离最小的节点 <span class="math inline">\(u\)</span> 加入 <span class="math inline">\(S\)</span>，并松弛其邻边：</p>
+<p><span class="math display">\[
+D(v)\leftarrow\min\bigl(D(v),D(u)+w(u,v)\bigr).
+\]</span></p>
+<p>记录前驱即可恢复路径；路由器只需从最短路径树提取每个目的的第一跳并下装到 FIB。使用优先队列时，典型复杂度为 <span class="math inline">\(O((V+E)\log V)\)</span>。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dijkstra-animation.gif" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/dijkstra-animation.gif" class="img-fluid figure-img" style="width:44.0%" alt="Dijkstra 逐步确定顶点并松弛加权边的动画"></a></p>
+<figcaption>Dijkstra 算法在加权图上逐步确定节点并松弛边。</figcaption>
+</figure>
+</div>
+<p>算法正确并不保证网络立即无环：不同路由器可能在不同时间安装新旧路径，仍会产生微环。运营系统需要有序 FIB 更新、快速重路由或其他收敛机制处理过渡状态。</p>
+<div id="dijkstra-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.251100Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.250950Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.255651Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.254994Z&quot;}" data-execution_count="4">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> heapq <span class="im">import</span> heappop, heappush</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dijkstra(topology: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">int</span>]], source: <span class="bu">str</span>):</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回加权图的距离、父节点与确定顺序。"""</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    distances <span class="op">=</span> {node: inf <span class="cf">for</span> node <span class="kw">in</span> topology}</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    parents <span class="op">=</span> {node: <span class="va">None</span> <span class="cf">for</span> node <span class="kw">in</span> topology}</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    distances[source] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    queue <span class="op">=</span> [(<span class="dv">0</span>, source)]</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    settled_order <span class="op">=</span> []</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> queue:</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        distance_u, node_u <span class="op">=</span> heappop(queue)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> distance_u <span class="op">!=</span> distances[node_u]:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span>                     <span class="co"># 忽略堆中过期的表项。</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        settled_order.append((node_u, distance_u))</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node_v, edge_cost <span class="kw">in</span> topology[node_u].items():</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            candidate <span class="op">=</span> distance_u <span class="op">+</span> edge_cost</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> candidate <span class="op">&lt;</span> distances[node_v]:</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>                distances[node_v] <span class="op">=</span> candidate</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>                parents[node_v] <span class="op">=</span> node_u</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>                heappush(queue, (candidate, node_v))</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> distances, parents, settled_order</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reconstruct_path(parents: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span>], destination: <span class="bu">str</span>):</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    path <span class="op">=</span> []</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    current <span class="op">=</span> destination</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> current <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        path.append(current)</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>        current <span class="op">=</span> parents[current]</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">list</span>(<span class="bu">reversed</span>(path))</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>distances, parents, settled <span class="op">=</span> dijkstra(graph, <span class="st">"A"</span>)</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"settlement order:"</span>, settled)</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> destination <span class="kw">in</span> <span class="bu">sorted</span>(graph):</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"A -&gt; </span><span class="sc">{</span>destination<span class="sc">}</span><span class="ss">: cost=</span><span class="sc">{</span>distances[destination]<span class="sc">:2}</span><span class="ss">, "</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"path=</span><span class="sc">{</span><span class="st">'-'</span><span class="sc">.</span>join(reconstruct_path(parents, destination))<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>settlement order: [('A', 0), ('B', 1), ('C', 2), ('D', 4), ('E', 5)]
+A -&gt; A: cost= 0, path=A
+A -&gt; B: cost= 1, path=A-B
+A -&gt; C: cost= 2, path=A-B-C
+A -&gt; D: cost= 4, path=A-B-C-D
+A -&gt; E: cost= 5, path=A-B-C-D-E</code></pre>
+</div>
+</div>
+</section>
+<section id="sequence-numbers-aging-and-reliable-flooding" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-numbers-aging-and-reliable-flooding"><strong>序列号、老化与可靠泛洪</strong></h4>
+<p>每份链路状态通告带有来源、序列号和寿命。更大序列号代表更新状态；老化清除已失效来源；确认与重传提高泛洪可靠性。路由器重启、序列号回绕和数据库同步都需要专门规则，否则旧信息可能覆盖新信息或长期残留。</p>
+</section>
+<section id="distance-vector-vs-link-state" class="level4">
+<h4 class="anchored" data-anchor-id="distance-vector-vs-link-state"><strong>距离向量与链路状态对比</strong></h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>距离向量</th>
+<th>链路状态</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>交换内容</td>
+<td>到目的的距离/下一跳</td>
+<td>本地邻接与链路状态</td>
+</tr>
+<tr class="even">
+<td>拓扑视图</td>
+<td>只通过邻居间接了解</td>
+<td>区域内近似完整 LSDB</td>
+</tr>
+<tr class="odd">
+<td>计算</td>
+<td>分布式 Bellman–Ford</td>
+<td>每台路由器本地 Dijkstra</td>
+</tr>
+<tr class="even">
+<td>典型风险</td>
+<td>计数到无穷、环路</td>
+<td>泛洪风暴、LSDB 不一致、暂态微环</td>
+</tr>
+<tr class="odd">
+<td>资源需求</td>
+<td>状态与计算较小</td>
+<td>更多内存、CPU 与泛洪带宽</td>
+</tr>
+<tr class="even">
+<td>适合规模</td>
+<td>简单/较小网络</td>
+<td>分层设计的大型内部网络</td>
+</tr>
+</tbody>
+</table>
+<p>两类协议都需要检测故障、传播变化并处理不一致，只是交换了信息量、计算位置和故障模式。</p>
+</section>
+</section>
+<section id="intradomain-routing" class="level3">
+<h3 class="anchored" data-anchor-id="intradomain-routing"><strong>域内路由</strong></h3>
+<section id="routing-information-protocol" class="level4">
+<h4 class="anchored" data-anchor-id="routing-information-protocol"><strong>路由信息协议</strong></h4>
+<p>RIP 是经典距离向量协议，以跳数为度量，最大有效距离 15，16 表示不可达。它周期发送路由表并使用触发更新、水平分割和毒性逆转。实现简单，适合教学和小网络，但直径、收敛速度与度量表达能力使其不适合现代大型网络。</p>
+</section>
+<section id="open-shortest-path-first" class="level4">
+<h4 class="anchored" data-anchor-id="open-shortest-path-first"><strong>开放最短路径优先</strong></h4>
+<p>OSPF 是链路状态 IGP。邻居建立邻接，交换并同步 LSDB，以接口成本为边权运行 SPF。OSPF 支持区域层次：Area 0 是骨干，区域边界路由器在区域间传播汇总信息。协议还定义网络类型、DR/BDR、不同 LSA 类型、认证及外部路由引入。</p>
+<p>OSPF 成本通常与带宽相关但可配置；最短代价相同的路径可进行 ECMP。错误成本会导致次优或不对称路径，错误区域设计与过度重分发会扩大故障范围。</p>
+</section>
+<section id="is-is-and-operational-differences" class="level4">
+<h4 class="anchored" data-anchor-id="is-is-and-operational-differences"><strong>IS-IS 与运维差异</strong></h4>
+<p>IS-IS 同样是链路状态 IGP，最初来自 OSI，直接运行在链路层，并以 TLV 扩展承载 IPv4/IPv6 等信息。Level 1 负责区域内，Level 2 负责区域间。大型服务商常选择 IS-IS，原因包括扩展方式与运维传统；OSPF 与 IS-IS 的核心算法相似，实际选择更多取决于生态、经验和设计一致性。</p>
+</section>
+<section id="areas-summarization-ecmp-and-redistribution" class="level4">
+<h4 class="anchored" data-anchor-id="areas-summarization-ecmp-and-redistribution"><strong>区域、汇总、ECMP 与重分发</strong></h4>
+<p>区域限制拓扑变化传播与 SPF 规模；汇总减少路由状态并隐藏内部变化，但可能产生次优路径或黑洞。ECMP 把多个等价下一跳安装到 FIB，通常按流散列以避免乱序。重分发把一种协议/静态路由注入另一种协议，若缺少标签、过滤和明确优先级，容易形成反馈环路，因此应谨慎并保持边界清晰。</p>
+</section>
+</section>
+<section id="autonomous-systems-and-internet-economics" class="level3">
+<h3 class="anchored" data-anchor-id="autonomous-systems-and-internet-economics"><strong>自治系统与互联网经济关系</strong></h3>
+<section id="transit-peering-and-customer-provider-relationships" class="level4">
+<h4 class="anchored" data-anchor-id="transit-peering-and-customer-provider-relationships"><strong>转接、对等与客户—提供商关系</strong></h4>
+<p>客户付费给提供商以获得更广可达性；对等体交换各自及客户流量，通常不为对方提供任意第三方转接。IXP 提供建立这些关系的共享设施，私有互联则适合流量很大的网络。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/inter-as-peering-transit.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/inter-as-peering-transit.svg" class="img-fluid figure-img" style="width:84.0%" alt="自治系统通过客户提供商转接与 IXP 对等关系连接"></a></p>
+<figcaption>自治系统间典型客户、提供商、对等与 IXP 关系。</figcaption>
+</figure>
+</div>
+<p>经济关系会直接变成路由策略：网络通常更愿意使用能带来收入的客户路径，其次是无结算对等，最后才是付费提供商路径。物理更短不代表商业上更优。</p>
+</section>
+<section id="policy-routing-vs-shortest-path-routing" class="level4">
+<h4 class="anchored" data-anchor-id="policy-routing-vs-shortest-path-routing"><strong>策略路由与最短路径路由</strong></h4>
+<p>BGP 的目标是让每个 AS 在本地策略下选择可接受路径，而不是最小化全球统一度量。一个 AS 可按来源邻居设置 LOCAL_PREF、拒绝某些前缀、通过 prepend 影响外部选择，或用 MED 表达偏好入口。由于策略独立，互联网路径可能非对称并随商业关系变化。</p>
+</section>
+<section id="valley-free-paths-and-export-policies" class="level4">
+<h4 class="anchored" data-anchor-id="valley-free-paths-and-export-policies"><strong>无谷路径与导出策略</strong></h4>
+<p>常见商业模型下，路径先沿客户→提供商方向“上坡”，可经过一次对等边，再沿提供商→客户方向“下坡”，不会下坡后再次上坡。典型导出规则是：客户学到的路由可通告给所有邻居；从提供商或对等体学到的路由只通告给客户。违反规则可能把一个 AS 意外变成免费转接，形成路由泄漏。</p>
+<div id="valley-free-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.258018Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.257852Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.261173Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.260802Z&quot;}" data-execution_count="5">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_valley_free(relationships: <span class="bu">list</span>[<span class="bu">str</span>]) <span class="op">-&gt;</span> <span class="bu">bool</span>:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""检查简化的 c2p* p2p? p2c* 关系模式。"""</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    phase <span class="op">=</span> <span class="st">"up"</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> relationship <span class="kw">in</span> relationships:</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> phase <span class="op">==</span> <span class="st">"up"</span>:</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"c2p"</span>:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2p"</span>:</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"peer"</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"down"</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> phase <span class="op">==</span> <span class="st">"peer"</span>:</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>                phase <span class="op">=</span> <span class="st">"down"</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> phase <span class="op">==</span> <span class="st">"down"</span> <span class="kw">and</span> relationship <span class="op">==</span> <span class="st">"p2c"</span>:</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="va">True</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>examples <span class="op">=</span> {</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"customer -&gt; provider -&gt; peer -&gt; customer"</span>: [<span class="st">"c2p"</span>, <span class="st">"p2p"</span>, <span class="st">"p2c"</span>],</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"provider -&gt; customer -&gt; provider"</span>: [<span class="st">"p2c"</span>, <span class="st">"c2p"</span>],</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"customer -&gt; provider -&gt; provider -&gt; customer"</span>: [<span class="st">"c2p"</span>, <span class="st">"c2p"</span>, <span class="st">"p2c"</span>],</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"peer -&gt; peer"</span>: [<span class="st">"p2p"</span>, <span class="st">"p2p"</span>],</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> description, relationships <span class="kw">in</span> examples.items():</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>description<span class="sc">:46}</span><span class="ss"> -&gt; </span><span class="sc">{</span>is_valley_free(relationships)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>customer -&gt; provider -&gt; peer -&gt; customer       -&gt; True
+provider -&gt; customer -&gt; provider               -&gt; False
+customer -&gt; provider -&gt; provider -&gt; customer   -&gt; True
+peer -&gt; peer                                   -&gt; False</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="border-gateway-protocol" class="level3">
+<h3 class="anchored" data-anchor-id="border-gateway-protocol"><strong>边界网关协议</strong></h3>
+<section id="ebgp-and-ibgp-sessions" class="level4">
+<h4 class="anchored" data-anchor-id="ebgp-and-ibgp-sessions"><strong>eBGP 与 iBGP 会话</strong></h4>
+<p>eBGP 在不同 AS 的路由器之间交换路由，iBGP 在同一 AS 内分发外部可达性。BGP 运行在 TCP 之上，建立长期会话并以增量 UPDATE 通告或撤回前缀。TCP 提供可靠字节传输，但 BGP 仍要验证属性、维护 Adj-RIB-In/Out，并在会话失效时撤销路由。</p>
+</section>
+<section id="bgp-route-advertisements-and-path-attributes" class="level4">
+<h4 class="anchored" data-anchor-id="bgp-route-advertisements-and-path-attributes"><strong>BGP 路由通告与路径属性</strong></h4>
+<p>一条 BGP 路由把前缀（NLRI）与属性绑定。重要属性包括 AS_PATH、NEXT_HOP、LOCAL_PREF、MED、ORIGIN 和 Communities。AS_PATH 同时提供路径选择信息和基本环路检测：若收到的路径已包含本 AS，通常拒绝。</p>
+<p>Community 是附加策略标签，可表达“不要向某类邻居导出”“降低优先级”等运维意图；只有各方对语义达成一致时才有效。</p>
+</section>
+<section id="route-selection-and-policy" class="level4">
+<h4 class="anchored" data-anchor-id="route-selection-and-policy"><strong>路由选择与策略</strong></h4>
+<p>BGP 决策首先受本地策略影响。实现细节不同，但常见顺序包括更高 LOCAL_PREF、更短 AS_PATH、更优 ORIGIN/MED、eBGP 优于 iBGP、较低 IGP 到 NEXT_HOP 成本及稳定决胜项。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bgp-policy-selection.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/bgp-policy-selection.svg" class="img-fluid figure-img" style="width:98.0%" alt="BGP 选择 LOCAL_PREF 200 的客户路径，而不是 AS 路径更短的对等或提供商路径"></a></p>
+<figcaption>三条到同一前缀的路径中，更长客户路径因 LOCAL_PREF 先于 AS_PATH 而获胜。</figcaption>
+</figure>
+</div>
+<p>因此不能只看 AS_PATH 最短判断“最佳”。选路过程是先过滤不可接受路线，再按本地商业和工程偏好排序，最后才用技术决胜条件稳定选择。</p>
+<div id="bgp-selection-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.263043Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.262818Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.267432Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.267063Z&quot;}" data-execution_count="6">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass, replace</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BGPRoute:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    learned_from: <span class="bu">str</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    local_pref: <span class="bu">int</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    as_path: <span class="bu">tuple</span>[<span class="bu">int</span>, ...]</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    origin: <span class="bu">str</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    ebgp: <span class="bu">bool</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    igp_cost_to_next_hop: <span class="bu">int</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    router_id: <span class="bu">str</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>ORIGIN_RANK <span class="op">=</span> {<span class="st">"IGP"</span>: <span class="dv">0</span>, <span class="st">"EGP"</span>: <span class="dv">1</span>, <span class="st">"INCOMPLETE"</span>: <span class="dv">2</span>}</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bgp_selection_key(route: BGPRoute):</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""常见 BGP 决策过程的透明教学子集。"""</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>        <span class="op">-</span>route.local_pref,                 <span class="co"># 优先选择更高的 LOCAL_PREF。</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="bu">len</span>(route.as_path),                <span class="co"># 随后优先选择更短的 AS 路径。</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        ORIGIN_RANK[route.origin],         <span class="co"># 起源类型按 IGP、EGP、incomplete 的顺序优先。</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="dv">0</span> <span class="cf">if</span> route.ebgp <span class="cf">else</span> <span class="dv">1</span>,            <span class="co"># 在这个简化的平局条件下优先选择 eBGP。</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>        route.igp_cost_to_next_hop,        <span class="co"># 对剩余候选采用热土豆路由，选择最近出口。</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>        route.router_id,                   <span class="co"># 使用确定性的最终规则打破平局。</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> [</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"customer"</span>, <span class="dv">200</span>, (<span class="dv">65100</span>, <span class="dv">65210</span>, <span class="dv">65300</span>), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">30</span>, <span class="st">"10.0.0.3"</span>),</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"peer"</span>, <span class="dv">150</span>, (<span class="dv">65400</span>, <span class="dv">65300</span>), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">10</span>, <span class="st">"10.0.0.2"</span>),</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>    BGPRoute(<span class="st">"provider"</span>, <span class="dv">100</span>, (<span class="dv">65500</span>,), <span class="st">"IGP"</span>, <span class="va">True</span>, <span class="dv">5</span>, <span class="st">"10.0.0.1"</span>),</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>best_policy_route <span class="op">=</span> <span class="bu">min</span>(candidates, key<span class="op">=</span>bgp_selection_key)</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>equal_local_pref <span class="op">=</span> [replace(route, local_pref<span class="op">=</span><span class="dv">100</span>) <span class="cf">for</span> route <span class="kw">in</span> candidates]</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>best_short_path <span class="op">=</span> <span class="bu">min</span>(equal_local_pref, key<span class="op">=</span>bgp_selection_key)</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"normal policy winner:   "</span>, best_policy_route.learned_from,</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>      best_policy_route.as_path)</span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"if LOCAL_PREF is equal: "</span>, best_short_path.learned_from,</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>      best_short_path.as_path)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>normal policy winner:    customer (65100, 65210, 65300)
+if LOCAL_PREF is equal:  provider (65500,)</code></pre>
+</div>
+</div>
+</section>
+<section id="import-policy-export-policy-and-the-fib" class="level4">
+<h4 class="anchored" data-anchor-id="import-policy-export-policy-and-the-fib"><strong>导入策略、导出策略与 FIB</strong></h4>
+<p>导入策略决定从邻居收到的路线能否进入本地决策，并可修改 LOCAL_PREF、Community 等；选出最佳路线后，还需确保 NEXT_HOP 可达并把结果递归解析为 FIB 下一跳。导出策略再决定把什么通告给每个邻居，可能修改 AS_PATH、MED 或 Community。RIB 中存在不代表一定转发，最佳本地路由也不代表会向所有邻居发布。</p>
+</section>
+<section id="route-reflection-and-scaling-ibgp" class="level4">
+<h4 class="anchored" data-anchor-id="route-reflection-and-scaling-ibgp"><strong>路由反射与 iBGP 扩展</strong></h4>
+<p>传统 iBGP 要求全互连，会话数为 <span class="math inline">\(n(n-1)/2\)</span>。<strong>路由反射器（RR）</strong>让客户端把路线交给 RR，再由 RR 反射给其他客户端/非客户端，显著降低会话数。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bgp-route-reflection.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/bgp-route-reflection.svg" class="img-fluid figure-img" style="width:70.0%" alt="具有路由反射器客户端和外部对等体的 BGP 路由反射拓扑"></a></p>
+<figcaption>BGP 路由反射器在客户端与非客户端 iBGP 路由器之间分发路线。</figcaption>
+</figure>
+</div>
+<p>代价是 RR 的视图和决策可能隐藏其他可用路径，造成路径次优或控制平面单点。大型网络会部署冗余 RR、合理分层，并使用 Add-Paths 等机制增加路径可见性。</p>
+</section>
+</section>
+<section id="convergence-and-interdomain-failure-modes" class="level3">
+<h3 class="anchored" data-anchor-id="convergence-and-interdomain-failure-modes"><strong>收敛与域间故障模式</strong></h3>
+<section id="path-exploration-and-slow-convergence" class="level4">
+<h4 class="anchored" data-anchor-id="path-exploration-and-slow-convergence"><strong>路径探索与慢收敛</strong></h4>
+<p>路线撤回后，BGP 邻居可能依次尝试多个后来才发现无效的替代 AS_PATH，这称为路径探索。MRAI、会话定时器、策略与庞大传播范围使域间收敛通常慢于 IGP。过度抑制 flap 可减少更新，却可能惩罚已经恢复的有效路线。</p>
+</section>
+<section id="route-leaks-and-prefix-hijacking" class="level4">
+<h4 class="anchored" data-anchor-id="route-leaks-and-prefix-hijacking"><strong>路由泄漏与前缀劫持</strong></h4>
+<p><strong>路由泄漏</strong>是把合法学到的路线通告给不应接收的邻居，违反预期商业作用域；<strong>前缀劫持</strong>是错误或恶意 AS 宣称自己起源某前缀。更具体前缀因 LPM 可能吸引流量，即使 BGP 策略并不偏好攻击者。结果可能是黑洞、监听、绕路或全球拥塞。</p>
+</section>
+<section id="filtering-rpki-and-route-origin-validation" class="level4">
+<h4 class="anchored" data-anchor-id="filtering-rpki-and-route-origin-validation"><strong>过滤、RPKI 与路由起源验证</strong></h4>
+<p>运营者应基于客户授权、最大前缀长度、保留地址、IRR/RPKI 数据和合理 AS 路径进行过滤。RPKI 的 ROA 声明某 ASN 有权起源一个前缀及允许的最大长度；路由起源验证把通告分类为 Valid、Invalid 或 Not Found。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rpki-origin-validation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/rpki-origin-validation.svg" class="img-fluid figure-img" style="width:98.0%" alt="RPKI 根据前缀最大长度和起源 AS 对 BGP 路由分类"></a></p>
+<figcaption>ROA 对不同 BGP 通告产生 Valid、Invalid 与 Not Found 状态。</figcaption>
+</figure>
+</div>
+<p>ROV 能阻止许多错误起源，却不验证完整 AS_PATH，也无法覆盖没有 ROA 的前缀。</p>
+</section>
+<section id="operational-tradeoffs-in-routing-security" class="level4">
+<h4 class="anchored" data-anchor-id="operational-tradeoffs-in-routing-security"><strong>路由安全的运维权衡</strong></h4>
+<p>严格丢弃 Invalid 能提高安全，但错误 ROA 也可能使合法流量中断；宽松接受则无法阻止攻击。部署需要监控验证状态、分阶段执行、维护密钥与授权，并准备紧急修复。安全控制必须与可用性、全球采用率和变更流程共同设计。</p>
+<div id="rpki-validation-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.269077Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.268857Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.273148Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.272786Z&quot;}" data-execution_count="7">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ipaddress <span class="im">import</span> ip_network</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ROA:</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    prefix: <span class="bu">object</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    max_length: <span class="bu">int</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    origin_as: <span class="bu">int</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> origin_validation(announced_prefix: <span class="bu">str</span>, origin_as: <span class="bu">int</span>, roas: <span class="bu">list</span>[ROA]):</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回 RFC 6811 风格的 Valid、Invalid 或 Not Found 状态。"""</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    announcement <span class="op">=</span> ip_network(announced_prefix)</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    covering <span class="op">=</span> [roa <span class="cf">for</span> roa <span class="kw">in</span> roas <span class="cf">if</span> announcement.subnet_of(roa.prefix)]</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> covering:</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"Not Found"</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        origin_as <span class="op">==</span> roa.origin_as</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        <span class="kw">and</span> announcement.prefixlen <span class="op">&lt;=</span> roa.max_length</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> roa <span class="kw">in</span> covering</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    ):</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"Valid"</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"Invalid"</span></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>validated_roas <span class="op">=</span> [ROA(ip_network(<span class="st">"203.0.113.0/24"</span>), <span class="dv">24</span>, <span class="dv">65001</span>)]</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>announcements <span class="op">=</span> [</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/24"</span>, <span class="dv">65001</span>),  <span class="co"># 已授权的精确前缀。</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/24"</span>, <span class="dv">65009</span>),  <span class="co"># 起源 AS 错误。</span></span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"203.0.113.0/25"</span>, <span class="dv">65001</span>),  <span class="co"># 前缀比 maxLength 24 允许的范围更具体。</span></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"198.51.100.0/24"</span>, <span class="dv">65008</span>), <span class="co"># 不存在覆盖该前缀的 ROA。</span></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> prefix, origin <span class="kw">in</span> announcements:</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>prefix<span class="sc">:18}</span><span class="ss"> origin AS</span><span class="sc">{</span>origin<span class="sc">}</span><span class="ss"> -&gt; "</span></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"</span><span class="sc">{</span>origin_validation(prefix, origin, validated_roas)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>203.0.113.0/24     origin AS65001 -&gt; Valid
+203.0.113.0/24     origin AS65009 -&gt; Invalid
+203.0.113.0/25     origin AS65001 -&gt; Invalid
+198.51.100.0/24    origin AS65008 -&gt; Not Found</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="anycast-multicast-and-specialized-routing" class="level3">
+<h3 class="anchored" data-anchor-id="anycast-multicast-and-specialized-routing"><strong>任播、组播与专用路由</strong></h3>
+<section id="ip-anycast-and-service-replication" class="level4">
+<h4 class="anchored" data-anchor-id="ip-anycast-and-service-replication"><strong>IP 任播与服务复制</strong></h4>
+<p>任播让多个地点通告同一前缀，路由系统把客户端带到按当前策略“最近”的实例。DNS 根服务器、CDN 与 DDoS 防护常用任播分散负载和故障。它并不保证地理最近或会话期间位置不变，长连接需要状态同步、连接迁移或稳定路由设计。</p>
+</section>
+<section id="multicast-trees-and-group-membership-overview" class="level4">
+<h4 class="anchored" data-anchor-id="multicast-trees-and-group-membership-overview"><strong>组播树与组成员管理概览</strong></h4>
+<p>组播允许发送者向组地址发送一次，网络在分支点复制，避免源端为每个接收者发送独立副本。主机通过 IGMP/MLD 表达成员关系，路由协议构建源树或共享树。组播节省带宽，但状态、控制、跨域部署、安全和可靠性更复杂，因此互联网范围部署有限，而受控企业、运营商与媒体网络更常见。</p>
+</section>
+</section>
+<section id="simulating-distance-vector-and-link-state-routing" class="level3">
+<h3 class="anchored" data-anchor-id="simulating-distance-vector-and-link-state-routing"><strong>模拟距离向量与链路状态路由</strong></h3>
+<p>后面的代码在同一加权图上分别运行同步距离向量迭代与 Dijkstra。比较时不要只看最终距离，还要记录每轮变化、消息范围、故障后的暂态以及每个节点所需信息。两者最终可得到相同最短路径，却通过完全不同的知识分布和收敛过程达到结果。</p>
+<p>可进一步实验：删除一条边，观察距离向量需要多少轮；改变权重，观察最短路径树与下一跳；人为延迟部分更新，检查暂态环路；为等价路径加入稳定决胜规则。</p>
+<div id="routing-failure-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T09:02:29.275831Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T09:02:29.275620Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T09:02:29.279238Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T09:02:29.278826Z&quot;}" data-execution_count="8">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> remove_undirected_link(topology, node_a: <span class="bu">str</span>, node_b: <span class="bu">str</span>):</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    changed <span class="op">=</span> deepcopy(topology)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">del</span> changed[node_a][node_b]</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">del</span> changed[node_b][node_a]</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> changed</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>failed_graph <span class="op">=</span> remove_undirected_link(graph, <span class="st">"B"</span>, <span class="st">"C"</span>)</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>before_distances, before_parents, _ <span class="op">=</span> dijkstra(graph, <span class="st">"A"</span>)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>after_distances, after_parents, _ <span class="op">=</span> dijkstra(failed_graph, <span class="st">"A"</span>)</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"before B-C failure:"</span>,</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>      reconstruct_path(before_parents, <span class="st">"E"</span>), <span class="st">"cost"</span>, before_distances[<span class="st">"E"</span>])</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"after B-C failure: "</span>,</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>      reconstruct_path(after_parents, <span class="st">"E"</span>), <span class="st">"cost"</span>, after_distances[<span class="st">"E"</span>])</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 合理性检查：故障边不得出现在新路径中。</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>new_edges <span class="op">=</span> <span class="bu">set</span>(<span class="bu">zip</span>(</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>    reconstruct_path(after_parents, <span class="st">"E"</span>),</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>    reconstruct_path(after_parents, <span class="st">"E"</span>)[<span class="dv">1</span>:],</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (<span class="st">"B"</span>, <span class="st">"C"</span>) <span class="kw">not</span> <span class="kw">in</span> new_edges <span class="kw">and</span> (<span class="st">"C"</span>, <span class="st">"B"</span>) <span class="kw">not</span> <span class="kw">in</span> new_edges</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>before B-C failure: ['A', 'B', 'C', 'D', 'E'] cost 5
+after B-C failure:  ['A', 'C', 'D', 'E'] cost 7</code></pre>
+</div>
+</div>
+</section>
+<section id="tracing-an-internet-route-across-autonomous-systems" class="level3">
+<h3 class="anchored" data-anchor-id="tracing-an-internet-route-across-autonomous-systems"><strong>跨自治系统追踪互联网路由</strong></h3>
+<p>一次实用调查可以组合 <code>tracert/traceroute</code>、DNS、WHOIS/RDAP、公开 BGP 视图和 RPKI 验证。先记录目的 A/AAAA 地址和时间，再从多个地点探测路径，将可见路由器地址映射到前缀与 ASN，最后比较 BGP 起源、AS_PATH 和 ROV 状态。</p>
+<p>必须承认观测限制：路由器接口地址不一定属于其转发流量的 AS；MPLS 可隐藏内部跳；负载均衡让连续探测走不同路径；反向 DNS 只是运营命名；正反向路径可能不同。不要从一条 traceroute 推断完整商业关系。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>不要混淆</th>
+<th>关键区别</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据平面与控制平面</td>
+<td>执行已安装规则，与计算/分发规则</td>
+</tr>
+<tr class="even">
+<td>度量与策略</td>
+<td>可累加的工程成本，与允许/拒绝/排序约束</td>
+</tr>
+<tr class="odd">
+<td>距离向量与链路状态</td>
+<td>邻居距离通告，与拓扑泛洪后本地 SPF</td>
+</tr>
+<tr class="even">
+<td>IGP 与 BGP</td>
+<td>单一管理域内优化，与跨 AS 的策略可达性</td>
+</tr>
+<tr class="odd">
+<td>eBGP 与 iBGP</td>
+<td>AS 之间交换，与 AS 内传播外部路线</td>
+</tr>
+<tr class="even">
+<td>最短 AS_PATH 与最佳 BGP 路径</td>
+<td>路径长度只是本地策略之后的一项属性</td>
+</tr>
+<tr class="odd">
+<td>路由泄漏与前缀劫持</td>
+<td>错误导出合法路线，与错误声明起源</td>
+</tr>
+<tr class="even">
+<td>RPKI Valid 与“整条路径安全”</td>
+<td>只验证起源授权，不证明完整路径可信</td>
+</tr>
+</tbody>
+</table>
+<p>路由的核心挑战不是一次算出最短路径，而是在分布式、异步、分权和策略驱动的环境中持续维持可用路径。算法决定信息怎样传播，协议定义状态与作用域，经济关系决定哪些路径可接受，安全机制则限制错误通告的影响。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：虚拟化、容器与现代内核设计</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/clipboard/clipboard.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/quarto.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/popper.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/anchor.min.js"></script>
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#virtualization-containers-and-modern-kernel-design" id="toc-virtualization-containers-and-modern-kernel-design" class="nav-link active" data-scroll-target="#virtualization-containers-and-modern-kernel-design"><strong>虚拟化、容器与现代内核设计</strong></a>
+  <ul>
+  <li><a href="#why-virtualize-a-computer" id="toc-why-virtualize-a-computer" class="nav-link" data-scroll-target="#why-virtualize-a-computer"><strong>为什么要虚拟化计算机？</strong></a>
+  <ul>
+  <li><a href="#consolidation-isolation-portability-and-management" id="toc-consolidation-isolation-portability-and-management" class="nav-link" data-scroll-target="#consolidation-isolation-portability-and-management"><strong>整合、隔离、可移植性与管理</strong></a></li>
+  </ul></li>
+  <li><a href="#hypervisor-architectures" id="toc-hypervisor-architectures" class="nav-link" data-scroll-target="#hypervisor-architectures"><strong>Hypervisor 架构</strong></a>
+  <ul>
+  <li><a href="#type-1-and-type-2-hypervisors" id="toc-type-1-and-type-2-hypervisors" class="nav-link" data-scroll-target="#type-1-and-type-2-hypervisors"><strong>Type 1 与 Type 2 Hypervisor</strong></a></li>
+  <li><a href="#full-virtualization-and-paravirtualization" id="toc-full-virtualization-and-paravirtualization" class="nav-link" data-scroll-target="#full-virtualization-and-paravirtualization"><strong>全虚拟化与半虚拟化</strong></a></li>
+  </ul></li>
+  <li><a href="#cpu-virtualization" id="toc-cpu-virtualization" class="nav-link" data-scroll-target="#cpu-virtualization"><strong>CPU 虚拟化</strong></a>
+  <ul>
+  <li><a href="#trap-and-emulate-and-hardware-assistance" id="toc-trap-and-emulate-and-hardware-assistance" class="nav-link" data-scroll-target="#trap-and-emulate-and-hardware-assistance"><strong>Trap-and-Emulate 与硬件辅助</strong></a></li>
+  </ul></li>
+  <li><a href="#memory-virtualization" id="toc-memory-virtualization" class="nav-link" data-scroll-target="#memory-virtualization"><strong>内存虚拟化</strong></a>
+  <ul>
+  <li><a href="#shadow-page-tables-and-nested-translation" id="toc-shadow-page-tables-and-nested-translation" class="nav-link" data-scroll-target="#shadow-page-tables-and-nested-translation"><strong>影子页表与嵌套翻译</strong></a></li>
+  </ul></li>
+  <li><a href="#io-virtualization" id="toc-io-virtualization" class="nav-link" data-scroll-target="#io-virtualization"><strong>I/O 虚拟化</strong></a>
+  <ul>
+  <li><a href="#emulation-paravirtualized-devices-and-device-passthrough" id="toc-emulation-paravirtualized-devices-and-device-passthrough" class="nav-link" data-scroll-target="#emulation-paravirtualized-devices-and-device-passthrough"><strong>模拟、半虚拟化设备与直通</strong></a></li>
+  </ul></li>
+  <li><a href="#virtual-machine-lifecycle-and-migration" id="toc-virtual-machine-lifecycle-and-migration" class="nav-link" data-scroll-target="#virtual-machine-lifecycle-and-migration"><strong>虚拟机生命周期与迁移</strong></a></li>
+  <li><a href="#container-isolation" id="toc-container-isolation" class="nav-link" data-scroll-target="#container-isolation"><strong>容器隔离</strong></a>
+  <ul>
+  <li><a href="#namespaces-cgroups-capabilities-and-layered-file-systems" id="toc-namespaces-cgroups-capabilities-and-layered-file-systems" class="nav-link" data-scroll-target="#namespaces-cgroups-capabilities-and-layered-file-systems"><strong>Namespaces、cgroups、Capabilities 与分层文件系统</strong></a></li>
+  </ul></li>
+  <li><a href="#virtual-machines-versus-containers" id="toc-virtual-machines-versus-containers" class="nav-link" data-scroll-target="#virtual-machines-versus-containers"><strong>虚拟机与容器比较</strong></a></li>
+  <li><a href="#comparing-kernel-architectures" id="toc-comparing-kernel-architectures" class="nav-link" data-scroll-target="#comparing-kernel-architectures"><strong>比较内核架构</strong></a>
+  <ul>
+  <li><a href="#monolithic-microkernel-exokernel-and-unikernel-designs" id="toc-monolithic-microkernel-exokernel-and-unikernel-designs" class="nav-link" data-scroll-target="#monolithic-microkernel-exokernel-and-unikernel-designs"><strong>单体、微内核、Exokernel 与 Unikernel</strong></a></li>
+  </ul></li>
+  <li><a href="#teaching-kernels-and-production-kernels" id="toc-teaching-kernels-and-production-kernels" class="nav-link" data-scroll-target="#teaching-kernels-and-production-kernels"><strong>教学内核与生产内核</strong></a>
+  <ul>
+  <li><a href="#xv6-linux-and-verified-microkernels" id="toc-xv6-linux-and-verified-microkernels" class="nav-link" data-scroll-target="#xv6-linux-and-verified-microkernels"><strong>xv6、Linux 与经过验证的微内核</strong></a></li>
+  </ul></li>
+  <li><a href="#modern-kernel-mechanisms" id="toc-modern-kernel-mechanisms" class="nav-link" data-scroll-target="#modern-kernel-mechanisms"><strong>现代内核机制</strong></a>
+  <ul>
+  <li><a href="#rcu-ebpf-and-extensible-observability" id="toc-rcu-ebpf-and-extensible-observability" class="nav-link" data-scroll-target="#rcu-ebpf-and-extensible-observability"><strong>RCU、eBPF 与可扩展观测</strong></a></li>
+  </ul></li>
+  <li><a href="#research-and-evolution-frontiers" id="toc-research-and-evolution-frontiers" class="nav-link" data-scroll-target="#research-and-evolution-frontiers"><strong>研究与演进前沿</strong></a>
+  <ul>
+  <li><a href="#confidential-computing-library-oses-and-serverless-isolation" id="toc-confidential-computing-library-oses-and-serverless-isolation" class="nav-link" data-scroll-target="#confidential-computing-library-oses-and-serverless-isolation"><strong>机密计算、Library OS 与 Serverless 隔离</strong></a></li>
+  </ul></li>
+  <li><a href="#running-the-pipeline-natively-in-a-container-and-in-a-vm" id="toc-running-the-pipeline-natively-in-a-container-and-in-a-vm" class="nav-link" data-scroll-target="#running-the-pipeline-natively-in-a-container-and-in-a-vm"><strong>原生、容器和 VM 中运行贯穿管道</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：虚拟化、容器与现代内核设计</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/11-virtualization-containers-and-modern-kernels.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="virtualization-containers-and-modern-kernel-design" class="level2">
+<h2 class="anchored" data-anchor-id="virtualization-containers-and-modern-kernel-design"><strong>虚拟化、容器与现代内核设计</strong></h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>进程虚拟化 CPU 和地址空间，虚拟机进一步虚拟化整台机器，使客户机内核也成为受约束的软件；容器则不创建客户机硬件，而是用 namespace、cgroup、capability、文件系统和安全策略隔离共享宿主内核的进程。</p>
+<p>本章把这些技术放在“边界位于哪里”这一坐标上，而不是比较营销标签。我们还回到内核架构、xv6/Linux/seL4、RCU、eBPF、confidential computing 和 serverless microVM，理解现代系统如何在兼容性、性能、TCB、可验证性和启动成本之间移动边界。</p>
+<section id="why-virtualize-a-computer" class="level3">
+<h3 class="anchored" data-anchor-id="why-virtualize-a-computer"><strong>为什么要虚拟化计算机？</strong></h3>
+<section id="consolidation-isolation-portability-and-management" class="level4">
+<h4 class="anchored" data-anchor-id="consolidation-isolation-portability-and-management"><strong>整合、隔离、可移植性与管理</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtualization-boundaries.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/virtualization-boundaries.svg" class="img-fluid figure-img" style="width:98.0%" alt="比较原生进程隔离、共享宿主内核的容器，以及 hypervisor 上带独立客户机内核的虚拟机。"></a></p>
+<figcaption>原生进程、容器与 VM 在不同层放置主要隔离边界</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>整合：</strong>在一台物理机上运行多个相互独立系统，提高利用率并控制配额。</li>
+<li><strong>隔离：</strong>把客户机故障和管理权限限制在虚拟硬件边界内；边界强度仍取决于 hypervisor、固件与共享设备。</li>
+<li><strong>可移植性：</strong>把软件连同 OS 环境封装为镜像，在兼容虚拟硬件或 runtime 上部署。</li>
+<li><strong>管理：</strong>支持 snapshot、clone、live migration、弹性供应和不同内核版本共存。</li>
+</ul>
+<p>虚拟化不是免费抽象。它增加地址翻译层、虚拟 I/O、调度嵌套、镜像状态和新的管理面。收益来自更强边界与操作能力，而不是所有工作负载都更快。</p>
+</section>
+</section>
+<section id="hypervisor-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="hypervisor-architectures"><strong>Hypervisor 架构</strong></h3>
+<section id="type-1-and-type-2-hypervisors" class="level4">
+<h4 class="anchored" data-anchor-id="type-1-and-type-2-hypervisors"><strong>Type 1 与 Type 2 Hypervisor</strong></h4>
+<p>Type 1/bare-metal hypervisor 直接控制硬件并承载 guest；Type 2/hosted hypervisor 作为宿主 OS 上的应用运行。分类有助理解主要控制层，但现实系统会分布职责：Linux KVM 把 CPU/内存虚拟化放在内核，QEMU 用户进程提供设备模型和管理。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hypervisor-architectures.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/hypervisor-architectures.svg" class="img-fluid figure-img" style="width:97.0%" alt="比较 bare-metal Type 1、hosted Type 2，并说明 KVM/QEMU 的混合职责。"></a></p>
+<figcaption>Type 1/Type 2 是放置分类，KVM 把 VMM 职责分布在内核和用户空间</figcaption>
+</figure>
+</div>
+<p>评价时应具体问：谁调度 vCPU，谁模拟设备，谁管理 guest 物理内存，哪个组件能访问 guest 数据，管理 daemon 是否属于 TCB，而不是只依赖类型编号。</p>
+</section>
+<section id="full-virtualization-and-paravirtualization" class="level4">
+<h4 class="anchored" data-anchor-id="full-virtualization-and-paravirtualization"><strong>全虚拟化与半虚拟化</strong></h4>
+<p><strong>全虚拟化</strong>向 guest 暴露与真实硬件兼容的接口，使未修改 OS 运行；敏感操作由 trap/emulation 或硬件辅助处理。<strong>半虚拟化</strong>让 guest 知道自己在虚拟环境中，使用 hypercall 或 virtio 等高效接口，减少昂贵模拟。</p>
+<p>现代 VM 常混合两者：CPU 和内存依赖硬件虚拟化，启动保留兼容设备，性能路径使用 virtio，特定设备再采用 passthrough。</p>
+<details>
+<summary>
+<strong>检查 Linux 主机是否暴露硬件虚拟化</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 首先识别运行环境；结果可能是 none、kvm、vmware、</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># microsoft、wsl、docker、podman 或其他已识别环境。</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-detect-virt</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 当处理器与固件暴露硬件虚拟化支持时，CPU 标志通常在 Intel 上</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 包含 vmx，在 AMD 上包含 svm。</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">lscpu</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-E</span> <span class="st">'Virtualization|Hypervisor vendor|Flags'</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># KVM 用户空间会打开 /dev/kvm；其权限决定谁可以</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 创建 VM，仅存在该设备并不代表当前用户有权访问。</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> /dev/kvm <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="bu">echo</span> <span class="st">'/dev/kvm is not available'</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 已加载模块显示通用 KVM 核心与体系结构后端。</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">lsmod</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^kvm(_intel|_amd)?\b'</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 不要把 VM 内缺少标志视为物理 CPU 不支持的证据；</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 外层 hypervisor 可能隐藏了嵌套虚拟化能力。</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>容器或嵌套 VM 中看不到 virtualization flag 不一定代表物理 CPU 不支持，可能只是上层未暴露。</p>
+</section>
+</section>
+<section id="cpu-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="cpu-virtualization"><strong>CPU 虚拟化</strong></h3>
+<section id="trap-and-emulate-and-hardware-assistance" class="level4">
+<h4 class="anchored" data-anchor-id="trap-and-emulate-and-hardware-assistance"><strong>Trap-and-Emulate 与硬件辅助</strong></h4>
+<p>经典 trap-and-emulate 让普通 guest 指令直接执行，敏感操作陷入 VMM，由其模拟效果。某些旧 ISA 的敏感指令并不总会 trap，曾需要 binary translation 或 paravirtualization。Intel VT-x/AMD-V 增加 root/non-root 模式与 VM control structure，让 guest 内核可在受约束的“特权态”运行。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/vm-entry-exit-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/vm-entry-exit-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="guest non-root 与 hypervisor root 之间的 VM-entry/VM-exit 循环。"></a></p>
+<figcaption>硬件辅助让普通 guest 指令直接运行，仅配置事件引发 VM exit</figcaption>
+</figure>
+</div>
+<p>VM exit 可能来自 I/O、敏感寄存器、中断窗口、二级页故障或管理请求。VMM 检查 exit reason、模拟或更新状态，再 VM-entry。过多 exit 会破坏缓存和流水，因此现代虚拟设备与 interrupt virtualization 尽量减少频率。</p>
+<details>
+<summary>
+<strong>x86 Linux 上的最小 KVM 控制循环 C 示例</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// 这是面向 Linux/x86 的紧凑教学 VMM：创建一个 vCPU，映射一页</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">// 客户机 RAM，运行少量实模式指令，处理端口 I/O，</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">// 并在 HLT 时停止。生产 VMM 还需要稳健的设备、中断、内存、</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">// 迁移、固件、并发与安全模型。</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;linux/kvm.h&gt;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdint.h&gt;</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/ioctl.h&gt;</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> fail<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="co">// mov dx, 0x3f8; mov al, 'H'; out dx, al; hlt</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint8_t</span> guest_code<span class="op">[]</span> <span class="op">=</span> <span class="op">{</span><span class="bn">0xba</span><span class="op">,</span> <span class="bn">0xf8</span><span class="op">,</span> <span class="bn">0x03</span><span class="op">,</span> <span class="bn">0xb0</span><span class="op">,</span> <span class="bn">0x48</span><span class="op">,</span> <span class="bn">0xee</span><span class="op">,</span> <span class="bn">0xf4</span><span class="op">};</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> kvm <span class="op">=</span> open<span class="op">(</span><span class="st">"/dev/kvm"</span><span class="op">,</span> O_RDWR <span class="op">|</span> O_CLOEXEC<span class="op">);</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>kvm <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"open /dev/kvm"</span><span class="op">);</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_GET_API_VERSION<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">!=</span> KVM_API_VERSION<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unexpected KVM API version</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">// VM 文件描述符拥有虚拟机范围的状态。</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> vm <span class="op">=</span> ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_CREATE_VM<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>vm <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_CREATE_VM"</span><span class="op">);</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 用户空间分配 RAM，并告知 KVM 它支撑哪个客户机物理地址范围。</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> ram_size <span class="op">=</span> <span class="bn">0x1000</span><span class="op">;</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint8_t</span> <span class="op">*</span>ram <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> ram_size<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>                        MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ram <span class="op">==</span> MAP_FAILED<span class="op">)</span> fail<span class="op">(</span><span class="st">"mmap guest RAM"</span><span class="op">);</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    memcpy<span class="op">(</span>ram<span class="op">,</span> guest_code<span class="op">,</span> <span class="kw">sizeof</span> guest_code<span class="op">);</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_userspace_memory_region region <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>slot <span class="op">=</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>guest_phys_addr <span class="op">=</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>memory_size <span class="op">=</span> ram_size<span class="op">,</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>userspace_addr <span class="op">=</span> <span class="op">(</span><span class="dt">uintptr_t</span><span class="op">)</span>ram<span class="op">,</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vm<span class="op">,</span> KVM_SET_USER_MEMORY_REGION<span class="op">,</span> <span class="op">&amp;</span>region<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        fail<span class="op">(</span><span class="st">"KVM_SET_USER_MEMORY_REGION"</span><span class="op">);</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    <span class="co">// vCPU 文件描述符拥有体系结构 CPU 状态。</span></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> vcpu <span class="op">=</span> ioctl<span class="op">(</span>vm<span class="op">,</span> KVM_CREATE_VCPU<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>vcpu <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_CREATE_VCPU"</span><span class="op">);</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> run_size <span class="op">=</span> ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_GET_VCPU_MMAP_SIZE<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>run_size <span class="op">&lt;</span> <span class="op">(</span><span class="dt">int</span><span class="op">)</span><span class="kw">sizeof</span><span class="op">(</span><span class="kw">struct</span> kvm_run<span class="op">))</span> fail<span class="op">(</span><span class="st">"KVM_GET_VCPU_MMAP_SIZE"</span><span class="op">);</span></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_run <span class="op">*</span>run <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>run_size<span class="op">,</span></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>                               PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span> MAP_SHARED<span class="op">,</span> vcpu<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>run <span class="op">==</span> MAP_FAILED<span class="op">)</span> fail<span class="op">(</span><span class="st">"mmap kvm_run"</span><span class="op">);</span></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 从客户机地址 0 的简单实模式布局开始。</span></span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_sregs sregs<span class="op">;</span></span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_GET_SREGS<span class="op">,</span> <span class="op">&amp;</span>sregs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_GET_SREGS"</span><span class="op">);</span></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>    sregs<span class="op">.</span>cs<span class="op">.</span>base <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>    sregs<span class="op">.</span>cs<span class="op">.</span>selector <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_SET_SREGS<span class="op">,</span> <span class="op">&amp;</span>sregs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_SET_SREGS"</span><span class="op">);</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_regs regs <span class="op">=</span> <span class="op">{.</span>rip <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>rflags <span class="op">=</span> <span class="bn">0x2</span><span class="op">};</span></span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_SET_REGS<span class="op">,</span> <span class="op">&amp;</span>regs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_SET_REGS"</span><span class="op">);</span></span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(;;)</span> <span class="op">{</span></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>        <span class="co">// KVM_RUN 进入客户机模式；遇到用户空间出口时 ioctl 返回。</span></span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_RUN<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>            fail<span class="op">(</span><span class="st">"KVM_RUN"</span><span class="op">);</span></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>        <span class="cf">switch</span> <span class="op">(</span>run<span class="op">-&gt;</span>exit_reason<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_IO<span class="op">:</span></span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>            <span class="co">// 本演示接受向串行 I/O 端口写入一个字节。</span></span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>run<span class="op">-&gt;</span>io<span class="op">.</span>direction <span class="op">==</span> KVM_EXIT_IO_OUT <span class="op">&amp;&amp;</span></span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>                run<span class="op">-&gt;</span>io<span class="op">.</span>port <span class="op">==</span> <span class="bn">0x3f8</span> <span class="op">&amp;&amp;</span> run<span class="op">-&gt;</span>io<span class="op">.</span>size <span class="op">==</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>                <span class="dt">uint8_t</span> <span class="op">*</span>data <span class="op">=</span> <span class="op">(</span><span class="dt">uint8_t</span> <span class="op">*)</span>run <span class="op">+</span> run<span class="op">-&gt;</span>io<span class="op">.</span>data_offset<span class="op">;</span></span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>                fwrite<span class="op">(</span>data<span class="op">,</span> <span class="dv">1</span><span class="op">,</span> run<span class="op">-&gt;</span>io<span class="op">.</span>count<span class="op">,</span> stdout<span class="op">);</span></span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a>                fflush<span class="op">(</span>stdout<span class="op">);</span></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>                fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unexpected I/O exit</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_HLT<span class="op">:</span></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>            putchar<span class="op">(</span><span class="ch">'</span><span class="sc">\n</span><span class="ch">'</span><span class="op">);</span></span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_FAIL_ENTRY<span class="op">:</span></span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"failed VM entry: 0x</span><span class="sc">%llx\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>                    <span class="op">(</span><span class="dt">unsigned</span> <span class="dt">long</span> <span class="dt">long</span><span class="op">)</span>run<span class="op">-&gt;</span>fail_entry<span class="op">.</span>hardware_entry_failure_reason<span class="op">);</span></span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_INTERNAL_ERROR<span class="op">:</span></span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"KVM internal error</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>        <span class="cf">default</span><span class="op">:</span></span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unhandled KVM exit reason: </span><span class="sc">%u\n</span><span class="st">"</span><span class="op">,</span> run<span class="op">-&gt;</span>exit_reason<span class="op">);</span></span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> tiny_kvm.c <span class="at">-o</span> tiny_kvm</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./tiny_kvm</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 预期输出：H</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>示例只展示 <code>/dev/kvm</code>、VM、vCPU、guest memory 和 exit loop 的骨架，不是安全完整 VMM；真实系统还需设备、固件、中断、并发和生命周期管理。</p>
+</section>
+</section>
+<section id="memory-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="memory-virtualization"><strong>内存虚拟化</strong></h3>
+<section id="shadow-page-tables-and-nested-translation" class="level4">
+<h4 class="anchored" data-anchor-id="shadow-page-tables-and-nested-translation"><strong>影子页表与嵌套翻译</strong></h4>
+<p>Guest virtual address（GVA）先由 guest 页表映射到 guest physical address（GPA），再由 hypervisor 映射到 host physical address（HPA）。</p>
+<p><strong>Shadow page table</strong> 由 VMM 在软件中合成 GVA-&gt;HPA 映射，guest 修改页表时需 trap 或跟踪；<strong>nested paging</strong>（Intel EPT/AMD NPT）让硬件联合遍历 guest 和二级页表，减少页表写 trap，但 miss 时潜在访存次数更多。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/nested-address-translation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/nested-address-translation.svg" class="img-fluid figure-img" style="width:98.0%" alt="比较 shadow GVA-to-HPA 与 nested GVA-to-GPA-to-HPA，标出 TLB 和 page-walk cache。"></a></p>
+<figcaption>影子页表的软件合成与嵌套 GVA-GPA-HPA 翻译</figcaption>
+</figure>
+</div>
+<p>TLB 会缓存组合后的翻译，ASID/VPID/PCID 减少切换 flush。Huge page 可增加 reach，但两级页大小、内存碎片和迁移 dirty tracking 都会影响是否可用。</p>
+<details>
+<summary>
+<strong>Python：模拟两级翻译与权限交集</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Mapping:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    frame: <span class="bu">int</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    read: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    write: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    execute: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> translate(gva: <span class="bu">int</span>, access: <span class="bu">str</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>              guest_pt: <span class="bu">dict</span>[<span class="bu">int</span>, Mapping],</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>              nested_pt: <span class="bu">dict</span>[<span class="bu">int</span>, Mapping]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""完成 GVA -&gt; GPA -&gt; HPA 转换，并执行两阶段权限检查。"""</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    guest_vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(gva, PAGE_SIZE)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 阶段 1 由客户机 OS 为其某个进程选择。</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    guest <span class="op">=</span> guest_pt.get(guest_vpn)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> guest <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"guest page fault: no GVA -&gt; GPA mapping"</span>)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 客户机页框号就是客户机物理页号。</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    guest_pfn <span class="op">=</span> guest.frame</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 阶段 2 由 hypervisor 控制，并强制执行 VM 所有权。</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    nested <span class="op">=</span> nested_pt.get(guest_pfn)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> nested <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"nested fault: GPA has no host backing"</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 只有两个阶段都授权时，访问才被允许。</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    permission <span class="op">=</span> {</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"read"</span>: guest.read <span class="kw">and</span> nested.read,</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>        <span class="st">"write"</span>: guest.write <span class="kw">and</span> nested.write,</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>        <span class="st">"execute"</span>: guest.execute <span class="kw">and</span> nested.execute,</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> permission[access]:</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">PermissionError</span>(<span class="ss">f"</span><span class="sc">{</span>access<span class="sc">}</span><span class="ss"> denied by composed permissions"</span>)</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> nested.frame <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>guest_pt <span class="op">=</span> {</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x4</span>: Mapping(frame<span class="op">=</span><span class="bn">0x20</span>, read<span class="op">=</span><span class="va">True</span>, write<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>nested_pt <span class="op">=</span> {</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Hypervisor 刻意把该页暴露为只读。</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x20</span>: Mapping(frame<span class="op">=</span><span class="bn">0x9A</span>, read<span class="op">=</span><span class="va">True</span>, write<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>gva <span class="op">=</span> <span class="bn">0x4</span> <span class="op">*</span> PAGE_SIZE <span class="op">+</span> <span class="dv">123</span></span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(translate(gva, <span class="st">"read"</span>, guest_pt, nested_pt)))  <span class="co"># 0x9a07b</span></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>    translate(gva, <span class="st">"write"</span>, guest_pt, nested_pt)</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">PermissionError</span> <span class="im">as</span> error:</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(error)  <span class="co"># 客户机写权限无法覆盖嵌套页表的只读限制</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>最终权限是 guest 与 hypervisor 两级允许集合的交集。Guest PTE 可写但 EPT 只读时，访问仍会二级 fault；这让 VMM 能追踪 dirty page 或保护共享内存。</p>
+</section>
+</section>
+<section id="io-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="io-virtualization"><strong>I/O 虚拟化</strong></h3>
+<section id="emulation-paravirtualized-devices-and-device-passthrough" class="level4">
+<h4 class="anchored" data-anchor-id="emulation-paravirtualized-devices-and-device-passthrough"><strong>模拟、半虚拟化设备与直通</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-io-strategies.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/virtual-io-strategies.svg" class="img-fluid figure-img" style="width:98.0%" alt="三条虚拟 I/O 栈比较旧设备模拟、virtqueue transport 与 device passthrough。"></a></p>
+<figcaption>设备模拟、virtio 半虚拟化与 IOMMU 保护直通</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>设备模拟：</strong>呈现已知硬件寄存器，guest 无需专用驱动，兼容好但每次访问模拟成本高。</li>
+<li><strong>Paravirtualized device：</strong>guest 驱动与后端用共享 descriptor ring/virtqueue 交换缓冲，减少寄存器 exit 与复制。</li>
+<li><strong>Passthrough：</strong>IOMMU 把物理设备或 SR-IOV virtual function 直接分配给 guest，性能接近原生，但迁移、共享和后端观察更难。</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtqueue-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/virtqueue-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="guest driver 把 descriptor 放入 available ring，backend 处理后写 used ring，再通知 guest。"></a></p>
+<figcaption>Split virtqueue 传递 descriptor 与 index，而非经寄存器复制每个载荷</figcaption>
+</figure>
+</div>
+<p>直通安全依赖 IOMMU 正确限制 DMA、interrupt remapping 和设备 reset 隔离；有缺陷设备或共享物理功能仍可能扩大故障域。</p>
+<details>
+<summary>
+<strong>检查 Linux guest/host 的虚拟设备与 assigned device</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看 PCI 身份、已选内核驱动与候选模块。</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">lspci</span> <span class="at">-nnk</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Virtio 设备通常绑定到名称含 virtio 的驱动。</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">find</span> /sys/bus/virtio/devices <span class="at">-maxdepth</span> 2 <span class="at">-type</span> l <span class="at">-name</span> driver <span class="dt">\</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">-exec</span> sh <span class="at">-c</span> <span class="st">'printf "%s -&gt; " "$1"; readlink "$1"'</span> sh {} <span class="dt">\;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># IOMMU 组是 VFIO 暴露的隔离单位；同组设备可能</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 无法由平台拓扑独立隔离。</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> group <span class="kw">in</span> /sys/kernel/iommu_groups/<span class="pp">*</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="bu">[</span> <span class="ot">-d</span> <span class="st">"</span><span class="va">$group</span><span class="st">/devices"</span> <span class="bu">]</span> <span class="kw">||</span> <span class="cf">continue</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'group %s: '</span> <span class="st">"</span><span class="va">${group</span><span class="op">##</span><span class="pp">*</span>/<span class="va">}</span><span class="st">"</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">find</span> <span class="st">"</span><span class="va">$group</span><span class="st">/devices"</span> <span class="at">-mindepth</span> 1 <span class="at">-maxdepth</span> 1 <span class="at">-printf</span> <span class="st">'%f '</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'\n'</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 驱动绑定并不能证明设备分配安全；还需验证 IOMMU 是否启用、</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 组构成、复位支持、中断重映射、固件与策略。</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="virtual-machine-lifecycle-and-migration" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-machine-lifecycle-and-migration"><strong>虚拟机生命周期与迁移</strong></h3>
+<p>VM 生命周期包括创建镜像、分配 vCPU/内存/设备、启动、pause、snapshot、restore、迁移和销毁。Snapshot 必须协调 CPU、内存和设备状态；只复制磁盘而不 quiesce 应用可能等价于突然掉电，而不是一致备份。</p>
+<p>Live migration 的 <strong>pre-copy</strong> 在 VM 运行时反复复制内存，追踪每轮 dirty page，最后短暂停机复制剩余状态；dirty rate 接近网络复制率时可能不收敛。<strong>Post-copy</strong> 先迁移最小 CPU 状态并恢复目标，缺页时从源拉取，其停机短但迁移期间源/目标任一失败风险更高。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/live-migration-precopy-postcopy.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/live-migration-precopy-postcopy.svg" class="img-fluid figure-img" style="width:98.0%" alt="比较迭代 pre-copy 与 fault-driven post-copy 的收敛、停机和失败权衡。"></a></p>
+<figcaption>Pre-copy 迭代脏页降低停机，post-copy 提前恢复并按需取页</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>模拟一个 pre-copy 工作负载是否收敛</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> precopy_rounds(memory_gib: <span class="bu">float</span>, dirty_mib_s: <span class="bu">float</span>,</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>                   bandwidth_mib_s: <span class="bu">float</span>, stop_mib: <span class="bu">float</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>                   max_rounds: <span class="bu">int</span> <span class="op">=</span> <span class="dv">12</span>):</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回每轮简化预复制结果与估计的最终停机时间。"""</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> memory_gib <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    rounds <span class="op">=</span> []</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> number <span class="kw">in</span> <span class="bu">range</span>(max_rounds):</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        transfer_seconds <span class="op">=</span> remaining <span class="op">/</span> bandwidth_mib_s</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        dirtied_during_round <span class="op">=</span> dirty_mib_s <span class="op">*</span> transfer_seconds</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        rounds.append({</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"round"</span>: number,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">"sent_mib"</span>: remaining,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"seconds"</span>: transfer_seconds,</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>            <span class="st">"redirtied_mib"</span>: dirtied_during_round,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        })</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        remaining <span class="op">=</span> <span class="bu">min</span>(memory_gib <span class="op">*</span> <span class="dv">1024</span>, dirtied_during_round)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> remaining <span class="op">&lt;=</span> stop_mib:</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># stop-and-copy 阶段会暂停 vCPU，并迁移最后一批页面。</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    downtime_seconds <span class="op">=</span> remaining <span class="op">/</span> bandwidth_mib_s</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> rounds, remaining, downtime_seconds</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> dirty_rate <span class="kw">in</span> (<span class="dv">50</span>, <span class="dv">300</span>, <span class="dv">900</span>):</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    rounds, final_dirty, downtime <span class="op">=</span> precopy_rounds(</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        memory_gib<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        dirty_mib_s<span class="op">=</span>dirty_rate,</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        bandwidth_mib_s<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        stop_mib<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"dirty=</span><span class="sc">{</span>dirty_rate<span class="sc">:&gt;3}</span><span class="ss"> MiB/s "</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"rounds=</span><span class="sc">{</span><span class="bu">len</span>(rounds)<span class="sc">:&gt;2}</span><span class="ss"> final=</span><span class="sc">{</span>final_dirty<span class="sc">:7.1f}</span><span class="ss"> MiB "</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"downtime~</span><span class="sc">{</span>downtime <span class="op">*</span> <span class="dv">1000</span><span class="sc">:6.1f}</span><span class="ss"> ms"</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>迁移还需处理共享存储、网络地址、设备状态、时间、NUMA 与目标 CPU 特性。兼容 CPU baseline 会牺牲部分新指令以换取迁移范围。</p>
+</section>
+<section id="container-isolation" class="level3">
+<h3 class="anchored" data-anchor-id="container-isolation"><strong>容器隔离</strong></h3>
+<p>容器是宿主上的普通进程，其边界由多种内核机制交集形成。Namespace 改变系统视图，cgroup 治理资源，capability 与 <code>no_new_privs</code> 削减权限，seccomp/LSM 限制操作，layered root filesystem 提供镜像与每容器可写层，OCI runtime 配置并启动进程。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/container-isolation-composition.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/container-isolation-composition.svg" class="img-fluid figure-img" style="width:97.0%" alt="工作负载外围依次组合 namespaces、cgroups、capabilities、seccomp、LSM、layered root 与 OCI runtime，外部仍是共享宿主内核。"></a></p>
+<figcaption>容器边界是 namespace、资源治理、权限、策略和文件系统的交集</figcaption>
+</figure>
+</div>
+<section id="namespaces-cgroups-capabilities-and-layered-file-systems" class="level4">
+<h4 class="anchored" data-anchor-id="namespaces-cgroups-capabilities-and-layered-file-systems"><strong>Namespaces、cgroups、Capabilities 与分层文件系统</strong></h4>
+<p>Namespace 不限制资源；cgroup 不改变路径视图；capability 削减不替代 syscall/object policy；只读镜像不阻止内存或网络攻击。容器必须以组合方式配置，并避免 privileged、host PID/network、危险 mount、设备和过宽 capabilities。</p>
+<p>OverlayFS 将多个只读 lower layer 与每容器 writable upper 合并。读取先看到 upper，否则 lower；首次修改 lower 对象时 copy-up 到 upper；删除 lower 对象可用 whiteout 隐藏。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/overlayfs-copy-up-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/overlayfs-copy-up-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="merged lookup 起初显示 lower 内容，写操作复制到 upper，删除用 whiteout 隐藏。"></a></p>
+<figcaption>OverlayFS 写入时从只读 lower copy-up 到容器 upper</figcaption>
+</figure>
+</div>
+<p>Copy-up 会造成首次写延迟和空间放大，inode/metadata、rename 和 hard link 语义也需理解。容器镜像层适合部署，不等于持久数据卷或备份。</p>
+<details>
+<summary>
+<strong>检查一个运行中容器由哪些机制组成</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 启动带明确内存与 PID 限制的可丢弃容器。</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 这里展示 Podman，因为无 root 运行很常见；等价的 Docker</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># inspect 命令也能暴露类似状态。</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> run <span class="at">--rm</span> <span class="at">-d</span> <span class="at">--name</span> os-boundary <span class="dt">\</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--memory</span> 256m <span class="at">--pids-limit</span> 64 <span class="dt">\</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--cap-drop</span> all <span class="at">--security-opt</span> no-new-privileges <span class="dt">\</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  docker.io/library/alpine:latest sleep 600</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 获取容器初始进程在主机上的 PID。</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">$(</span><span class="ex">podman</span> inspect <span class="at">--format</span> <span class="st">'{{.State.Pid}}'</span> os-boundary<span class="va">)</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'host PID: %s\n'</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 当进程属于不同命名空间实例时，其命名空间链接 inode 号</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 会不同于执行检查的 shell。</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'%-12s %-24s %-24s\n'</span> TYPE SELF CONTAINER</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ns <span class="kw">in</span> cgroup ipc mnt net pid user uts<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'%-12s %-24s %-24s\n'</span> <span class="dt">\</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="va">$ns</span><span class="st">"</span> <span class="st">"</span><span class="va">$(</span><span class="fu">readlink</span> <span class="st">"/proc/self/ns/</span><span class="va">$ns</span><span class="st">"</span><span class="va">)</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="va">$(</span><span class="fu">readlink</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/ns/</span><span class="va">$ns</span><span class="st">"</span><span class="va">)</span><span class="st">"</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 主机可以看到该进程的 cgroup 路径与生效控制器。</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cgroup"</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="va">cg_rel</span><span class="op">=</span><span class="va">$(</span><span class="fu">awk</span> <span class="at">-F:</span> <span class="st">'$1 == "0" {print $3}'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cgroup"</span><span class="va">)</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="va">cg</span><span class="op">=</span><span class="st">"/sys/fs/cgroup</span><span class="va">$cg_rel</span><span class="st">"</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> file <span class="kw">in</span> memory.max pids.max cpu.weight<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>  <span class="bu">[</span> <span class="ot">-r</span> <span class="st">"</span><span class="va">$cg</span><span class="st">/</span><span class="va">$file</span><span class="st">"</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">printf</span> <span class="st">'%s=%s\n'</span> <span class="st">"</span><span class="va">$file</span><span class="st">"</span> <span class="st">"</span><span class="va">$(</span><span class="fu">cat</span> <span class="st">"</span><span class="va">$cg</span><span class="st">/</span><span class="va">$file</span><span class="st">"</span><span class="va">)</span><span class="st">"</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="co"># 凭据与系统调用限制属于主机任务属性。</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Uid|Gid|Cap(Inh|Prm|Eff|Bnd|Amb)|NoNewPrivs|Seccomp):'</span> <span class="dt">\</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/status"</span></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a><span class="co"># 挂载信息揭示 overlay 与 bind mount 的组成。</span></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">' - (overlay|ext4|xfs|btrfs) '</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/mountinfo"</span> <span class="kw">|</span> <span class="fu">head</span></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> stop os-boundary</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="virtual-machines-versus-containers" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-machines-versus-containers"><strong>虚拟机与容器比较</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/vm-container-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/vm-container-comparison.svg" class="img-fluid figure-img" style="width:96.0%" alt="按生命周期状态和隔离边界位置比较 Linux container、sandboxed container、microVM 与 general-purpose VM。"></a></p>
+<figcaption>容器、强化容器、microVM 与通用 VM 的连续设计空间</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>容器</th>
+<th>虚拟机</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>内核</td>
+<td>共享宿主内核</td>
+<td>每个 guest 有独立内核</td>
+</tr>
+<tr class="even">
+<td>边界</td>
+<td>进程/namespace/策略组合</td>
+<td>虚拟硬件与 hypervisor</td>
+</tr>
+<tr class="odd">
+<td>启动与密度</td>
+<td>通常更快、更密集</td>
+<td>通常更多状态和内存</td>
+</tr>
+<tr class="even">
+<td>OS 兼容</td>
+<td>需与宿主内核 ABI 兼容</td>
+<td>可运行不同 guest OS/内核</td>
+</tr>
+<tr class="odd">
+<td>攻击面</td>
+<td>宿主 syscall 面直接可达</td>
+<td>主要是虚拟设备、hypercall 与 VMM</td>
+</tr>
+<tr class="even">
+<td>管理</td>
+<td>镜像层、runtime、编排</td>
+<td>VM 镜像、固件、虚拟设备、迁移</td>
+</tr>
+</tbody>
+</table>
+<p>边界强度并非绝对：错误配置的 VM 可通过共享目录/管理面暴露，强化容器可用用户 namespace、最小 syscall、只读 root、LSM 和 microVM 包装增强。选择取决于租户互信、内核兼容、启动时延、设备和运维。</p>
+</section>
+<section id="comparing-kernel-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="comparing-kernel-architectures"><strong>比较内核架构</strong></h3>
+<section id="monolithic-microkernel-exokernel-and-unikernel-designs" class="level4">
+<h4 class="anchored" data-anchor-id="monolithic-microkernel-exokernel-and-unikernel-designs"><strong>单体、微内核、Exokernel 与 Unikernel</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-architecture-spectrum.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/kernel-architecture-spectrum.svg" class="img-fluid figure-img" style="width:98.0%" alt="四列比较单体内核服务、用户态微内核服务器、exokernel 加 library OS，以及单用途 unikernel。"></a></p>
+<figcaption>单体、微内核、exokernel 与 unikernel 的服务、策略和边界放置</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>单体：</strong>大多数服务和驱动共享特权地址空间，调用高效、生态成熟，但 TCB 和故障域大。</li>
+<li><strong>微内核：</strong>只保留调度、地址空间、IPC 等最小机制，服务在隔离用户进程中，故障可控、分析边界清晰，但 IPC 与协调更多。</li>
+<li><strong>Exokernel：</strong>内核保护并复用低层资源，library OS 为应用实现抽象，专用化强，兼容与共享复杂。</li>
+<li><strong>Unikernel：</strong>把单个应用和所需 OS 库链接为专用镜像，状态和攻击面可小，调试、更新、多进程隔离和通用兼容较弱。</li>
+</ul>
+<p>架构名称不决定质量。高性能微内核可优化 IPC，单体内核可用语言安全、模块边界和验证缩小风险；应比较具体保护域、接口、TCB 和故障恢复。</p>
+</section>
+</section>
+<section id="teaching-kernels-and-production-kernels" class="level3">
+<h3 class="anchored" data-anchor-id="teaching-kernels-and-production-kernels"><strong>教学内核与生产内核</strong></h3>
+<section id="xv6-linux-and-verified-microkernels" class="level4">
+<h4 class="anchored" data-anchor-id="xv6-linux-and-verified-microkernels"><strong>xv6、Linux 与经过验证的微内核</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/teaching-production-verified-kernels.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/teaching-production-verified-kernels.svg" class="img-fluid figure-img" style="width:97.0%" alt="三列比较 xv6 教学简洁、Linux 生产功能和 seL4 capability microkernel 验证范围。"></a></p>
+<figcaption>xv6、Linux 与 seL4 分别优化可读机制、生产广度与证明支持保证</figcaption>
+</figure>
+</div>
+<p>xv6 以小而完整的 Unix-like 路径展示 trap、进程、页表、锁和文件系统，适合从头阅读，但缺少生产硬件、SMP 扩展、安全和兼容复杂度。Linux 覆盖广泛设备、文件系统、网络、调度、容器和观测，优化与兼容使路径更难整体阅读。</p>
+<p>seL4 以 capability 微内核和形式化验证著名。验证证明的是明确模型、代码版本、编译/硬件假设下的属性，不意味着驱动、用户服务器、配置和物理平台自动安全。真正价值在于把保证边界写清并机器检查。</p>
+</section>
+</section>
+<section id="modern-kernel-mechanisms" class="level3">
+<h3 class="anchored" data-anchor-id="modern-kernel-mechanisms"><strong>现代内核机制</strong></h3>
+<section id="rcu-ebpf-and-extensible-observability" class="level4">
+<h4 class="anchored" data-anchor-id="rcu-ebpf-and-extensible-observability"><strong>RCU、eBPF 与可扩展观测</strong></h4>
+<p>RCU 让读者在很少同步开销下读取已发布指针；更新者创建新版本、原子发布，并等待所有可能看到旧版本的既有读者经过 grace period 后回收。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rcu-publish-grace-reclaim-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/rcu-publish-grace-reclaim-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="发布新对象、旧/新读者、grace period 与延迟回收旧状态。"></a></p>
+<figcaption>RCU 让既有读者完成旧状态，宽限期后回收</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>内核风格 C 中的 RCU 保护替换模式</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">// 这是简化的内核风格模式；真实代码必须选择正确的 RCU</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">// 变体、分配上下文、链表原语、锁与错误处理。</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> config <span class="op">{</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> threshold<span class="op">;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> rcu_head rcu<span class="op">;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="kw">struct</span> config __rcu <span class="op">*</span>current_config<span class="op">;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> read_threshold<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> value<span class="op">;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 读侧临界区保证，通过 RCU 指针取得的对象在</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// rcu_read_unlock() 之后才可能被回收。</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    rcu_read_lock<span class="op">();</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>cfg <span class="op">=</span> rcu_dereference<span class="op">(</span>current_config<span class="op">);</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    value <span class="op">=</span> cfg<span class="op">-&gt;</span>threshold<span class="op">;</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    rcu_read_unlock<span class="op">();</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> value<span class="op">;</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> replace_threshold<span class="op">(</span><span class="dt">int</span> new_value<span class="op">)</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>new_cfg <span class="op">=</span> kmalloc<span class="op">(</span><span class="kw">sizeof</span><span class="op">(*</span>new_cfg<span class="op">),</span> GFP_KERNEL<span class="op">);</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>new_cfg<span class="op">)</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span>ENOMEM<span class="op">;</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 发布指针前完成初始化。</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    new_cfg<span class="op">-&gt;</span>threshold <span class="op">=</span> new_value<span class="op">;</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 如果多个写者可能竞争，还需要独立的更新锁。</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>old <span class="op">=</span> rcu_replace_pointer<span class="op">(</span>current_config<span class="op">,</span> new_cfg<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 替换前开始的读者可能仍在使用 old，因此应把它的</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 释放推迟到宽限期之后，而不是立即回收。</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>old<span class="op">)</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        kfree_rcu<span class="op">(</span>old<span class="op">,</span> rcu<span class="op">);</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>eBPF 允许程序装入内核定义 hook。Verifier 检查控制流、类型、边界、helper 和终止性等约束，通过后 JIT/解释执行；map 在内核程序与用户控制器之间交换状态。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ebpf-load-verify-attach.svg" class="lightbox" data-gallery="quarto-lightbox-inline-14"><img src="assets/ebpf-load-verify-attach.svg" class="img-fluid figure-img" style="width:98.0%" alt="源码/loader 进入 verifier，失败拒绝，通过后 JIT 或解释并 attach 到 hook，使用 maps 与用户控制器。"></a></p>
+<figcaption>eBPF 程序经 verifier 后 JIT/解释并附着到类型化 hook</figcaption>
+</figure>
+</div>
+<p>Verifier 降低但不消除风险：内核/verifier/JIT bug、过宽 attach 权限、敏感数据外泄和高事件开销仍需治理。生产观测应限制程序来源、map 容量、采样和符号隐私。</p>
+<details>
+<summary>
+<strong>使用 bpftrace 观察贯穿管道</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 在一个终端中以适当跟踪权限运行；若存在稳定 tracepoint，</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 应优先使用 tracepoint，而非任意函数探针。</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> bpftrace <span class="at">-e</span> <span class="st">'</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:syscalls:sys_enter_execve</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="st">/comm == "bash" || comm == "sh"/</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exec caller pid=%d comm=%s file=%s\n", pid, comm,</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="st">         str(args-&gt;filename));</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:sched:sched_process_exec</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exec complete pid=%d comm=%s file=%s\n", pid, comm,</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="st">         str(args-&gt;filename));</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:sched:sched_process_exit</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="st">/comm == "cat" || comm == "grep"/</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exit pid=%d comm=%s\n", pid, comm);</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="st">}'</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 在另一个终端中触发案例。</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="research-and-evolution-frontiers" class="level3">
+<h3 class="anchored" data-anchor-id="research-and-evolution-frontiers"><strong>研究与演进前沿</strong></h3>
+<section id="confidential-computing-library-oses-and-serverless-isolation" class="level4">
+<h4 class="anchored" data-anchor-id="confidential-computing-library-oses-and-serverless-isolation"><strong>机密计算、Library OS 与 Serverless 隔离</strong></h4>
+<p><strong>Confidential VM</strong> 用内存加密和 attestation 降低宿主/hypervisor 读取 guest 私有内存的能力，但仍需信任 CPU/firmware、guest 软件和 attestation 验证，I/O 与 side channel 也有边界。<strong>Library OS</strong> 在窄 PAL 上提供应用所需 OS 接口，适合 enclave、unikernel 或兼容层。<strong>Serverless microVM</strong> 通过精简设备模型、预热 snapshot 和快速恢复，在比容器更强边界下追求毫秒级启动。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/modern-isolation-frontiers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-15"><img src="assets/modern-isolation-frontiers.svg" class="img-fluid figure-img" style="width:98.0%" alt="三种架构比较 confidential VM、带窄 PAL 的 library OS 和专用 serverless microVM。"></a></p>
+<figcaption>Confidential VM、library OS 与 serverless microVM 移动不同信任/兼容边界</figcaption>
+</figure>
+</div>
+<p>这些方向都不是“同时获得全部优点”。加密内存增加 attestation/设备复杂度，library OS 缩小接口却承担兼容，microVM 快速启动依赖镜像优化和池化。研究问题应具体到威胁模型、启动分布、内存密度与可操作性。</p>
+</section>
+</section>
+<section id="running-the-pipeline-natively-in-a-container-and-in-a-vm" class="level3">
+<h3 class="anchored" data-anchor-id="running-the-pipeline-natively-in-a-container-and-in-a-vm"><strong>原生、容器和 VM 中运行贯穿管道</strong></h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>管道内部 Unix 语义保持相似：shell 创建进程和 pipe，<code>cat/grep</code> 使用 fd，内核调度和处理 page fault/I/O。变化的是这些操作由哪一层负责和在哪里受到约束。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-native-container-vm.svg" class="lightbox" data-gallery="quarto-lightbox-inline-16"><img src="assets/pipeline-native-container-vm.svg" class="img-fluid figure-img" style="width:98.0%" alt="三条栈追踪管道经过宿主内核、共享内核容器 runtime，以及 guest 内核加 hypervisor。"></a></p>
+<figcaption>管道在原生、容器与 VM 栈中的调度、路径、内存与 I/O 所有权</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>原生：</strong>宿主内核直接解析路径、调度线程和访问设备。</li>
+<li><strong>容器：</strong>同一宿主内核执行系统调用，但 namespace 改变路径/PID/network 视图，cgroup 和策略限制资源与权限，overlay/volume 决定存储路径。</li>
+<li><strong>VM：</strong>guest 内核处理进程、页表、文件系统和虚拟设备；hypervisor 再调度 vCPU、翻译 guest memory 并把虚拟 I/O 送到宿主后端。</li>
+</ul>
+<details>
+<summary>
+<strong>在三种环境中运行并比较管道</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 在新的工作目录中准备一份确定性输入。</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="va">demo_dir</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="st">"</span><span class="va">$demo_dir</span><span class="st">"</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'%s\n'</span> <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">'user code enters through a system call'</span> <span class="dt">\</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">'the kernel creates and schedules both processes'</span> <span class="dt">\</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">'a container shares the host kernel'</span> <span class="dt">\</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">'a virtual machine has a guest kernel'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 原生：主机 shell、主机进程、主机内核与主机文件系统。</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.native.txt</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 观察进程/文件描述符系统调用，不跟踪每个库调用。</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-o</span> native.trace <span class="dt">\</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=pipe,pipe2,clone,fork,vfork,execve,dup2,close,openat,read,write <span class="dt">\</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.native.traced.txt'</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 容器：命令来自镜像，而当前目录作为数据</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="co"># 被挂载；进程仍进入主机 Linux 内核。</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> run <span class="at">--rm</span> <span class="dt">\</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">--network</span> none <span class="at">--cap-drop</span> all <span class="at">--security-opt</span> no-new-privileges <span class="dt">\</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">--memory</span> 128m <span class="at">--pids-limit</span> 32 <span class="dt">\</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span> <span class="st">"</span><span class="va">$PWD</span><span class="st">:/work:Z"</span> <span class="at">-w</span> /work <span class="dt">\</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  docker.io/library/alpine:latest <span class="dt">\</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.container.txt'</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. VM：把输入复制到准备好的 Linux VM，并通过客户机内核运行。</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 将 VM_HOST 设置为你管理的 SSH 目标，例如 student@192.0.2.10。</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="bu">:</span> <span class="st">"</span><span class="va">${VM_HOST</span><span class="op">:?</span>set VM_HOST to your Linux VM SSH target<span class="va">}</span><span class="st">"</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> input.txt <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">:/tmp/os11-input.txt"</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>  <span class="st">"cat /tmp/os11-input.txt | grep kernel &gt; /tmp/os11-result.txt"</span></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">:/tmp/os11-result.txt"</span> result.vm.txt</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="co"># 尽管执行路径不同，语义输出应保持一致。</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="fu">sha256sum</span> result.native.txt result.container.txt result.vm.txt</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a><span class="co"># 主机侧观察会暴露不同层次。</span></span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'native/container host: '</span><span class="kw">;</span> <span class="fu">uname</span> <span class="at">-r</span></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> inspect <span class="at">--format</span> <span class="dt">\</span></span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>  <span class="st">'container pid={{.State.Pid}} image={{.ImageName}}'</span> <span class="dt">\</span></span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>  <span class="at">--latest</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">"</span> <span class="st">'printf "guest kernel: "; uname -r; cat /proc/1/cgroup'</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>比较应控制输入、缓存状态、CPU/内存配额、存储 backing 和观测开销。一次短命令的启动差异不能代表长期服务的稳态吞吐与隔离质量。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th>主要虚拟化/隔离对象</th>
+<th>边界优势</th>
+<th>主要成本与风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>原生进程</td>
+<td>地址空间、凭据、fd</td>
+<td>最少额外层、POSIX 组合自然</td>
+<td>共享宿主内核与系统视图</td>
+</tr>
+<tr class="even">
+<td>容器</td>
+<td>进程视图、资源、权限、根文件系统</td>
+<td>启动快、密度高、部署一致</td>
+<td>组合配置复杂、共享内核攻击面</td>
+</tr>
+<tr class="odd">
+<td>VM</td>
+<td>CPU、物理内存、设备与完整 guest OS</td>
+<td>独立内核、OS 兼容与强边界</td>
+<td>更多状态、嵌套翻译和虚拟 I/O</td>
+</tr>
+<tr class="even">
+<td>MicroVM</td>
+<td>精简 VM 边界</td>
+<td>较强隔离与较快启动折衷</td>
+<td>功能/设备受限、池化复杂</td>
+</tr>
+<tr class="odd">
+<td>Microkernel</td>
+<td>最小特权机制与用户态服务</td>
+<td>小 TCB、服务故障隔离</td>
+<td>IPC 和系统级协调</td>
+</tr>
+<tr class="even">
+<td>Unikernel/Library OS</td>
+<td>应用专用 OS 服务</td>
+<td>小镜像、专用化</td>
+<td>通用兼容、调试和共享弱</td>
+</tr>
+</tbody>
+</table>
+<p>完整操作系统体系最终回到边界选择：硬件 privilege 隔离用户与内核；进程隔离地址空间；容器组合共享内核中的视图和资源边界；VM 在虚拟硬件处隔离 guest 内核；微内核和 library OS 又重新安排哪些服务进入特权域。没有抽象能消除底层成本，只能把它移动到更适合当前安全、性能与运维目标的位置。</p>
+<p><a href="Operating-Systems.html">返回操作系统总览</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

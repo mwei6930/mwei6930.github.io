@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Threads and Interprocess Communication</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="03-threads-and-interprocess-communication_files/libs/clipboard/clipboard.min.js"></script>
+<script src="03-threads-and-interprocess-communication_files/libs/quarto-html/quarto.js"></script>
+<script src="03-threads-and-interprocess-communication_files/libs/quarto-html/popper.min.js"></script>
+<script src="03-threads-and-interprocess-communication_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="03-threads-and-interprocess-communication_files/libs/quarto-html/anchor.min.js"></script>
+<link href="03-threads-and-interprocess-communication_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="03-threads-and-interprocess-communication_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="03-threads-and-interprocess-communication_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="03-threads-and-interprocess-communication_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="03-threads-and-interprocess-communication_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#threads-and-interprocess-communication" id="toc-threads-and-interprocess-communication" class="nav-link active" data-scroll-target="#threads-and-interprocess-communication"><strong>Threads and Interprocess Communication</strong></a>
+  <ul>
+  <li><a href="#why-do-programs-need-concurrent-execution" id="toc-why-do-programs-need-concurrent-execution" class="nav-link" data-scroll-target="#why-do-programs-need-concurrent-execution"><strong>Why Do Programs Need Concurrent Execution?</strong></a>
+  <ul>
+  <li><a href="#concurrency-and-parallelism" id="toc-concurrency-and-parallelism" class="nav-link" data-scroll-target="#concurrency-and-parallelism"><strong>Concurrency and Parallelism</strong></a></li>
+  <li><a href="#responsiveness-throughput-and-structure" id="toc-responsiveness-throughput-and-structure" class="nav-link" data-scroll-target="#responsiveness-throughput-and-structure"><strong>Responsiveness, Throughput, and Structure</strong></a></li>
+  </ul></li>
+  <li><a href="#the-thread-abstraction" id="toc-the-thread-abstraction" class="nav-link" data-scroll-target="#the-thread-abstraction"><strong>The Thread Abstraction</strong></a>
+  <ul>
+  <li><a href="#shared-process-state-and-per-thread-state" id="toc-shared-process-state-and-per-thread-state" class="nav-link" data-scroll-target="#shared-process-state-and-per-thread-state"><strong>Shared Process State and Per-Thread State</strong></a></li>
+  <li><a href="#thread-lifecycle-and-thread-control-blocks" id="toc-thread-lifecycle-and-thread-control-blocks" class="nav-link" data-scroll-target="#thread-lifecycle-and-thread-control-blocks"><strong>Thread Lifecycle and Thread Control Blocks</strong></a></li>
+  </ul></li>
+  <li><a href="#thread-implementation-models" id="toc-thread-implementation-models" class="nav-link" data-scroll-target="#thread-implementation-models"><strong>Thread Implementation Models</strong></a>
+  <ul>
+  <li><a href="#user-level-threads" id="toc-user-level-threads" class="nav-link" data-scroll-target="#user-level-threads"><strong>User-Level Threads</strong></a></li>
+  <li><a href="#kernel-threads" id="toc-kernel-threads" class="nav-link" data-scroll-target="#kernel-threads"><strong>Kernel Threads</strong></a></li>
+  <li><a href="#many-to-one-one-to-one-and-many-to-many-models" id="toc-many-to-one-one-to-one-and-many-to-many-models" class="nav-link" data-scroll-target="#many-to-one-one-to-one-and-many-to-many-models"><strong>Many-to-One, One-to-One, and Many-to-Many Models</strong></a></li>
+  </ul></li>
+  <li><a href="#thread-apis-and-lifecycle-management" id="toc-thread-apis-and-lifecycle-management" class="nav-link" data-scroll-target="#thread-apis-and-lifecycle-management"><strong>Thread APIs and Lifecycle Management</strong></a>
+  <ul>
+  <li><a href="#creation-joining-detaching-and-cancellation" id="toc-creation-joining-detaching-and-cancellation" class="nav-link" data-scroll-target="#creation-joining-detaching-and-cancellation"><strong>Creation, Joining, Detaching, and Cancellation</strong></a></li>
+  <li><a href="#thread-local-storage" id="toc-thread-local-storage" class="nav-link" data-scroll-target="#thread-local-storage"><strong>Thread-Local Storage</strong></a></li>
+  </ul></li>
+  <li><a href="#why-interprocess-communication-is-necessary" id="toc-why-interprocess-communication-is-necessary" class="nav-link" data-scroll-target="#why-interprocess-communication-is-necessary"><strong>Why Interprocess Communication Is Necessary</strong></a>
+  <ul>
+  <li><a href="#naming-buffering-ordering-and-backpressure" id="toc-naming-buffering-ordering-and-backpressure" class="nav-link" data-scroll-target="#naming-buffering-ordering-and-backpressure"><strong>Naming, Buffering, Ordering, and Backpressure</strong></a></li>
+  <li><a href="#copying-versus-shared-state" id="toc-copying-versus-shared-state" class="nav-link" data-scroll-target="#copying-versus-shared-state"><strong>Copying Versus Shared State</strong></a></li>
+  </ul></li>
+  <li><a href="#pipes-and-fifos" id="toc-pipes-and-fifos" class="nav-link" data-scroll-target="#pipes-and-fifos"><strong>Pipes and FIFOs</strong></a></li>
+  <li><a href="#signals-and-asynchronous-notifications" id="toc-signals-and-asynchronous-notifications" class="nav-link" data-scroll-target="#signals-and-asynchronous-notifications"><strong>Signals and Asynchronous Notifications</strong></a></li>
+  <li><a href="#shared-memory-and-memory-mapped-communication" id="toc-shared-memory-and-memory-mapped-communication" class="nav-link" data-scroll-target="#shared-memory-and-memory-mapped-communication"><strong>Shared Memory and Memory-Mapped Communication</strong></a></li>
+  <li><a href="#message-queues-and-local-sockets" id="toc-message-queues-and-local-sockets" class="nav-link" data-scroll-target="#message-queues-and-local-sockets"><strong>Message Queues and Local Sockets</strong></a></li>
+  <li><a href="#blocking-nonblocking-and-event-driven-communication" id="toc-blocking-nonblocking-and-event-driven-communication" class="nav-link" data-scroll-target="#blocking-nonblocking-and-event-driven-communication"><strong>Blocking, Nonblocking, and Event-Driven Communication</strong></a></li>
+  <li><a href="#connecting-the-pipeline-with-processes-threads-and-ipc" id="toc-connecting-the-pipeline-with-processes-threads-and-ipc" class="nav-link" data-scroll-target="#connecting-the-pipeline-with-processes-threads-and-ipc"><strong>Connecting the Pipeline with Processes, Threads, and IPC</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Threads and Interprocess Communication</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/03-threads-and-interprocess-communication.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="threads-and-interprocess-communication" class="level2">
+<h2 class="anchored" data-anchor-id="threads-and-interprocess-communication"><strong>Threads and Interprocess Communication</strong></h2>
+<p>A process gives a program an identity, an address space, and protected references to resources. A <strong>thread</strong> is an execution stream inside that process: it carries the register state and stack needed to run instructions, while reusing much of the process’s memory and resource context. <strong>Interprocess communication</strong> (IPC) solves the complementary problem. It creates controlled paths between processes whose address spaces are intentionally isolated.</p>
+<p>Those two choices move complexity to different places. Threads make data sharing cheap because ordinary loads and stores can reach common memory, but every thread must obey a synchronization protocol and one invalid pointer can damage the entire process. Separate processes improve isolation and failure containment, but communication must cross an explicit channel with rules for naming, copying or mapping, buffering, ordering, wakeups, and endpoint lifetime.</p>
+<p>The chapter continues the pipeline introduced previously:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The real shell uses two processes and a pipe. This chapter asks what that design buys, how it would differ if <code>cat</code> and <code>grep</code> were threads in one process, and when an event-driven program might replace both blocking execution streams with explicit state machines. The focus is mechanism and interface semantics. CPU scheduling policy belongs to the next chapter, while locks, condition variables, atomicity, deadlock, and memory ordering are developed systematically in the synchronization chapter.</p>
+<section id="why-do-programs-need-concurrent-execution" class="level3">
+<h3 class="anchored" data-anchor-id="why-do-programs-need-concurrent-execution"><strong>Why Do Programs Need Concurrent Execution?</strong></h3>
+<p>Programs often have several activities that can make progress independently: a server accepts new clients while older requests wait for storage, a user interface remains interactive while work runs in the background, and a pipeline lets a producer prepare later bytes while a consumer processes earlier bytes. Concurrent structure exposes that independence to a runtime or operating system.</p>
+<p>Concurrency is not automatically faster. It introduces interleavings, communication, context switches, cache effects, queueing, and failure interactions. The reason to use it is that the problem contains independent work or unavoidable waiting and the resulting benefits exceed those costs.</p>
+<section id="concurrency-and-parallelism" class="level4">
+<h4 class="anchored" data-anchor-id="concurrency-and-parallelism"><strong>Concurrency and Parallelism</strong></h4>
+<p><strong>Concurrency</strong> means that multiple activities have overlapping lifetimes and can make progress in an interleaved order. One CPU can support concurrency by switching among runnable threads. <strong>Parallelism</strong> means that multiple activities execute at the same instant on different processing resources. Parallelism therefore requires available hardware execution contexts, while concurrency is primarily a way to structure and schedule work.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multithreaded-process.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/multithreaded-process.svg" class="img-fluid figure-img" style="width:56.0%" alt="Diagram of a process containing two threads whose execution intervals alternate down a time axis."></a></p>
+<figcaption>Two threads in one process interleave over time, illustrating concurrent progress even when only one thread executes at each instant.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:Multithreaded_process.svg">Cburnett, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>. The original SVG is stored locally for reliable rendering.</em></p>
+<p>The figure shows interleaving: thread 1 and thread 2 both advance over a time interval, but the CPU need not execute them simultaneously. On a multicore system, the scheduler can also place them on different CPUs and create genuine parallel execution.</p>
+<p>Three distinctions prevent common misunderstandings:</p>
+<ul>
+<li>A concurrent program can be correct on one CPU and still be parallel on several CPUs. Its correctness must not depend on one particular timing.</li>
+<li>More threads do not create more independent work. If every task waits for one serial stage, additional threads mainly add queues and overhead.</li>
+<li>Hardware simultaneous multithreading, operating-system threads, and application tasks are different layers. A runtime may schedule thousands of tasks over tens of OS threads, which the kernel schedules over a smaller number of hardware contexts.</li>
+</ul>
+<p>For CPU-bound work, the serial fraction limits speedup. If fraction <code>s</code> of a computation cannot be parallelized, an idealized upper bound with <code>N</code> workers is:</p>
+<p><span class="math display">\[
+S(N) = \frac{1}{s + \frac{1-s}{N}}
+\]</span></p>
+<p>If <code>s = 0.10</code>, infinitely many workers cannot exceed a speedup of <code>10</code>. Real performance is lower because task creation, communication, load imbalance, cache coherence, and memory bandwidth add cost. The equation is not a scheduler model; it is a reminder to locate the serial bottleneck before adding execution contexts.</p>
+</section>
+<section id="responsiveness-throughput-and-structure" class="level4">
+<h4 class="anchored" data-anchor-id="responsiveness-throughput-and-structure"><strong>Responsiveness, Throughput, and Structure</strong></h4>
+<p>Concurrent execution can improve several different objectives:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Objective</th>
+<th>How concurrency helps</th>
+<th>Typical failure if designed poorly</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Responsiveness</td>
+<td>interactive or control work can run while another activity waits</td>
+<td>background work still holds a shared lock or saturates the CPU</td>
+</tr>
+<tr class="even">
+<td>Throughput</td>
+<td>several requests overlap I/O and use otherwise idle resources</td>
+<td>too much concurrency causes queueing, cache misses, or memory pressure</td>
+</tr>
+<tr class="odd">
+<td>Latency hiding</td>
+<td>one thread runs while another waits for storage, network, or a timer</td>
+<td>unbounded queues hide overload until memory is exhausted</td>
+</tr>
+<tr class="even">
+<td>Parallel speedup</td>
+<td>independent CPU work runs on several cores</td>
+<td>contention and serial sections dominate</td>
+</tr>
+<tr class="odd">
+<td>Program structure</td>
+<td>activities map to comprehensible components or stages</td>
+<td>shared mutable state creates timing-dependent coupling</td>
+</tr>
+<tr class="even">
+<td>Fault containment</td>
+<td>separate worker processes can fail independently</td>
+<td>a thread failure terminates or corrupts the whole process</td>
+</tr>
+</tbody>
+</table>
+<p>A web server illustrates the trade-off. A thread-per-request design allows simple blocking code, but a large number of mostly idle connections may consume stacks and kernel scheduling objects. An event loop can manage many idle descriptors with fewer threads, but every operation must avoid blocking and preserve explicit per-connection state. A process pool can contain crashes and apply different credentials, but communication and deployment become more explicit.</p>
+<p>The correct design starts with workload questions: Is the work CPU-bound or waiting-bound? How many independent requests exist? Must failures be isolated? How large can queues grow? Does the protocol need message boundaries? Which resources can safely be shared? “Use more threads” is not an answer until those constraints are known.</p>
+</section>
+</section>
+<section id="the-thread-abstraction" class="level3">
+<h3 class="anchored" data-anchor-id="the-thread-abstraction"><strong>The Thread Abstraction</strong></h3>
+<p>A thread is the smallest execution context an operating-system scheduler or language runtime can independently make runnable. It needs a program counter, registers, a stack, scheduling state, and a way to identify it. It does not normally own a separate process address space.</p>
+<section id="shared-process-state-and-per-thread-state" class="level4">
+<h4 class="anchored" data-anchor-id="shared-process-state-and-per-thread-state"><strong>Shared Process State and Per-Thread State</strong></h4>
+<p>Threads in one POSIX process execute the same program and share global memory, heap memory, memory mappings, open file descriptors, credentials, current directory, and signal dispositions. Each thread has its own registers, stacks, thread identifier, signal mask, scheduling attributes, <code>errno</code>, and thread-local values. Linux summarizes these responsibilities in <a href="https://man7.org/linux/man-pages/man7/pthreads.7.html"><code>pthreads(7)</code></a>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/thread-shared-private-state.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/thread-shared-private-state.svg" class="img-fluid figure-img" style="width:96.0%" alt="A process box containing shared address space, descriptors, identity, signal policy, resources, and lifetime, plus three thread boxes with private execution state."></a></p>
+<figcaption>Process-wide resources are shared by three threads, while registers, stacks, scheduler state, signal masks, errno, and TLS are private to each thread.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The distinction is behavioral, not merely a memory-layout fact:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Operation in one thread</th>
+<th>Effect visible to peer threads</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>writes a global or heap object</td>
+<td>peers can observe the same memory, subject to synchronization and memory-order rules</td>
+</tr>
+<tr class="even">
+<td>closes a file descriptor</td>
+<td>the descriptor-table entry is gone for the process; another thread using that number may fail or hit a reused entry</td>
+</tr>
+<tr class="odd">
+<td>changes the current working directory</td>
+<td>pathname resolution changes for every thread in the process</td>
+</tr>
+<tr class="even">
+<td>changes its signal mask</td>
+<td>only that thread’s delivery eligibility changes</td>
+</tr>
+<tr class="odd">
+<td>modifies a stack local</td>
+<td>normally private because the stack is private, unless its address is shared</td>
+</tr>
+<tr class="even">
+<td>calls <code>exit()</code> or returns from <code>main()</code></td>
+<td>all threads terminate because the process exits</td>
+</tr>
+<tr class="odd">
+<td>returns from its start routine or calls <code>pthread_exit()</code></td>
+<td>only that thread terminates</td>
+</tr>
+</tbody>
+</table>
+<p>“Stack local” does not guarantee isolation. A thread can pass the address of one of its local variables to another thread, and both can then access the same stack object. Correctness depends on object lifetime and synchronization, not on the variable’s source-level spelling.</p>
+<p>Sharing also changes failure behavior. A segmentation fault generated by one thread normally invokes the process-wide disposition and can terminate the entire process. Memory corruption may be even more subtle: the offending thread can overwrite a queue, allocator metadata, or another thread’s data long before the process visibly fails. Threads are an execution isolation boundary, not a memory protection boundary.</p>
+</section>
+<section id="thread-lifecycle-and-thread-control-blocks" class="level4">
+<h4 class="anchored" data-anchor-id="thread-lifecycle-and-thread-control-blocks"><strong>Thread Lifecycle and Thread Control Blocks</strong></h4>
+<p>A thread moves through lifecycle states similar to a process: it is created, becomes runnable, executes, blocks for an event, becomes runnable again, and terminates. The kernel or runtime records its resumable state in a <strong>thread control block</strong> (TCB) or equivalent structures.</p>
+<p>A conceptual TCB contains:</p>
+<ul>
+<li>thread identity and lifecycle state;</li>
+<li>saved registers, stack pointer, and instruction pointer;</li>
+<li>references to user and kernel stacks;</li>
+<li>scheduling policy, priority, affinity, and accounting;</li>
+<li>per-thread signal mask and pending state;</li>
+<li>cancellation and cleanup state;</li>
+<li>thread-local storage metadata; and</li>
+<li>a reference to the process resources shared with peer threads.</li>
+</ul>
+<p>In a one-to-one implementation, the kernel maintains scheduling state for every application thread. A user-level runtime may add another TCB for tasks that the kernel cannot see. These structures can coexist: a language task has runtime state, runs on an OS thread with kernel state, and belongs to a process that owns the address space.</p>
+<p>Thread stacks deserve explicit resource planning. Reserving an 8 MiB virtual stack for each of 10,000 threads creates a large virtual-address commitment even if physical pages are allocated on demand. Making stacks too small risks overflow, especially with deep recursion or large automatic objects. Guard pages help convert some overflows into faults, but they do not choose a safe application stack size.</p>
+<p>Termination and reclamation are separate events. A joinable thread can finish executing while retaining a small amount of status and bookkeeping until another thread joins it. A detached thread releases those final resources automatically. This resembles the reason a terminated process can remain waitable, although POSIX thread and process lifecycles use different APIs and kernel representations.</p>
+</section>
+</section>
+<section id="thread-implementation-models" class="level3">
+<h3 class="anchored" data-anchor-id="thread-implementation-models"><strong>Thread Implementation Models</strong></h3>
+<p>The thread API seen by an application does not completely determine who schedules each execution stream. A runtime can switch user contexts itself, ask the kernel to schedule every thread, or combine both levels.</p>
+<section id="user-level-threads" class="level4">
+<h4 class="anchored" data-anchor-id="user-level-threads"><strong>User-Level Threads</strong></h4>
+<p>A <strong>user-level thread</strong> is represented and scheduled by a library or language runtime without requiring a kernel scheduling entity for every user task. Switching between two such threads can avoid a system call and can apply application-specific policies. Creating a task may require only a small stack and runtime metadata.</p>
+<p>The kernel, however, schedules only the underlying kernel context. In a pure many-to-one design, if that context enters a blocking system call, the kernel cannot run another hidden user thread from the same process. The runtime must avoid blocking calls, use nonblocking I/O, or integrate with asynchronous facilities. The design also cannot run hidden threads in parallel on several CPUs because the kernel sees only one schedulable entity.</p>
+<p>Modern runtimes often use the same idea without exposing it as POSIX threads. Fibers, coroutines, green threads, and async tasks can be multiplexed over an OS-thread pool. Their benefits depend on cooperation: tasks must yield at known points, and libraries must not unexpectedly block the carrier thread.</p>
+</section>
+<section id="kernel-threads" class="level4">
+<h4 class="anchored" data-anchor-id="kernel-threads"><strong>Kernel Threads</strong></h4>
+<p>A <strong>kernel-scheduled thread</strong> has its own kernel execution and scheduling state. If one thread blocks in <code>read()</code>, another thread in the same process can remain runnable. The kernel can place threads from one process on several CPUs, preempt them independently, account for CPU usage, and honor per-thread affinity or real-time policy.</p>
+<p>The price is kernel-visible state and transition cost. Creating and destroying a large number of threads allocates stacks and management structures. Scheduling too many runnable threads increases competition and cache disruption. Kernel support therefore enables parallelism and blocking APIs, but it does not make an unbounded thread-per-item design efficient.</p>
+<p>Linux’s modern Native POSIX Threads Library uses kernel facilities so each POSIX thread maps to a kernel scheduling entity. Linux still presents process-wide and thread-wide identities differently: tools can show a thread-group ID as the process PID and a distinct task ID for each thread.</p>
+</section>
+<section id="many-to-one-one-to-one-and-many-to-many-models" class="level4">
+<h4 class="anchored" data-anchor-id="many-to-one-one-to-one-and-many-to-many-models"><strong>Many-to-One, One-to-One, and Many-to-Many Models</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/thread-mapping-models.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/thread-mapping-models.svg" class="img-fluid figure-img" style="width:96.0%" alt="Three-panel diagram comparing many user threads on one kernel thread, one user thread per kernel thread, and many user threads multiplexed over several kernel threads."></a></p>
+<figcaption>Many-to-one, one-to-one, and many-to-many mappings between user threads, runtime schedulers, kernel scheduling entities, and CPUs.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The models can be compared directly:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 25%">
+<col style="width: 18%">
+<col style="width: 18%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Scheduling relationship</th>
+<th style="text-align: right;">Parallelism</th>
+<th>Blocking behavior</th>
+<th>Main implementation burden</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Many-to-one</td>
+<td>runtime maps many user threads to one kernel entity</td>
+<td style="text-align: right;">no</td>
+<td>one blocking call can stall all user threads</td>
+<td>runtime context switching and nonblocking integration</td>
+</tr>
+<tr class="even">
+<td>One-to-one</td>
+<td>every user thread has a kernel entity</td>
+<td style="text-align: right;">yes</td>
+<td>one blocked thread does not inherently block peers</td>
+<td>kernel objects and scheduling overhead per thread</td>
+</tr>
+<tr class="odd">
+<td>Many-to-many</td>
+<td>runtime maps many user threads over a kernel-thread pool</td>
+<td style="text-align: right;">yes</td>
+<td>runtime can continue work on available carriers</td>
+<td>two-level scheduling, pinning, blocking, and migration rules</td>
+</tr>
+</tbody>
+</table>
+<p>Linux Pthreads uses a one-to-one model, as documented in <a href="https://man7.org/linux/man-pages/man7/pthreads.7.html"><code>pthreads(7)</code></a>. A language runtime can still implement many-to-many scheduling above Pthreads by treating OS threads as carriers. Therefore, statements such as “this application has one million threads” are incomplete unless they identify whether those are language tasks, user fibers, POSIX threads, or kernel tasks.</p>
+</section>
+</section>
+<section id="thread-apis-and-lifecycle-management" class="level3">
+<h3 class="anchored" data-anchor-id="thread-apis-and-lifecycle-management"><strong>Thread APIs and Lifecycle Management</strong></h3>
+<p>POSIX Pthreads gives C programs explicit control over thread creation, completion, attributes, cancellation, and thread-specific data. Most Pthread functions return an error number directly rather than returning <code>-1</code> and setting <code>errno</code>; checking them with the usual system-call pattern is incorrect.</p>
+<section id="creation-joining-detaching-and-cancellation" class="level4">
+<h4 class="anchored" data-anchor-id="creation-joining-detaching-and-cancellation"><strong>Creation, Joining, Detaching, and Cancellation</strong></h4>
+<p><code>pthread_create()</code> starts a thread at a function that accepts and returns <code>void *</code>. After a successful call, either the creator or the new thread may run next. A joinable thread retains its final result until exactly one peer calls <code>pthread_join()</code>. A detached thread releases its remaining resources automatically and cannot later be joined. The Linux manual documents these contracts in <a href="https://man7.org/linux/man-pages/man3/pthread_create.3.html"><code>pthread_create(3)</code></a>, <a href="https://man7.org/linux/man-pages/man3/pthread_join.3.html"><code>pthread_join(3)</code></a>, and <a href="https://man7.org/linux/man-pages/man3/pthread_detach.3.html"><code>pthread_detach(3)</code></a>.</p>
+<details>
+<summary>
+Show an annotated Pthreads create-and-join example
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> job <span class="op">{</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>text<span class="op">;</span>       <span class="co">// Input remains valid until every join completes.</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> vowel_count<span class="op">;</span>     <span class="co">// Each worker owns one distinct result slot.</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> report_pthread_error<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>operation<span class="op">,</span> <span class="dt">int</span> error<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Pthread functions return the error number; they usually do not set errno.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st">: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> operation<span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>count_vowels<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>argument<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> job <span class="op">*</span>job <span class="op">=</span> argument<span class="op">;</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> count <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>p <span class="op">=</span> job<span class="op">-&gt;</span>text<span class="op">;</span> <span class="op">*</span>p <span class="op">!=</span> <span class="ch">'</span><span class="sc">\0</span><span class="ch">'</span><span class="op">;</span> <span class="op">++</span>p<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>strchr<span class="op">(</span><span class="st">"AEIOUaeiou"</span><span class="op">,</span> <span class="op">*</span>p<span class="op">)</span> <span class="op">!=</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>            <span class="op">++</span>count<span class="op">;</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="co">// No two threads write the same field. pthread_join() establishes that</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">// the worker has finished before main reads this result.</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    job<span class="op">-&gt;</span>vowel_count <span class="op">=</span> count<span class="op">;</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> job jobs<span class="op">[]</span> <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span><span class="st">"process"</span><span class="op">,</span> <span class="dv">0</span><span class="op">},</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span><span class="st">"thread"</span><span class="op">,</span> <span class="dv">0</span><span class="op">},</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>        <span class="op">{</span><span class="st">"communication"</span><span class="op">,</span> <span class="dv">0</span><span class="op">}</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="kw">enum</span> <span class="op">{</span> THREAD_COUNT <span class="op">=</span> <span class="kw">sizeof</span><span class="op">(</span>jobs<span class="op">)</span> <span class="op">/</span> <span class="kw">sizeof</span><span class="op">(</span>jobs<span class="op">[</span><span class="dv">0</span><span class="op">])</span> <span class="op">};</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    pthread_t threads<span class="op">[</span>THREAD_COUNT<span class="op">];</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> created <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(;</span> created <span class="op">&lt;</span> THREAD_COUNT<span class="op">;</span> <span class="op">++</span>created<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> error <span class="op">=</span> pthread_create<span class="op">(</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>            <span class="op">&amp;</span>threads<span class="op">[</span>created<span class="op">],</span> NULL<span class="op">,</span> count_vowels<span class="op">,</span> <span class="op">&amp;</span>jobs<span class="op">[</span>created<span class="op">]</span></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>        <span class="op">);</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>            report_pthread_error<span class="op">(</span><span class="st">"pthread_create"</span><span class="op">,</span> error<span class="op">);</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Join every thread that was actually created, even after a later failure.</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> created<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> error <span class="op">=</span> pthread_join<span class="op">(</span>threads<span class="op">[</span>i<span class="op">],</span> NULL<span class="op">);</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>            report_pthread_error<span class="op">(</span><span class="st">"pthread_join"</span><span class="op">,</span> error<span class="op">);</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>created <span class="op">!=</span> THREAD_COUNT<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> THREAD_COUNT<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"</span><span class="sc">%s</span><span class="st"> -&gt; </span><span class="sc">%zu</span><span class="st"> vowels</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> jobs<span class="op">[</span>i<span class="op">].</span>text<span class="op">,</span> jobs<span class="op">[</span>i<span class="op">].</span>vowel_count<span class="op">);</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> <span class="at">-pthread</span> threads.c <span class="at">-o</span> threads</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./threads</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The example avoids a shared counter. Each worker writes a distinct object and the creator reads results only after joining. Replacing the result array with one unsynchronized global counter would introduce a data race; <code>counter++</code> is a read-modify-write sequence, not an indivisible mathematical operation.</p>
+<p>Cancellation is more difficult than termination. <code>pthread_cancel()</code> sends a request; default deferred cancellation acts at defined cancellation points. A thread canceled while holding a resource can leave invariants broken unless cleanup handlers release what it owns. Asynchronous cancellation can interrupt almost any instruction and is safe for very little code. Structured stop flags, closed queues, deadlines, or explicit wakeup descriptors often make shutdown easier to reason about than arbitrary cancellation.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Lifecycle choice</th>
+<th>Result collection</th>
+<th>Final resource release</th>
+<th>Suitable use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Joinable</td>
+<td>one peer joins and can obtain the returned value</td>
+<td>after successful join</td>
+<td>finite tasks whose completion matters</td>
+</tr>
+<tr class="even">
+<td>Detached</td>
+<td>no join and no result collection</td>
+<td>automatically at termination</td>
+<td>independent background work with separately managed shutdown</td>
+</tr>
+<tr class="odd">
+<td>Canceled</td>
+<td>depends on joinable/detached state</td>
+<td>after cancellation cleanup and join or automatic detach cleanup</td>
+<td>cooperative interruption where all owned resources are accounted for</td>
+</tr>
+</tbody>
+</table>
+<p>A program should not simply detach every thread to avoid joins. Detached work still accesses process memory; exiting <code>main</code>, unloading a library, or freeing shared state while it runs can create use-after-free failures.</p>
+</section>
+<section id="thread-local-storage" class="level4">
+<h4 class="anchored" data-anchor-id="thread-local-storage"><strong>Thread-Local Storage</strong></h4>
+<p><strong>Thread-local storage</strong> (TLS) gives each thread a distinct instance of a variable while preserving a common source-level name or key. It is useful for <code>errno</code>, per-thread caches, random-number state, logging context, and library data that would otherwise require passing a context parameter through every call.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tls-principle.png" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/tls-principle.png" class="img-fluid figure-img" style="width:72.0%" alt="A process contains global TLS keys that index separate TLS arrays and local objects for two threads."></a></p>
+<figcaption>Thread-local storage keys resolve to different values and local objects in thread 1 and thread 2.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:TLS_principle.svg">Mac LAK, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. A local rasterization of the original SVG is used for consistent rendering.</em></p>
+<p>C provides language-level thread storage duration through <code>_Thread_local</code>; compilers and loaders arrange one instance per thread. Pthreads also supplies dynamic keys through <code>pthread_key_create()</code>, <code>pthread_setspecific()</code>, and <code>pthread_getspecific()</code>. A key can have a destructor that is invoked for non-null thread-specific values when a thread exits, subject to the API’s repeated-destructor rules.</p>
+<details>
+<summary>
+Show static and dynamic TLS in C
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="kw">_Thread_local</span> <span class="dt">unsigned</span> <span class="dt">long</span> local_requests <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> pthread_key_t label_key<span class="op">;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> destroy_label<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>value<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>value<span class="op">);</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>worker<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>argument<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>input_label <span class="op">=</span> argument<span class="op">;</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> <span class="op">*</span>private_label <span class="op">=</span> strdup<span class="op">(</span>input_label<span class="op">);</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>private_label <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> error <span class="op">=</span> pthread_setspecific<span class="op">(</span>label_key<span class="op">,</span> private_label<span class="op">);</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        free<span class="op">(</span>private_label<span class="op">);</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="dv">3</span><span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        <span class="op">++</span>local_requests<span class="op">;</span> <span class="co">// This thread updates only its own TLS instance.</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"</span><span class="sc">%s</span><span class="st"> handled </span><span class="sc">%lu</span><span class="st"> requests</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>           <span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*)</span>pthread_getspecific<span class="op">(</span>label_key<span class="op">),</span> local_requests<span class="op">);</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span> <span class="co">// destroy_label releases the dynamic TLS value.</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pthread_key_create<span class="op">(&amp;</span>label_key<span class="op">,</span> destroy_label<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    pthread_t first<span class="op">,</span> second<span class="op">;</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> error <span class="op">=</span> pthread_create<span class="op">(&amp;</span>first<span class="op">,</span> NULL<span class="op">,</span> worker<span class="op">,</span> <span class="st">"worker-A"</span><span class="op">);</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_create: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    error <span class="op">=</span> pthread_create<span class="op">(&amp;</span>second<span class="op">,</span> NULL<span class="op">,</span> worker<span class="op">,</span> <span class="st">"worker-B"</span><span class="op">);</span></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_create: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>        pthread_key_delete<span class="op">(</span>label_key<span class="op">);</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>    pthread_join<span class="op">(</span>second<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    pthread_key_delete<span class="op">(</span>label_key<span class="op">);</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>TLS makes the pointer slot private, not necessarily the object it points to. If every thread stores a pointer to the same heap object in TLS, that heap object is still shared and still requires a protocol. Excessive TLS can also hide dependencies and multiply memory usage by the thread count.</p>
+</section>
+</section>
+<section id="why-interprocess-communication-is-necessary" class="level3">
+<h3 class="anchored" data-anchor-id="why-interprocess-communication-is-necessary"><strong>Why Interprocess Communication Is Necessary</strong></h3>
+<p>Separate processes normally have separate virtual address spaces and descriptor tables. A pointer meaningful in process A does not grant process B access to the same virtual address or physical memory. That isolation prevents accidental writes from becoming ordinary cross-process corruption, but cooperating programs need kernel-mediated ways to discover endpoints, transfer data, share selected memory, and wait for state changes.</p>
+<p>IPC is therefore not one feature. It is a design space that includes byte streams, discrete messages, shared mappings, notifications, and local or network-style sockets. Every mechanism defines both a data plane and a control contract.</p>
+<section id="naming-buffering-ordering-and-backpressure" class="level4">
+<h4 class="anchored" data-anchor-id="naming-buffering-ordering-and-backpressure"><strong>Naming, Buffering, Ordering, and Backpressure</strong></h4>
+<p>Before selecting an IPC API, specify its semantics:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Examples of possible answers</th>
+<th>Why it matters</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>How are peers named?</td>
+<td>inherited descriptor, filesystem path, POSIX name, socket address, passed handle</td>
+<td>determines discovery, permissions, and lifetime</td>
+</tr>
+<tr class="even">
+<td>Where is data buffered?</td>
+<td>sender memory, kernel buffer, receiver memory, shared region</td>
+<td>determines capacity, copying, and failure behavior</td>
+</tr>
+<tr class="odd">
+<td>Are records preserved?</td>
+<td>byte stream, fixed-size records, datagrams, sequenced packets</td>
+<td>determines framing and partial-operation logic</td>
+</tr>
+<tr class="even">
+<td>What ordering exists?</td>
+<td>per-stream byte order, message priority, no cross-sender total order</td>
+<td>determines what receivers may infer</td>
+</tr>
+<tr class="odd">
+<td>What happens at capacity?</td>
+<td>sender blocks, operation returns <code>EAGAIN</code>, data is rejected or overwritten</td>
+<td>defines backpressure and overload behavior</td>
+</tr>
+<tr class="even">
+<td>How is closure observed?</td>
+<td>EOF, hangup readiness, zero-length receive, explicit sentinel</td>
+<td>defines graceful shutdown</td>
+</tr>
+<tr class="odd">
+<td>How is peer authority checked?</td>
+<td>inherited trust, filesystem permissions, credentials, labels</td>
+<td>defines security assumptions</td>
+</tr>
+<tr class="even">
+<td>What survives a crash?</td>
+<td>nothing, named kernel object, buffered messages, persistent file</td>
+<td>defines recovery and cleanup</td>
+</tr>
+</tbody>
+</table>
+<p>Backpressure is especially important. A queue that can grow without a limit converts temporary overload into delayed memory exhaustion. A bounded queue forces a policy: block the producer, reject work, shed low-priority data, or propagate slower demand upstream. The choice is part of application correctness, not merely performance tuning.</p>
+<p>IPC calls can also complete partially. A stream <code>read()</code> may return fewer bytes than requested, a nonblocking send may accept only a prefix, and readiness can disappear before a competing thread performs the operation. Robust protocols treat return values and retry state as first-class data.</p>
+</section>
+<section id="copying-versus-shared-state" class="level4">
+<h4 class="anchored" data-anchor-id="copying-versus-shared-state"><strong>Copying Versus Shared State</strong></h4>
+<p>Message-oriented IPC normally makes transfer explicit: a sender provides bytes, the kernel validates an endpoint and buffering state, and a receiver later obtains bytes. Shared memory instead maps selected physical storage into more than one address space so programs communicate through loads and stores.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ipc-copy-versus-sharing.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/ipc-copy-versus-sharing.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two-panel diagram comparing user buffers connected through a kernel channel with two process mappings connected to the same physical shared frames."></a></p>
+<figcaption>Comparison between kernel-mediated message transfer and shared-memory mappings, including their different protocol responsibilities.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The trade-off is not simply “copying is slow, shared memory is fast.”</p>
+<ul>
+<li>Kernel channels provide explicit operations, endpoint lifetime, blocking rules, and natural places to enforce permissions and accounting.</li>
+<li>Shared memory can avoid repeated payload copies, but applications must define object layout, ownership, publication, synchronization, wakeups, and recovery from a peer dying mid-update.</li>
+<li>Small messages often spend more time in system-call, scheduling, cache, and protocol work than in the byte copy itself.</li>
+<li>Some APIs use optimized page sharing, scatter/gather I/O, or kernel buffers, so the phrase “zero copy” must identify which copy and which ownership transition disappeared.</li>
+<li>Shared frames still participate in cache coherence. Two cores repeatedly writing the same cache line can make a shared-memory design slower than a message design with clear ownership.</li>
+</ul>
+<p>Choose the mechanism from semantics first. Optimize transfer only after measuring payload size, message rate, cache behavior, wakeups, and contention.</p>
+</section>
+</section>
+<section id="pipes-and-fifos" class="level3">
+<h3 class="anchored" data-anchor-id="pipes-and-fifos"><strong>Pipes and FIFOs</strong></h3>
+<p>An anonymous <strong>pipe</strong> is a kernel byte-stream object accessed through a read descriptor and a write descriptor. Processes usually obtain access by inheritance after <code>fork()</code> or by receiving a descriptor from another process. A <strong>FIFO</strong>, also called a named pipe, gives a pipe-like channel a filesystem name so unrelated processes can open it.</p>
+<p>Pipes are streams, not message queues. If a writer performs two writes, a reader may receive both in one read or split one write across several reads. POSIX only guarantees that sufficiently small writes of at most <code>PIPE_BUF</code> bytes are not interleaved with data from competing writers. It does not make those writes independently discoverable records.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipe-backpressure-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/pipe-backpressure-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated diagram of bytes moving from a writer through a bounded kernel pipe buffer to a reader, with four static panels explaining empty, flowing, full, and EOF states."></a></p>
+<figcaption>Animated pipe model showing a writer, bounded kernel byte buffer, reader, empty and full blocking states, and EOF after the last writer closes.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching animation for this chapter. The complete semantics remain visible when animation is unavailable.</em></p>
+<p>The official Linux <a href="https://man7.org/linux/man-pages/man7/pipe.7.html"><code>pipe(7)</code></a> page documents the key behavior:</p>
+<ul>
+<li>A blocking read waits when the pipe is empty while at least one writer remains.</li>
+<li>Once all write descriptors are closed, a reader drains buffered bytes and then receives <code>0</code>, the stream EOF indication.</li>
+<li>A blocking write waits when the bounded buffer lacks capacity. A nonblocking operation returns <code>-1</code> with <code>EAGAIN</code> instead.</li>
+<li>Writing when no reader exists generates <code>SIGPIPE</code>; if that signal is ignored or handled, the write fails with <code>EPIPE</code>.</li>
+<li>Writes no larger than <code>PIPE_BUF</code> have an inter-writer atomicity guarantee, subject to blocking mode. Larger writes can interleave.</li>
+</ul>
+<p>These rules explain a pipeline’s flow control. If <code>grep</code> consumes slowly, the pipe fills and <code>cat</code> eventually blocks. The kernel does not need an application-specific speed controller; bounded capacity and blocking propagate pressure upstream.</p>
+<p>FIFOs add naming but do not turn the stream into persistent storage. Opening semantics can block until the opposite endpoint exists, and the FIFO’s directory permissions influence who can open it. The filesystem entry identifies the channel; bytes still live in a kernel pipe object and disappear when no relevant open endpoints remain.</p>
+<details>
+<summary>
+Show a FIFO observation workflow
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">fifo</span><span class="op">=</span><span class="st">"/tmp/os03-fifo-</span><span class="va">$$</span><span class="st">"</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mkfifo</span> <span class="at">-m</span> 600 <span class="st">"</span><span class="va">$fifo</span><span class="st">"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The reader opens first and may wait until a writer opens the FIFO.</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> kernel <span class="op">&lt;</span> <span class="st">"</span><span class="va">$fifo</span><span class="st">"</span> <span class="op">&gt;</span> result.txt <span class="kw">&amp;</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="va">reader_pid</span><span class="op">=</span><span class="va">$!</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># The writer's stdout becomes the FIFO byte stream.</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="op">&gt;</span> <span class="st">"</span><span class="va">$fifo</span><span class="st">"</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="bu">wait</span> <span class="st">"</span><span class="va">$reader_pid</span><span class="st">"</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="fu">rm</span> <span class="at">-f</span> <span class="st">"</span><span class="va">$fifo</span><span class="st">"</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Run <code>strace -f -e trace=openat,read,write,close,wait4</code> around a small shell script containing these commands to observe endpoint creation, blocking, transfer, EOF, and collection.</p>
+</details>
+<p>An application protocol layered on a pipe must define framing. Common choices include newline-delimited text, a fixed-size record, a length prefix followed by exact bytes, or an escaping scheme. It must also place an upper bound on accepted lengths before allocating memory; trusting an arbitrary length prefix turns framing into a memory-exhaustion vulnerability.</p>
+</section>
+<section id="signals-and-asynchronous-notifications" class="level3">
+<h3 class="anchored" data-anchor-id="signals-and-asynchronous-notifications"><strong>Signals and Asynchronous Notifications</strong></h3>
+<p>A <strong>signal</strong> is a small asynchronous notification associated with an event such as terminal input, a timer, an invalid memory access, child state change, or an explicit request from another process. It is well suited to control events, but it is not a general data transport. Standard signals mainly carry identity and limited metadata, and multiple pending instances of the same standard signal may collapse into one.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/signal-delivery-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/signal-delivery-path.svg" class="img-fluid figure-img" style="width:96.0%" alt="Flowchart showing signal generation, pending sets, selection of an eligible thread, and asynchronous or synchronous consumption paths."></a></p>
+<figcaption>Signal flow from generation through pending state and thread-mask selection to a default action, asynchronous handler, synchronous sigwait call, or signalfd.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>Signal state has both process-wide and per-thread parts:</p>
+<ul>
+<li>A process shares dispositions that say whether a signal uses the default action, is ignored, or invokes a handler.</li>
+<li>Each thread has its own signal mask. A blocked signal remains pending rather than being erased.</li>
+<li>A signal can be process-directed, allowing delivery to an eligible thread, or thread-directed through interfaces such as <code>pthread_kill()</code> or as a consequence of a thread-specific hardware fault.</li>
+<li>Standard and real-time signals have different queueing rules; real-time signals can carry values and are queued in order within their defined priority rules.</li>
+</ul>
+<p>An asynchronous handler interrupts ordinary control flow. The kernel saves context in a signal frame, arranges execution at the handler, and later restores the interrupted context through a signal-return path. Almost all library functions are unsafe there because the interrupted thread may already hold internal library state. A handler should normally set a <code>sig_atomic_t</code> flag, write to a prearranged descriptor using an async-signal-safe operation, or perform another deliberately minimal action. Linux describes the delivery sequence and safe constraints in <a href="https://man7.org/linux/man-pages/man7/signal.7.html"><code>signal(7)</code></a>.</p>
+<p>Multithreaded servers often use a synchronous design instead: block selected signals before creating workers so they inherit the mask, then dedicate one thread to <code>sigwait()</code>. The signal thread receives notifications through normal function return and can use ordinary thread-safe program structure afterward.</p>
+<details>
+<summary>
+Show a dedicated sigwait thread with cooperative shutdown
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;signal.h&gt;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;time.h&gt;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> atomic_bool stop_requested <span class="op">=</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> sigset_t termination_signals<span class="op">;</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>signal_thread<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>unused<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="dt">void</span><span class="op">)</span>unused<span class="op">;</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> signal_number<span class="op">;</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> error <span class="op">=</span> sigwait<span class="op">(&amp;</span>termination_signals<span class="op">,</span> <span class="op">&amp;</span>signal_number<span class="op">);</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"sigwait: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        atomic_store<span class="op">(&amp;</span>stop_requested<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"accepted signal </span><span class="sc">%d</span><span class="st"> in ordinary thread context</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> signal_number<span class="op">);</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    atomic_store<span class="op">(&amp;</span>stop_requested<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>worker<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>argument<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>name <span class="op">=</span> argument<span class="op">;</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> timespec delay <span class="op">=</span> <span class="op">{.</span>tv_sec <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>tv_nsec <span class="op">=</span> <span class="dv">200000000</span><span class="op">};</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>atomic_load<span class="op">(&amp;</span>stop_requested<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"</span><span class="sc">%s</span><span class="st"> completed one unit</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">);</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>        nanosleep<span class="op">(&amp;</span>delay<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"</span><span class="sc">%s</span><span class="st"> stopping cleanly</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">);</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>    sigemptyset<span class="op">(&amp;</span>termination_signals<span class="op">);</span></span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>    sigaddset<span class="op">(&amp;</span>termination_signals<span class="op">,</span> SIGINT<span class="op">);</span></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>    sigaddset<span class="op">(&amp;</span>termination_signals<span class="op">,</span> SIGTERM<span class="op">);</span></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Block before creating threads; every new thread inherits this mask.</span></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> error <span class="op">=</span> pthread_sigmask<span class="op">(</span>SIG_BLOCK<span class="op">,</span> <span class="op">&amp;</span>termination_signals<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_sigmask: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>    pthread_t controller<span class="op">,</span> first<span class="op">,</span> second<span class="op">;</span></span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>    error <span class="op">=</span> pthread_create<span class="op">(&amp;</span>first<span class="op">,</span> NULL<span class="op">,</span> worker<span class="op">,</span> <span class="st">"worker-A"</span><span class="op">);</span></span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_create worker-A: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>    error <span class="op">=</span> pthread_create<span class="op">(&amp;</span>second<span class="op">,</span> NULL<span class="op">,</span> worker<span class="op">,</span> <span class="st">"worker-B"</span><span class="op">);</span></span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_create worker-B: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>        atomic_store<span class="op">(&amp;</span>stop_requested<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>    error <span class="op">=</span> pthread_create<span class="op">(&amp;</span>controller<span class="op">,</span> NULL<span class="op">,</span> signal_thread<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>error <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"pthread_create signal thread: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>error<span class="op">));</span></span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a>        atomic_store<span class="op">(&amp;</span>stop_requested<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>second<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"press Ctrl-C to request shutdown</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a>    pthread_join<span class="op">(</span>controller<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a>    pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>    pthread_join<span class="op">(</span>second<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The C11 atomic flag makes the cross-thread stop request defined. The synchronization chapter will explain why an ordinary <code>bool</code> would create a data race and how memory-order choices affect visibility. On Linux, <a href="https://man7.org/linux/man-pages/man2/signalfd.2.html"><code>signalfd(2)</code></a> can expose blocked signals as descriptor records, allowing one event loop to handle signals alongside pipes, sockets, and timers.</p>
+</section>
+<section id="shared-memory-and-memory-mapped-communication" class="level3">
+<h3 class="anchored" data-anchor-id="shared-memory-and-memory-mapped-communication"><strong>Shared Memory and Memory-Mapped Communication</strong></h3>
+<p>Shared memory maps the same backing storage into more than one process. POSIX named shared memory uses <code>shm_open()</code> to obtain a descriptor, <code>ftruncate()</code> to set object size, and <code>mmap(..., MAP_SHARED, ...)</code> to create mappings. Linux summarizes that lifecycle in <a href="https://man7.org/linux/man-pages/man7/shm_overview.7.html"><code>shm_overview(7)</code></a>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/shared-memory-lifecycle.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/shared-memory-lifecycle.svg" class="img-fluid figure-img" style="width:96.0%" alt="Four-stage diagram showing shm_open and ftruncate, two process mappings to shared frames, data and synchronization protocol, and munmap close shm_unlink cleanup."></a></p>
+<figcaption>POSIX shared-memory lifecycle from naming and sizing through mapping, protocol design, unmapping, descriptor closure, and unlinking.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>Several distinct objects and lifetimes are involved:</p>
+<ol type="1">
+<li>The <strong>name</strong> lets processes discover the shared-memory object and is governed by ownership and permissions.</li>
+<li>The <strong>descriptor</strong> refers to the object and can be closed after mapping if no descriptor operation is needed.</li>
+<li>The <strong>mapping</strong> places the object into one process’s virtual address space. Different processes can map it at different virtual addresses.</li>
+<li>The <strong>backing storage</strong> remains while names or live references keep it reachable according to platform rules.</li>
+</ol>
+<p>Because virtual addresses can differ, a shared region should not contain ordinary absolute pointers that another process will dereference. Store offsets, indices, fixed-width values, or relocatable structures. A robust layout also contains a magic value, version, total size, and bounds that every participant validates before trusting payload data.</p>
+<p><code>MAP_SHARED</code> permits updates to become visible, but it does not define when a multi-field record becomes complete. Concurrent participants need process-shared mutexes, semaphores, futex-based protocols, or language/ABI-supported atomics with a correct memory-order design. They also need a wakeup strategy; repeatedly polling a flag can waste CPU even if the flag itself is atomic.</p>
+<details>
+<summary>
+Show a minimal POSIX shared-memory example
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/stat.h&gt;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> shared_record <span class="op">{</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> length<span class="op">;</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> text<span class="op">[</span><span class="dv">256</span><span class="op">];</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> name<span class="op">[</span><span class="dv">64</span><span class="op">];</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    snprintf<span class="op">(</span>name<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>name<span class="op">),</span> <span class="st">"/os03-shm-</span><span class="sc">%ld</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">());</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> fd <span class="op">=</span> shm_open<span class="op">(</span>name<span class="op">,</span> O_CREAT <span class="op">|</span> O_EXCL <span class="op">|</span> O_RDWR<span class="op">,</span> <span class="bn">0600</span><span class="op">);</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"shm_open"</span><span class="op">);</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ftruncate<span class="op">(</span>fd<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span><span class="kw">struct</span> shared_record<span class="op">))</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"ftruncate"</span><span class="op">);</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        shm_unlink<span class="op">(</span>name<span class="op">);</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> shared_record <span class="op">*</span>record <span class="op">=</span> mmap<span class="op">(</span></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>        NULL<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(*</span>record<span class="op">),</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span> MAP_SHARED<span class="op">,</span> fd<span class="op">,</span> <span class="dv">0</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>record <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        shm_unlink<span class="op">(</span>name<span class="op">);</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>fd<span class="op">);</span> <span class="co">// The mapping now retains the live reference we need.</span></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>record<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(*</span>record<span class="op">));</span></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>        shm_unlink<span class="op">(</span>name<span class="op">);</span></span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>        <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>message <span class="op">=</span> <span class="st">"shared pages, separate processes"</span><span class="op">;</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>        record<span class="op">-&gt;</span>length <span class="op">=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>snprintf<span class="op">(</span></span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>            record<span class="op">-&gt;</span>text<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>record<span class="op">-&gt;</span>text<span class="op">),</span> <span class="st">"</span><span class="sc">%s</span><span class="st">"</span><span class="op">,</span> message</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>        <span class="op">);</span></span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>record<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(*</span>record<span class="op">));</span></span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a>    <span class="co">// waitpid provides the sequencing for this one-write demonstration.</span></span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>    <span class="co">// A long-lived concurrent channel needs its own synchronization protocol.</span></span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>record<span class="op">-&gt;</span>length <span class="op">&lt;</span> <span class="kw">sizeof</span><span class="op">(</span>record<span class="op">-&gt;</span>text<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"received: </span><span class="sc">%.*s\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">int</span><span class="op">)</span>record<span class="op">-&gt;</span>length<span class="op">,</span> record<span class="op">-&gt;</span>text<span class="op">);</span></span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a>    munmap<span class="op">(</span>record<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(*</span>record<span class="op">));</span></span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a>    shm_unlink<span class="op">(</span>name<span class="op">);</span> <span class="co">// Remove the discovery name after the participants finish.</span></span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> shared_memory.c <span class="at">-o</span> shared_memory <span class="at">-lrt</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./shared_memory</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The example uses <code>waitpid()</code> as a simple completion barrier, so parent and child do not access a partially published record concurrently. It demonstrates mapping and lifetime, not a high-throughput channel. A production shared ring buffer must define producer and consumer indices, full and empty states, memory visibility, peer death, and what happens when a producer stalls after reserving a slot.</p>
+</section>
+<section id="message-queues-and-local-sockets" class="level3">
+<h3 class="anchored" data-anchor-id="message-queues-and-local-sockets"><strong>Message Queues and Local Sockets</strong></h3>
+<p>Message queues preserve discrete records instead of exposing one undifferentiated byte stream. POSIX message queues are named kernel objects opened with <code>mq_open()</code>. They have bounded message counts and sizes, can attach priorities, and can block or return <code>EAGAIN</code> when full or empty. Their names and messages can outlive the process that created them until the queue is unlinked, subject to implementation limits. Linux documents the interface in <a href="https://man7.org/linux/man-pages/man7/mq_overview.7.html"><code>mq_overview(7)</code></a>.</p>
+<p><strong>Unix-domain sockets</strong> provide local bidirectional communication through the socket API. They support stream, datagram, and sequenced-packet semantics. A pathname can name a listening endpoint; <code>socketpair()</code> creates two connected unnamed endpoints particularly useful between related processes. On supporting systems, ancillary messages can pass file descriptors and peer credentials, turning a socket into both a data channel and a controlled authority-transfer path.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Data model</th>
+<th>Connection shape</th>
+<th>Useful properties</th>
+<th>Main cautions</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>POSIX message queue</td>
+<td>bounded discrete messages with priorities</td>
+<td>many processes open one named queue</td>
+<td>explicit records, asynchronous send/receive, notification</td>
+<td>system limits, name cleanup, priority policy</td>
+</tr>
+<tr class="even">
+<td>Unix <code>SOCK_STREAM</code></td>
+<td>ordered byte stream</td>
+<td>connected bidirectional peers</td>
+<td>familiar socket API, backpressure, local credentials</td>
+<td>application framing and partial I/O required</td>
+</tr>
+<tr class="odd">
+<td>Unix <code>SOCK_DGRAM</code></td>
+<td>discrete datagrams</td>
+<td>connectionless or connected local endpoints</td>
+<td>message boundaries, one send per datagram</td>
+<td>size limits, delivery/error semantics vary by platform</td>
+</tr>
+<tr class="even">
+<td>Unix <code>SOCK_SEQPACKET</code></td>
+<td>ordered reliable records</td>
+<td>connected bidirectional peers</td>
+<td>preserves message boundaries with connection semantics</td>
+<td>less universally available than stream sockets</td>
+</tr>
+<tr class="odd">
+<td><code>socketpair()</code></td>
+<td>type selected by caller</td>
+<td>one preconnected pair</td>
+<td>no pathname race; natural after fork</td>
+<td>only directly creates a pair, not a multi-client listener</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Show a local SOCK_SEQPACKET request-response example
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/socket.h&gt;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> sockets<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>socketpair<span class="op">(</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>            AF_UNIX<span class="op">,</span> SOCK_SEQPACKET <span class="op">|</span> SOCK_CLOEXEC<span class="op">,</span> <span class="dv">0</span><span class="op">,</span> sockets</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"socketpair"</span><span class="op">);</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>sockets<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>        <span class="dt">char</span> request<span class="op">[</span><span class="dv">128</span><span class="op">];</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> received <span class="op">=</span> recv<span class="op">(</span>sockets<span class="op">[</span><span class="dv">1</span><span class="op">],</span> request<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>request<span class="op">)</span> <span class="op">-</span> <span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>received <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>            _exit<span class="op">(</span><span class="dv">1</span><span class="op">);</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>        request<span class="op">[</span>received<span class="op">]</span> <span class="op">=</span> <span class="ch">'</span><span class="sc">\0</span><span class="ch">'</span><span class="op">;</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        dprintf<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> <span class="st">"child received one record: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> request<span class="op">);</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        <span class="dt">const</span> <span class="dt">char</span> reply<span class="op">[]</span> <span class="op">=</span> <span class="st">"ACK"</span><span class="op">;</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>send<span class="op">(</span>sockets<span class="op">[</span><span class="dv">1</span><span class="op">],</span> reply<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>reply<span class="op">)</span> <span class="op">-</span> <span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>            _exit<span class="op">(</span><span class="dv">1</span><span class="op">);</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>sockets<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>sockets<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> request<span class="op">[]</span> <span class="op">=</span> <span class="st">"filter=kernel; file=input.txt"</span><span class="op">;</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>send<span class="op">(</span>sockets<span class="op">[</span><span class="dv">0</span><span class="op">],</span> request<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>request<span class="op">)</span> <span class="op">-</span> <span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"send"</span><span class="op">);</span></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> reply<span class="op">[</span><span class="dv">32</span><span class="op">];</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    <span class="dt">ssize_t</span> received <span class="op">=</span> recv<span class="op">(</span>sockets<span class="op">[</span><span class="dv">0</span><span class="op">],</span> reply<span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>reply<span class="op">)</span> <span class="op">-</span> <span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>received <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>        reply<span class="op">[</span>received<span class="op">]</span> <span class="op">=</span> <span class="ch">'</span><span class="sc">\0</span><span class="ch">'</span><span class="op">;</span></span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"parent received one record: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> reply<span class="op">);</span></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>sockets<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Unlike a stream, <code>SOCK_SEQPACKET</code> preserves record boundaries, but a receive buffer can still be too small for a record and truncation must be handled according to the API. Linux details address forms, permissions, credentials, and ancillary data in <a href="https://man7.org/linux/man-pages/man7/unix.7.html"><code>unix(7)</code></a>. Passing a descriptor with <code>SCM_RIGHTS</code> does not send the sender’s integer descriptor number; it installs a new descriptor referring to the same underlying open-file description in the receiver.</p>
+</section>
+<section id="blocking-nonblocking-and-event-driven-communication" class="level3">
+<h3 class="anchored" data-anchor-id="blocking-nonblocking-and-event-driven-communication"><strong>Blocking, Nonblocking, and Event-Driven Communication</strong></h3>
+<p>A <strong>blocking</strong> operation allows the calling thread to sleep until progress is possible. This produces straightforward sequential code and lets the kernel avoid busy waiting. It consumes an execution context while the operation is logically pending, although a sleeping thread does not consume a CPU.</p>
+<p>A <strong>nonblocking</strong> descriptor changes “this operation would have to sleep” into an immediate result such as <code>EAGAIN</code>. The application must retain partial progress and try again when the endpoint becomes ready. Repeatedly retrying in a tight loop is still busy waiting; scalable designs combine nonblocking I/O with a readiness interface such as <code>select()</code>, <code>poll()</code>, Linux <code>epoll</code>, or BSD <code>kqueue</code>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/event-driven-ipc-loop.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/event-driven-ipc-loop.svg" class="img-fluid figure-img" style="width:96.0%" alt="Flow diagram showing several descriptor event sources feeding a readiness monitor and a four-step event loop that waits, receives ready descriptors, performs I/O, and updates state."></a></p>
+<figcaption>Readiness-driven event loop registering pipes, sockets, timers, and signal descriptors, then waiting, receiving a batch, draining I/O, and updating state.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>Readiness means that an operation can make progress without blocking <strong>at the time of the notification</strong>. It does not promise that a full logical message is available, that a large write will complete, or that another thread has not consumed the data first. Code must still inspect every operation’s return value.</p>
+<p>Level-triggered readiness continues to report an endpoint while the condition remains true. Edge-triggered readiness reports a transition and usually requires draining the nonblocking endpoint until <code>EAGAIN</code>; stopping early can leave unread data without another edge. Linux’s <a href="https://man7.org/linux/man-pages/man7/epoll.7.html"><code>epoll(7)</code></a> explicitly recommends this drain-and-record-state pattern for edge-triggered loops.</p>
+<details>
+<summary>
+Show event-loop pseudocode with partial-operation state
+</summary>
+<pre class="text"><code>set every managed endpoint to nonblocking mode
+create readiness instance
+register desired read, write, close, and error conditions
+
+while service is running:
+    ready_batch = wait_for_events(deadline)
+
+    for event in ready_batch:
+        connection = lookup_state(event.descriptor)
+
+        if event says readable:
+            repeat:
+                result = read_into_available_input_space(connection)
+                if result &gt; 0:
+                    parse_every_complete_message(connection)
+                else if result == 0:
+                    mark_peer_end_of_stream(connection)
+                    break
+                else if error is EAGAIN:
+                    break
+                else:
+                    fail_connection(connection)
+                    break
+
+        if event says writable:
+            repeat while output remains:
+                result = write_unsent_suffix(connection)
+                if result &gt; 0:
+                    advance_output_offset(connection, result)
+                else if error is EAGAIN:
+                    break
+                else:
+                    fail_connection(connection)
+                    break
+
+        update_interest_set(connection)
+        close_only_when_protocol_and_buffer_state_allow_it</code></pre>
+</details>
+<p>An event loop reduces the number of blocked stacks and scheduler entities, but it does not eliminate concurrency. Events can arrive in any order, handlers share mutable state, and work can be offloaded to thread pools. A slow CPU-heavy callback blocks progress for every endpoint on that loop. Hybrid designs therefore use event-driven I/O with a bounded worker pool and an explicit completion channel.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Design</th>
+<th>Programming model</th>
+<th>Strength</th>
+<th>Typical limit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>one blocking thread per flow</td>
+<td>sequential operations per thread</td>
+<td>simple local reasoning and broad library compatibility</td>
+<td>stack and scheduling overhead at very high flow counts</td>
+</tr>
+<tr class="even">
+<td>one event loop</td>
+<td>explicit state machine and nonblocking operations</td>
+<td>many mostly idle endpoints with few threads</td>
+<td>callback latency, partial-state complexity, accidental blocking</td>
+</tr>
+<tr class="odd">
+<td>event loop plus worker pool</td>
+<td>readiness front end with bounded CPU tasks</td>
+<td>separates I/O scale from CPU parallelism</td>
+<td>queue sizing, ownership transfer, and result routing</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="connecting-the-pipeline-with-processes-threads-and-ipc" class="level3">
+<h3 class="anchored" data-anchor-id="connecting-the-pipeline-with-processes-threads-and-ipc"><strong>Connecting the Pipeline with Processes, Threads, and IPC</strong></h3>
+<p>The shell pipeline is one point in a larger design space. Its process boundary means <code>cat</code> and <code>grep</code> can be independently developed, executed, credentialed, traced, and terminated. The pipe supplies ordered bytes, bounded buffering, blocking wakeups, and EOF without either program knowing the other’s implementation.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-concurrency-designs.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/pipeline-concurrency-designs.svg" class="img-fluid figure-img" style="width:96.0%" alt="Three-row comparison of a process pipeline, a threaded pipeline with a shared bounded queue, and a single-threaded event-loop design."></a></p>
+<figcaption>The same input-filter-output workflow implemented as isolated processes and a pipe, threads and a shared queue, or an event loop and explicit state machines.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>Rewriting the workflow with threads changes several obligations:</p>
+<ul>
+<li>A shared queue replaces the kernel pipe if the goal is to avoid copying payload between address spaces.</li>
+<li>The program must implement queue capacity, ownership, wakeups, end-of-input, cancellation, and error propagation.</li>
+<li><code>cat</code> and <code>grep</code> are no longer ordinary executable components; they become functions or libraries compatible with one process.</li>
+<li>A memory fault or corrupt shared object can destroy both stages.</li>
+<li>The implementation may avoid process startup and some copying, but synchronization and cache coherence can offset those savings.</li>
+</ul>
+<p>An event-loop version removes the dedicated blocking execution stream for each stage. It retains explicit state for input, filtering, and output and advances whichever operation is ready. That can be effective when many independent pipelines are mostly waiting, but the text filtering itself must remain short or move to workers.</p>
+<p>The original process pipeline is therefore not an outdated substitute for threads. It is a composition architecture with strong isolation and a universal byte-stream interface. Threads are preferable when stages intentionally share a rich in-memory model and trust one another. Event-driven designs are preferable when the dominant problem is managing many asynchronous endpoints with bounded execution contexts.</p>
+<details>
+<summary>
+Show Linux commands for observing process and thread boundaries
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Process hierarchy and process-level state.</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eo</span> pid,ppid,pgid,stat,cmd <span class="at">--forest</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Threads are listed as lightweight processes (LWPs) within each process.</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eLo</span> pid,tid,ppid,psr,stat,comm</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect every thread task directory for one process.</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="st">"/proc/&lt;PID&gt;/task"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> task <span class="kw">in</span> /proc/<span class="op">&lt;</span>PID<span class="op">&gt;</span>/task/<span class="pp">*</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Name|Pid|Tgid|State|voluntary|nonvoluntary)'</span> <span class="st">"</span><span class="va">$task</span><span class="st">/status"</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Follow process creation, descriptors, signals, and IPC-related calls.</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-ff</span> <span class="at">-e</span> trace=process,desc,signal,ipc <span class="at">-o</span> os03.trace <span class="dt">\</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Report per-thread CPU activity for a live multithreaded process.</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="ex">pidstat</span> <span class="at">-t</span> <span class="at">-p</span> <span class="op">&lt;</span>PID<span class="op">&gt;</span> 1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>On Linux, <code>Tgid</code> identifies the thread group commonly presented as the process PID, while <code>Pid</code> in a task status file identifies that kernel task. <code>pthread_t</code>, Linux task IDs, and process IDs are related through an implementation but are not interchangeable API types.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>No IPC mechanism dominates every workload. The following matrix captures the primary semantics rather than implementation-specific benchmark numbers:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Payload model</th>
+<th>Natural peer relationship</th>
+<th>Backpressure / waiting</th>
+<th>Isolation and protocol burden</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>anonymous pipe</td>
+<td>ordered byte stream</td>
+<td>usually related processes sharing descriptors</td>
+<td>bounded kernel buffer; block or <code>EAGAIN</code></td>
+<td>strong address-space isolation; application framing</td>
+</tr>
+<tr class="even">
+<td>FIFO</td>
+<td>ordered byte stream with a filesystem name</td>
+<td>unrelated local processes</td>
+<td>pipe semantics plus open-time coordination</td>
+<td>pathname permissions and cleanup</td>
+</tr>
+<tr class="odd">
+<td>signal</td>
+<td>notification plus limited metadata</td>
+<td>process or thread targets</td>
+<td>pending/mask rules, not bulk-data flow control</td>
+<td>asynchronous safety or dedicated acceptance thread</td>
+</tr>
+<tr class="even">
+<td>shared memory</td>
+<td>application-defined memory layout</td>
+<td>processes that map the same object</td>
+<td>application-defined synchronization and wakeups</td>
+<td>lowest transfer boundary, highest shared-state burden</td>
+</tr>
+<tr class="odd">
+<td>POSIX message queue</td>
+<td>bounded discrete prioritized messages</td>
+<td>processes opening one name</td>
+<td>block, timed wait, or <code>EAGAIN</code></td>
+<td>kernel-maintained records and named-object cleanup</td>
+</tr>
+<tr class="even">
+<td>Unix stream socket</td>
+<td>ordered bidirectional byte streams</td>
+<td>local clients and servers or socket pairs</td>
+<td>socket buffers and readiness</td>
+<td>framing required; credentials and descriptor passing available</td>
+</tr>
+<tr class="odd">
+<td>Unix sequenced-packet socket</td>
+<td>ordered bidirectional records</td>
+<td>connected local peers</td>
+<td>message-aware send/receive and readiness</td>
+<td>preserves records; platform portability must be checked</td>
+</tr>
+</tbody>
+</table>
+<p>A practical selection sequence is:</p>
+<ol type="1">
+<li>Choose the protection boundary. If a memory bug must not corrupt a peer, start with processes rather than threads.</li>
+<li>Choose the data model. Decide whether the protocol is a stream, discrete records, shared objects, or notifications.</li>
+<li>Bound every queue and define overload behavior.</li>
+<li>Define endpoint discovery, permissions, lifetime, closure, and peer failure.</li>
+<li>Decide whether blocking threads, an event loop, or a hybrid best matches the expected concurrency.</li>
+<li>Measure copying, wakeups, contention, cache behavior, and memory use only after semantics are correct.</li>
+</ol>
+<p>Common misconceptions can now be corrected precisely:</p>
+<ul>
+<li><strong>“Concurrency means simultaneous execution.”</strong> Concurrency permits interleaving; parallelism is simultaneous execution.</li>
+<li><strong>“Threads have separate memory.”</strong> They have separate execution state and stacks but normally share the process address space and descriptors.</li>
+<li><strong>“A local variable is always thread-private.”</strong> Its stack storage is private until an address or reference is shared.</li>
+<li><strong>“TLS makes an object private.”</strong> TLS makes each slot private; slots can still point to one shared object.</li>
+<li><strong>“Pipes preserve writes as messages.”</strong> Pipes preserve byte order and limited inter-writer atomicity, not record boundaries.</li>
+<li><strong>“Signals are a queue of events.”</strong> Standard signals may coalesce, and asynchronous handlers have severe safety restrictions.</li>
+<li><strong>“Shared memory requires no IPC overhead.”</strong> It removes an explicit payload-transfer path but adds layout, synchronization, visibility, wakeup, and recovery responsibilities.</li>
+<li><strong>“Nonblocking means the operation will succeed immediately.”</strong> It means the call will not sleep; <code>EAGAIN</code> and partial progress are normal.</li>
+<li><strong>“Readiness means one complete message is available.”</strong> It only means an operation can currently make some progress.</li>
+</ul>
+<p>The pipeline now has a complete concurrency explanation. Processes provide isolation, threads provide shared execution within one process, and IPC defines controlled cooperation across protection boundaries. The next chapter, <a href="04-cpu-scheduling-and-dispatch.html">CPU Scheduling and Dispatch</a>, explains how runnable threads compete for processors. <a href="05-synchronization-correctness-and-liveness.html">Synchronization, Concurrent Correctness, and Liveness</a> then develops the locks, conditions, atomics, memory-order rules, and deadlock reasoning needed by the shared-state designs introduced here.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

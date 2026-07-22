@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：I/O 设备与事件驱动执行</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="08-io-devices-and-event-driven-execution_files/libs/clipboard/clipboard.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/quarto.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/popper.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="08-io-devices-and-event-driven-execution_files/libs/quarto-html/anchor.min.js"></script>
+<link href="08-io-devices-and-event-driven-execution_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="08-io-devices-and-event-driven-execution_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="08-io-devices-and-event-driven-execution_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#io-devices-and-event-driven-execution" id="toc-io-devices-and-event-driven-execution" class="nav-link active" data-scroll-target="#io-devices-and-event-driven-execution"><strong>I/O 设备与事件驱动执行</strong></a>
+  <ul>
+  <li><a href="#the-operating-systems-io-problem" id="toc-the-operating-systems-io-problem" class="nav-link" data-scroll-target="#the-operating-systems-io-problem"><strong>操作系统的 I/O 问题</strong></a>
+  <ul>
+  <li><a href="#uniform-interfaces-over-heterogeneous-devices" id="toc-uniform-interfaces-over-heterogeneous-devices" class="nav-link" data-scroll-target="#uniform-interfaces-over-heterogeneous-devices"><strong>异构设备上的统一接口</strong></a></li>
+  </ul></li>
+  <li><a href="#device-controllers-and-drivers" id="toc-device-controllers-and-drivers" class="nav-link" data-scroll-target="#device-controllers-and-drivers"><strong>设备控制器与驱动程序</strong></a>
+  <ul>
+  <li><a href="#registers-queues-and-command-completion" id="toc-registers-queues-and-command-completion" class="nav-link" data-scroll-target="#registers-queues-and-command-completion"><strong>寄存器、队列与命令完成</strong></a></li>
+  <li><a href="#driver-responsibilities-and-trust" id="toc-driver-responsibilities-and-trust" class="nav-link" data-scroll-target="#driver-responsibilities-and-trust"><strong>驱动职责与信任</strong></a></li>
+  </ul></li>
+  <li><a href="#the-path-of-an-io-system-call" id="toc-the-path-of-an-io-system-call" class="nav-link" data-scroll-target="#the-path-of-an-io-system-call"><strong>I/O 系统调用路径</strong></a></li>
+  <li><a href="#programmed-io-polling-interrupts-and-dma" id="toc-programmed-io-polling-interrupts-and-dma" class="nav-link" data-scroll-target="#programmed-io-polling-interrupts-and-dma"><strong>程序控制 I/O、轮询、中断与 DMA</strong></a>
+  <ul>
+  <li><a href="#choosing-between-interrupts-and-polling" id="toc-choosing-between-interrupts-and-polling" class="nav-link" data-scroll-target="#choosing-between-interrupts-and-polling"><strong>在中断与轮询之间选择</strong></a></li>
+  </ul></li>
+  <li><a href="#blocking-and-nonblocking-io" id="toc-blocking-and-nonblocking-io" class="nav-link" data-scroll-target="#blocking-and-nonblocking-io"><strong>阻塞与非阻塞 I/O</strong></a></li>
+  <li><a href="#io-multiplexing-and-readiness" id="toc-io-multiplexing-and-readiness" class="nav-link" data-scroll-target="#io-multiplexing-and-readiness"><strong>I/O 多路复用与就绪通知</strong></a>
+  <ul>
+  <li><a href="#select-poll-epoll-and-kqueue" id="toc-select-poll-epoll-and-kqueue" class="nav-link" data-scroll-target="#select-poll-epoll-and-kqueue"><strong>select、poll、epoll 与 kqueue</strong></a></li>
+  </ul></li>
+  <li><a href="#asynchronous-io-and-completion-interfaces" id="toc-asynchronous-io-and-completion-interfaces" class="nav-link" data-scroll-target="#asynchronous-io-and-completion-interfaces"><strong>异步 I/O 与完成接口</strong></a>
+  <ul>
+  <li><a href="#io_uring-and-submission-completion-queues" id="toc-io_uring-and-submission-completion-queues" class="nav-link" data-scroll-target="#io_uring-and-submission-completion-queues"><strong>io_uring 与提交-完成队列</strong></a></li>
+  </ul></li>
+  <li><a href="#buffering-caching-and-backpressure" id="toc-buffering-caching-and-backpressure" class="nav-link" data-scroll-target="#buffering-caching-and-backpressure"><strong>缓冲、缓存与背压</strong></a></li>
+  <li><a href="#character-block-and-network-devices" id="toc-character-block-and-network-devices" class="nav-link" data-scroll-target="#character-block-and-network-devices"><strong>字符、块与网络设备</strong></a></li>
+  <li><a href="#errors-timeouts-cancellation-and-hotplug" id="toc-errors-timeouts-cancellation-and-hotplug" class="nav-link" data-scroll-target="#errors-timeouts-cancellation-and-hotplug"><strong>错误、超时、取消与热插拔</strong></a></li>
+  <li><a href="#observing-io-behavior" id="toc-observing-io-behavior" class="nav-link" data-scroll-target="#observing-io-behavior"><strong>观察 I/O 行为</strong></a></li>
+  <li><a href="#following-the-pipeline-through-the-io-stack" id="toc-following-the-pipeline-through-the-io-stack" class="nav-link" data-scroll-target="#following-the-pipeline-through-the-io-stack"><strong>沿 I/O 栈追踪贯穿管道</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：I/O 设备与事件驱动执行</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/08-io-devices-and-event-driven-execution.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="io-devices-and-event-driven-execution" class="level2">
+<h2 class="anchored" data-anchor-id="io-devices-and-event-driven-execution"><strong>I/O 设备与事件驱动执行</strong></h2>
+<p>CPU 可以直接执行指令，设备却通过寄存器、队列、DMA 和异步完成与系统交互。操作系统必须把磁盘、终端、网卡、计时器和管道的不同语义整理为可组合接口，同时处理等待、并发、错误、取消、热插拔和不可信硬件输入。</p>
+<p>本章把一次 I/O 分为<strong>提交路径</strong>与<strong>完成路径</strong>：进程提出请求并可能睡眠；设备独立工作；中断或轮询发现完成；内核更新对象并唤醒线程。理解这条因果链后，blocking/nonblocking、readiness/completion、epoll/io_uring 和 DMA 才能放进同一个模型。</p>
+<section id="the-operating-systems-io-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-operating-systems-io-problem"><strong>操作系统的 I/O 问题</strong></h3>
+<p>设备在传输单位、延迟、并发、错误和是否可寻址方面差异巨大。内核要隐藏无关细节，却不能抹去对应用语义重要的区别，例如文件可 seek、管道有 EOF、终端可能逐字符处理、UDP 保留消息而 TCP 是字节流。</p>
+<section id="uniform-interfaces-over-heterogeneous-devices" class="level4">
+<h4 class="anchored" data-anchor-id="uniform-interfaces-over-heterogeneous-devices"><strong>异构设备上的统一接口</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-uniform-interface-boundaries.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/io-uniform-interface-boundaries.svg" class="img-fluid figure-img" style="width:96.0%" alt="应用经文件描述符调用 read、write、ioctl、mmap、poll 或 io_uring，内核对象与驱动再映射到不同文件、管道、socket 和设备语义。"></a></p>
+<figcaption>统一调用跨越抽象边界后恢复对象特定行为</figcaption>
+</figure>
+</div>
+<p>文件描述符提供统一命名和生命周期，<code>read/write/close</code> 提供常见数据操作，<code>ioctl</code>、<code>mmap</code> 和特定 socket 选项表达无法统一的控制。统一接口的价值是组合，而不是让所有对象行为完全相同；调用者仍需检查 partial I/O、EOF、记录边界和错误。</p>
+<p>Little 定律把稳定系统中的平均在途数 <span class="math inline">\(L\)</span>、到达率 <span class="math inline">\(\lambda\)</span> 与平均停留时间 <span class="math inline">\(W\)</span> 联系起来：</p>
+<p><span class="math display">\[L=\lambda W.\]</span></p>
+<p>它提醒我们队列长度、吞吐和时延不可独立优化。生产者持续快于设备时，有限缓冲只能推迟过载，必须建立背压或拒绝策略。</p>
+</section>
+</section>
+<section id="device-controllers-and-drivers" class="level3">
+<h3 class="anchored" data-anchor-id="device-controllers-and-drivers"><strong>设备控制器与驱动程序</strong></h3>
+<section id="registers-queues-and-command-completion" class="level4">
+<h4 class="anchored" data-anchor-id="registers-queues-and-command-completion"><strong>寄存器、队列与命令完成</strong></h4>
+<p>控制器暴露 MMIO/port 寄存器、descriptor ring、doorbell 和 completion queue。驱动准备包含操作、DMA 地址、长度和 request ID 的描述符，用内存屏障确保内容先于 doorbell 对设备可见，随后设备独立消费并写回完成。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/controller-register-command-queues.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/controller-register-command-queues.svg" class="img-fluid figure-img" style="width:96.0%" alt="驱动准备并发布 ring entry，先排序内存再敲 MMIO doorbell；控制器并发执行后写 completion。"></a></p>
+<figcaption>驱动发布描述符，控制器稍后发布完成</figcaption>
+</figure>
+</div>
+<pre class="text"><code>descriptor[i] &lt;- 操作、DMA 地址、长度、request_id
+memory_barrier()              // descriptor 必须先变得可见
+submission_tail &lt;- next(i)    // 向控制器发布所有权
+write_mmio(DOORBELL, tail)    // 通知控制器检查队列
+
+... 控制器并发运行 ...
+
+等待 completion[j].request_id 变为有效
+memory_barrier()              // 复用前先观察完成项字段
+消费结果
+completion_head &lt;- next(j)</code></pre>
+<p>CPU 虚拟地址、CPU 物理地址与设备 DMA 地址可能不同：</p>
+<p><span class="math display">\[\text{CPU virtual }X\longrightarrow\text{CPU physical }Y\longrightarrow\text{device DMA }Z.\]</span></p>
+<p>IOMMU 把设备 DMA 限制到获准映射，既支持虚拟化和 scatter/gather，也降低错误或恶意设备读写任意内存的风险。</p>
+</section>
+<section id="driver-responsibilities-and-trust" class="level4">
+<h4 class="anchored" data-anchor-id="driver-responsibilities-and-trust"><strong>驱动职责与信任</strong></h4>
+<p>驱动生命周期包括发现/probe、申请中断和 MMIO、初始化队列、稳定服务、超时与 reset、suspend/resume、热移除和最终释放。它同时面对用户输入、设备返回数据和并发完成，必须验证长度/索引、管理 DMA 所有权、避免 double completion 与 use-after-remove。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/driver-lifecycle-trust-boundary.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/driver-lifecycle-trust-boundary.svg" class="img-fluid figure-img" style="width:96.0%" alt="驱动 discover、probe、claim、serve、recover、remove，并验证不可信输入、约束 DMA 和避免移除后使用。"></a></p>
+<figcaption>驱动从发现、稳态服务到恢复、卸载与安全边界</figcaption>
+</figure>
+</div>
+<p>单体内核中的驱动拥有内核权限，错误可破坏全系统；用户态驱动或 IOMMU 可缩小故障范围，但会引入 IPC、映射和恢复设计。隔离强度应与设备风险和性能需求共同选择。</p>
+</section>
+</section>
+<section id="the-path-of-an-io-system-call" class="level3">
+<h3 class="anchored" data-anchor-id="the-path-of-an-io-system-call"><strong>I/O 系统调用路径</strong></h3>
+<p>以 cache miss 的 <code>read(fd, buf, n)</code> 为例：系统调用入口验证描述符、用户缓冲和权限；VFS/对象层解释偏移与语义；page cache miss 生成块请求；调度/驱动映射 DMA 并提交设备；线程睡眠；完成路径经中断或 polling 标记请求，唤醒等待者；线程重新调度后复制数据并返回。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-system-call-completion-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/io-system-call-completion-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="请求从 read 验证、子系统、驱动到控制器，完成再经完成处理、通知、调度和返回。"></a></p>
+<figcaption>I/O 请求的提交路径与之后的完成路径</figcaption>
+</figure>
+</div>
+<p>端到端时间可概念分解为</p>
+<p><span class="math display">\[T_{operation}=T_{setup}+T_{queue}+\frac{B}{R}+T_{completion},\]</span></p>
+<p>其中 setup 是软件准备，queue 是排队，<span class="math inline">\(B/R\)</span> 是载荷传输，completion 包含通知、唤醒和重新调度。只优化某一层无法消除另一层主导的延迟。</p>
+</section>
+<section id="programmed-io-polling-interrupts-and-dma" class="level3">
+<h3 class="anchored" data-anchor-id="programmed-io-polling-interrupts-and-dma"><strong>程序控制 I/O、轮询、中断与 DMA</strong></h3>
+<p>PIO 与 DMA 回答“数据由谁移动”；polling 与 interrupt 回答“CPU 如何知道状态变化”，两组概念相互独立。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pio-poll-interrupt-dma.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/pio-poll-interrupt-dma.svg" class="img-fluid figure-img" style="width:97.0%" alt="CPU 经 PIO 搬数据、反复查状态、接收中断，以及配置 DMA 让设备直达内存后通知完成。"></a></p>
+<figcaption>PIO/DMA 与 polling/interrupt 的正交关系</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>PIO：</strong>CPU 对设备寄存器逐项读写载荷，适合少量控制数据。</li>
+<li><strong>DMA：</strong>CPU 配置缓冲和描述符，设备直接在内存与设备之间传输，降低每字节 CPU 工作。</li>
+<li><strong>Polling：</strong>CPU 主动反复读取状态，低负载时浪费周期，高速稳定流量下可避免大量中断。</li>
+<li><strong>Interrupt：</strong>设备在事件时通知 CPU，空闲成本低，但高事件率会造成入口与缓存开销。</li>
+</ul>
+<p>DMA 不表示零成本：页需映射/pin，缓存一致性和 IOMMU 需维护，描述符与完成仍由 CPU 管理。</p>
+<section id="choosing-between-interrupts-and-polling" class="level4">
+<h4 class="anchored" data-anchor-id="choosing-between-interrupts-and-polling"><strong>在中断与轮询之间选择</strong></h4>
+<p>若窗口 <span class="math inline">\(T_w\)</span> 内每隔 <span class="math inline">\(\Delta\)</span> 轮询、每次成本 <span class="math inline">\(c_p\)</span>，近似成本为</p>
+<p><span class="math display">\[C_{poll}\approx\frac{T_w}{\Delta}c_p.\]</span></p>
+<p>若有 <span class="math inline">\(N\)</span> 次事件、每次中断成本 <span class="math inline">\(c_i\)</span>，则</p>
+<p><span class="math display">\[C_{interrupt}\approx Nc_i.\]</span></p>
+<p>稀疏事件通常适合中断，持续高负载可能适合 polling。Linux NAPI 使用混合路径：首个网卡中断触发后临时屏蔽进一步中断，按预算轮询批量分组，队列排空再重新开启中断。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/interrupt-polling-hybrid.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/interrupt-polling-hybrid.svg" class="img-fluid figure-img" style="width:96.0%" alt="概念成本交叉与 NAPI 时间线：中断、屏蔽、按预算 polling、排空后解除屏蔽。"></a></p>
+<figcaption>稀疏事件偏向中断，持续负载偏向轮询，混合路径动态切换</figcaption>
+</figure>
+</div>
+<p>Interrupt coalescing 和 polling budget 会在 CPU 效率与尾延迟间折衷，必须按负载分布测量。</p>
+</section>
+</section>
+<section id="blocking-and-nonblocking-io" class="level3">
+<h3 class="anchored" data-anchor-id="blocking-and-nonblocking-io"><strong>阻塞与非阻塞 I/O</strong></h3>
+<p>阻塞描述符在暂时无法推进时把线程加入等待队列并睡眠；非阻塞描述符立即返回 <code>EAGAIN/EWOULDBLOCK</code>。二者都可能返回部分字节、EOF 或永久错误，非阻塞只改变“现在不能推进”这一情形。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/blocking-nonblocking-read-state.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/blocking-nonblocking-read-state.svg" class="img-fluid figure-img" style="width:96.0%" alt="读取先判断能否推进，阻塞描述符睡眠重检，非阻塞返回 EAGAIN，其他路径返回数据、EOF 或错误。"></a></p>
+<figcaption>阻塞读取睡眠并重检，非阻塞读取返回 EAGAIN</figcaption>
+</figure>
+</div>
+<p>一个 <code>read()</code> 返回正数不保证完整应用消息，<code>write()</code> 也可能部分完成。EINTR、关闭、half-close 和超时都必须纳入状态机。对普通磁盘文件，<code>O_NONBLOCK</code> 的行为与 socket/pipe 不同，因为 page cache 与存储 I/O 语义并非简单 readiness。</p>
+</section>
+<section id="io-multiplexing-and-readiness" class="level3">
+<h3 class="anchored" data-anchor-id="io-multiplexing-and-readiness"><strong>I/O 多路复用与就绪通知</strong></h3>
+<p>Readiness API 让一个线程等待多个描述符“某操作现在可能不阻塞”，然后逐个执行非阻塞操作。就绪是提示而非预留：另一个线程可能先消费数据，错误/关闭也常表现为可读，因此实际调用仍要处理 <code>EAGAIN</code>、EOF 与错误。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/readiness-event-loop-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/readiness-event-loop-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="事件循环从 wait 到 ready-set dispatch、drain、更新关注和计时器，再回到等待。"></a></p>
+<figcaption>等待、分派、排空非阻塞操作、更新 interest 与处理计时器的事件循环</figcaption>
+</figure>
+</div>
+<section id="select-poll-epoll-and-kqueue" class="level4">
+<h4 class="anchored" data-anchor-id="select-poll-epoll-and-kqueue"><strong>select、poll、epoll 与 kqueue</strong></h4>
+<p><code>select</code> 每次传递位集合并受 fd 集合大小限制；<code>poll</code> 每次传递数组，避免位上限但仍需扫描；Linux <code>epoll</code> 在内核维持注册集合与 ready list；BSD <code>kqueue</code> 用 filter 统一多类事件。持久注册减少重复复制，但不会让应用免于管理连接状态和公平性。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multiplexing-api-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/multiplexing-api-comparison.svg" class="img-fluid figure-img" style="width:97.0%" alt="四列比较 select 位集、poll 数组、epoll ready list 与 kqueue filter。"></a></p>
+<figcaption>select/poll 每次传入 interest，epoll/kqueue 维护持久注册</figcaption>
+</figure>
+</div>
+<p>Level-triggered 只要条件仍成立就继续报告；edge-triggered 只报告变化，通常要求循环操作直到 <code>EAGAIN</code>，否则未排空数据可能没有新边沿。One-shot 模式还需显式 rearm。</p>
+<details>
+<summary>
+<strong>C 示例：edge-triggered epoll 与非阻塞管道</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/epoll.h&gt;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;time.h&gt;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> die<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> child_write_all<span class="op">(</span><span class="dt">int</span> fd<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>text<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> used <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> length <span class="op">=</span> strlen<span class="op">(</span>text<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>used <span class="op">&lt;</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> n <span class="op">=</span> write<span class="op">(</span>fd<span class="op">,</span> text <span class="op">+</span> used<span class="op">,</span> length <span class="op">-</span> used<span class="op">);</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>            used <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">;</span>          <span class="co">// A successful write may be partial.</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span>                   <span class="co">// Retry only because this demo has no cancellation policy.</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EAGAIN<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>            <span class="kw">struct</span> timespec pause <span class="op">=</span> <span class="op">{.</span>tv_sec <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>tv_nsec <span class="op">=</span> <span class="dv">1000000</span><span class="op">};</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>            nanosleep<span class="op">(&amp;</span>pause<span class="op">,</span> NULL<span class="op">);</span>     <span class="co">// Real code would wait for writable readiness.</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>            die<span class="op">(</span><span class="st">"write"</span><span class="op">);</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> pipefd<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe2<span class="op">(</span>pipefd<span class="op">,</span> O_NONBLOCK <span class="op">|</span> O_CLOEXEC<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"pipe2"</span><span class="op">);</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>        <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>bursts<span class="op">[]</span> <span class="op">=</span> <span class="op">{</span><span class="st">"first burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> <span class="st">"second burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> <span class="st">"final burst</span><span class="sc">\n</span><span class="st">"</span><span class="op">};</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="kw">sizeof</span> bursts <span class="op">/</span> <span class="kw">sizeof</span> bursts<span class="op">[</span><span class="dv">0</span><span class="op">];</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>            child_write_all<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">],</span> bursts<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>            <span class="kw">struct</span> timespec pause <span class="op">=</span> <span class="op">{.</span>tv_sec <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>tv_nsec <span class="op">=</span> <span class="dv">150000000</span><span class="op">};</span></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>            nanosleep<span class="op">(&amp;</span>pause<span class="op">,</span> NULL<span class="op">);</span>     <span class="co">// Make separate readiness transitions visible.</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span>                <span class="co">// Reader will eventually observe EOF.</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span>EXIT_SUCCESS<span class="op">);</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> epfd <span class="op">=</span> epoll_create1<span class="op">(</span>EPOLL_CLOEXEC<span class="op">);</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>epfd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"epoll_create1"</span><span class="op">);</span></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> epoll_event registration <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>events <span class="op">=</span> EPOLLIN <span class="op">|</span> EPOLLET<span class="op">,</span></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>data<span class="op">.</span>fd <span class="op">=</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>epoll_ctl<span class="op">(</span>epfd<span class="op">,</span> EPOLL_CTL_ADD<span class="op">,</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> <span class="op">&amp;</span>registration<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"epoll_ctl"</span><span class="op">);</span></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> finished <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>finished<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a>        <span class="kw">struct</span> epoll_event events<span class="op">[</span><span class="dv">8</span><span class="op">];</span></span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> ready <span class="op">=</span> epoll_wait<span class="op">(</span>epfd<span class="op">,</span> events<span class="op">,</span> <span class="dv">8</span><span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">);</span></span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ready <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ready <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> die<span class="op">(</span><span class="st">"epoll_wait"</span><span class="op">);</span></span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> ready<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>events<span class="op">[</span>i<span class="op">].</span>data<span class="op">.</span>fd <span class="op">!=</span> pipefd<span class="op">[</span><span class="dv">0</span><span class="op">])</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true" tabindex="-1"></a>            <span class="co">// EPOLLET 规则：读尽当前所有可用字节。</span></span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> <span class="op">(;;)</span> <span class="op">{</span></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true" tabindex="-1"></a>                <span class="dt">char</span> buffer<span class="op">[</span><span class="dv">16</span><span class="op">];</span></span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true" tabindex="-1"></a>                <span class="dt">ssize_t</span> n <span class="op">=</span> read<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> buffer<span class="op">,</span> <span class="kw">sizeof</span> buffer<span class="op">);</span></span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true" tabindex="-1"></a>                    <span class="co">// 教学示例对写入 stdout 的 write() 保持简化。</span></span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> buffer<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> die<span class="op">(</span><span class="st">"stdout"</span><span class="op">);</span></span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true" tabindex="-1"></a>                    finished <span class="op">=</span> <span class="dv">1</span><span class="op">;</span>        <span class="co">// All writers closed and buffered data is gone.</span></span>
+<span id="cb2-92"><a href="#cb2-92" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb2-93"><a href="#cb2-93" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EAGAIN <span class="op">||</span> errno <span class="op">==</span> EWOULDBLOCK<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span><span class="op">;</span>               <span class="co">// Fully drained; return to epoll_wait().</span></span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true" tabindex="-1"></a>                    die<span class="op">(</span><span class="st">"read"</span><span class="op">);</span></span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true" tabindex="-1"></a>                <span class="op">}</span></span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>events<span class="op">[</span>i<span class="op">].</span>events <span class="op">&amp;</span> EPOLLERR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true" tabindex="-1"></a>                fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"epoll reported an error condition</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true" tabindex="-1"></a>            <span class="co">// HUP 可能与可读字节同时存在，因此先读尽数据再处理 EPOLLHUP。</span></span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipefd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>epfd<span class="op">);</span></span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb2-113"><a href="#cb2-113" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> epoll_pipe.c <span class="at">-o</span> epoll_pipe</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./epoll_pipe</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>高流量端点若每轮无限 drain，会饿死其他端点；事件循环需要每连接预算、批量上限和计时器优先级。</p>
+</section>
+</section>
+<section id="asynchronous-io-and-completion-interfaces" class="level3">
+<h3 class="anchored" data-anchor-id="asynchronous-io-and-completion-interfaces"><strong>异步 I/O 与完成接口</strong></h3>
+<p>Readiness 表示“现在尝试可能有进展”，应用随后调用操作；completion 表示“先前提交的具体操作已经完成”，结果必须与请求关联。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/readiness-vs-completion.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/readiness-vs-completion.svg" class="img-fluid figure-img" style="width:96.0%" alt="比较注册 interest、收到 readiness 后调用 read，以及提交异步 read 后收到关联 completion。"></a></p>
+<figcaption>Readiness 先通知再尝试，completion 在提交操作后返回结果</figcaption>
+</figure>
+</div>
+<p>完成式接口适合批量、异步设备和减少系统调用，但引入请求生命周期、取消竞态、缓冲区在途所有权和完成队列过载问题。收到 completion 前不能随意释放或复用关联内存。</p>
+<section id="io_uring-and-submission-completion-queues" class="level4">
+<h4 class="anchored" data-anchor-id="io_uring-and-submission-completion-queues"><strong>io_uring 与提交-完成队列</strong></h4>
+<p>Linux <code>io_uring</code> 通过共享 submission queue（SQ）和 completion queue（CQ）交换 SQE/CQE。用户准备 SQE、发布尾指针并通知内核；内核执行后把 <code>res</code> 与 <code>user_data</code> 写入 CQE，用户收割并推进 CQ head。<code>user_data</code> 是应用关联请求状态的关键。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-uring-sq-cq-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/io-uring-sq-cq-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="SQE 从用户准备、共享 SQ、内核/设备执行到携带 result 与 user_data 的 CQE 返回。"></a></p>
+<figcaption>SQE 进入内核执行，关联 CQE 返回用户空间</figcaption>
+</figure>
+</div>
+<p>共享 ring 需要正确内存序，固定文件/缓冲可降低查找或 pin 成本，却增加注册生命周期。并非所有操作都真正异步，内核版本、安全策略与文件系统也会影响行为。</p>
+<details>
+<summary>
+<strong>C 示例：提交并收割一次 io_uring 读取</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;liburing.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> request <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> <span class="op">*</span>buffer<span class="op">;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> capacity<span class="op">;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> fail_liburing<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">,</span> <span class="dt">int</span> negative_errno<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st">: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> what<span class="op">,</span> strerror<span class="op">(-</span>negative_errno<span class="op">));</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="op">**</span>argv<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>argc <span class="op">!=</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"usage: </span><span class="sc">%s</span><span class="st"> FILE</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> fd <span class="op">=</span> open<span class="op">(</span>argv<span class="op">[</span><span class="dv">1</span><span class="op">],</span> O_RDONLY <span class="op">|</span> O_CLOEXEC<span class="op">);</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open"</span><span class="op">);</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring ring<span class="op">;</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> rc <span class="op">=</span> io_uring_queue_init<span class="op">(</span><span class="dv">8</span><span class="op">,</span> <span class="op">&amp;</span>ring<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_queue_init"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> request <span class="op">*</span>req <span class="op">=</span> calloc<span class="op">(</span><span class="dv">1</span><span class="op">,</span> <span class="kw">sizeof</span> <span class="op">*</span>req<span class="op">);</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>req <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"calloc request"</span><span class="op">);</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    req<span class="op">-&gt;</span>capacity <span class="op">=</span> <span class="dv">4096</span><span class="op">;</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    req<span class="op">-&gt;</span>buffer <span class="op">=</span> malloc<span class="op">(</span>req<span class="op">-&gt;</span>capacity<span class="op">);</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>req<span class="op">-&gt;</span>buffer <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"malloc buffer"</span><span class="op">);</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring_sqe <span class="op">*</span>sqe <span class="op">=</span> io_uring_get_sqe<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sqe <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"submission queue is full</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 描述从文件偏移 0 开始的读取；此时操作尚未完成。</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>    io_uring_prep_read<span class="op">(</span>sqe<span class="op">,</span> fd<span class="op">,</span> req<span class="op">-&gt;</span>buffer<span class="op">,</span> req<span class="op">-&gt;</span>capacity<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    io_uring_sqe_set_data<span class="op">(</span>sqe<span class="op">,</span> req<span class="op">);</span>  <span class="co">// Copied into CQE user_data for correlation.</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    rc <span class="op">=</span> io_uring_submit<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_submit"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"expected one submitted SQE, got </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> io_uring_cqe <span class="op">*</span>cqe <span class="op">=</span> NULL<span class="op">;</span></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>    rc <span class="op">=</span> io_uring_wait_cqe<span class="op">(&amp;</span>ring<span class="op">,</span> <span class="op">&amp;</span>cqe<span class="op">);</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>rc <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail_liburing<span class="op">(</span><span class="st">"io_uring_wait_cqe"</span><span class="op">,</span> rc<span class="op">);</span></span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> request <span class="op">*</span>completed <span class="op">=</span> io_uring_cqe_get_data<span class="op">(</span>cqe<span class="op">);</span></span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> result <span class="op">=</span> cqe<span class="op">-&gt;</span>res<span class="op">;</span>             <span class="co">// Nonnegative byte count or negative errno.</span></span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"asynchronous read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(-</span>result<span class="op">));</span></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>        <span class="dt">size_t</span> written <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="op">(</span>written <span class="op">&lt;</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>            <span class="dt">ssize_t</span> n <span class="op">=</span> write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>                              completed<span class="op">-&gt;</span>buffer <span class="op">+</span> written<span class="op">,</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>                              <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result <span class="op">-</span> written<span class="op">);</span></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> written <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">;</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span> <span class="op">{</span> perror<span class="op">(</span><span class="st">"write stdout"</span><span class="op">);</span> <span class="cf">break</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a>    io_uring_cqe_seen<span class="op">(&amp;</span>ring<span class="op">,</span> cqe<span class="op">);</span>     <span class="co">// Return this CQ slot to the kernel/user ring.</span></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>completed<span class="op">-&gt;</span>buffer<span class="op">);</span>           <span class="co">// Safe only after the operation completed.</span></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>completed<span class="op">);</span></span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a>    io_uring_queue_exit<span class="op">(&amp;</span>ring<span class="op">);</span></span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> result <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">?</span> EXIT_FAILURE <span class="op">:</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> uring_read.c <span class="at">-luring</span> <span class="at">-o</span> uring_read</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./uring_read</span> example.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="buffering-caching-and-backpressure" class="level3">
+<h3 class="anchored" data-anchor-id="buffering-caching-and-backpressure"><strong>缓冲、缓存与背压</strong></h3>
+<p>缓冲吸收 burst、匹配不同粒度并允许批处理；缓存保存可重用数据以避免设备访问。二者都使用有限内存，并会改变数据何时真正传到下一层或持久化。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/buffering-backpressure.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/buffering-backpressure.svg" class="img-fluid figure-img" style="width:96.0%" alt="生产者快于消费者，高水位触发限流，低水位恢复；曲线显示队列先填满再排空。"></a></p>
+<figcaption>高低水位让有界队列把压力传播给更快生产者</figcaption>
+</figure>
+</div>
+<p>无界队列不会消除过载，只会把拒绝变成更晚的高延迟或 OOM。常见策略是容量上限、high/low watermark、停止读取上游、降低 admission、丢弃可丢数据或把错误返回生产者。</p>
+<p>Little 定律 <span class="math inline">\(L=\lambda W\)</span> 说明在吞吐固定时，更多在途请求意味着更长平均停留。批量虽提高每次提交效率，却可能增加等待批次凑齐的延迟，需根据尾延迟目标设置。</p>
+</section>
+<section id="character-block-and-network-devices" class="level3">
+<h3 class="anchored" data-anchor-id="character-block-and-network-devices"><strong>字符、块与网络设备</strong></h3>
+<p>字符设备通常提供字节/记录流和设备特定控制；块设备提供可寻址 sector/block，请求可合并、排序并经 page cache/文件系统；网卡使用分组队列、协议栈和 descriptor ring，应用通常通过 socket 而非直接设备文件访问。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/device-class-paths.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/device-class-paths.svg" class="img-fluid figure-img" style="width:96.0%" alt="字符设备从字节调用，块设备经请求队列到扇区，网络 socket 经协议队列到 NIC ring。"></a></p>
+<figcaption>字符、块和网络路径在传输单位、队列与应用抽象上的区别</figcaption>
+</figure>
+</div>
+<p>“一切皆文件”表达共同句柄和部分操作，而不承诺所有描述符支持 seek、mmap、同样 EOF 或 durability。</p>
+</section>
+<section id="errors-timeouts-cancellation-and-hotplug" class="level3">
+<h3 class="anchored" data-anchor-id="errors-timeouts-cancellation-and-hotplug"><strong>错误、超时、取消与热插拔</strong></h3>
+<p>请求可能在准备、已提交、in-flight、设备完成、内核完成和用户收割之间转换。超时/取消可与真实完成竞态；正确实现必须保证终态只提交一次、缓冲只释放一次，并明确取消成功是否表示设备不再访问内存。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-error-cancel-hotplug.svg" class="lightbox" data-gallery="quarto-lightbox-inline-14"><img src="assets/io-error-cancel-hotplug.svg" class="img-fluid figure-img" style="width:96.0%" alt="请求状态从 prepared 到 submitted/in-flight/completed/reaped；timeout/cancel 与 completion 竞态，hot unplug 排空每个请求一次。"></a></p>
+<figcaption>超时、取消、reset、完成与热拔插汇聚到唯一终态所有权</figcaption>
+</figure>
+</div>
+<p>热拔插要求先阻止新请求，再使已有请求完成或失败，撤销用户映射和 DMA，等待引用归零后释放驱动状态。设备 reset 可能使所有 in-flight 请求状态不确定，恢复策略必须知道哪些操作可重试、哪些可能已产生外部副作用。</p>
+<p>超时预算应覆盖端到端路径，而不是每层各自重新给完整超时；否则重试叠加会放大负载并形成 retry storm。</p>
+</section>
+<section id="observing-io-behavior" class="level3">
+<h3 class="anchored" data-anchor-id="observing-io-behavior"><strong>观察 I/O 行为</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-io-observability.svg" class="lightbox" data-gallery="quarto-lightbox-inline-15"><img src="assets/linux-io-observability.svg" class="img-fluid figure-img" style="width:96.0%" alt="应用延迟连接到 strace、进程 I/O 计数、调度统计、中断/softirq、内核 tracing、块统计和网卡计数。"></a></p>
+<figcaption>Linux 工具覆盖应用、系统调用、进程、队列、中断、块与网络层</figcaption>
+</figure>
+</div>
+<p>应从应用症状向下逐层验证：<code>strace -T</code> 观察调用和等待；<code>/proc/&lt;pid&gt;/io</code> 与 scheduler 状态区分读写量和阻塞；<code>iostat</code>/<code>pidstat</code> 看块队列与设备利用；<code>/proc/interrupts</code>/<code>softirqs</code> 看完成负担；<code>ethtool -S</code>/<code>ss</code> 看网络队列；perf/ftrace/eBPF 关联内核时序。</p>
+<details>
+<summary>
+<strong>Shell：从 API 边界向下检查 I/O-bound 进程</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 观察相关系统调用及其耗时。</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 生产环境中应短暂附加；跟踪每次调用可能扰动工作负载。</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> strace <span class="at">-ttT</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=read,write,pread64,pwrite64,poll,ppoll,epoll_wait,io_uring_enter</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 比较进程级逻辑 I/O 与实际存储 I/O 统计。</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/proc/</span><span class="va">$PID</span><span class="st">/io"</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="ex">pidstat</span> <span class="at">-d</span> <span class="at">-w</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span> 1</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 检查中断或延迟网络处理是否集中在少数 CPU。</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/interrupts</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/softirqs</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 检查块设备排队与延迟；请明确替换 DEVICE。</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="ex">iostat</span> <span class="at">-xz</span> 1</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/sys/block/</span><span class="va">$DEVICE</span><span class="st">/stat"</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 检查网卡丢包与驱动计数；请明确替换 IFACE。</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="ex">ip</span> <span class="at">-s</span> link show dev <span class="st">"</span><span class="va">$IFACE</span><span class="st">"</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> ethtool <span class="at">-S</span> <span class="st">"</span><span class="va">$IFACE</span><span class="st">"</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 先确定具体问题与时间窗口，再使用内核跟踪。</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co"># 可用事件名称随内核而异；启用前先列出事件。</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf list <span class="st">'block:*'</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf trace <span class="at">-p</span> <span class="st">"</span><span class="va">$PID</span><span class="st">"</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>工具输出是采样且实现相关的。高设备利用率可能是健康批处理，也可能是排队瓶颈；低吞吐可能源于同步写、队列过浅、CPU completion 饱和或上游根本没有足够请求。</p>
+</section>
+<section id="following-the-pipeline-through-the-io-stack" class="level3">
+<h3 class="anchored" data-anchor-id="following-the-pipeline-through-the-io-stack"><strong>沿 I/O 栈追踪贯穿管道</strong></h3>
+<p><code>cat input.txt | grep kernel &gt; result.txt</code> 包含三种不同 I/O：输入文件读取、内核 pipe 字节流、输出文件写入。输入 cache hit 时不访问设备；cache miss 才经文件系统和块层提交 DMA。<code>cat</code> 写满 pipe 会阻塞并形成背压；<code>grep</code> 读取后在用户空间计算，再把脏页写入 page cache，真正持久化可能晚于 <code>write()</code> 返回。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-request-end-to-end-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-16"><img src="assets/io-request-end-to-end-timeline.svg" class="img-fluid figure-img" style="width:98.0%" alt="泳道图从用户 read，经描述符、page-cache miss、驱动/DMA、设备、中断完成、页面验证、唤醒、复制到返回。"></a></p>
+<figcaption>一次 cache-miss 文件读取跨越 syscall、cache、块、驱动、设备和调度</figcaption>
+</figure>
+</div>
+<p>概念延迟分解为</p>
+<p><span class="math display">\[T_{read}=T_{entry}+T_{lookup}+T_{queue}+T_{device}+T_{completion}+T_{copy}+T_{schedule}.\]</span></p>
+<p>这解释了为何“磁盘服务 1 ms”不等于应用 <code>read()</code> 只需 1 ms：排队、唤醒、重新调度和复制同样可主导；也解释了 page-cache hit 为何跳过设备路径，却仍要做权限、对象和复制工作。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>CPU 如何获知/推进</th>
+<th>优势</th>
+<th>主要代价</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>PIO</td>
+<td>CPU 搬运每个数据单位</td>
+<td>控制简单、适合少量数据</td>
+<td>每字节 CPU 工作高</td>
+</tr>
+<tr class="even">
+<td>DMA</td>
+<td>设备直接访问映射内存</td>
+<td>大传输效率高</td>
+<td>pin/IOMMU/一致性与生命周期</td>
+</tr>
+<tr class="odd">
+<td>Interrupt</td>
+<td>设备在事件时通知</td>
+<td>稀疏事件空闲成本低</td>
+<td>高频入口、缓存和风暴</td>
+</tr>
+<tr class="even">
+<td>Polling</td>
+<td>CPU 主动查队列</td>
+<td>高负载批量低延迟</td>
+<td>空闲时浪费 CPU</td>
+</tr>
+<tr class="odd">
+<td>Blocking I/O</td>
+<td>无进展时线程睡眠</td>
+<td>顺序代码易推理</td>
+<td>大量等待流需要线程/栈</td>
+</tr>
+<tr class="even">
+<td>Readiness</td>
+<td>先通知可能有进展，再非阻塞尝试</td>
+<td>少线程管理多端点</td>
+<td>部分状态、drain 与公平性</td>
+</tr>
+<tr class="odd">
+<td>Completion</td>
+<td>先提交具体操作，后收结果</td>
+<td>批量异步与设备并行</td>
+<td>请求/缓冲生命周期和取消竞态</td>
+</tr>
+</tbody>
+</table>
+<p>稳定的 I/O 心智模型是：<strong>对象语义 -&gt; 请求验证 -&gt; 有界排队 -&gt; 驱动与设备所有权转移 -&gt; 完成通知 -&gt; 状态更新与唤醒 -&gt; 用户可见结果</strong>。任何层都可能阻塞、失败或被取消；只有明确所有权、容量和唯一终态，事件驱动系统才能在高并发下保持正确。</p>
+<p><a href="09-file-systems-persistence-and-crash-consistency.html">下一章：文件系统、持久化与崩溃一致性</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

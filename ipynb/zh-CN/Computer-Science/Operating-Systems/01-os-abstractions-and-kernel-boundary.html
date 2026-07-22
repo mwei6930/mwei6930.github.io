@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：操作系统抽象与内核边界</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/clipboard/clipboard.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/quarto.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/popper.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/anchor.min.js"></script>
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="01-os-abstractions-and-kernel-boundary_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#operating-system-abstractions-and-the-kernel-boundary" id="toc-operating-system-abstractions-and-the-kernel-boundary" class="nav-link active" data-scroll-target="#operating-system-abstractions-and-the-kernel-boundary"><strong>操作系统抽象与内核边界</strong></a>
+  <ul>
+  <li><a href="#what-does-an-operating-system-do" id="toc-what-does-an-operating-system-do" class="nav-link" data-scroll-target="#what-does-an-operating-system-do"><strong>操作系统做什么？</strong></a>
+  <ul>
+  <li><a href="#abstraction-multiplexing-and-isolation" id="toc-abstraction-multiplexing-and-isolation" class="nav-link" data-scroll-target="#abstraction-multiplexing-and-isolation"><strong>抽象、多路复用与隔离</strong></a></li>
+  <li><a href="#mechanism-and-policy" id="toc-mechanism-and-policy" class="nav-link" data-scroll-target="#mechanism-and-policy"><strong>机制与策略</strong></a></li>
+  </ul></li>
+  <li><a href="#hardware-foundations-for-protection" id="toc-hardware-foundations-for-protection" class="nav-link" data-scroll-target="#hardware-foundations-for-protection"><strong>保护所需的硬件基础</strong></a>
+  <ul>
+  <li><a href="#user-mode-and-kernel-mode" id="toc-user-mode-and-kernel-mode" class="nav-link" data-scroll-target="#user-mode-and-kernel-mode"><strong>用户态与内核态</strong></a></li>
+  <li><a href="#privileged-instructions-and-memory-protection" id="toc-privileged-instructions-and-memory-protection" class="nav-link" data-scroll-target="#privileged-instructions-and-memory-protection"><strong>特权指令与内存保护</strong></a></li>
+  </ul></li>
+  <li><a href="#events-that-enter-the-kernel" id="toc-events-that-enter-the-kernel" class="nav-link" data-scroll-target="#events-that-enter-the-kernel"><strong>进入内核的事件</strong></a>
+  <ul>
+  <li><a href="#system-calls" id="toc-system-calls" class="nav-link" data-scroll-target="#system-calls"><strong>系统调用</strong></a></li>
+  <li><a href="#exceptions-and-faults" id="toc-exceptions-and-faults" class="nav-link" data-scroll-target="#exceptions-and-faults"><strong>异常与故障</strong></a></li>
+  <li><a href="#hardware-interrupts" id="toc-hardware-interrupts" class="nav-link" data-scroll-target="#hardware-interrupts"><strong>硬件中断</strong></a></li>
+  <li><a href="#trap-entry-and-return" id="toc-trap-entry-and-return" class="nav-link" data-scroll-target="#trap-entry-and-return"><strong>陷入入口与返回</strong></a></li>
+  </ul></li>
+  <li><a href="#the-system-call-interface" id="toc-the-system-call-interface" class="nav-link" data-scroll-target="#the-system-call-interface"><strong>系统调用接口</strong></a>
+  <ul>
+  <li><a href="#api-abi-and-calling-convention" id="toc-api-abi-and-calling-convention" class="nav-link" data-scroll-target="#api-abi-and-calling-convention"><strong>API、ABI 与调用约定</strong></a></li>
+  <li><a href="#validating-arguments-across-the-trust-boundary" id="toc-validating-arguments-across-the-trust-boundary" class="nav-link" data-scroll-target="#validating-arguments-across-the-trust-boundary"><strong>跨越信任边界验证参数</strong></a></li>
+  <li><a href="#system-call-cost-and-security" id="toc-system-call-cost-and-security" class="nav-link" data-scroll-target="#system-call-cost-and-security"><strong>系统调用成本与安全性</strong></a></li>
+  </ul></li>
+  <li><a href="#kernel-organization" id="toc-kernel-organization" class="nav-link" data-scroll-target="#kernel-organization"><strong>内核组织方式</strong></a>
+  <ul>
+  <li><a href="#monolithic-and-modular-kernels" id="toc-monolithic-and-modular-kernels" class="nav-link" data-scroll-target="#monolithic-and-modular-kernels"><strong>单体内核与模块化内核</strong></a></li>
+  <li><a href="#layered-systems" id="toc-layered-systems" class="nav-link" data-scroll-target="#layered-systems"><strong>分层系统</strong></a></li>
+  <li><a href="#microkernels-and-message-passing" id="toc-microkernels-and-message-passing" class="nav-link" data-scroll-target="#microkernels-and-message-passing"><strong>微内核与消息传递</strong></a></li>
+  <li><a href="#hybrid-exokernel-and-library-os-ideas" id="toc-hybrid-exokernel-and-library-os-ideas" class="nav-link" data-scroll-target="#hybrid-exokernel-and-library-os-ideas"><strong>混合内核、Exokernel 与 Library OS</strong></a></li>
+  </ul></li>
+  <li><a href="#booting-an-operating-system" id="toc-booting-an-operating-system" class="nav-link" data-scroll-target="#booting-an-operating-system"><strong>启动操作系统</strong></a>
+  <ul>
+  <li><a href="#firmware-and-the-bootloader" id="toc-firmware-and-the-bootloader" class="nav-link" data-scroll-target="#firmware-and-the-bootloader"><strong>固件与引导加载器</strong></a></li>
+  <li><a href="#kernel-initialization-and-the-first-user-process" id="toc-kernel-initialization-and-the-first-user-process" class="nav-link" data-scroll-target="#kernel-initialization-and-the-first-user-process"><strong>内核初始化与第一个用户进程</strong></a></li>
+  </ul></li>
+  <li><a href="#observing-the-user-kernel-boundary" id="toc-observing-the-user-kernel-boundary" class="nav-link" data-scroll-target="#observing-the-user-kernel-boundary"><strong>观察用户态与内核态边界</strong></a>
+  <ul>
+  <li><a href="#tracing-system-calls" id="toc-tracing-system-calls" class="nav-link" data-scroll-target="#tracing-system-calls"><strong>跟踪系统调用</strong></a></li>
+  <li><a href="#inspecting-kernel-exposed-process-state" id="toc-inspecting-kernel-exposed-process-state" class="nav-link" data-scroll-target="#inspecting-kernel-exposed-process-state"><strong>检查内核公开的进程状态</strong></a></li>
+  </ul></li>
+  <li><a href="#following-the-running-case-into-the-kernel" id="toc-following-the-running-case-into-the-kernel" class="nav-link" data-scroll-target="#following-the-running-case-into-the-kernel"><strong>沿贯穿案例进入内核</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：操作系统抽象与内核边界</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/01-os-abstractions-and-kernel-boundary.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="operating-system-abstractions-and-the-kernel-boundary" class="level2">
+<h2 class="anchored" data-anchor-id="operating-system-abstractions-and-the-kernel-boundary"><strong>操作系统抽象与内核边界</strong></h2>
+<p>普通程序看起来仿佛独占处理器、连续地址空间、文件和设备，但底层硬件并不会直接提供这些方便的对象。硬件真正提供的是 CPU 执行模式、物理内存、存储块、中断线路、定时器和设备寄存器。<strong>操作系统（operating system）</strong>把这些机制组织为稳定抽象，并决定多个彼此不可信的程序应当如何安全共享它们。</p>
+<p>本章建立后续所有操作系统知识依赖的边界。贯穿案例是：</p>
+<pre class="text"><code>cat input.txt | grep kernel &gt; result.txt</code></pre>
+<p>它看起来只是一行 shell 命令，实际却会触发进程创建、可执行文件加载、文件描述符调整、受保护系统调用、调度、地址翻译、文件系统访问与设备 I/O。本章首先回答一个更聚焦的问题：<strong>每当这条命令需要内核帮助时，系统究竟会发生什么？</strong></p>
+<section id="what-does-an-operating-system-do" class="level3">
+<h3 class="anchored" data-anchor-id="what-does-an-operating-system-do"><strong>操作系统做什么？</strong></h3>
+<p>操作系统是把计算机变成可共享、可保护、可持久使用环境的软件体系；<strong>内核（kernel）</strong>则是其中拥有最高权限的核心。Shell、系统库、服务管理器和命令行工具通常属于操作系统环境，但大多运行在用户态，并不等同于内核。</p>
+<p>这个区别直接影响我们对程序行为的判断。调用 <code>printf()</code> 不一定进入内核，因为 C 库可以在用户空间完成格式化和缓冲；只有最终把字节写入终端或文件时，程序才需要通过 <code>write()</code> 等服务跨入内核。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/os-placement.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/os-placement.svg" class="img-fluid figure-img" style="width:38.0%" alt="用户和应用位于操作系统之上，硬件位于操作系统之下的层次结构。"></a></p>
+<figcaption>应用程序、操作系统与硬件之间的基本位置关系</figcaption>
+</figure>
+</div>
+<p><em>图片来源：Golftheman，<a href="https://commons.wikimedia.org/wiki/File:Operating_system_placement.svg">Operating system placement</a>，CC BY-SA 3.0。</em></p>
+<p>操作系统同时承担多类职责：</p>
+<ul>
+<li><strong>便利性：</strong>向程序提供文件而不是裸磁盘扇区、进程而不是不可分割的 CPU、套接字而不是网卡控制命令。</li>
+<li><strong>多路复用：</strong>在竞争活动之间分配有限的处理器、内存页框、存储带宽和设备时间。</li>
+<li><strong>隔离：</strong>阻止程序在未授权时读取、破坏或垄断其他程序的资源。</li>
+<li><strong>协调：</strong>提供同步、通信和共享持久对象的受控方式。</li>
+<li><strong>恢复与核算：</strong>发现失败、回收资源、记录所有权和使用量，并尽可能恢复一致状态。</li>
+</ul>
+<p>因此，内核不是一个普通函数库。一般函数库默认信任调用者，并继承调用者的权限；内核却必须假定每个用户请求都可能格式错误、已经过期、出于误用，甚至带有恶意，同时还要高效完成合法请求。</p>
+<section id="abstraction-multiplexing-and-isolation" class="level4">
+<h4 class="anchored" data-anchor-id="abstraction-multiplexing-and-isolation"><strong>抽象、多路复用与隔离</strong></h4>
+<p>三个概念从不同角度描述同一资源。</p>
+<p><strong>抽象（abstraction）</strong>提供比硬件接口更简单、更稳定的对象。例如，文件表现为有名字的字节序列，即使内容散布在多个存储块上；进程表现为包含寄存器、地址空间、凭据和打开文件的执行环境，即使它只会间歇性占用物理 CPU。</p>
+<p><strong>多路复用（multiplexing）</strong>把许多逻辑对象映射到较少的物理资源。时间复用使多个可运行线程轮流占用 CPU；空间复用把不同内存页框或磁盘块分给不同所有者。映射可以随时间改变，而程序所见的抽象保持稳定。</p>
+<p><strong>隔离（isolation）</strong>约束这些映射。页表权限阻止进程随意访问其他进程的内存；文件权限和凭据限定进程能打开哪些对象；抢占式调度则防止用户程序通过拒绝主动让出 CPU 而永久占用处理器。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>物理资源</th>
+<th>操作系统抽象</th>
+<th>多路复用决策</th>
+<th>隔离规则</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU 核心</td>
+<td>进程与线程</td>
+<td>下一个运行谁、运行多久</td>
+<td>用户代码可被抢占，特权状态受保护</td>
+</tr>
+<tr class="even">
+<td>物理内存</td>
+<td>虚拟地址空间与映射</td>
+<td>哪些虚拟页占用哪些页框</td>
+<td>每进程映射与页权限限制访问</td>
+</tr>
+<tr class="odd">
+<td>存储块</td>
+<td>文件、目录与卷</td>
+<td>放置、缓存和 I/O 顺序</td>
+<td>所有权、权限、命名空间与访问检查</td>
+</tr>
+<tr class="even">
+<td>网络接口</td>
+<td>套接字</td>
+<td>在流和进程之间排队分组</td>
+<td>绑定规则、凭据、防火墙与命名空间</td>
+</tr>
+<tr class="odd">
+<td>设备寄存器</td>
+<td>设备文件与驱动操作</td>
+<td>串行化或调度设备请求</td>
+<td>仅可信代码或获授权能力可直接访问</td>
+</tr>
+</tbody>
+</table>
+<p>一个有用的生命周期模型是 <strong>请求 -&gt; 检查 -&gt; 绑定 -&gt; 使用 -&gt; 释放</strong>：进程请求对象或操作；内核检查参数与权限；将请求绑定到内核状态；进程通过句柄使用对象；最后由内核释放或回收。文件描述符、内存映射、套接字和进程标识符都遵循这一模式的变体。</p>
+<p>抽象同时也是故障遏制边界。如果 <code>grep</code> 解引用无效指针，内核可以只终止 <code>grep</code>，而让 shell 和无关进程继续运行。没有受保护边界，一个普通应用错误就可能覆盖调度器、驱动程序或另一个程序。</p>
+</section>
+<section id="mechanism-and-policy" class="level4">
+<h4 class="anchored" data-anchor-id="mechanism-and-policy"><strong>机制与策略</strong></h4>
+<p><strong>机制（mechanism）</strong>说明系统能够做什么，<strong>策略（policy）</strong>则决定特定情形下应当选择什么。分离二者可以让同一套底层能力支持不同目标。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>领域</th>
+<th>机制</th>
+<th>策略问题示例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU</td>
+<td>定时器中断、上下文切换、运行队列</td>
+<td>下一个运行哪个线程？</td>
+</tr>
+<tr class="even">
+<td>内存</td>
+<td>页表、缺页异常、页框分配</td>
+<td>内存紧张时淘汰哪一页？</td>
+</tr>
+<tr class="odd">
+<td>存储</td>
+<td>块 I/O、缓存、日志原语</td>
+<td>何时回写脏数据？</td>
+</tr>
+<tr class="even">
+<td>保护</td>
+<td>用户态/内核态、页权限、凭据</td>
+<td>哪个主体可以执行操作？</td>
+</tr>
+<tr class="odd">
+<td>网络</td>
+<td>分组队列与调度钩子</td>
+<td>哪类流量获得优先级或限速？</td>
+</tr>
+</tbody>
+</table>
+<p>定时器中断是让内核重新获得控制权的机制；轮转、优先级和公平调度则是在其上实现的不同策略。页表提供映射与保护机制；按需分页和页面置换负责决定何时创建映射以及回收哪个页框。</p>
+<p>这种分离不是绝对规则。机制会暴露部分选择并隐藏另一些选择，因此天然会塑造策略。例如只有一个全局队列的调度器很难表达局部性感知策略。良好设计必须同时追问：<strong>哪些决策应该可配置，以及什么机制能够可靠执行这些决策？</strong></p>
+</section>
+</section>
+<section id="hardware-foundations-for-protection" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-foundations-for-protection"><strong>保护所需的硬件基础</strong></h3>
+<p>仅凭普通指令无法建立可信边界。如果任意程序都能改写页表、关闭中断或直接控制磁盘，那么内核中的规则都可以被绕过。现代处理器通过特权模式、受保护控制寄存器、地址翻译和受控入口指令，使操作系统能够真正执行其抽象与策略。</p>
+<section id="user-mode-and-kernel-mode" class="level4">
+<h4 class="anchored" data-anchor-id="user-mode-and-kernel-mode"><strong>用户态与内核态</strong></h4>
+<p>处理器维护当前的<strong>特权级</strong>。用户态代码可以进行普通计算，却不能执行选定的特权操作，也不能访问仅内核可见的映射；内核态代码则能够配置机器和操作受保护资源。</p>
+<p>常见的“两种模式”只是对具体体系结构的简化：</p>
+<ul>
+<li>x86 定义 0 到 3 四个环。主流操作系统通常让内核运行在 ring 0、应用运行在 ring 3。</li>
+<li>RISC-V 定义机器态、监管态和用户态。固件通常处于机器态，内核处于监管态，应用处于用户态。</li>
+<li>虚拟化还会增加一层控制：客户机内核自认为管理整台机器，但仍受 hypervisor 约束。</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/x86-privilege-rings.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/x86-privilege-rings.svg" class="img-fluid figure-img" style="width:58.0%" alt="同心的 x86 特权环，应用位于最低特权的外环，内核位于最高特权的内环。"></a></p>
+<figcaption>x86 的特权环</figcaption>
+</figure>
+</div>
+<p><em>图片来源：Hertzsprung，<a href="https://commons.wikimedia.org/wiki/File:Priv_rings.svg">Privilege rings for x86</a>，CC BY-SA 3.0。</em></p>
+<p>特权附着于 CPU 当前执行上下文，而不是永久附着于源文件或语言。C 应用通常运行在用户态，C 编写的内核通常运行在监管态；关键区别在于执行如何进入、启用了哪些映射与栈，以及处理器此刻允许哪些操作。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>转换</th>
+<th>改变的内容</th>
+<th>是否必须运行另一个进程？</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>函数调用</td>
+<td>程序计数器、调用栈和部分寄存器</td>
+<td>否</td>
+</tr>
+<tr class="even">
+<td>模式切换</td>
+<td>处理器特权与受保护执行上下文</td>
+<td>否</td>
+</tr>
+<tr class="odd">
+<td>上下文切换</td>
+<td>当前保存/恢复的线程或进程状态</td>
+<td>是</td>
+</tr>
+</tbody>
+</table>
+<p>系统调用一定引起模式切换，却不一定引起上下文切换。如果请求立即完成，内核可直接返回原线程；如果 <code>read()</code> 必须等待数据，内核才会阻塞它并调度其他线程。</p>
+</section>
+<section id="privileged-instructions-and-memory-protection" class="level4">
+<h4 class="anchored" data-anchor-id="privileged-instructions-and-memory-protection"><strong>特权指令与内存保护</strong></h4>
+<p>内核通常必须独占控制页表根、内存保护、定时器、中断控制器、低功耗状态、设备控制接口以及虚拟化状态。尤其重要的是，用户代码运行时必须无法读取或修改内核代码与数据。</p>
+<p>内存管理单元（MMU）根据页表翻译虚拟地址，并检查读、写、执行、用户可访问和存在等权限。用户程序读取 supervisor-only 页面时不会得到任意字节，而是触发异常并把控制权交给内核。这形成四层防线：</p>
+<ol type="1">
+<li>应用只能提出本地址空间内的虚拟地址；</li>
+<li>页表决定该地址是否映射及允许的访问类型；</li>
+<li>用户态无法自行替换为宽松页表；</li>
+<li>内核决定异常能否修复、应转换为信号，还是暴露了内核错误。</li>
+</ol>
+<p>定时器补全了保护机制。即使程序陷入无限循环，硬件定时器仍能中断它并把控制权交还内核；调度器随后可以继续运行该线程，也可以选择另一个线程。</p>
+</section>
+</section>
+<section id="events-that-enter-the-kernel" class="level3">
+<h3 class="anchored" data-anchor-id="events-that-enter-the-kernel"><strong>进入内核的事件</strong></h3>
+<p>操作系统需要受控方式重新取得 CPU。<strong>陷入（trap）</strong>常被用作广义术语，表示任何把执行重定向到特权处理程序的事件。主要来源包括系统调用、同步异常和异步硬件中断。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-entry-and-return.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/kernel-entry-and-return.svg" class="img-fluid figure-img" style="width:96.0%" alt="三类事件汇聚到体系结构定义的陷入入口，随后保存寄存器、执行内核处理、恢复状态并受保护地返回。"></a></p>
+<figcaption>系统调用、异常与中断进入内核并返回</figcaption>
+</figure>
+</div>
+<p><em>本章原创图，模型参考 <a href="https://pdos.csail.mit.edu/6.1810/2025/xv6/book-riscv-rev5.pdf">MIT xv6 book, Chapter 4</a>。</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>系统调用</th>
+<th>异常或故障</th>
+<th>硬件中断</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>直接来源</td>
+<td>当前指令主动请求服务</td>
+<td>当前指令违反规则或需要内核协助</td>
+<td>定时器、设备或其他处理器</td>
+</tr>
+<tr class="even">
+<td>时序</td>
+<td>同步</td>
+<td>同步</td>
+<td>相对当前指令流异步</td>
+</tr>
+<tr class="odd">
+<td>程序是否预期</td>
+<td>是</td>
+<td>有时，通常不是</td>
+<td>通常不是</td>
+</tr>
+<tr class="even">
+<td>示例</td>
+<td><code>read</code>、<code>write</code>、<code>mmap</code>、<code>fork</code></td>
+<td>缺页、非法指令、除法错误</td>
+<td>时钟滴答、键盘、磁盘或网络完成</td>
+</tr>
+<tr class="odd">
+<td>结果</td>
+<td>返回值或错误</td>
+<td>重试、信号/终止或内核故障</td>
+<td>恢复、唤醒等待者或触发调度</td>
+</tr>
+</tbody>
+</table>
+<section id="system-calls" class="level4">
+<h4 class="anchored" data-anchor-id="system-calls"><strong>系统调用</strong></h4>
+<p><strong>系统调用（system call）</strong>是用户程序对内核服务的主动请求。程序按照 ABI 把调用号和参数放入指定位置，再执行 x86-64 <code>syscall</code> 或 RISC-V <code>ecall</code> 等特殊指令。硬件提升特权并跳到预先配置的入口，而不会允许应用随意选择某个内核函数地址。</p>
+<p>内核根据调用号分派处理函数，验证请求、执行或发起操作、保存结果，再通过体系结构规定的特权返回指令回到用户态。C 库通常隐藏这些 ABI 细节，所以源代码看起来仍像普通函数调用。</p>
+<p>系统调用接口必须刻意保持狭窄：进程不能按地址调用 VFS 内部辅助函数或调度器，只能请求被公开且会检查参数的操作。这样既缩小攻击面，也让内核内部实现能够在不重新编译应用的前提下演进。</p>
+</section>
+<section id="exceptions-and-faults" class="level4">
+<h4 class="anchored" data-anchor-id="exceptions-and-faults"><strong>异常与故障</strong></h4>
+<p><strong>异常（exception）</strong>与当前正在执行的指令同步关联，例如非法操作码、保护违规或缺失页表项。<strong>故障（fault）</strong>通常指处理后能够重试原指令的同步异常。按需分页就是经典示例：虚拟地址合法，只是对应页面不在内存；内核装入或创建该页、更新映射，然后让原指令重新执行。</p>
+<p>不同体系结构和教材对 fault、trap、abort 的命名不完全一致，判断时更应追问：哪条指令和地址引发事件？状态是否精确到可以重试？当前进程是否拥有合法映射或处理器？内核应修复、通知用户空间、终止进程，还是因为完整性受损而停止系统？</p>
+<p>用户态段错误通常只表示一个进程违反地址空间规则；内核态缺页则可能危及全系统，除非它发生在受保护的用户内存复制路径上。</p>
+</section>
+<section id="hardware-interrupts" class="level4">
+<h4 class="anchored" data-anchor-id="hardware-interrupts"><strong>硬件中断</strong></h4>
+<p><strong>硬件中断（interrupt）</strong>报告与当前指令流异步的外部事件，例如定时器到期、网卡收到分组或存储控制器完成请求。中断控制器把事件路由到某个 CPU，CPU 在可交付的指令边界转入处理程序。</p>
+<p>立即中断路径应尽量短：确认硬件、获取最少完成状态、登记延后工作、唤醒等待线程，然后返回。较长处理留给调度后的线程或软中断。这样阻塞 I/O 无需反复轮询；进程睡眠时 CPU 可做其他工作，设备完成中断再让内核唤醒它。</p>
+</section>
+<section id="trap-entry-and-return" class="level4">
+<h4 class="anchored" data-anchor-id="trap-entry-and-return"><strong>陷入入口与返回</strong></h4>
+<p>陷入处理由硬件、汇编入口和高层内核代码共同完成，概念流程稳定：</p>
+<ol type="1">
+<li>记录恢复地址与原因码；</li>
+<li>提升特权并跳转到预先配置的 trap vector；</li>
+<li>保存硬件未自动保存的用户寄存器；</li>
+<li>切换到受保护内核栈和必要的内核地址空间；</li>
+<li>构造包含寄存器、状态、原因和恢复信息的 <strong>trap frame</strong>；</li>
+<li>分派到系统调用、异常或设备处理逻辑；</li>
+<li>更新返回值、映射、信号、进程或调度状态；</li>
+<li>恢复上下文、降低特权并回到内核选择的用户地址。</li>
+</ol>
+<p>trap frame 使被中断的计算不会因进入内核而消失。线程若阻塞，恢复甚至可能发生在同一 CPU 已运行过许多其他线程之后。在 RISC-V xv6 中，调用号位于 <code>a7</code>，<code>ecall</code> 进入 trampoline，寄存器保存到每进程 trap frame，<code>usertrap()</code> 再分析原因。Linux 围绕同一核心路径加入了跟踪、安全钩子、信号与抢占等大量机制。</p>
+</section>
+</section>
+<section id="the-system-call-interface" class="level3">
+<h3 class="anchored" data-anchor-id="the-system-call-interface"><strong>系统调用接口</strong></h3>
+<p>系统调用接口是普通程序与内核之间最重要的显式契约：它要足够稳定以支持旧二进制，足够小以便审计，足够有表达力以支持库和运行时，也要足够防御性以处理不可信输入。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-system-call-interface.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/linux-system-call-interface.svg" class="img-fluid figure-img" style="width:72.0%" alt="应用通过 GNU C Library 和其他 API 调用 Linux 内核的系统调用接口，硬件位于内核之下。"></a></p>
+<figcaption>Linux 系统调用接口与 GNU C Library</figcaption>
+</figure>
+</div>
+<p><em>图片来源：ScotXW，<a href="https://commons.wikimedia.org/wiki/File:Linux_kernel_System_Call_Interface_and_glibc.svg">Linux kernel System Call Interface and glibc</a>，CC BY-SA 3.0。</em></p>
+<section id="api-abi-and-calling-convention" class="level4">
+<h4 class="anchored" data-anchor-id="api-abi-and-calling-convention"><strong>API、ABI 与调用约定</strong></h4>
+<p><strong>API</strong> 是源代码级契约，包括函数名、参数类型、返回值含义和行为；<strong>ABI</strong> 是二进制级契约，包括寄存器分配、系统调用号、数据布局、入口指令和错误编码。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>层次</th>
+<th>示例职责</th>
+<th>可独立变化吗？</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>应用 API</td>
+<td>调用 POSIX 风格 <code>write()</code></td>
+<td>源码可针对兼容库重新编译</td>
+</tr>
+<tr class="even">
+<td>C 库包装器</td>
+<td>把 C 调用约定转换为内核 ABI，并设置 <code>errno</code></td>
+<td>保持 API 时可改变实现</td>
+</tr>
+<tr class="odd">
+<td>系统调用 ABI</td>
+<td>在规定寄存器中放置调用号与参数</td>
+<td>必须兼容现有二进制</td>
+</tr>
+<tr class="even">
+<td>内核实现</td>
+<td>验证描述符和内存，再进入 VFS/驱动</td>
+<td>ABI 后面的组织可改变</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>体系结构</th>
+<th>入口指令</th>
+<th>调用号</th>
+<th>参数</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>x86-64</td>
+<td><code>syscall</code></td>
+<td><code>rax</code></td>
+<td><code>rdi</code>、<code>rsi</code>、<code>rdx</code>、<code>r10</code>、<code>r8</code>、<code>r9</code></td>
+<td><code>rax</code></td>
+</tr>
+<tr class="even">
+<td>RISC-V 64</td>
+<td><code>ecall</code></td>
+<td><code>a7</code></td>
+<td><code>a0</code> 至 <code>a5</code></td>
+<td><code>a0</code></td>
+</tr>
+</tbody>
+</table>
+<p>x86-64 的系统调用约定与普通 System V C 函数约定并不完全相同，例如第四个系统调用参数使用 <code>r10</code>，而普通 C 调用使用 <code>rcx</code>。库包装器负责这些差异。</p>
+<details>
+<summary>
+查看带注释的 C 示例
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/syscall.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> wrapped<span class="op">[]</span> <span class="op">=</span> <span class="st">"libc write wrapper</span><span class="sc">\n</span><span class="st">"</span><span class="op">;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> raw<span class="op">[]</span> <span class="op">=</span> <span class="st">"SYS_write through syscall()</span><span class="sc">\n</span><span class="st">"</span><span class="op">;</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 普通源代码级 API：由 libc 选择正确的内核 ABI。</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> wrapped<span class="op">,</span> <span class="kw">sizeof</span> wrapped <span class="op">-</span> <span class="dv">1</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"write"</span><span class="op">);</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 更底层的请求：显式提供 Linux 的 SYS_write 调用号。</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> syscall<span class="op">(</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        SYS_write<span class="op">,</span> STDOUT_FILENO<span class="op">,</span> raw<span class="op">,</span> <span class="kw">sizeof</span> raw <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">// syscall() 把内核错误约定转换为 errno。</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"SYS_write: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> syscall_write.c <span class="at">-o</span> syscall_write</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-e</span> trace=write ./syscall_write</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>两条路径最终都会在 <code>strace</code> 中表现为 <code>write</code>。这也说明“库函数”与“系统调用”不是同义词：<code>strlen()</code> 不需要内核服务，<code>write()</code> 包装器通常需要。</p>
+</section>
+<section id="validating-arguments-across-the-trust-boundary" class="level4">
+<h4 class="anchored" data-anchor-id="validating-arguments-across-the-trust-boundary"><strong>跨越信任边界验证参数</strong></h4>
+<p>系统调用入口接收到的是不可信代码提供的数字和地址。用户指针只是调用者地址空间中的数值，可能未映射、只读、长度不足，或在检查后被另一个线程修改，内核不能直接解引用。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/syscall-validation-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/syscall-validation-path.svg" class="img-fluid figure-img" style="width:98.0%" alt="系统调用从应用 API 经 libc 和 ABI 进入内核分派、验证与子系统，最后经受保护路径返回。"></a></p>
+<figcaption>系统调用信任边界上的验证路径</figcaption>
+</figure>
+</div>
+<p><em>本章原创图，参考 Linux 与 xv6 系统调用接口。</em></p>
+<p>对 <code>write(fd, buffer, count)</code> 一类请求，内核至少要验证：调用号是否存在；<code>count</code> 是否有界且不会算术溢出；<code>fd</code> 是否指向当前进程可写对象；用户地址范围是否可读；凭据与对象策略是否授权；对象是否仍存活并接受操作；复制过程是否使用受保护例程；以及返回值是否准确表达部分完成、中断或错误。</p>
+<p>检查与使用还必须视为同一个问题。若内核先检查用户路径名，稍后又重新读取，另一个线程可能在二者之间改写内存，形成 <strong>TOCTOU（time-of-check to time-of-use）</strong>。常见防护包括把数据复制到内核所有内存、对解析后对象持有引用或锁，以及采用明确允许并发变化的接口语义。</p>
+<p>用户程序也必须遵守契约：字节流 <code>write()</code> 成功时仍可能只写入部分数据，被信号打断后可能需要重试。</p>
+<details>
+<summary>
+查看健壮的用户态完整写入循环
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stddef.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> write_all<span class="op">(</span><span class="dt">int</span> fd<span class="op">,</span> <span class="dt">const</span> <span class="dt">void</span> <span class="op">*</span>buffer<span class="op">,</span> <span class="dt">size_t</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>bytes <span class="op">=</span> buffer<span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> offset <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>offset <span class="op">&lt;</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 每次只请求尚未写入的字节。</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> written <span class="op">=</span> write<span class="op">(</span>fd<span class="op">,</span> bytes <span class="op">+</span> offset<span class="op">,</span> length <span class="op">-</span> offset<span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>written <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            offset <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>written<span class="op">;</span>  <span class="co">// 保留部分完成的进度。</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>written <span class="op">==</span> <span class="op">-</span><span class="dv">1</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span>                  <span class="co">// 信号中断了本次调用。</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span><span class="dv">1</span><span class="op">;</span>                     <span class="co">// 保留真实失败对应的 errno。</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>内核验证保护系统免受调用者伤害；调用者检查返回值，则保护应用免受其对异步和资源受限执行的错误假设影响。</p>
+</section>
+<section id="system-call-cost-and-security" class="level4">
+<h4 class="anchored" data-anchor-id="system-call-cost-and-security"><strong>系统调用成本与安全性</strong></h4>
+<p>受保护转换比普通函数调用昂贵，但不存在单一固定的“系统调用成本”。开销可能包括入口/返回、寄存器保存、分派、安全钩子、参数复制、缓存效应和推测执行缓解，真正请求的工作还可能远大于这些固定成本。命中缓存元数据的调用与等待磁盘或网络的调用完全不可同日而语。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>技术</th>
+<th>思路</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>用户态缓冲</td>
+<td>合并许多小操作</td>
+<td><code>stdio</code> 聚合字符后再 <code>write()</code></td>
+</tr>
+<tr class="even">
+<td>批处理</td>
+<td>一次入口描述多个操作</td>
+<td>向量 I/O、批量消息</td>
+</tr>
+<tr class="odd">
+<td>共享映射</td>
+<td>经映射页交换数据</td>
+<td><code>mmap</code>、共享内存队列</td>
+</tr>
+<tr class="even">
+<td>异步提交</td>
+<td>分离提交与收集完成</td>
+<td>Linux <code>io_uring</code></td>
+</tr>
+<tr class="odd">
+<td>内核提供的用户映射</td>
+<td>无 trap 读取选定安全数据</td>
+<td>部分时间函数使用 Linux vDSO</td>
+</tr>
+</tbody>
+</table>
+<p>优化不能改变所需语义。把多次持久写变成一次缓冲写可能提高吞吐，却会改变崩溃后存活的数据；共享内存避免复制，却引入同步和验证问题。正确问题是：<strong>哪些边界跨越主导当前工作负载，允许什么语义折衷？</strong></p>
+<p>系统调用面也是攻击面。seccomp 可以限制进程允许请求的调用集合，凭据、capability、namespace 和强制访问控制进一步限制权限；但任何被允许的处理函数仍必须正确验证长度、生命周期、指针、整数运算与并发状态。</p>
+</section>
+</section>
+<section id="kernel-organization" class="level3">
+<h3 class="anchored" data-anchor-id="kernel-organization"><strong>内核组织方式</strong></h3>
+<p>所有内核都要实现受保护服务，但哪些服务应放入最高特权地址空间并无唯一答案。这一选择影响通信成本、故障遏制、可信计算基大小与扩展能力。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-organization.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/kernel-organization.svg" class="img-fluid figure-img" style="width:100.0%" alt="并列比较单体、微内核和混合内核，展示服务位于用户空间还是内核空间。"></a></p>
+<figcaption>单体内核、微内核与混合内核组织</figcaption>
+</figure>
+</div>
+<p><em>图片来源：Golftheman，<a href="https://commons.wikimedia.org/wiki/File:OS-structure2.svg">OS-structure2</a>，公有领域。</em></p>
+<section id="monolithic-and-modular-kernels" class="level4">
+<h4 class="anchored" data-anchor-id="monolithic-and-modular-kernels"><strong>单体内核与模块化内核</strong></h4>
+<p><strong>单体内核（monolithic kernel）</strong>把虚拟内存、文件系统、网络、调度和许多驱动放在同一个特权地址空间，组件可以通过普通内核函数调用直接共享数据，常见路径因此高效。</p>
+<p>Linux 通常被描述为“单体但模块化”。可加载模块让驱动和子系统在启动后加入，但加载后的模块仍拥有内核权限并共享故障域。模块化改善组织和部署，却不会自动隔离驱动错误。其代价是较大的可信计算基：特权驱动中的内存安全或同步错误可能破坏无关状态。</p>
+<p>xv6 刻意保持小型单体结构，使系统调用从 trap 到文件系统或进程子系统的完整路径易于阅读。这是教学优势，不代表微型设计包含生产系统的全部要求。</p>
+</section>
+<section id="layered-systems" class="level4">
+<h4 class="anchored" data-anchor-id="layered-systems"><strong>分层系统</strong></h4>
+<p><strong>分层设计</strong>要求每层使用下层接口并向上层提供服务。概念上可把硬件支持放在底部，其上依次是中断与内存机制、进程与 I/O 服务、文件与网络抽象，最上面是系统调用接口。</p>
+<p>分层让依赖关系更容易推理和测试，窄接口也便于替换实现；但严格层次可能迫使请求走不自然路径、重复工作，或妨碍需要跨层信息的优化。因此通用内核通常把分层作为组织原则，同时允许经过审查的跨层交互。</p>
+</section>
+<section id="microkernels-and-message-passing" class="level4">
+<h4 class="anchored" data-anchor-id="microkernels-and-message-passing"><strong>微内核与消息传递</strong></h4>
+<p><strong>微内核（microkernel）</strong>只在特权态保留低层地址空间管理、调度、中断和 IPC 等核心机制，让驱动、文件系统或网络栈作为隔离的用户态服务器运行。客户端通过消息请求服务，而不是直接调用大型内核子系统。</p>
+<p>这样可以缩小最高特权可信基并改善故障隔离：用户态驱动失败时可能被重启，而不破坏微内核。代价是一次逻辑操作可能产生更多保护域切换、调度与数据传输。高性能微内核会通过优化 IPC、共享内存传输、capability 命名和避免不必要消息来控制成本。seL4 强调小型、可分析内核，QNX 与 MINIX 展示了不同服务化组织。</p>
+<p>消息传递并非在所有负载下都必然更慢，单体结构在考虑故障、安全和维护后也并非天然更优。架构决定成本与保证在哪里支付，具体实现和工作负载决定实际结果。</p>
+</section>
+<section id="hybrid-exokernel-and-library-os-ideas" class="level4">
+<h4 class="anchored" data-anchor-id="hybrid-exokernel-and-library-os-ideas"><strong>混合内核、Exokernel 与 Library OS</strong></h4>
+<p><strong>混合内核</strong>通常指许多服务仍在内核空间，但借鉴微内核或组件化思想的系统，如 Windows NT 与 Apple XNU；这个标签不能替代对真实保护域和通信路径的分析。</p>
+<p><strong>Exokernel</strong> 只在内核中保留保护与安全资源复用，并把较低层资源暴露给应用专用的 <strong>library OS</strong>。Library OS 将操作系统服务与应用或运行时打包；unikernel 更进一步，把单一用途镜像部署到虚拟机或受控平台。它们能够积极专用化并减少通用开销，但把兼容、调试、更新、共享和隔离责任移到其他位置，也提醒我们 POSIX 进程或文件系统是设计选择，而非物理定律。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>组织方式</th>
+<th>特权代码</th>
+<th>通信方式</th>
+<th>主要优势</th>
+<th>主要压力点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>单体</td>
+<td>大部分核心服务和驱动</td>
+<td>内核内直接调用</td>
+<td>常见路径集成且高效</td>
+<td>共享故障域和可信域很大</td>
+</tr>
+<tr class="even">
+<td>模块化单体</td>
+<td>单体核心加可加载组件</td>
+<td>加载后直接调用</td>
+<td>原生速度与部署灵活性</td>
+<td>模块仍拥有内核权限</td>
+</tr>
+<tr class="odd">
+<td>分层</td>
+<td>取决于实现</td>
+<td>经有序接口调用</td>
+<td>依赖清晰、便于推理</td>
+<td>刚性边界可能增加间接开销</td>
+</tr>
+<tr class="even">
+<td>微内核</td>
+<td>最小机制集合</td>
+<td>隔离服务器间 IPC</td>
+<td>小特权基与故障隔离</td>
+<td>IPC、调度和协调成本</td>
+</tr>
+<tr class="odd">
+<td>混合</td>
+<td>许多服务仍有特权</td>
+<td>调用加组件/消息机制</td>
+<td>兼容性与多种设计折衷</td>
+<td>边界和保证难以概括</td>
+</tr>
+<tr class="even">
+<td>Exokernel/Library OS</td>
+<td>保护和复用核心</td>
+<td>应用选择的库</td>
+<td>专用化与底层控制</td>
+<td>可移植性、共享与生态复杂度</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="booting-an-operating-system" class="level3">
+<h3 class="anchored" data-anchor-id="booting-an-operating-system"><strong>启动操作系统</strong></h3>
+<p>在任何代码运行之前，内核不可能初始化自己。启动是一系列控制权交接，每个阶段都建立足够的机器状态来装入并信任下一阶段。</p>
+<section id="firmware-and-the-bootloader" class="level4">
+<h4 class="anchored" data-anchor-id="firmware-and-the-bootloader"><strong>固件与引导加载器</strong></h4>
+<p>复位后，处理器从体系结构规定位置开始，只有少量初始化状态。平台固件配置足以寻找启动目标的硬件。现代 PC 的 UEFI 固件在 NVRAM 中维护启动项，并按策略装入 UEFI 应用，通常是操作系统加载器。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/boot-to-user-space.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/boot-to-user-space.svg" class="img-fluid figure-img" style="width:98.0%" alt="从 CPU 复位，经固件、启动管理器、内核早期初始化和核心子系统，到第一个用户进程。"></a></p>
+<figcaption>从 CPU 复位到首个用户进程的概念启动路径</figcaption>
+</figure>
+</div>
+<p><em>本章原创图，参考 <a href="https://uefi.org/specs/UEFI/2.11/03_Boot_Manager.html">UEFI 2.11 Boot Manager specification</a> 以及 Linux/xv6 初始化模型。</em></p>
+<p>引导加载器可以选择内核，把内核镜像和初始 RAM 文件系统装入内存，提供命令行与硬件信息，再跳转到内核入口。有的平台允许固件更直接地加载内核，因此“固件 -&gt; bootloader -&gt; 内核”是有用模型而非绝对流程。</p>
+<p><strong>Secure Boot</strong> 为控制链加入签名验证：每个可信阶段在交权前验证下一阶段是否获准。它不同于全盘加密，前者回答“这段代码是否可信”，后者回答“没有密钥能否读取存储数据”。</p>
+</section>
+<section id="kernel-initialization-and-the-first-user-process" class="level4">
+<h4 class="anchored" data-anchor-id="kernel-initialization-and-the-first-user-process"><strong>内核初始化与第一个用户进程</strong></h4>
+<p>内核获得控制权后仍不能立即运行普通应用，它必须先构造应用假定存在的抽象：</p>
+<ol type="1">
+<li>建立初始栈、体系结构状态和早期地址翻译；</li>
+<li>发现 CPU 与可用物理内存，保留内核区域并初始化分配器；</li>
+<li>配置异常向量、中断控制器和定时器；</li>
+<li>按依赖顺序初始化调度、虚拟内存、设备、VFS、网络和安全子系统；</li>
+<li>借助内置驱动或 initramfs 找到并挂载根文件系统；</li>
+<li>创建 Linux 的 PID 1 或 xv6 的 <code>init</code>；</li>
+<li>由首个用户进程启动服务、回收孤儿进程，并最终提供终端、登录或图形会话。</li>
+</ol>
+<p><strong>initramfs</strong> 解决“真实根文件系统依赖尚未可用驱动”的循环。它随内核装入一套临时用户工具和驱动，用于解密磁盘、组建 RAID、配置网络或加载模块，准备完成后再切换到真实根。</p>
+<details>
+<summary>
+查看 Linux 启动检查命令
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看传给当前内核的参数。</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/cmdline</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看本次启动的内核消息；部分系统会限制 dmesg。</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="fu">dmesg</span> <span class="at">--human</span> <span class="kw">|</span> <span class="fu">less</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 在 systemd 系统上查看固件、加载器、内核与用户空间耗时，</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 再检查关键依赖链。</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-analyze</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-analyze</span> critical-chain</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 只查询本次启动的日志。</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="ex">journalctl</span> <span class="at">-b</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这些工具展示的是特定 Linux/systemd 实现，而不是所有操作系统共有的固定阶段。</p>
+</section>
+</section>
+<section id="observing-the-user-kernel-boundary" class="level3">
+<h3 class="anchored" data-anchor-id="observing-the-user-kernel-boundary"><strong>观察用户态与内核态边界</strong></h3>
+<p>Linux 的跟踪工具和伪文件系统允许我们在不修改应用的情况下观察请求与内核维护的进程状态。</p>
+<section id="tracing-system-calls" class="level4">
+<h4 class="anchored" data-anchor-id="tracing-system-calls"><strong>跟踪系统调用</strong></h4>
+<p><code>strace</code> 记录进程的系统调用和信号，可显示程序打开了哪些文件、阻塞在哪里、如何创建子进程以及哪个错误码导致失败。它观察的是接口，不是内核内部每个函数。</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-e</span> trace=write ./syscall_write</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>典型输出包含两个 <code>write(1, ..., length)</code>，其中描述符 <code>1</code> 是标准输出。地址、引用方式和辅助调用取决于体系结构、libc、动态加载器和 <code>strace</code> 版本。</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-c</span> ./syscall_write</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>-c</code> 汇总调用次数和观测时间。跟踪本身会增加开销并改变并发程序的时序，因此它是诊断证据，不是完全无扰动的性能测量。</p>
+</section>
+<section id="inspecting-kernel-exposed-process-state" class="level4">
+<h4 class="anchored" data-anchor-id="inspecting-kernel-exposed-process-state"><strong>检查内核公开的进程状态</strong></h4>
+<p>Linux 把 <code>/proc</code> 挂载为伪文件系统；<code>/proc/&lt;pid&gt;</code> 下的内容在读取时从内核状态生成，并不是磁盘上的普通记录。<code>status</code> 提供标识符、凭据、状态和内存摘要；<code>maps</code> 显示虚拟内存区域；<code>fd/</code> 显示打开描述符；<code>syscall</code> 在权限允许时显示当前系统调用和参数。</p>
+<details>
+<summary>
+查看进程状态检查命令
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sleep</span> 30 <span class="kw">&amp;</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">$!</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看身份、状态、线程以及部分内存/核算字段。</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Name|State|Pid|PPid|Threads|VmRSS|voluntary_ctxt_switches)'</span> <span class="dt">\</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    /proc/<span class="va">$pid</span>/status</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 在内核策略允许时查看当前系统调用号与参数。</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/<span class="va">$pid</span>/syscall</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看描述符编号映射到的内核对象。</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> /proc/<span class="va">$pid</span>/fd</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看前几个虚拟内存映射及权限。</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span> /proc/<span class="va">$pid</span>/maps</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">wait</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>访问可能被凭据、ptrace 策略、命名空间或 <code>/proc</code> 挂载方式限制；这种限制本身就是内核保护诊断信息的例子。</p>
+</section>
+</section>
+<section id="following-the-running-case-into-the-kernel" class="level3">
+<h3 class="anchored" data-anchor-id="following-the-running-case-into-the-kernel"><strong>沿贯穿案例进入内核</strong></h3>
+<p>Shell 管道结合了本章几乎所有边界概念。下图表达因果关系，而不是唯一交错顺序；调度器可按许多合法顺序运行 <code>cat</code>、<code>grep</code> 和 shell。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-kernel-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/pipeline-kernel-path.svg" class="img-fluid figure-img" style="width:100.0%" alt="Shell 创建 cat 与 grep 进程，用内核管道连接二者，把输出重定向到 result.txt，并等待它们完成。"></a></p>
+<figcaption>贯穿 shell 管道的端到端内核路径</figcaption>
+</figure>
+</div>
+<p><em>本章原创图。</em></p>
+<p>大致过程如下：</p>
+<ol type="1">
+<li>Shell 在用户空间解析管道与重定向语法；</li>
+<li><code>pipe2()</code> 创建读写描述符，<code>openat()</code> 创建或截断 <code>result.txt</code>；</li>
+<li><code>fork()</code> 或相关 Linux 原语创建子执行上下文，描述符表最初引用相同内核对象；</li>
+<li><code>dup2()</code> 把 <code>cat</code> 标准输出指向管道写端，把 <code>grep</code> 标准输入指向读端、标准输出指向结果文件；</li>
+<li>所有进程关闭不再使用的描述符副本，否则额外写端会阻止读者看到 EOF；</li>
+<li><code>execve()</code> 把两个子进程的程序映像分别替换成 <code>cat</code> 和 <code>grep</code>，保留未标记 close-on-exec 的描述符；</li>
+<li><code>cat</code> 读取输入并写管道，<code>grep</code> 从管道读取、在用户空间匹配，再写结果文件；调用可部分完成、阻塞或唤醒；</li>
+<li>所有写端关闭后，<code>grep</code> 读到 EOF，程序退出，shell 收集终止状态。</li>
+</ol>
+<p>管道不是从 <code>cat</code> 直接指向 <code>grep</code> 的内存指针，而是经每进程描述符访问的内核对象。这层间接性让内核能够执行权限检查、协调阻塞、按引用维护对象生命周期，并在数据可用时唤醒读者。</p>
+<details>
+<summary>
+查看管道的聚焦跟踪
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'kernel mode\nuser mode\nkernel boundary\n'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-o</span> pipeline.trace <span class="dt">\</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=clone,fork,vfork,execve,wait4,pipe,pipe2,dup2,openat,read,write,close <span class="dt">\</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> result.txt</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">less</span> pipeline.trace</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>重点观察关系而非固定描述符编号：管道先于数据交换创建；子进程把描述符复制到 <code>0</code> 或 <code>1</code>；<code>execve()</code> 改变程序映像；<code>cat</code> 读文件并写管道；<code>grep</code> 读管道并写结果；前台管道运行期间 shell 等待。加载器、locale、动态库、shell 实现和调度都会改变调用数量与顺序，系统调用轨迹只是并发系统的一次合法执行。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<p>本章概念形成一条完整链路：</p>
+<pre class="text"><code>物理资源
+    -&gt; 受保护的硬件机制
+    -&gt; 特权内核
+    -&gt; 经过验证的系统调用接口
+    -&gt; 进程、内存、文件、管道与设备抽象
+    -&gt; 普通应用</code></pre>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>回答的问题</th>
+<th>核心认识</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>抽象</td>
+<td>软件使用什么稳定对象？</td>
+<td>用有意义契约隐藏硬件细节</td>
+</tr>
+<tr class="even">
+<td>多路复用</td>
+<td>多项活动如何共享有限资源？</td>
+<td>把逻辑对象映射到时间片或空间片</td>
+</tr>
+<tr class="odd">
+<td>隔离</td>
+<td>为什么一次失败可以局部化？</td>
+<td>硬件保护加内核验证</td>
+</tr>
+<tr class="even">
+<td>机制</td>
+<td>系统能够可靠执行什么？</td>
+<td>trap、映射、调度、复制、阻塞与唤醒</td>
+</tr>
+<tr class="odd">
+<td>策略</td>
+<td>允许的选择中应选哪一个？</td>
+<td>根据公平、时延或安全等目标决定</td>
+</tr>
+<tr class="even">
+<td>系统调用</td>
+<td>程序如何主动请求特权？</td>
+<td>经编号且验证的 ABI 进入</td>
+</tr>
+<tr class="odd">
+<td>异常</td>
+<td>当前指令如何请求或需要干预？</td>
+<td>诊断、修复后重试或报告失败</td>
+</tr>
+<tr class="even">
+<td>中断</td>
+<td>外部硬件如何获得注意？</td>
+<td>异步入口、最小即时处理、延后工作</td>
+</tr>
+<tr class="odd">
+<td>内核架构</td>
+<td>可信服务应在哪里执行？</td>
+<td>在通信成本、隔离和可信基规模间权衡</td>
+</tr>
+<tr class="even">
+<td>启动</td>
+<td>静止机器如何到达用户空间？</td>
+<td>分阶段转移控制权与可选的信任链</td>
+</tr>
+</tbody>
+</table>
+<p>需要尽早消除的误解包括：操作系统环境不等于内核；库函数不都需要系统调用；系统调用只必然切换特权而不必切换进程；进入内核的事件还包括异常与中断；可加载模块仍共享内核权限；减少调用次数不必然提高性能；启动也不会在刚跳入内核时结束。</p>
+<p>最重要的不变量是：<strong>用户代码不会仅仅因为提出请求就获得权限。</strong> 硬件提供受控入口和受保护状态；内核根据调用者与对象验证请求，应用策略、执行工作，再返回受约束结果。后续章节中的每个高级抽象都建立在同一边界之上。</p>
+<p><a href="02-processes-and-program-execution.html">下一章：进程与程序执行</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

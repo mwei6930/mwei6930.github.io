@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: File Systems, Persistence, and Crash Consistency</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/clipboard/clipboard.min.js"></script>
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/quarto.js"></script>
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/popper.min.js"></script>
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/anchor.min.js"></script>
+<link href="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="09-file-systems-persistence-and-crash-consistency_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="09-file-systems-persistence-and-crash-consistency_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="09-file-systems-persistence-and-crash-consistency_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="09-file-systems-persistence-and-crash-consistency_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#file-systems-persistence-and-crash-consistency" id="toc-file-systems-persistence-and-crash-consistency" class="nav-link active" data-scroll-target="#file-systems-persistence-and-crash-consistency"><strong>File Systems, Persistence, and Crash Consistency</strong></a>
+  <ul>
+  <li><a href="#what-persistence-must-provide" id="toc-what-persistence-must-provide" class="nav-link" data-scroll-target="#what-persistence-must-provide"><strong>What Persistence Must Provide</strong></a>
+  <ul>
+  <li><a href="#naming-sharing-durability-and-recovery" id="toc-naming-sharing-durability-and-recovery" class="nav-link" data-scroll-target="#naming-sharing-durability-and-recovery"><strong>Naming, Sharing, Durability, and Recovery</strong></a></li>
+  </ul></li>
+  <li><a href="#the-file-and-directory-api" id="toc-the-file-and-directory-api" class="nav-link" data-scroll-target="#the-file-and-directory-api"><strong>The File and Directory API</strong></a>
+  <ul>
+  <li><a href="#files-directories-links-and-metadata" id="toc-files-directories-links-and-metadata" class="nav-link" data-scroll-target="#files-directories-links-and-metadata"><strong>Files, Directories, Links, and Metadata</strong></a></li>
+  <li><a href="#file-descriptors-and-open-file-tables" id="toc-file-descriptors-and-open-file-tables" class="nav-link" data-scroll-target="#file-descriptors-and-open-file-tables"><strong>File Descriptors and Open File Tables</strong></a></li>
+  </ul></li>
+  <li><a href="#inodes-and-directory-structures" id="toc-inodes-and-directory-structures" class="nav-link" data-scroll-target="#inodes-and-directory-structures"><strong>Inodes and Directory Structures</strong></a></li>
+  <li><a href="#on-disk-file-system-layout" id="toc-on-disk-file-system-layout" class="nav-link" data-scroll-target="#on-disk-file-system-layout"><strong>On-Disk File-System Layout</strong></a>
+  <ul>
+  <li><a href="#superblocks-inode-tables-data-blocks-and-logs" id="toc-superblocks-inode-tables-data-blocks-and-logs" class="nav-link" data-scroll-target="#superblocks-inode-tables-data-blocks-and-logs"><strong>Superblocks, Inode Tables, Data Blocks, and Logs</strong></a></li>
+  </ul></li>
+  <li><a href="#file-allocation-and-free-space-management" id="toc-file-allocation-and-free-space-management" class="nav-link" data-scroll-target="#file-allocation-and-free-space-management"><strong>File Allocation and Free-Space Management</strong></a>
+  <ul>
+  <li><a href="#contiguous-linked-indexed-and-extent-based-allocation" id="toc-contiguous-linked-indexed-and-extent-based-allocation" class="nav-link" data-scroll-target="#contiguous-linked-indexed-and-extent-based-allocation"><strong>Contiguous, Linked, Indexed, and Extent-Based Allocation</strong></a></li>
+  </ul></li>
+  <li><a href="#the-virtual-file-system-and-mount-namespace" id="toc-the-virtual-file-system-and-mount-namespace" class="nav-link" data-scroll-target="#the-virtual-file-system-and-mount-namespace"><strong>The Virtual File System and Mount Namespace</strong></a></li>
+  <li><a href="#caching-writeback-and-persistence-semantics" id="toc-caching-writeback-and-persistence-semantics" class="nav-link" data-scroll-target="#caching-writeback-and-persistence-semantics"><strong>Caching, Writeback, and Persistence Semantics</strong></a>
+  <ul>
+  <li><a href="#page-cache-and-buffer-cache" id="toc-page-cache-and-buffer-cache" class="nav-link" data-scroll-target="#page-cache-and-buffer-cache"><strong>Page Cache and Buffer Cache</strong></a></li>
+  <li><a href="#fsync-ordering-and-durability" id="toc-fsync-ordering-and-durability" class="nav-link" data-scroll-target="#fsync-ordering-and-durability"><strong>fsync, Ordering, and Durability</strong></a></li>
+  </ul></li>
+  <li><a href="#the-crash-consistency-problem" id="toc-the-crash-consistency-problem" class="nav-link" data-scroll-target="#the-crash-consistency-problem"><strong>The Crash-Consistency Problem</strong></a>
+  <ul>
+  <li><a href="#failure-models-and-update-dependencies" id="toc-failure-models-and-update-dependencies" class="nav-link" data-scroll-target="#failure-models-and-update-dependencies"><strong>Failure Models and Update Dependencies</strong></a></li>
+  </ul></li>
+  <li><a href="#recovery-techniques" id="toc-recovery-techniques" class="nav-link" data-scroll-target="#recovery-techniques"><strong>Recovery Techniques</strong></a>
+  <ul>
+  <li><a href="#file-system-checking" id="toc-file-system-checking" class="nav-link" data-scroll-target="#file-system-checking"><strong>File-System Checking</strong></a></li>
+  <li><a href="#journaling-and-write-ahead-logging" id="toc-journaling-and-write-ahead-logging" class="nav-link" data-scroll-target="#journaling-and-write-ahead-logging"><strong>Journaling and Write-Ahead Logging</strong></a></li>
+  <li><a href="#copy-on-write-file-systems" id="toc-copy-on-write-file-systems" class="nav-link" data-scroll-target="#copy-on-write-file-systems"><strong>Copy-on-Write File Systems</strong></a></li>
+  </ul></li>
+  <li><a href="#log-structured-and-ssd-aware-file-systems" id="toc-log-structured-and-ssd-aware-file-systems" class="nav-link" data-scroll-target="#log-structured-and-ssd-aware-file-systems"><strong>Log-Structured and SSD-Aware File Systems</strong></a></li>
+  <li><a href="#tracing-the-running-case-through-the-file-system" id="toc-tracing-the-running-case-through-the-file-system" class="nav-link" data-scroll-target="#tracing-the-running-case-through-the-file-system"><strong>Tracing the Running Case Through the File System</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: File Systems, Persistence, and Crash Consistency</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/09-file-systems-persistence-and-crash-consistency.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="file-systems-persistence-and-crash-consistency" class="level2">
+<h2 class="anchored" data-anchor-id="file-systems-persistence-and-crash-consistency"><strong>File Systems, Persistence, and Crash Consistency</strong></h2>
+<p>The previous chapter followed a cache-missing <code>read()</code> until the I/O stack submitted a device request and delivered its completion. One box was deliberately left abstract: <strong>how does a pathname and byte offset identify the persistent blocks that should be read or changed?</strong> This chapter opens that box.</p>
+<p>A file system presents named objects that can outlive the process that created them. It lets several processes share those objects, maps logical byte ranges onto storage, delays and batches writes for performance, and reconstructs a valid state after interruption. These responsibilities interact. Creating one file may change a directory block, a free-inode map, an inode, a free-block map, file data, and a recovery log. The hardware normally persists these blocks separately, so a power failure can interrupt the transition between them.</p>
+<p>Persistence should therefore not be confused with “calling <code>write()</code>” or “putting data on a disk.” It is a contract involving:</p>
+<ul>
+<li>the <strong>namespace</strong>, which determines which names reach which objects;</li>
+<li>the <strong>object model</strong>, which defines files, directories, links and metadata;</li>
+<li>the <strong>mapping and allocation structures</strong>, which identify owned storage;</li>
+<li>the <strong>cache and ordering protocol</strong>, which determines when changes leave volatile memory; and</li>
+<li>the <strong>recovery design</strong>, which determines which state is accepted after failure.</li>
+</ul>
+<p>A useful mental model is:</p>
+<blockquote class="blockquote">
+<p><strong>A file system transforms named logical updates into an ordered persistent-state transition, while preserving enough evidence to recover a valid state after any failure covered by its model.</strong></p>
+</blockquote>
+<p>This chapter focuses on local file-system mechanisms. Distributed file systems add server failure, network partition, client caching, leases and consensus questions. Protection details such as ACLs, capabilities and sandboxing remain in the next chapter; here, permissions appear only where they affect ordinary file API and path-walk semantics.</p>
+<section id="what-persistence-must-provide" class="level3">
+<h3 class="anchored" data-anchor-id="what-persistence-must-provide"><strong>What Persistence Must Provide</strong></h3>
+<p><strong>Persistent</strong> does not mean immortal. It means that an acknowledged state survives a stated set of events, such as process termination, kernel crash, reboot or power loss, provided the storage device behaves according to its contract. Device loss, media corruption, malicious modification, operator error and destruction of every replica require additional integrity, redundancy and backup mechanisms.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fs-persistence-contract-layers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/fs-persistence-contract-layers.svg" class="img-fluid figure-img" style="width:96.0%" alt="Layers connect application update intent to VFS naming, filesystem structures, cached write transport, durable storage, and recovery, with errors and recovered state flowing upward."></a></p>
+<figcaption>Persistent state crosses application, namespace, filesystem, cache, device, and recovery contracts.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf">OSTEP file-system implementation</a>, Linux <a href="https://docs.kernel.org/filesystems/vfs.html">VFS documentation</a>, and Linux <a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync(2)</code></a>.</em></p>
+<p>Four properties are especially easy to blur:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Question it answers</th>
+<th>Example failure</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Consistency</strong></td>
+<td>Do related structures satisfy their invariants?</td>
+<td>A block is marked free while an inode points to it</td>
+</tr>
+<tr class="even">
+<td><strong>Durability</strong></td>
+<td>Which acknowledged updates survive the stated crash/power model?</td>
+<td><code>write()</code> returned, but unsynchronized dirty pages disappear after power loss</td>
+</tr>
+<tr class="odd">
+<td><strong>Integrity</strong></td>
+<td>Can accidental or malicious corruption be detected or corrected?</td>
+<td>A valid-looking block contains silently changed bytes</td>
+</tr>
+<tr class="even">
+<td><strong>Availability</strong></td>
+<td>Can clients continue to access data despite faults?</td>
+<td>The only device fails even though its pre-failure structures were consistent</td>
+</tr>
+</tbody>
+</table>
+<p>Journaling primarily targets consistency and bounded recovery time. <code>fsync()</code> requests a durability boundary for selected state. Checksums improve corruption detection. Replication, RAID and backups address different availability and loss scenarios. One mechanism does not automatically provide the other properties.</p>
+<p>The failure model must also say what storage guarantees. Relevant questions include:</p>
+<ul>
+<li>Can the device reorder independent writes?</li>
+<li>Can a completed host command remain only in volatile device cache?</li>
+<li>What does a cache-flush or force-unit-access operation guarantee?</li>
+<li>What is the atomic write unit, and can a larger block tear?</li>
+<li>Are stale, misplaced or silently corrupted writes possible?</li>
+<li>Is a remote server acknowledgement equivalent to stable storage?</li>
+</ul>
+<p>File systems use ordering barriers, flushes, checksums, replicated metadata, sequence numbers and recovery records to strengthen weaker primitives. Applications must then use the file-system API correctly; the strongest journal cannot infer that an application intended several separately opened files to form one transaction.</p>
+<section id="naming-sharing-durability-and-recovery" class="level4">
+<h4 class="anchored" data-anchor-id="naming-sharing-durability-and-recovery"><strong>Naming, Sharing, Durability, and Recovery</strong></h4>
+<p><strong>Naming</strong> converts a human-meaningful pathname such as <code>/home/ana/report.txt</code> into a sequence of object lookups. The hierarchy provides organization and allows a directory subtree to be moved or mounted without changing each file’s internal identity. Names are mutable references: a rename can make one name refer to a different object while an already-open descriptor continues to refer to the old object.</p>
+<p><strong>Sharing</strong> lets several names, descriptors, processes and mappings refer to one file object. The file system coordinates link counts, open references, cached pages, byte-range state and concurrent updates. Sharing makes lifetime reference-based rather than name-based.</p>
+<p><strong>Durability</strong> establishes a point after which specified data and metadata can be recovered despite a covered failure. Ordinary buffered writes prioritize throughput and latency by returning before storage persistence. Explicit synchronization, synchronous flags or higher-level transactional protocols request stronger boundaries when needed.</p>
+<p><strong>Recovery</strong> chooses a valid post-crash state. A checker can reconstruct global relationships, a journal can replay committed recent changes, and a copy-on-write tree can choose an old or new durable root. Recovery promises structure, not necessarily the application’s latest intended business state. If the application acknowledged a payment before synchronizing its record, a structurally perfect old file system can still represent the wrong business outcome.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Event</th>
+<th>File-system responsibility</th>
+<th>Application responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Process exits normally</td>
+<td>Keep persistent objects independent of process lifetime</td>
+<td>Close/check errors; synchronize state whose loss is unacceptable</td>
+</tr>
+<tr class="even">
+<td>Process crashes</td>
+<td>Release volatile handles/locks while retaining named objects</td>
+<td>Use atomic replacement or application log so partial logical updates are recognizable</td>
+</tr>
+<tr class="odd">
+<td>Kernel/power crash</td>
+<td>Recover a structurally valid state covered by the filesystem protocol</td>
+<td>Place synchronization boundaries before external acknowledgement</td>
+</tr>
+<tr class="even">
+<td>Media corruption</td>
+<td>Detect if checksums/redundancy exist; report or repair if possible</td>
+<td>Maintain independent backups and validate critical content</td>
+</tr>
+<tr class="odd">
+<td>Operator deletes/overwrites data</td>
+<td>Apply namespace operation as authorized</td>
+<td>Use versioning, snapshots with retention, and offline/independent backups</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="the-file-and-directory-api" class="level3">
+<h3 class="anchored" data-anchor-id="the-file-and-directory-api"><strong>The File and Directory API</strong></h3>
+<p>The file API separates operations on <strong>names</strong> from operations on <strong>open objects</strong>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Operation family</th>
+<th>Representative calls</th>
+<th>Object affected</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Resolve/open</td>
+<td><code>open</code>, <code>openat</code>, <code>openat2</code>, <code>stat</code>, <code>fstatat</code></td>
+<td>Convert pathname/location into metadata or an open handle</td>
+</tr>
+<tr class="even">
+<td>Byte I/O</td>
+<td><code>read</code>, <code>write</code>, <code>pread</code>, <code>pwrite</code>, <code>lseek</code>, <code>mmap</code></td>
+<td>File contents and possibly the open offset</td>
+</tr>
+<tr class="odd">
+<td>Namespace</td>
+<td><code>mkdir</code>, <code>link</code>, <code>symlink</code>, <code>unlink</code>, <code>rmdir</code>, <code>rename</code></td>
+<td>Directory entries and object link counts</td>
+</tr>
+<tr class="even">
+<td>Metadata</td>
+<td><code>chmod</code>, <code>chown</code>, <code>utimensat</code>, extended-attribute calls</td>
+<td>Inode/object attributes</td>
+</tr>
+<tr class="odd">
+<td>Persistence</td>
+<td><code>fsync</code>, <code>fdatasync</code>, synchronous open/write flags</td>
+<td>Ordering and durable completion boundary</td>
+</tr>
+<tr class="even">
+<td>Space control</td>
+<td><code>ftruncate</code>, <code>fallocate</code>, hole punching</td>
+<td>Logical size and physical allocation policy</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>*at()</code> interfaces accept a directory descriptor plus a relative path. This is not just syntactic convenience. A stable directory handle avoids dependence on a process-wide current working directory and reduces races where an attacker or concurrent thread replaces an earlier path component between separate checks and use. Linux <code>openat2()</code> can impose additional resolution constraints, but the general design lesson is portable: operate relative to an already-resolved directory object when a sequence must stay anchored.</p>
+<p>System-call atomicity is operation-specific. <code>O_CREAT | O_EXCL</code> combines existence testing and creation. <code>O_APPEND</code> combines finding the end offset with each write on a suitable local file-system implementation. A same-filesystem <code>rename()</code> atomically changes namespace visibility so observers do not see the destination missing between removal and replacement. None of these statements alone says that the operation is already durable after sudden power loss.</p>
+<section id="files-directories-links-and-metadata" class="level4">
+<h4 class="anchored" data-anchor-id="files-directories-links-and-metadata"><strong>Files, Directories, Links, and Metadata</strong></h4>
+<p>A regular file is a byte sequence plus metadata. A directory is a special file-system object whose data maps component names to object identities. A <strong>hard link</strong> adds another directory entry for the same inode/object. A <strong>symbolic link</strong> is a distinct inode whose contents are another pathname to resolve.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fs-links-object-lifetime.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/fs-links-object-lifetime.svg" class="img-fluid figure-img" style="width:96.0%" alt="Directory entries report and backup both point to inode 42, a symlink stores a textual path, and after both hard links are unlinked an open file description retains the inode until the last descriptor closes."></a></p>
+<figcaption>Hard links share an inode, a symbolic link stores a pathname, and an open handle can outlive every name.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://man7.org/linux/man-pages/man2/link.2.html"><code>link(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/unlink.2.html"><code>unlink(2)</code></a>, and the ext4 <a href="https://docs.kernel.org/filesystems/ext4/inodes.html">inode format</a>.</em></p>
+<p>Hard and symbolic links behave differently:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Hard link</th>
+<th>Symbolic link</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Stored relationship</td>
+<td>Directory entry directly names the same inode/object</td>
+<td>Separate object stores path text</td>
+</tr>
+<tr class="even">
+<td>Cross-filesystem target</td>
+<td>Normally impossible</td>
+<td>Possible because the text is resolved later</td>
+</tr>
+<tr class="odd">
+<td>Target removal</td>
+<td>Other hard-link names still access the object</td>
+<td>Link can become dangling</td>
+</tr>
+<tr class="even">
+<td>Identity reported by <code>stat</code></td>
+<td>Same inode and device as other hard links</td>
+<td><code>lstat</code> reports the symlink; <code>stat</code> follows target</td>
+</tr>
+<tr class="odd">
+<td>Directory hard links</td>
+<td>Normally restricted to preserve hierarchy/invariants</td>
+<td>Can point to a directory path</td>
+</tr>
+<tr class="even">
+<td>Rename of target</td>
+<td>Other hard links are unaffected</td>
+<td>Relative/absolute text may resolve differently or fail</td>
+</tr>
+</tbody>
+</table>
+<p><code>unlink()</code> removes one <strong>name</strong>. If it was the last hard link but an open file description still refers to the inode, the file remains usable and its storage is reclaimed only after the final reference closes. This property supports safe temporary files and software upgrades: a running process can continue executing or reading an old unlinked object while the namespace points new opens to a replacement.</p>
+<p>Metadata commonly exposed by <code>stat()</code> includes:</p>
+<ul>
+<li>object type and mode bits;</li>
+<li>owner UID and group GID;</li>
+<li>inode number within a containing filesystem/device identity;</li>
+<li>logical byte size and allocated block count;</li>
+<li>hard-link count;</li>
+<li>modification time (<code>mtime</code>), metadata-change time (<code>ctime</code>) and access time (<code>atime</code>); and</li>
+<li>preferred I/O block size and device information.</li>
+</ul>
+<p>On Unix, <code>ctime</code> is <strong>change time</strong>, not creation time. Some filesystems expose a birth/creation time through newer interfaces, but code should not infer it from <code>ctime</code>. Logical size can greatly exceed allocated blocks for a sparse file, and allocated-block units reported by tools may differ from the filesystem block size.</p>
+<p>Directory permissions influence path operations: search/execute permission is needed to traverse a directory; directory write permission governs creating or removing names. Reading a file’s bytes and removing its name are therefore different authorities. The next chapter develops this protection model in detail.</p>
+</section>
+<section id="file-descriptors-and-open-file-tables" class="level4">
+<h4 class="anchored" data-anchor-id="file-descriptors-and-open-file-tables"><strong>File Descriptors and Open File Tables</strong></h4>
+<p><code>open()</code> creates an <strong>open file description</strong> and installs a reference to it in the calling process’s descriptor table. These layers hold different state:</p>
+<ul>
+<li>the <strong>descriptor entry</strong> has a small integer number and descriptor flags such as close-on-exec;</li>
+<li>the <strong>open file description</strong> has the current file offset and status flags such as append/nonblocking mode; and</li>
+<li>the <strong>inode/file object</strong> has persistent identity, metadata, mapping and cached content state.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fd-open-file-inode.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/fd-open-file-inode.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two process descriptor tables point through shared or separate open file descriptions to the same inode; dup and fork share one offset while a distinct open creates another offset."></a></p>
+<figcaption>dup and fork can share one open description and offset, while separate open calls have independent offsets.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://man7.org/linux/man-pages/man2/open.2.html"><code>open(2)</code></a> and the kernel <a href="https://docs.kernel.org/filesystems/vfs.html">VFS file-object description</a>.</em></p>
+<p><code>dup()</code> creates another descriptor for the same open file description. <code>fork()</code> normally copies descriptor-table references, so parent and child descriptors still share open offsets and status flags. A second independent <code>open()</code> normally creates a separate open description and offset even when it reaches the same inode. <code>pread()</code> and <code>pwrite()</code> avoid mutating a shared open offset by taking an explicit position.</p>
+<p>The following program makes those relationships observable. It creates a file, duplicates one descriptor, independently opens the same pathname, removes the pathname, and continues reading through all open references.</p>
+<details>
+<summary>
+<strong>C example: shared offsets and an unlinked-but-open file</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdint.h&gt;</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/stat.h&gt;</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> die<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">char</span> read_one<span class="op">(</span><span class="dt">int</span> fd<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> value<span class="op">;</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(;;)</span> <span class="op">{</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> n <span class="op">=</span> read<span class="op">(</span>fd<span class="op">,</span> <span class="op">&amp;</span>value<span class="op">,</span> <span class="dv">1</span><span class="op">);</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">==</span> <span class="dv">1</span><span class="op">)</span> <span class="cf">return</span> value<span class="op">;</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unexpected EOF</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>            exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"read"</span><span class="op">);</span></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> path<span class="op">[]</span> <span class="op">=</span> <span class="st">"/tmp/open-state-XXXXXX"</span><span class="op">;</span></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> original <span class="op">=</span> mkstemp<span class="op">(</span>path<span class="op">);</span>       <span class="co">// Creates and opens one unique file.</span></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>original <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"mkstemp"</span><span class="op">);</span></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> contents<span class="op">[]</span> <span class="op">=</span> <span class="st">"ABCDE"</span><span class="op">;</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>original<span class="op">,</span> contents<span class="op">,</span> <span class="kw">sizeof</span> contents <span class="op">-</span> <span class="dv">1</span><span class="op">)</span> <span class="op">!=</span></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>        <span class="op">(</span><span class="dt">ssize_t</span><span class="op">)(</span><span class="kw">sizeof</span> contents <span class="op">-</span> <span class="dv">1</span><span class="op">))</span> <span class="op">{</span></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>        die<span class="op">(</span><span class="st">"write"</span><span class="op">);</span></span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>lseek<span class="op">(</span>original<span class="op">,</span> <span class="dv">0</span><span class="op">,</span> SEEK_SET<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"lseek"</span><span class="op">);</span></span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> duplicate <span class="op">=</span> dup<span class="op">(</span>original<span class="op">);</span>      <span class="co">// Shares original's open description/offset.</span></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>duplicate <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"dup"</span><span class="op">);</span></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> independent <span class="op">=</span> open<span class="op">(</span>path<span class="op">,</span> O_RDONLY <span class="op">|</span> O_CLOEXEC<span class="op">);</span> <span class="co">// New open description.</span></span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>independent <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"open independent"</span><span class="op">);</span></span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>unlink<span class="op">(</span>path<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"unlink"</span><span class="op">);</span> <span class="co">// Remove the only directory name.</span></span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> stat status<span class="op">;</span></span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fstat<span class="op">(</span>original<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> die<span class="op">(</span><span class="st">"fstat"</span><span class="op">);</span></span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"link count after unlink: </span><span class="sc">%ju\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">uintmax_t</span><span class="op">)</span>status<span class="op">.</span>st_nlink<span class="op">);</span></span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>    <span class="co">// original reads 'A' and advances the shared offset to 1.</span></span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"original:    </span><span class="sc">%c\n</span><span class="st">"</span><span class="op">,</span> read_one<span class="op">(</span>original<span class="op">));</span></span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>    <span class="co">// duplicate starts at that shared offset and therefore reads 'B'.</span></span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"duplicate:   </span><span class="sc">%c\n</span><span class="st">"</span><span class="op">,</span> read_one<span class="op">(</span>duplicate<span class="op">));</span></span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>    <span class="co">// independent has its own offset, initially zero, and reads 'A'.</span></span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"independent: </span><span class="sc">%c\n</span><span class="st">"</span><span class="op">,</span> read_one<span class="op">(</span>independent<span class="op">));</span></span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>independent<span class="op">);</span></span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>duplicate<span class="op">);</span></span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>original<span class="op">);</span>                     <span class="co">// Last reference: storage is reclaimable.</span></span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile and run on a POSIX-like system:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> open_state.c <span class="at">-o</span> open_state</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./open_state</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Expected relationship (temporary pathname differs each run):</p>
+<pre class="text"><code>link count after unlink: 0
+original:    A
+duplicate:   B
+independent: A</code></pre>
+</details>
+<p>Production code must check <code>close()</code> when earlier writes matter because delayed writeback errors can be reported late, although <code>close()</code> is not a substitute for <code>fsync()</code> when crash durability is required. <code>O_CLOEXEC</code> should normally be requested atomically during descriptor creation so a concurrent <code>fork()</code>/<code>exec()</code> cannot leak a descriptor between <code>open()</code> and a later <code>fcntl()</code>.</p>
+</section>
+</section>
+<section id="inodes-and-directory-structures" class="level3">
+<h3 class="anchored" data-anchor-id="inodes-and-directory-structures"><strong>Inodes and Directory Structures</strong></h3>
+<p>An <strong>inode</strong> is the file-system record for an object. In a classic Unix design it stores type, size, ownership, mode, timestamps, link count, flags, and a map from logical file blocks to storage. It normally does <strong>not</strong> store the filename. A directory entry stores a name and inode number/object identity; several directory entries can therefore point to one inode.</p>
+<p>Path lookup alternates between these two structures. Resolving <code>/home/ana/report.txt</code> conceptually performs:</p>
+<ol type="1">
+<li>begin at the root dentry/inode of the caller’s mount namespace;</li>
+<li>read or consult cached root-directory entries to find <code>home</code>;</li>
+<li>load/consult that inode and verify that it is a searchable directory;</li>
+<li>repeat for <code>ana</code>;</li>
+<li>find <code>report.txt</code> in the final directory;</li>
+<li>load the final inode and apply the operation-specific checks; and</li>
+<li>for data I/O, use the inode’s mapping to translate logical offsets.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pathname-lookup-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/pathname-lookup-animated.svg" class="img-fluid figure-img" style="width:97.0%" alt="An animated lookup token follows /home/ana/report.txt from root inode to root directory, home inode and directory, ana inode and directory, final file inode, and logical data extents."></a></p>
+<figcaption>Path lookup alternates through directory name mappings and inodes until the final inode maps file offsets.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation informed by <a href="https://pages.cs.wisc.edu/~bart/537/lecturenotes/s25.html">UW CS537 directory notes</a>, Linux <a href="https://docs.kernel.org/filesystems/path-lookup.html">pathname lookup</a>, and Linux <a href="https://docs.kernel.org/filesystems/vfs.html">VFS documentation</a>.</em></p>
+<p>Real path lookup includes <code>.</code> and <code>..</code>, symbolic links, mount points, permission checks, concurrent rename/unmount, negative cache entries, automounts and process-specific roots. Linux first attempts a highly cache-oriented RCU walk and falls back to a reference-taking walk for cases that need blocking or stronger stabilization. The implementation is complex because lookup must be fast while the namespace changes concurrently.</p>
+<p>Directories can be represented as:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Representation</th>
+<th>Lookup</th>
+<th>Update</th>
+<th>Appropriate scale</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Linear directory entries</td>
+<td><span class="math inline">\(O(n)\)</span> name comparisons</td>
+<td>Simple insertion/removal with free-record management</td>
+<td>Small directories and simple teaching formats</td>
+</tr>
+<tr class="even">
+<td>Hash table / hashed tree</td>
+<td>Average near <span class="math inline">\(O(1)\)</span> or bounded tree lookup</td>
+<td>Must handle collisions, splits and stable enumeration semantics</td>
+<td>Large general-purpose directories such as ext4 indexed directories</td>
+</tr>
+<tr class="odd">
+<td>B-tree/B+tree</td>
+<td><span class="math inline">\(O(\log_B n)\)</span> node accesses with high fanout <span class="math inline">\(B\)</span></td>
+<td>Split/merge or copy-on-write updates</td>
+<td>Large directories and tree-centric filesystems</td>
+</tr>
+</tbody>
+</table>
+<p>Caching often dominates the on-disk asymptotic difference. A positive dentry cache remembers a successful name-to-inode relationship; a <strong>negative dentry</strong> remembers that a name did not exist, accelerating repeated misses and later creation paths. Cache entries are performance state, not the persistent directory itself, and must be invalidated or revalidated around namespace changes.</p>
+<p>For a filesystem block size <span class="math inline">\(b\)</span> and byte offset <span class="math inline">\(x\)</span>, the logical file block and intra-block offset are</p>
+<p><span class="math display">\[
+\operatorname{lbn} = \left\lfloor \frac{x}{b} \right\rfloor,
+\qquad
+\operatorname{within} = x \bmod b.
+\]</span></p>
+<p>The inode’s mapping translates <code>lbn</code> into a physical/logical storage block. Older Unix designs use direct and multi-level indirect pointers. Modern local file systems often use <strong>extents</strong>, where one record maps a contiguous run <code>(logical_start, length)</code> to <code>(physical_start, length)</code>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/inode-extent-mapping.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/inode-extent-mapping.svg" class="img-fluid figure-img" style="width:96.0%" alt="An inode stores object metadata and the root of an extent tree; extent leaves map logical block ranges to physical ranges while sparse holes have no allocated blocks and read as zeros."></a></p>
+<figcaption>An inode points to an extent index that maps logical ranges, including unallocated sparse holes.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the ext4 <a href="https://docs.kernel.org/filesystems/ext4/inodes.html">inode and extent format</a> and <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf">OSTEP file-system implementation</a>.</em></p>
+<p>Extents compress metadata and improve sequential locality when files occupy long runs. Fragmentation creates more extent records and potentially deeper trees. A <strong>sparse hole</strong> is a logical range with no data blocks allocated; reads synthesize zeros, and a later write allocates blocks only for the touched region. Consequently, file size is a logical boundary, not a direct measure of consumed storage.</p>
+</section>
+<section id="on-disk-file-system-layout" class="level3">
+<h3 class="anchored" data-anchor-id="on-disk-file-system-layout"><strong>On-Disk File-System Layout</strong></h3>
+<p>Formatting a volume creates enough persistent metadata to interpret every later block. A teaching Unix-like layout often includes a superblock, allocation maps, inode records, directory/data blocks and optional recovery log. General-purpose file systems distribute these structures into allocation groups or block groups to improve locality, parallelism and damage containment.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ext4-on-disk-layout.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/ext4-on-disk-layout.svg" class="img-fluid figure-img" style="width:97.0%" alt="An ext4 teaching layout divides a volume into block groups; each representative group contains superblock/group metadata, block and inode bitmaps, inode tables, and data blocks, while a reserved journal contains transaction records."></a></p>
+<figcaption>A representative ext4 volume contains block groups with metadata, allocation maps, inode tables, data blocks, and a journal.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the official ext4 <a href="https://docs.kernel.org/filesystems/ext4/overview.html">high-level design</a>, <a href="https://docs.kernel.org/filesystems/ext4/blockgroup.html">block-group layout</a>, and Oracle Linux’s <a href="https://blogs.oracle.com/linux/understanding-ext4-disk-layout-part-1">ext4 layout explanation</a>.</em></p>
+<p>Block grouping improves locality: placing a file’s inode, directory entry and data in the same or nearby group reduces seek cost on disks and improves cache/queue behavior more generally. It also avoids one giant centralized inode table or bitmap becoming a hot location. Large files may deliberately spread across groups so one file does not consume all space local to its directory.</p>
+<p>This ext-family picture is representative, not universal. XFS uses allocation groups and B+trees. Btrfs consists largely of copy-on-write trees. FAT centralizes an allocation table. Log-structured systems treat the log and checkpoints as the primary layout. Network and memory-backed filesystems may not have a local block layout at all.</p>
+<section id="superblocks-inode-tables-data-blocks-and-logs" class="level4">
+<h4 class="anchored" data-anchor-id="superblocks-inode-tables-data-blocks-and-logs"><strong>Superblocks, Inode Tables, Data Blocks, and Logs</strong></h4>
+<p>Each on-disk structure answers a different reconstruction question:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Structure</th>
+<th>Core contents</th>
+<th>Key invariant</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Superblock</td>
+<td>Format version/features, block size, volume identity, geometry, root/recovery pointers</td>
+<td>Kernel must know how to interpret all other blocks</td>
+</tr>
+<tr class="even">
+<td>Group/allocation descriptor</td>
+<td>Locations and summary counts for a region</td>
+<td>Summary must agree with underlying maps or be repairable</td>
+</tr>
+<tr class="odd">
+<td>Inode bitmap/table</td>
+<td>Which inode slots are allocated and each object’s metadata/map</td>
+<td>Allocated inode identity is unique and references valid owned blocks</td>
+</tr>
+<tr class="even">
+<td>Block/free-space map</td>
+<td>Which storage ranges are free or owned</td>
+<td>No live block is simultaneously free or multiply owned without explicit sharing</td>
+</tr>
+<tr class="odd">
+<td>Directory block/index</td>
+<td>Component names mapped to inode identities</td>
+<td>Entry targets valid objects; link counts reflect supported naming relationships</td>
+</tr>
+<tr class="even">
+<td>Data block</td>
+<td>User bytes or directory/index payload</td>
+<td>Reachability and ownership agree with metadata</td>
+</tr>
+<tr class="odd">
+<td>Journal/log</td>
+<td>Recent transaction records, sequence/checksum and commit evidence</td>
+<td>Recovery can distinguish complete committed records from incomplete tail data</td>
+</tr>
+</tbody>
+</table>
+<p>For ext4, inode numbers locate fixed-size records within per-group inode tables. If <code>ino</code> is a nonzero inode number, <span class="math inline">\(N_g\)</span> is the number of inodes per group, and <span class="math inline">\(S_i\)</span> is the inode-record size, then</p>
+<p><span class="math display">\[
+\operatorname{group} = \left\lfloor\frac{ino - 1}{N_g}\right\rfloor,
+\qquad
+\operatorname{index} = (ino - 1) \bmod N_g,
+\qquad
+\operatorname{byteOffset} = \operatorname{index} S_i.
+\]</span></p>
+<p>This arithmetic finds the record; the inode’s extent/pointer tree then finds file contents. Directory indexes find inode numbers, not physical data blocks directly.</p>
+<p>Checksums help detect torn, stale or corrupted metadata. They do not by themselves prove global consistency: a perfectly checksummed bitmap can still disagree with a perfectly checksummed inode. Sequence numbers, ownership fields, reverse maps and recovery protocols add cross-structure evidence. Repair needs to decide which valid-looking copy or relationship is authoritative.</p>
+</section>
+</section>
+<section id="file-allocation-and-free-space-management" class="level3">
+<h3 class="anchored" data-anchor-id="file-allocation-and-free-space-management"><strong>File Allocation and Free-Space Management</strong></h3>
+<p>Allocation connects a file’s logical address space to finite storage. The allocator must answer two questions:</p>
+<ol type="1">
+<li><strong>Which free units should this file receive?</strong></li>
+<li><strong>How will the file’s mapping remember those units efficiently?</strong></li>
+</ol>
+<p>The choices affect sequential throughput, random-access cost, metadata size, future growth, fragmentation, crash dependencies and cleaning work.</p>
+<section id="contiguous-linked-indexed-and-extent-based-allocation" class="level4">
+<h4 class="anchored" data-anchor-id="contiguous-linked-indexed-and-extent-based-allocation"><strong>Contiguous, Linked, Indexed, and Extent-Based Allocation</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/file-allocation-strategies.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/file-allocation-strategies.svg" class="img-fluid figure-img" style="width:98.0%" alt="Four panels compare contiguous allocation, linked blocks, an index block, and extent range records; a lower panel compares free-space bitmaps and free-extent trees."></a></p>
+<figcaption>Contiguous, linked, indexed, and extent mappings make different growth, lookup, and fragmentation trade-offs.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf">OSTEP file-system implementation</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-ffs.pdf">OSTEP Fast File System</a>, and the ext4 <a href="https://docs.kernel.org/filesystems/ext4/inodes.html">extent format</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Scheme</th>
+<th>Mapping metadata</th>
+<th>Access to logical block <span class="math inline">\(i\)</span></th>
+<th>Growth behavior</th>
+<th>Main weakness</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Contiguous</td>
+<td>Start block + length</td>
+<td><span class="math inline">\(O(1)\)</span> arithmetic</td>
+<td>Difficult if adjacent space is occupied</td>
+<td>External fragmentation or relocation/over-allocation</td>
+</tr>
+<tr class="even">
+<td>Linked</td>
+<td>Each block points to next, or a central FAT records links</td>
+<td><span class="math inline">\(O(i)\)</span> through chain without auxiliary cache/index</td>
+<td>Easy to add any free block</td>
+<td>Poor random access, pointer overhead, chain corruption</td>
+</tr>
+<tr class="odd">
+<td>Indexed</td>
+<td>Array/tree of block pointers</td>
+<td><span class="math inline">\(O(1)\)</span> for a resident direct index; <span class="math inline">\(O(h)\)</span> I/O for tree height <span class="math inline">\(h\)</span></td>
+<td>Add pointers and index levels</td>
+<td>Index-block overhead, especially for tiny files</td>
+</tr>
+<tr class="even">
+<td>Extent-based</td>
+<td>Tree of <code>(logical start, physical start, length)</code></td>
+<td>Typically <span class="math inline">\(O(\log_B E)\)</span> for <span class="math inline">\(E\)</span> extents and fanout <span class="math inline">\(B\)</span></td>
+<td>Efficient while long free runs exist</td>
+<td>Fragmentation creates more extents and tree updates</td>
+</tr>
+</tbody>
+</table>
+<p>Contiguous allocation is ideal for a fixed-size, read-mostly image because one record maps the whole file. It is poor for unpredictable growth. Linked allocation grows easily but turns random access into a chain traversal. Indexed allocation gives direct lookup but may spend a full index block on a small file. Extents combine indexing with run-length compression and are widely used in modern general-purpose file systems.</p>
+<p><strong>Internal fragmentation</strong> is unused space inside an allocated unit. A 4097-byte file with 4096-byte blocks needs two blocks and leaves almost one full block unused unless tail packing or inline data is supported. For a file of size <span class="math inline">\(F\)</span> and allocation unit <span class="math inline">\(b\)</span>, simple full-block allocation consumes</p>
+<p><span class="math display">\[
+A = \left\lceil \frac{F}{b} \right\rceil b,
+\qquad
+W_{internal} = A - F.
+\]</span></p>
+<p><strong>External fragmentation</strong> means free capacity exists but is split into runs unsuitable for a desired allocation. Extent trees describe a fragmented file correctly, but more extents enlarge metadata, reduce sequential opportunities and increase update work. Fragmentation is therefore a performance and metadata problem even when no bytes are logically lost.</p>
+<p>Free-space representations include:</p>
+<ul>
+<li><strong>bitmaps</strong>, with one bit per block/cluster/inode, which are compact, easy to count and efficient for word-level searches for runs;</li>
+<li><strong>free lists</strong>, simple but weak for finding a run of a desired size;</li>
+<li><strong>free-extent trees</strong>, compact for long runs and capable of best-fit/nearby searches, but requiring split/merge updates; and</li>
+<li><strong>space summaries</strong>, maintained per group/region to avoid scanning the whole volume.</li>
+</ul>
+<p>An allocator is also a locality policy. It may place a new file near its parent directory, place related inodes together, reserve room for expected growth, spread very large files, choose a CPU-local allocation group, or separate hot and cold data. Disk-era cylinder groups reduced seeks; the same grouping still improves metadata locality, queue parallelism and failure containment on newer devices.</p>
+<p><strong>Delayed allocation</strong> postpones choosing physical blocks until writeback, when the filesystem can see a larger dirty range and allocate a better extent. It improves layout and avoids allocating data that is overwritten or deleted while still dirty. The trade-off is that a successful buffered <code>write()</code> may later encounter <code>ENOSPC</code> or quota errors during writeback or <code>fsync()</code>. <strong>Preallocation</strong> (<code>fallocate()</code> on supporting systems) reserves space earlier so future writes are less likely to fragment or fail for capacity.</p>
+<p>A sparse file demonstrates the distinction between logical and allocated space:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Logical size becomes 1 GiB, but no data blocks are needed for the hole itself.</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="fu">truncate</span> <span class="at">-s</span> 1G sparse.img</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># ls/stat report logical size; du reports allocated storage.</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-lh</span> sparse.img</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="fu">du</span> <span class="at">-h</span> sparse.img</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="fu">stat</span> sparse.img</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Writing one byte near the end normally allocates only the touched block plus metadata. Copying a sparse file through an interface that does not preserve holes can materialize zeros and consume the full logical size.</p>
+</section>
+</section>
+<section id="the-virtual-file-system-and-mount-namespace" class="level3">
+<h3 class="anchored" data-anchor-id="the-virtual-file-system-and-mount-namespace"><strong>The Virtual File System and Mount Namespace</strong></h3>
+<p>The <strong>Virtual File System (VFS)</strong> is the kernel abstraction that lets common system calls dispatch to ext4, XFS, Btrfs, tmpfs, procfs, NFS, FUSE and other implementations. It does not force those filesystems to share an on-disk format. It defines common in-memory objects and method tables.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>VFS object</th>
+<th>Represents</th>
+<th>Typical state</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Superblock</td>
+<td>One mounted filesystem instance</td>
+<td>Filesystem type, root, mount options, operations, global state</td>
+</tr>
+<tr class="even">
+<td>Inode</td>
+<td>One filesystem object</td>
+<td>Type, metadata, mapping/address space, inode operations</td>
+</tr>
+<tr class="odd">
+<td>Dentry</td>
+<td>One name in one parent lookup context</td>
+<td>Name, parent, inode pointer or negative result, cache state</td>
+</tr>
+<tr class="even">
+<td>File</td>
+<td>One open file description</td>
+<td>Offset, status flags, credentials/context and file operations</td>
+</tr>
+<tr class="odd">
+<td>Address space</td>
+<td>Cached pages/folios for an inode or related object</td>
+<td>Clean, dirty and writeback pages indexed by file offset</td>
+</tr>
+<tr class="even">
+<td>Mount</td>
+<td>Connection between a filesystem root and a namespace mount point</td>
+<td>Parent mount, mount point dentry, mounted root and flags</td>
+</tr>
+</tbody>
+</table>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/vfs-mount-namespace.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/vfs-mount-namespace.svg" class="img-fluid figure-img" style="width:97.0%" alt="Two processes with different mount namespaces resolve /work through different mounted filesystems; common VFS file, dentry, inode, superblock, and cache objects dispatch to ext4, tmpfs, procfs, NFS, FUSE, or overlay implementations."></a></p>
+<figcaption>A mount namespace selects the visible path tree while VFS objects dispatch operations to different filesystem implementations.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://docs.kernel.org/filesystems/vfs.html">VFS documentation</a> and <a href="https://docs.kernel.org/filesystems/path-lookup.html">pathname lookup</a>.</em></p>
+<p>A <strong>mount</strong> attaches the root of one filesystem at a directory in an existing tree. When path lookup reaches that mount point, it crosses to the mounted root. The covered directory still exists in the lower filesystem but is hidden through that mount until the upper filesystem is unmounted.</p>
+<p>A <strong>mount namespace</strong> gives a process a particular view of the mount table and root. Two processes can resolve the same textual pathname to different filesystems because one namespace has a different mount at that point. This mechanism is foundational for containers, but visibility is not by itself a complete security boundary; the next chapter combines namespaces with credentials, capabilities, cgroups, system-call filtering and other controls.</p>
+<p>Path lookup must tolerate concurrent rename, mount and unmount. Linux associates a path with both a dentry and a mount, uses sequence validation and references to prevent use-after-free, and can restart a fast RCU walk as a slower reference walk when a case requires blocking or stronger stabilization. A cached dentry accelerates lookup but does not permanently pin every object or bypass permission/revalidation rules.</p>
+<details>
+<summary>
+<strong>Shell inspection: relate a pathname to mounts, inode identity, allocation, and open handles</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="va">PATH_TO_CHECK</span><span class="op">=</span>/path/to/file</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Resolve each path component and show permissions/types.</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="fu">namei</span> <span class="at">-l</span> <span class="st">"</span><span class="va">$PATH_TO_CHECK</span><span class="st">"</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Show the filesystem and mount that own this path.</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="ex">findmnt</span> <span class="at">-T</span> <span class="st">"</span><span class="va">$PATH_TO_CHECK</span><span class="st">"</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect persistent identity and size/allocation metadata.</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="fu">stat</span> <span class="st">"</span><span class="va">$PATH_TO_CHECK</span><span class="st">"</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="fu">du</span> <span class="at">-h</span> <span class="st">"</span><span class="va">$PATH_TO_CHECK</span><span class="st">"</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co"># On supporting local filesystems, show logical-to-physical extent information.</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Physical addresses are diagnostic and can change after defragmentation/COW.</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="ex">filefrag</span> <span class="at">-v</span> <span class="st">"</span><span class="va">$PATH_TO_CHECK</span><span class="st">"</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="co"># See this process's exact mount view. Fields are documented by proc(5).</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/self/mountinfo</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co"># List open descriptors in one process; permissions may restrict inspection.</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> <span class="st">"/proc/</span><span class="va">$PID</span><span class="st">/fd"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>These commands describe different identities. A pathname can change while an open descriptor remains stable. Inode numbers are unique only within a filesystem identity. Physical extents can change without the pathname or inode number changing. A mount namespace can make an object unreachable by one path while another process still has it mounted or open.</p>
+</section>
+<section id="caching-writeback-and-persistence-semantics" class="level3">
+<h3 class="anchored" data-anchor-id="caching-writeback-and-persistence-semantics"><strong>Caching, Writeback, and Persistence Semantics</strong></h3>
+<p>Most regular-file I/O is buffered through the <strong>page cache</strong>. A read first looks for the file-offset range in cached pages/folios; a miss initiates the storage path from the previous chapter. A buffered write usually copies bytes into cached memory, marks pages dirty, updates in-memory inode state, and returns before storage I/O completes.</p>
+<p>This decoupling improves performance because the kernel can:</p>
+<ul>
+<li>combine many small writes into larger requests;</li>
+<li>reorder writeback for locality and device parallelism;</li>
+<li>avoid writing data that is overwritten or deleted while still dirty;</li>
+<li>serve future reads from memory; and</li>
+<li>delay physical allocation until a better extent decision is possible.</li>
+</ul>
+<p>It also creates a durability gap and requires backpressure when dirty memory grows too large.</p>
+<section id="page-cache-and-buffer-cache" class="level4">
+<h4 class="anchored" data-anchor-id="page-cache-and-buffer-cache"><strong>Page Cache and Buffer Cache</strong></h4>
+<p>The page cache is indexed principally by a file object’s identity and file-page offset. <code>read()</code>, <code>write()</code> and shared <code>mmap()</code> normally interact with the same cached content, which is why a write through one interface becomes visible through another without rereading the device. Private mappings have copy-on-write semantics and do not write private modifications back to the file.</p>
+<p>The term <strong>buffer cache</strong> historically describes cached raw device blocks and, in modern Linux discussion, often refers more narrowly to metadata/block buffers associated with page-cache memory. It is safer to name what is cached: file data pages, directory blocks, inode metadata, allocation maps or raw block-device ranges. The implementation is more unified than older diagrams showing two wholly independent caches.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-cache-writeback-states.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/page-cache-writeback-states.svg" class="img-fluid figure-img" style="width:97.0%" alt="A write copies userspace bytes into a dirty page-cache folio and may return; later background or explicit writeback maps and submits I/O, then marks the page clean on success or records an error for synchronization calls."></a></p>
+<figcaption>A buffered write moves a page from dirty through writeback to clean state or a recorded error.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux VFS <a href="https://docs.kernel.org/filesystems/vfs.html"><code>address_space</code> model</a>, <a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync(2)</code></a>, and <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-implementation.pdf">OSTEP file-system implementation</a>.</em></p>
+<p>A typical state transition is:</p>
+<ol type="1">
+<li><strong>Clean cached:</strong> memory matches the backing state accepted by the filesystem.</li>
+<li><strong>Dirty:</strong> memory contains newer file data or metadata not yet written back.</li>
+<li><strong>Writeback:</strong> I/O is in progress; the page remains cached and may require coordination with new writers.</li>
+<li><strong>Clean:</strong> successful completion makes the cached version no newer than acknowledged backing state.</li>
+<li><strong>Error:</strong> failure is recorded so <code>fsync()</code>, <code>close()</code> or later operations can report it according to the filesystem/kernel contract.</li>
+</ol>
+<p>Writeback can be triggered by explicit synchronization, dirty-age/ratio thresholds, memory pressure, periodic transaction commit, unmount/freeze or synchronous I/O flags. If dirty production outruns sustainable device service, the kernel must throttle writers. Otherwise volatile memory becomes an unbounded queue and latency explodes before eventual out-of-memory or write failure.</p>
+<p><code>O_DIRECT</code> asks supported file systems to minimize ordinary cache effects and transfer between user buffers and storage with strict alignment/coherence constraints. It is not a universal bypass, not automatically faster, and not a durability guarantee. Linux documents that <code>O_DIRECT</code> alone does not replace <code>O_SYNC</code>/synchronization when stable completion matters.</p>
+</section>
+<section id="fsync-ordering-and-durability" class="level4">
+<h4 class="anchored" data-anchor-id="fsync-ordering-and-durability"><strong>fsync, Ordering, and Durability</strong></h4>
+<p>A successful <code>fsync(fd)</code> requests that modified file data and associated metadata required by its contract reach permanent storage, including a device-cache flush when the stack supports it. <code>fdatasync(fd)</code> may omit metadata unrelated to retrieving the data, such as some timestamp changes, but must include metadata such as file size when needed to read the new bytes correctly.</p>
+<p>Important distinctions are:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Primary guarantee</th>
+<th>What it does not automatically guarantee</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Successful buffered <code>write()</code></td>
+<td>Kernel accepted some/all bytes into the file abstraction/cache</td>
+<td>Power-loss durability</td>
+</tr>
+<tr class="even">
+<td><code>fdatasync(filefd)</code></td>
+<td>File data and retrieval-essential metadata synchronized</td>
+<td>Parent directory entry persistence; all optional metadata</td>
+</tr>
+<tr class="odd">
+<td><code>fsync(filefd)</code></td>
+<td>File data plus associated file metadata synchronized</td>
+<td>New/renamed parent directory entry unless directory is also synchronized</td>
+</tr>
+<tr class="even">
+<td><code>fsync(dirfd)</code></td>
+<td>Directory changes covered by that filesystem’s contract are synchronized</td>
+<td>File contents unless that file was also synchronized as required</td>
+</tr>
+<tr class="odd">
+<td><code>O_DSYNC</code> / <code>O_SYNC</code></td>
+<td>Each write follows data-integrity or fuller synchronized completion semantics</td>
+<td>A general transaction spanning several files</td>
+</tr>
+<tr class="even">
+<td><code>sync</code> / <code>syncfs</code></td>
+<td>Broad writeback request for system/filesystem</td>
+<td>A precise application commit protocol by itself</td>
+</tr>
+</tbody>
+</table>
+<p>Linux <a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync(2)</code></a> explicitly notes that synchronizing a file does not necessarily synchronize the directory entry that names it. Creating or renaming a file changes the parent directory, so durable publication commonly requires a separate directory <code>fsync()</code>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/durable-replace-protocol-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/durable-replace-protocol-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="An animated protocol opens a parent directory, creates a unique temporary file, writes it, calls fdatasync, atomically renames it over the target, and fsyncs the parent directory, with crash-state interpretations between steps."></a></p>
+<figcaption>A durable same-directory replacement writes and synchronizes a temporary inode before rename, then synchronizes the parent directory.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation based on Linux <a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/rename.2.html"><code>rename(2)</code></a>, and <a href="https://man7.org/linux/man-pages/man2/open.2.html"><code>open(2)</code></a>.</em></p>
+<p>The classic replacement protocol separates <strong>content construction</strong>, <strong>atomic visibility</strong> and <strong>durable naming</strong>:</p>
+<ol type="1">
+<li>open the target’s parent directory;</li>
+<li>create a unique temporary file in that same directory/filesystem;</li>
+<li>write the complete new contents and set required metadata;</li>
+<li>synchronize the temporary file and handle delayed errors;</li>
+<li>rename the temporary name over the target for atomic visibility; and</li>
+<li>synchronize the parent directory before externally acknowledging durability.</li>
+</ol>
+<p>Readers opening the target see the old or the new inode, not a file gradually overwritten in place. Existing descriptors for the old inode remain valid. The protocol is still one-file publication, not a transaction across arbitrary files, and exact remote/non-POSIX filesystem guarantees must be checked separately.</p>
+<details>
+<summary>
+<strong>C example: crash-conscious same-directory replacement on Linux/POSIX-style local filesystems</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/stat.h&gt;</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> write_all<span class="op">(</span><span class="dt">int</span> fd<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>data<span class="op">,</span> <span class="dt">size_t</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> done <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>done <span class="op">&lt;</span> length<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">ssize_t</span> n <span class="op">=</span> write<span class="op">(</span>fd<span class="op">,</span> data <span class="op">+</span> done<span class="op">,</span> length <span class="op">-</span> done<span class="op">);</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>n <span class="op">&gt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            done <span class="op">+=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>n<span class="op">;</span>           <span class="co">// Successful writes can be partial.</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="cf">if</span> <span class="op">(</span>n <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="op">-</span><span class="dv">1</span><span class="op">;</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> fail_before_rename<span class="op">(</span><span class="dt">int</span> dirfd<span class="op">,</span> <span class="dt">int</span> tempfd<span class="op">,</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>                               <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>temp_name<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> saved <span class="op">=</span> errno<span class="op">;</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>tempfd <span class="op">&gt;=</span> <span class="dv">0</span><span class="op">)</span> close<span class="op">(</span>tempfd<span class="op">);</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>dirfd <span class="op">&gt;=</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> temp_name <span class="op">!=</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>        unlinkat<span class="op">(</span>dirfd<span class="op">,</span> temp_name<span class="op">,</span> <span class="dv">0</span><span class="op">);</span>   <span class="co">// Best-effort removal of unpublished temp.</span></span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>dirfd <span class="op">&gt;=</span> <span class="dv">0</span><span class="op">)</span> close<span class="op">(</span>dirfd<span class="op">);</span></span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    errno <span class="op">=</span> saved<span class="op">;</span></span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="op">**</span>argv<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>argc <span class="op">!=</span> <span class="dv">4</span> <span class="op">||</span> strchr<span class="op">(</span>argv<span class="op">[</span><span class="dv">2</span><span class="op">],</span> <span class="ch">'/'</span><span class="op">)</span> <span class="op">!=</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"usage: </span><span class="sc">%s</span><span class="st"> DIRECTORY TARGET_BASENAME CONTENT</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> argv<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> dirfd <span class="op">=</span> open<span class="op">(</span>argv<span class="op">[</span><span class="dv">1</span><span class="op">],</span> O_RDONLY <span class="op">|</span> O_DIRECTORY <span class="op">|</span> O_CLOEXEC<span class="op">);</span></span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>dirfd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open directory"</span><span class="op">);</span></span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> temp_name<span class="op">[</span><span class="dv">128</span><span class="op">];</span></span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> used <span class="op">=</span> snprintf<span class="op">(</span>temp_name<span class="op">,</span> <span class="kw">sizeof</span> temp_name<span class="op">,</span></span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>                        <span class="st">".replace-</span><span class="sc">%ld</span><span class="st">.tmp"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">());</span></span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>used <span class="op">&lt;</span> <span class="dv">0</span> <span class="op">||</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>used <span class="op">&gt;=</span> <span class="kw">sizeof</span> temp_name<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>        errno <span class="op">=</span> ENAMETOOLONG<span class="op">;</span></span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>        fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> NULL<span class="op">,</span> <span class="st">"temporary name"</span><span class="op">);</span></span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> tempfd <span class="op">=</span> openat<span class="op">(</span>dirfd<span class="op">,</span> temp_name<span class="op">,</span></span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>                        O_WRONLY <span class="op">|</span> O_CREAT <span class="op">|</span> O_EXCL <span class="op">|</span> O_CLOEXEC<span class="op">,</span> <span class="bn">0644</span><span class="op">);</span></span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>tempfd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> NULL<span class="op">,</span> <span class="st">"openat temp"</span><span class="op">);</span></span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write_all<span class="op">(</span>tempfd<span class="op">,</span> argv<span class="op">[</span><span class="dv">3</span><span class="op">],</span> strlen<span class="op">(</span>argv<span class="op">[</span><span class="dv">3</span><span class="op">]))</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a>        fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> tempfd<span class="op">,</span> temp_name<span class="op">,</span> <span class="st">"write temp"</span><span class="op">);</span></span>
+<span id="cb6-65"><a href="#cb6-65" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-66"><a href="#cb6-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-67"><a href="#cb6-67" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Persist bytes and metadata required to retrieve them, including file size.</span></span>
+<span id="cb6-68"><a href="#cb6-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fdatasync<span class="op">(</span>tempfd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a>        fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> tempfd<span class="op">,</span> temp_name<span class="op">,</span> <span class="st">"fdatasync temp"</span><span class="op">);</span></span>
+<span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>close<span class="op">(</span>tempfd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a>        fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> temp_name<span class="op">,</span> <span class="st">"close temp"</span><span class="op">);</span></span>
+<span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a>    tempfd <span class="op">=</span> <span class="op">-</span><span class="dv">1</span><span class="op">;</span></span>
+<span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Same-directory rename atomically changes runtime namespace visibility.</span></span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>renameat<span class="op">(</span>dirfd<span class="op">,</span> temp_name<span class="op">,</span> dirfd<span class="op">,</span> argv<span class="op">[</span><span class="dv">2</span><span class="op">])</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a>        fail_before_rename<span class="op">(</span>dirfd<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> temp_name<span class="op">,</span> <span class="st">"renameat"</span><span class="op">);</span></span>
+<span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a>    <span class="co">// The rename succeeded, so failure from here is an uncertain durability result;</span></span>
+<span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a>    <span class="co">// deleting the new target would be an incorrect attempt to roll back.</span></span>
+<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fsync<span class="op">(</span>dirfd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> saved <span class="op">=</span> errno<span class="op">;</span></span>
+<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>dirfd<span class="op">);</span></span>
+<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a>        errno <span class="op">=</span> saved<span class="op">;</span></span>
+<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fsync directory (rename visible, durability uncertain)"</span><span class="op">);</span></span>
+<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>close<span class="op">(</span>dirfd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"close directory"</span><span class="op">);</span></span>
+<span id="cb6-94"><a href="#cb6-94" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb6-95"><a href="#cb6-95" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile and run:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> durable_replace.c <span class="at">-o</span> durable_replace</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./durable_replace</span> ./state config.json <span class="st">'{"generation":2}'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The code uses a predictable per-process temporary name only to keep the example readable; production code should use collision-resistant creation and clean abandoned temporary files safely. Preserving ownership, mode, extended attributes or timestamps requires setting and synchronizing those properties before publication. If a directory <code>fsync()</code> fails after rename, the new name is already visible at runtime, so pretending to roll back by deleting it can make the situation worse.</p>
+<p>The storage path below the filesystem matters. Filesystem ordering eventually becomes block requests plus flush/FUA/barrier semantics. A device that falsely reports volatile data as stable defeats the upper-layer promise. Conversely, forcing every write immediately destroys batching and latency, so correct applications place synchronization at meaningful commit boundaries rather than after every byte.</p>
+</section>
+</section>
+<section id="the-crash-consistency-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-crash-consistency-problem"><strong>The Crash-Consistency Problem</strong></h3>
+<p><strong>Crash consistency</strong> asks what on-disk states can be observed when execution stops between the writes needed for one logical operation. The desired behavior is often described as moving from one consistent state <span class="math inline">\(S_0\)</span> to another <span class="math inline">\(S_1\)</span> without exposing an invalid mixture.</p>
+<p>Appending one new block to a file might require at least:</p>
+<ul>
+<li><code>D</code>: write the new data block;</li>
+<li><code>B</code>: mark that physical block allocated; and</li>
+<li><code>I</code>: update the inode’s size and mapping to point at it.</li>
+</ul>
+<p>These are separate writes. If no ordering or atomic-group mechanism constrains <span class="math inline">\(n\)</span> writes, up to <span class="math inline">\(2^n\)</span> persisted subsets are conceptually possible. Strict ordering reduces this to prefixes, but a crash after an intermediate prefix can still leave leaks or stale structures. Atomic sectors/blocks also do not make a multi-block operation atomic.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/crash-update-dependencies.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/crash-update-dependencies.svg" class="img-fluid figure-img" style="width:97.0%" alt="Data block D, allocation bitmap B, and inode I form an ordered dependency for append; example crash subsets show stale data exposure, double allocation, leaked space, and the complete new state."></a></p>
+<figcaption>An append has dependent data, allocation, and inode updates whose partial persistence can leak or expose blocks.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-journaling.pdf">OSTEP crash consistency, fsck and journaling</a> and <a href="https://pages.cs.wisc.edu/~bart/537/lecturenotes/s27.html">UW CS537 crash-recovery notes</a>.</em></p>
+<p>Dangerous states include:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Persistent subset</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Inode pointer without allocation bit</td>
+<td>Another file can receive the same block; two owners corrupt each other</td>
+</tr>
+<tr class="even">
+<td>Inode pointer before initialized data</td>
+<td>File exposes stale data from the block’s previous owner or undefined contents</td>
+</tr>
+<tr class="odd">
+<td>Allocation bit without inode pointer</td>
+<td>Space leak: block appears occupied but unreachable</td>
+</tr>
+<tr class="even">
+<td>Directory entry without initialized inode</td>
+<td>Name resolves to invalid metadata</td>
+</tr>
+<tr class="odd">
+<td>Freed block before removing old pointer</td>
+<td>Live object points into space available for reuse</td>
+</tr>
+<tr class="even">
+<td>New data durable but size not durable</td>
+<td>Bytes exist physically but are outside the recovered logical file</td>
+</tr>
+</tbody>
+</table>
+<p>Some intermediate states are structurally consistent but semantically old or wasteful. Writing <code>D</code> before publishing <code>B</code> and <code>I</code> may leave an unreachable initialized block after a crash; recovery can reclaim it. Publishing <code>I</code> first can expose uninitialized or multiply owned storage and is much more dangerous. This motivates explicit <strong>write dependencies</strong>, but ordering alone still needs recovery or rollback for incomplete operations.</p>
+<section id="failure-models-and-update-dependencies" class="level4">
+<h4 class="anchored" data-anchor-id="failure-models-and-update-dependencies"><strong>Failure Models and Update Dependencies</strong></h4>
+<p>A recovery design should state which failures it covers:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Failure</th>
+<th>Typical observation</th>
+<th>Needed mechanisms</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Application/process crash</td>
+<td>Kernel and storage continue; incomplete high-level operation</td>
+<td>Atomic API operations, temp+rename, application WAL/version records</td>
+</tr>
+<tr class="even">
+<td>Kernel panic/power loss</td>
+<td>Volatile memory disappears; device may contain a prefix/reordered subset</td>
+<td>Filesystem journal/COW, flush ordering, recovery replay/root selection</td>
+</tr>
+<tr class="odd">
+<td>Torn atomic unit</td>
+<td>Part of a metadata/data block contains old/new mixture</td>
+<td>Atomic-write assumptions, checksums, duplicated metadata, repair</td>
+</tr>
+<tr class="even">
+<td>Lost/misdirected/stale write</td>
+<td>Correct location does not contain acknowledged version</td>
+<td>Checksums with identity/generation, redundancy and scrub</td>
+</tr>
+<tr class="odd">
+<td>Whole-device failure</td>
+<td>No blocks available from that device</td>
+<td>Replication/RAID plus tested recovery; backups for independent loss</td>
+</tr>
+<tr class="even">
+<td>Software bug or malicious update</td>
+<td>Protocol itself writes a valid but wrong state</td>
+<td>Isolation, validation, snapshots, auditing and independent backups</td>
+</tr>
+</tbody>
+</table>
+<p>The main on-disk invariants in a Unix-like teaching file system include:</p>
+<ul>
+<li>every referenced block is allocated;</li>
+<li>an ordinary block has at most one owner unless sharing/reference counts explicitly allow more;</li>
+<li>every reachable directory entry targets a valid allocated inode;</li>
+<li>inode link counts agree with directory references according to the format’s rules;</li>
+<li>file size and mapping do not expose invalid ranges;</li>
+<li>free-space summaries agree with detailed maps; and</li>
+<li>recovery records are either complete and committed or safely ignored.</li>
+</ul>
+<p>Dependencies can be enforced by synchronous ordering, a write-ahead log, copy-on-write root commit, soft updates, shadow paging or other protocols. The design must propagate ordering through CPU caches, filesystem queues, the block layer and volatile device caches. A source-code order such as <code>write(A); write(B);</code> is not by itself a persistence order.</p>
+<p>Crash consistency is also not the same as an application transaction. A journal may ensure that a renamed file never points at an unallocated inode while still recovering either the old or new version. Whether the application was allowed to acknowledge the new version depends on its <code>fsync()</code> protocol. Several files updated by separate calls can be individually consistent yet mutually represent an impossible business state.</p>
+</section>
+</section>
+<section id="recovery-techniques" class="level3">
+<h3 class="anchored" data-anchor-id="recovery-techniques"><strong>Recovery Techniques</strong></h3>
+<p>Recovery mechanisms differ mainly in <strong>what evidence they leave before the crash</strong>. A checker has only the final collection of blocks and must infer a plausible consistent state. A journal keeps a bounded description or copy of pending updates and uses a commit record to distinguish complete transactions from incomplete ones. A copy-on-write filesystem preserves the old tree while constructing the new one, then publishes a new root only after its descendants are stable.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 17%">
+<col style="width: 17%">
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 17%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Technique</th>
+<th>Evidence available after reboot</th>
+<th style="text-align: right;">Normal-write cost</th>
+<th style="text-align: right;">Recovery work</th>
+<th>Main limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>File-system checking</td>
+<td>Existing metadata and structural invariants</td>
+<td style="text-align: right;">Little protocol overhead</td>
+<td style="text-align: right;">Potentially scans a large fraction of the filesystem</td>
+<td>Repair can be slow and semantically ambiguous</td>
+</tr>
+<tr class="even">
+<td>Metadata journaling</td>
+<td>Committed log transactions plus home locations</td>
+<td style="text-align: right;">Extra metadata writes and ordering barriers</td>
+<td style="text-align: right;">Replay a bounded journal tail</td>
+<td>User data may still reflect an older version</td>
+</tr>
+<tr class="odd">
+<td>Full-data journaling</td>
+<td>Logged data and metadata</td>
+<td style="text-align: right;">High write amplification</td>
+<td style="text-align: right;">Replay committed transactions</td>
+<td>Duplicates most writes</td>
+</tr>
+<tr class="even">
+<td>Copy-on-write trees</td>
+<td>Old root and fully written candidate subtrees</td>
+<td style="text-align: right;">Path copying, allocation and reference tracking</td>
+<td style="text-align: right;">Select a valid committed root; later reclaim old blocks</td>
+<td>Fragmentation and space-management complexity</td>
+</tr>
+</tbody>
+</table>
+<p>All three protect <strong>filesystem structure</strong>, but none alone replaces backups. If software overwrites the wrong file, an administrator deletes data intentionally, or the whole device is lost, the filesystem may remain perfectly consistent while the desired information is gone.</p>
+<section id="file-system-checking" class="level4">
+<h4 class="anchored" data-anchor-id="file-system-checking"><strong>File-System Checking</strong></h4>
+<p>A file-system checker such as <code>fsck</code> treats the disk image as a graph plus allocation accounting. It reads trusted bootstrap metadata, walks reachable directories and inodes, records which blocks and objects are claimed, then reconciles those observations with free-space maps and stored counters. The checker is reconstructing invariants after the fact; it is not replaying the exact intent of the interrupted operation.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fsck-reconciliation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/fsck-reconciliation.svg" class="img-fluid figure-img" style="width:96.0%" alt="File-system checker pipeline: validate superblock, scan inodes, traverse directories, build observed block ownership, compare bitmaps and link counts, then repair or quarantine ambiguous objects."></a></p>
+<figcaption>A file-system checker scans metadata, rebuilds observed ownership, compares it with allocation maps, and applies conservative repairs.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-journaling.pdf">OSTEP crash consistency and recovery</a> and <a href="https://pages.cs.wisc.edu/~bart/537/lecturenotes/s27.html">UW CS537 crash-recovery notes</a>.</em></p>
+<p>A simplified checker proceeds as follows:</p>
+<pre class="text"><code>CHECK-FILE-SYSTEM(image)
+    validate and choose a usable superblock copy
+    observed_blocks &lt;- empty ownership map
+    observed_links  &lt;- zero for every inode
+
+    for each allocated inode i:
+        validate type, size, timestamps, and block mappings
+        for each block b referenced by i:
+            record that i claims b
+            flag b if out of range or multiply claimed
+
+    traverse directories beginning at the root:
+        validate each name -&gt; inode entry
+        increment observed_links[target inode]
+        detect malformed cycles and unreachable subtrees
+
+    compare observations with inode/block allocation maps
+    repair unambiguous mismatches
+    quarantine or ask about ambiguous objects
+    recompute summaries and write repaired metadata safely</code></pre>
+<p>The two scans answer different questions. Walking allocated inodes discovers block claims even for files no longer reachable by any directory name. Walking the namespace discovers references and reachability. Their cross-check reveals common inconsistencies:</p>
+<ul>
+<li>a block marked free but referenced by an inode must not be reallocated;</li>
+<li>a block marked allocated but referenced nowhere can usually be reclaimed;</li>
+<li>two unrelated inodes claiming one ordinary block require choosing an owner or copying data;</li>
+<li>a reachable directory entry pointing to a free inode is invalid;</li>
+<li>an allocated, internally valid inode with no reachable name may be attached under a recovery directory such as <code>lost+found</code>; and</li>
+<li>a stored link count can be replaced by the count observed from directory entries.</li>
+</ul>
+<p>Some repairs are logically safe but semantically unknowable. A checker can prove that an orphaned inode contains a plausible file; it cannot infer the original human-readable name or which project directory the user intended. Duplicate block ownership is worse: both files may contain valuable fragments, and no local invariant reveals which content is authoritative. Production tools therefore distinguish automatic low-risk repairs from actions that require policy, operator confirmation or read-only diagnosis.</p>
+<p>The classic cost is proportional to filesystem metadata or capacity rather than the tiny set of blocks modified just before the crash. On multi-terabyte volumes, a full offline scan can dominate reboot time. Journals, checksums, duplicated superblocks, orphan lists and online scrub mechanisms reduce routine recovery cost, but checkers remain valuable when a bug, latent media error or corrupted journal violates the normal crash model.</p>
+</section>
+<section id="journaling-and-write-ahead-logging" class="level4">
+<h4 class="anchored" data-anchor-id="journaling-and-write-ahead-logging"><strong>Journaling and Write-Ahead Logging</strong></h4>
+<p><strong>Journaling</strong> applies write-ahead logging (WAL) to filesystem updates: record enough information in a dedicated log <strong>before</strong> the corresponding home-location metadata is allowed to become durable. A transaction’s commit record is the recovery decision point. If the commit is valid, replay is safe; if it is absent or torn, the incomplete transaction is ignored.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/journal-wal-recovery-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/journal-wal-recovery-animated.svg" class="img-fluid figure-img" style="width:97.0%" alt="Animated write-ahead logging sequence: descriptor and metadata copies enter a circular journal, a commit record makes the transaction recoverable, home blocks are checkpointed, and reboot replays only complete committed records."></a></p>
+<figcaption>A journal transaction writes a descriptor and log records, commits them, checkpoints home locations, and replays only committed transactions after a crash.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original animated diagram based on the <a href="https://docs.kernel.org/filesystems/ext4/journal.html">Linux ext4 journal documentation</a>, <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-journaling.pdf">OSTEP journaling</a> and <a href="https://pages.cs.wisc.edu/~bart/537/lecturenotes/s27.html">UW CS537 WAL notes</a>.</em></p>
+<p>For a redo-style metadata journal, the core protocol is:</p>
+<pre class="text"><code>COMMIT-JOURNAL-TRANSACTION(T)
+    append descriptor(T: which home blocks will change)
+    append new copies of T's journaled blocks
+    force descriptor and copies to stable storage
+    append and force COMMIT(T)
+    acknowledge T as journal-committed
+
+    later, write T's blocks to their home locations       // checkpoint
+    after checkpoint is durable, reclaim T's journal space
+
+RECOVER(journal)
+    scan records using sequence numbers and checksums
+    for each complete transaction with a valid COMMIT:
+        copy its logged blocks to their home locations     // redo
+    ignore incomplete or invalid trailing transactions</code></pre>
+<p>Redo is designed to be <strong>idempotent</strong>: replaying the same committed image twice produces the same home block. Sequence numbers prevent stale circular-log records from being mistaken for current work, checksums detect torn or corrupted records, and revoke records can prevent an obsolete logged image from overwriting a block that was later freed and reused.</p>
+<p>Journaling normally batches many system calls into one filesystem transaction. Batching amortizes descriptor, commit and flush costs, while the circular journal bounds recovery: reboot scans the active tail rather than every inode on the volume. The trade-off is that a committed metadata block is often written twice, once to the journal and once to its home location. If <span class="math inline">\(M\)</span> bytes of metadata are journaled, the lower-bound metadata traffic is approximately <span class="math inline">\(2M\)</span> before accounting for descriptors, commits, alignment and cleaner effects.</p>
+<p>What enters the journal defines the guarantee:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mode</th>
+<th>What is logged</th>
+<th>Critical ordering</th>
+<th>Consequence after recovery</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Metadata journaling with ordered data</td>
+<td>Metadata copies; new file data goes to home blocks first</td>
+<td>Data must be stable before metadata that exposes it commits</td>
+<td>Structure is consistent and newly exposed ranges do not contain stale old-owner bytes</td>
+</tr>
+<tr class="even">
+<td>Writeback data mode</td>
+<td>Metadata copies; data may reach disk before or after metadata</td>
+<td>Fewer data-before-metadata constraints</td>
+<td>Structure recovers, but recent file contents can be stale or surprising</td>
+</tr>
+<tr class="odd">
+<td>Full data journaling</td>
+<td>File data and metadata</td>
+<td>Entire transaction reaches journal before commit</td>
+<td>Strongest simple journal guarantee, with high write traffic</td>
+</tr>
+</tbody>
+</table>
+<p>Linux ext4 commonly uses metadata journaling with <code>data=ordered</code>: data associated with a metadata transaction is sent to its final location before that metadata transaction commits. <code>data=journal</code> writes both through the journal, while <code>data=writeback</code> relaxes the ordering. These are filesystem policies, not substitutes for the application’s own <code>fsync()</code> commit point.</p>
+<p>The distinction between three events is essential:</p>
+<ol type="1">
+<li>A system call has returned, so the operation is visible to processes using the current kernel state.</li>
+<li>A filesystem transaction has committed to its journal, so its journaled structures can be replayed after reboot.</li>
+<li>The application’s intended unit of work is durable, including every required file and directory update.</li>
+</ol>
+<p>Those events need not coincide. A journal can preserve internal allocation invariants without promising that an unsynchronized user file contains its newest bytes. Likewise, two independently journaled files do not automatically form one application-level transaction. Databases therefore keep their own WAL: the database knows which pages jointly represent a committed transaction, while the filesystem knows how to keep its block and namespace structures recoverable.</p>
+</section>
+<section id="copy-on-write-file-systems" class="level4">
+<h4 class="anchored" data-anchor-id="copy-on-write-file-systems"><strong>Copy-on-Write File Systems</strong></h4>
+<p>A copy-on-write (COW) filesystem never overwrites blocks that belong to the currently committed tree while preparing an update. It writes modified leaves to new locations, recursively writes new ancestors that point to them, and only then publishes a new root reference. The old root remains a complete fallback until the new root is durably selected.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cow-tree-atomic-root.svg" class="lightbox" data-gallery="quarto-lightbox-inline-14"><img src="assets/cow-tree-atomic-root.svg" class="img-fluid figure-img" style="width:96.0%" alt="Copy-on-write B-tree update: unchanged subtrees are shared, modified leaf and ancestors are written to new blocks, and a final root or superblock switch commits the new tree while the old root remains recoverable."></a></p>
+<figcaption>Copy-on-write constructs a new leaf and ancestor path while preserving the old tree, then atomically publishes a new root.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://btrfs.readthedocs.io/en/stable/dev/dev-btrfs-design.html">Btrfs design documentation</a> and the shadow-paging treatment in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-journaling.pdf">OSTEP crash consistency</a>.</em></p>
+<p>Suppose root <span class="math inline">\(R_0\)</span> reaches internal node <span class="math inline">\(A_0\)</span> and leaf <span class="math inline">\(L_0\)</span>. Updating one record follows this dependency order:</p>
+<pre class="text"><code>COW-UPDATE(key, value)
+    L1 &lt;- allocate copy of L0 with (key, value) changed
+    write_and_verify(L1)
+
+    A1 &lt;- allocate copy of A0 pointing to L1
+    write_and_verify(A1)
+
+    R1 &lt;- allocate new root pointing to A1 and unchanged subtrees
+    write_and_verify(R1)
+
+    publish_new_root(R1)       // small, carefully protected commit record</code></pre>
+<p>A crash before the final publication leaves <span class="math inline">\(R_0\)</span> authoritative; unreachable new blocks can be reclaimed. A crash after a valid root publication selects <span class="math inline">\(R_1\)</span>. Real formats protect root selection with duplicated superblocks, generations, checksums and ordering rules because writing the root pointer itself can fail.</p>
+<p>COW naturally enables snapshots and reflinks. A snapshot adds another root that references existing immutable blocks; subsequent updates copy only changed paths. Sharing requires reference counts or back-reference structures so a physical extent is freed only after its last logical owner disappears. Checksums fit naturally because a parent can store the checksum of the child version it references.</p>
+<p>The price is displaced rather than eliminated:</p>
+<ul>
+<li>repeatedly changing a small logical region can fragment both data and metadata;</li>
+<li>changing one leaf may rewrite every tree node on its root path, known as the <strong>wandering-tree problem</strong>;</li>
+<li>reference accounting, delayed allocation and transaction aborts make low-space behavior difficult;</li>
+<li>snapshots retain old extents, so deleting a file may free much less space than expected;</li>
+<li>background balance, scrub and garbage collection compete with foreground I/O; and</li>
+<li>COW preserves old versions on the same storage system, so it is not an independent backup.</li>
+</ul>
+<p>Journaling and COW are not mutually exclusive implementation labels: a system can combine COW trees with log-like structures for fast synchronization or use a journal alongside otherwise in-place data. The useful question is which structures are overwritten, what record marks a transaction committed, and how recovery validates that record.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Journaling / in-place home blocks</th>
+<th>Copy-on-write tree</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>How is old committed state preserved?</td>
+<td>Redo information in a bounded journal</td>
+<td>Old blocks remain reachable from old root</td>
+</tr>
+<tr class="even">
+<td>Commit point</td>
+<td>Valid journal commit record</td>
+<td>Valid publication of a new root/generation</td>
+</tr>
+<tr class="odd">
+<td>Post-commit cleanup</td>
+<td>Checkpoint log copies to home locations</td>
+<td>Reclaim blocks no longer referenced by any root</td>
+</tr>
+<tr class="even">
+<td>Snapshot fit</td>
+<td>Requires separate machinery</td>
+<td>Natural through shared immutable extents</td>
+</tr>
+<tr class="odd">
+<td>Common performance concern</td>
+<td>Double metadata writes and flush latency</td>
+<td>Fragmentation, path copying and reference updates</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="log-structured-and-ssd-aware-file-systems" class="level3">
+<h3 class="anchored" data-anchor-id="log-structured-and-ssd-aware-file-systems"><strong>Log-Structured and SSD-Aware File Systems</strong></h3>
+<p>A <strong>log-structured filesystem (LFS)</strong> treats the log as the primary long-term layout: data blocks, inode versions and mapping information are accumulated in memory and appended in large sequential <strong>segments</strong>. This differs from journaling, where a usually bounded side log protects updates that will later live in conventional home locations.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lfs-segment-cleaning.svg" class="lightbox" data-gallery="quarto-lightbox-inline-15"><img src="assets/lfs-segment-cleaning.svg" class="img-fluid figure-img" style="width:97.0%" alt="Log-structured filesystem flow: buffered data and metadata are appended to a new segment with summaries, an inode map locates latest versions, and a cleaner copies live blocks from victim segments before reclaiming them."></a></p>
+<figcaption>A log-structured filesystem appends new versions to segments and later cleans low-live-data victim segments.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/file-lfs.pdf">OSTEP Log-structured File Systems</a> and the <a href="https://docs.kernel.org/filesystems/f2fs.html">Linux F2FS design documentation</a>.</em></p>
+<p>An LFS update does not seek back to overwrite every old block. It appends new versions and updates an inode map or node-address table that locates the latest metadata. Segment summaries identify which logical object and version produced each physical block. Recovery begins from checkpoints and scans a bounded tail to discover later complete updates.</p>
+<p>Append-only placement makes foreground writes large and sequential, but old versions become garbage. A <strong>segment cleaner</strong> must:</p>
+<ol type="1">
+<li>choose victim segments, preferably those with little live data or old cold data;</li>
+<li>read their summaries and verify which blocks are still current;</li>
+<li>copy live blocks into new segments;</li>
+<li>update mappings so the copies become current; and</li>
+<li>erase or release the old segments for reuse.</li>
+</ol>
+<p>Cleaning economics depend strongly on utilization. If a victim segment has live fraction <span class="math inline">\(u\)</span>, copying its live data frees only fraction <span class="math inline">\(1-u\)</span> of the segment. Ignoring metadata and reads, the copying work per unit of space reclaimed grows roughly as</p>
+<p><span class="math display">\[
+\text{copy cost per reclaimed byte} \propto \frac{u}{1-u}.
+\]</span></p>
+<p>At <span class="math inline">\(u=0.2\)</span>, copying <span class="math inline">\(0.2\)</span> segment frees <span class="math inline">\(0.8\)</span> segment; at <span class="math inline">\(u=0.9\)</span>, copying <span class="math inline">\(0.9\)</span> frees only <span class="math inline">\(0.1\)</span>. This is why free-space reserve, age-aware victim selection and hot/cold separation are structural performance policies rather than optional tuning.</p>
+<p>For storage systems, <strong>write amplification</strong> is often summarized as</p>
+<p><span class="math display">\[
+WA = \frac{\text{physical bytes written below a layer}}
+          {\text{logical bytes requested above that layer}}.
+\]</span></p>
+<p>An LFS can reduce small random foreground writes while cleaning raises filesystem-level <span class="math inline">\(WA\)</span>. On flash, a separate flash translation layer (FTL) performs page remapping and erase-block garbage collection, producing another amplification layer. Filesystem cleaning and FTL cleaning can interfere if each moves data without knowing the other’s liveness and temperature.</p>
+<p>SSD-aware designs therefore consider properties absent from a simple magnetic-disk model:</p>
+<ul>
+<li>pages can be programmed, but an erase normally operates on a larger erase block;</li>
+<li>overwrites are implemented out of place by the device controller;</li>
+<li>discard/TRIM can tell the device which logical ranges no longer contain live data;</li>
+<li>write endurance and internal parallel channels affect placement policy;</li>
+<li>separating hot, warm and cold data reduces repeated movement of long-lived blocks; and</li>
+<li>zoned devices may require sequential writes within explicitly managed zones.</li>
+</ul>
+<p>F2FS, for example, follows a log-structured approach but introduces multiple active logs for different data temperatures and a Node Address Table (NAT) that maps node identifiers to current block addresses. NAT reduces the classic wandering-tree cascade because a moved node does not require every ancestor pointer to be rewritten immediately. Checkpoints, segment summaries and roll-forward recovery work together to locate a valid state.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layout</th>
+<th>Normal placement</th>
+<th>Space reclamation</th>
+<th>Best-case strength</th>
+<th>Recurring cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>In-place indexed/extents</td>
+<td>Rewrite mapped home regions</td>
+<td>Free blocks/extents directly</td>
+<td>Stable locality for mature files</td>
+<td>Small random updates and crash ordering</td>
+</tr>
+<tr class="even">
+<td>Journaled in-place</td>
+<td>Journal first, then home regions</td>
+<td>Reclaim checkpointed journal tail</td>
+<td>Fast bounded recovery</td>
+<td>Journal traffic plus home writes</td>
+</tr>
+<tr class="odd">
+<td>Copy-on-write tree</td>
+<td>New extents and new tree paths</td>
+<td>Reference-count/tree-based reclaim</td>
+<td>Snapshots, checksums, atomic root commits</td>
+<td>Fragmentation and metadata path copying</td>
+</tr>
+<tr class="even">
+<td>Log structured</td>
+<td>Append new object versions in segments</td>
+<td>Clean segments and copy live records</td>
+<td>Batched sequential foreground writes</td>
+<td>Cleaning amplification and free-space sensitivity</td>
+</tr>
+</tbody>
+</table>
+<p>No layout is universally fastest. Workload lifetime, overwrite frequency, free-space headroom, device behavior, required snapshots, recovery targets and operational tools all matter. A benchmark that measures only a fresh empty filesystem misses the long-run steady state where fragmentation or cleaning dominates.</p>
+</section>
+<section id="tracing-the-running-case-through-the-file-system" class="level3">
+<h3 class="anchored" data-anchor-id="tracing-the-running-case-through-the-file-system"><strong>Tracing the Running Case Through the File System</strong></h3>
+<p>Return to the chapter’s running operation: safely replace <code>state/config.json</code> with a new generation and report success only when the replacement can survive the promised crash model. The end-to-end path joins the abstractions developed throughout this chapter.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fs-running-case-end-to-end.svg" class="lightbox" data-gallery="quarto-lightbox-inline-16"><img src="assets/fs-running-case-end-to-end.svg" class="img-fluid figure-img" style="width:98.0%" alt="End-to-end filesystem trace for durable replacement: resolve parent directory, create temporary inode, write through page cache, map extents and persist file, atomically rename, persist directory, recover via journal replay or copy-on-write root selection."></a></p>
+<figcaption>End-to-end durable replacement flows from pathname lookup through descriptors, cache and allocation to journal or COW commit and device persistence.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original chapter synthesis grounded in the <a href="https://docs.kernel.org/filesystems/vfs.html">Linux VFS</a>, <a href="https://man7.org/linux/man-pages/man2/open.2.html"><code>open(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/rename.2.html"><code>rename(2)</code></a> and the recovery sources cited above.</em></p>
+<p>The operation can be traced as follows:</p>
+<ol type="1">
+<li><code>open("state", O_DIRECTORY)</code> begins pathname lookup from the process root/current-directory context. The VFS crosses mount boundaries, consults dentries and obtains the parent directory inode.</li>
+<li><code>openat(..., O_CREAT | O_EXCL)</code> allocates a new inode and a temporary directory entry. The returned descriptor refers to a new open file description; later renaming the pathname does not invalidate it.</li>
+<li><code>write()</code> copies bytes into page-cache pages and marks them dirty. Allocation may be delayed, so no final physical extent is required at the instant <code>write()</code> returns.</li>
+<li>Writeback allocates blocks/extents, transforms dirty pages into I/O, and records metadata dependencies. Checksums, encryption and mapping layers may add work before requests reach the device.</li>
+<li><code>fdatasync(tempfd)</code> waits for the file data and retrieval-essential metadata, such as size and mappings, according to the filesystem/device error model. At this point the temporary file’s content is durable, but the final name has not changed.</li>
+<li><code>renameat()</code> atomically changes namespace visibility within the same filesystem: concurrent lookup sees either the old target or the new target, not a half-name. The replaced inode may remain alive while another process holds it open.</li>
+<li><code>fsync(dirfd)</code> asks the filesystem to persist the directory-entry change. This step closes the common gap where the new file bytes survive but the rename disappears after reboot.</li>
+<li>The filesystem commits the relevant journal transaction or COW root and sends required write/flush ordering through the block layer. Only completed commits are selected during recovery.</li>
+</ol>
+<p>The crash point determines the allowed visible version:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Crash point</th>
+<th>Structurally acceptable recovery</th>
+<th>Application interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Before temporary file sync</td>
+<td>Old target remains; incomplete temporary file may be absent or removable</td>
+<td>Operation did not commit</td>
+</tr>
+<tr class="even">
+<td>After temporary file sync, before rename</td>
+<td>Old target remains and durable temporary file may remain</td>
+<td>Safe to retry or clean temp by policy</td>
+</tr>
+<tr class="odd">
+<td>After rename, before directory sync</td>
+<td>New target was visible before crash, but recovered name may be old or new depending on guarantees</td>
+<td>Do not report durable success yet</td>
+</tr>
+<tr class="even">
+<td>After directory sync completes successfully</td>
+<td>New target and name should survive the covered crash model</td>
+<td>Commit can be acknowledged</td>
+</tr>
+<tr class="odd">
+<td>Device reports a write/flush error</td>
+<td>State and durability can be uncertain; later calls may report deferred error</td>
+<td>Stop claiming success and enter explicit error recovery</td>
+</tr>
+</tbody>
+</table>
+<p>This protocol provides <strong>whole-file replacement</strong>, not a transaction spanning arbitrary files. Updating <code>config.json</code> and <code>index.json</code> as one indivisible state requires an application-level design: a manifest or generation pointer written last, a database transaction/WAL, or a filesystem transaction API with precisely documented semantics. Correct persistence starts by defining the logical commit unit.</p>
+<details>
+<summary>
+<strong>Observe the path with Linux inspection tools</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify the mount and filesystem that own the target pathname.</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">findmnt</span> <span class="at">-T</span> ./state/config.json</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare pathname metadata and inode identity before and after replacement.</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">stat</span> ./state/config.json</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Show logical-to-physical extents when the filesystem/tool supports it.</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="ex">filefrag</span> <span class="at">-v</span> ./state/config.json</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Trace only the namespace, write, synchronization, and close calls.</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># -ff follows child processes; -ttT shows time and syscall duration.</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-ff</span> <span class="at">-ttT</span> <span class="dt">\</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=openat,write,fdatasync,renameat,fsync,close <span class="dt">\</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>  ./durable_replace ./state config.json <span class="st">'{"generation":3}'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Read the trace as a contract, not merely a call list. Check that data synchronization precedes publication, that rename occurs in one parent directory, and that a successful directory <code>fsync()</code> follows publication. <code>filefrag</code> is observational: physical extents may move later because of COW, defragmentation or cleaning, and some filesystems intentionally hide or virtualize placement.</p>
+</details>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>A filesystem combines several independent policy choices. “It uses inodes” says how objects are described; “it uses extents” says how logical ranges map to storage; “it is journaled” says how interrupted updates recover; “it is copy-on-write” says how new versions are published; and “it is log structured” says where normal new versions are placed. Treating these labels as mutually exclusive whole-system categories obscures real designs.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layer or question</th>
+<th>Core abstraction</th>
+<th>What it solves</th>
+<th>What it does not guarantee alone</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Namespace</td>
+<td>Directories, dentries, hard/symbolic links</td>
+<td>Human-readable paths and sharing</td>
+<td>Durable content or authorization policy</td>
+</tr>
+<tr class="even">
+<td>Open state</td>
+<td>Descriptor and open file description</td>
+<td>Per-process handle, offset and status</td>
+<td>Path still exists or data is persistent</td>
+</tr>
+<tr class="odd">
+<td>Object metadata</td>
+<td>Inode/vnode</td>
+<td>Type, owner, size, timestamps and mappings</td>
+<td>One fixed physical location forever</td>
+</tr>
+<tr class="even">
+<td>Placement</td>
+<td>Blocks, indexed maps, extents</td>
+<td>Logical offset to storage mapping</td>
+<td>Crash-safe multi-block updates</td>
+</tr>
+<tr class="odd">
+<td>VFS/mounts</td>
+<td>Common object operations and namespace composition</td>
+<td>Multiple filesystem implementations under one API</td>
+<td>Identical semantics for every filesystem</td>
+</tr>
+<tr class="even">
+<td>Cache/writeback</td>
+<td>Page cache, dirty tracking and batching</td>
+<td>Low-latency access and efficient I/O</td>
+<td><code>write()</code> return equals durable storage</td>
+</tr>
+<tr class="odd">
+<td>Application commit</td>
+<td><code>fdatasync</code>/<code>fsync</code>, atomic rename, protocol</td>
+<td>Explicit durability boundary</td>
+<td>Multi-file transaction unless designed</td>
+</tr>
+<tr class="even">
+<td>Recovery</td>
+<td>fsck, journal/WAL or COW root</td>
+<td>Restores a valid structural state</td>
+<td>Correct user intent, backup or security</td>
+</tr>
+</tbody>
+</table>
+<p>The most useful misconceptions to remove are:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Misconception</th>
+<th>More accurate model</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>“A filename is the file.”</td>
+<td>A name is a directory entry that resolves to an inode-like object; links and open handles can outlive one name.</td>
+</tr>
+<tr class="even">
+<td>“A file descriptor is an inode number.”</td>
+<td>A descriptor indexes per-process state, which references a system-wide open file description and then a filesystem object.</td>
+</tr>
+<tr class="odd">
+<td>“<code>write()</code> means the bytes are on disk.”</td>
+<td><code>write()</code> usually establishes kernel-visible dirty state; persistence needs the documented synchronization protocol.</td>
+</tr>
+<tr class="even">
+<td>“<code>rename()</code> makes replacement durable.”</td>
+<td>Same-filesystem rename gives atomic namespace visibility; directory synchronization addresses persistence of that name change.</td>
+</tr>
+<tr class="odd">
+<td>“Journaling saves the newest file contents.”</td>
+<td>The journal’s guarantee depends on what is logged and ordered; it primarily protects recoverable filesystem structure.</td>
+</tr>
+<tr class="even">
+<td>“COW is automatically a backup.”</td>
+<td>Snapshots share the same administrative and failure domain unless replicated independently.</td>
+</tr>
+<tr class="odd">
+<td>“An SSD removes filesystem allocation concerns.”</td>
+<td>Flash changes the cost model and adds FTL garbage collection; locality, lifetime and write amplification still matter.</td>
+</tr>
+<tr class="even">
+<td>“Crash consistency equals application correctness.”</td>
+<td>A structurally valid old-or-new filesystem state may still violate a multi-file application invariant.</td>
+</tr>
+</tbody>
+</table>
+<p>When evaluating a persistence design, ask these questions in order:</p>
+<ol type="1">
+<li><strong>Object and name:</strong> Which inode-like object does the path denote, and can links, rename or mounts change that relationship?</li>
+<li><strong>Visibility:</strong> At what operation does another process observe the new state?</li>
+<li><strong>Dirty state:</strong> Which bytes and metadata may still exist only in volatile caches?</li>
+<li><strong>Ordering:</strong> Which writes must become stable before another write may commit?</li>
+<li><strong>Commit evidence:</strong> Is completion represented by a journal commit, a COW root, a generation record or an application WAL?</li>
+<li><strong>Recovery choice:</strong> After each crash point, which old/new states are valid and how are incomplete blocks detected?</li>
+<li><strong>Error path:</strong> What happens when allocation, writeback or synchronization reports <code>ENOSPC</code>, <code>EIO</code> or delayed failure?</li>
+<li><strong>Failure scope:</strong> Does the design cover process crashes, power loss, torn writes, latent corruption, device loss and operator mistakes, or only a stated subset?</li>
+</ol>
+<p>The chapter’s central chain is therefore:</p>
+<p><span class="math display">\[
+\text{pathname}
+\rightarrow \text{dentry/inode}
+\rightarrow \text{open file state}
+\rightarrow \text{page cache}
+\rightarrow \text{block or extent mapping}
+\rightarrow \text{ordered recovery transaction}
+\rightarrow \text{stable device state}.
+\]</span></p>
+<p>Each arrow is a contract boundary. Understanding where visibility, ordering, error reporting and durability change meaning is more important than memorizing one filesystem’s block format. The next chapter adds <strong>protection and security</strong> to this storage model: who may traverse a directory, open an inode, change metadata or cross an isolation boundary, and how the kernel mediates those decisions without re-explaining the persistence machinery developed here.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

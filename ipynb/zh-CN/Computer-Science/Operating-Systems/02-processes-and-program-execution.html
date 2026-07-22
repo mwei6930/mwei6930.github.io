@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：进程与程序执行</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="02-processes-and-program-execution_files/libs/clipboard/clipboard.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/quarto.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/popper.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/anchor.min.js"></script>
+<link href="02-processes-and-program-execution_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="02-processes-and-program-execution_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="02-processes-and-program-execution_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="02-processes-and-program-execution_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="02-processes-and-program-execution_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#processes-and-program-execution" id="toc-processes-and-program-execution" class="nav-link active" data-scroll-target="#processes-and-program-execution"><strong>进程与程序执行</strong></a>
+  <ul>
+  <li><a href="#program-process-and-execution-context" id="toc-program-process-and-execution-context" class="nav-link" data-scroll-target="#program-process-and-execution-context"><strong>程序、进程与执行上下文</strong></a>
+  <ul>
+  <li><a href="#a-program-is-not-yet-a-process" id="toc-a-program-is-not-yet-a-process" class="nav-link" data-scroll-target="#a-program-is-not-yet-a-process"><strong>程序尚不是进程</strong></a></li>
+  <li><a href="#process-identity-and-resource-ownership" id="toc-process-identity-and-resource-ownership" class="nav-link" data-scroll-target="#process-identity-and-resource-ownership"><strong>进程身份与资源所有权</strong></a></li>
+  </ul></li>
+  <li><a href="#the-process-image" id="toc-the-process-image" class="nav-link" data-scroll-target="#the-process-image"><strong>进程映像</strong></a>
+  <ul>
+  <li><a href="#virtual-address-space-layout" id="toc-virtual-address-space-layout" class="nav-link" data-scroll-target="#virtual-address-space-layout"><strong>虚拟地址空间布局</strong></a></li>
+  <li><a href="#registers-stacks-and-kernel-state" id="toc-registers-stacks-and-kernel-state" class="nav-link" data-scroll-target="#registers-stacks-and-kernel-state"><strong>寄存器、栈与内核状态</strong></a></li>
+  <li><a href="#the-process-control-block" id="toc-the-process-control-block" class="nav-link" data-scroll-target="#the-process-control-block"><strong>进程控制块</strong></a></li>
+  </ul></li>
+  <li><a href="#process-states-and-transitions" id="toc-process-states-and-transitions" class="nav-link" data-scroll-target="#process-states-and-transitions"><strong>进程状态与转换</strong></a>
+  <ul>
+  <li><a href="#ready-running-blocked-and-terminated" id="toc-ready-running-blocked-and-terminated" class="nav-link" data-scroll-target="#ready-running-blocked-and-terminated"><strong>就绪、运行、阻塞与终止</strong></a></li>
+  <li><a href="#parent-child-orphan-and-zombie-processes" id="toc-parent-child-orphan-and-zombie-processes" class="nav-link" data-scroll-target="#parent-child-orphan-and-zombie-processes"><strong>父进程、子进程、孤儿进程与僵尸进程</strong></a></li>
+  </ul></li>
+  <li><a href="#creating-and-terminating-processes" id="toc-creating-and-terminating-processes" class="nav-link" data-scroll-target="#creating-and-terminating-processes"><strong>创建与终止进程</strong></a>
+  <ul>
+  <li><a href="#fork-exec-wait-and-exit" id="toc-fork-exec-wait-and-exit" class="nav-link" data-scroll-target="#fork-exec-wait-and-exit"><strong>fork、exec、wait 与 exit</strong></a></li>
+  <li><a href="#process-spawning-beyond-fork" id="toc-process-spawning-beyond-fork" class="nav-link" data-scroll-target="#process-spawning-beyond-fork"><strong>fork 之外的进程创建方式</strong></a></li>
+  <li><a href="#copy-on-write-as-an-enabling-mechanism" id="toc-copy-on-write-as-an-enabling-mechanism" class="nav-link" data-scroll-target="#copy-on-write-as-an-enabling-mechanism"><strong>写时复制作为支撑机制</strong></a></li>
+  </ul></li>
+  <li><a href="#loading-and-linking-a-program" id="toc-loading-and-linking-a-program" class="nav-link" data-scroll-target="#loading-and-linking-a-program"><strong>加载与链接程序</strong></a>
+  <ul>
+  <li><a href="#executable-layout-and-the-loader" id="toc-executable-layout-and-the-loader" class="nav-link" data-scroll-target="#executable-layout-and-the-loader"><strong>可执行文件布局与加载器</strong></a></li>
+  <li><a href="#static-and-dynamic-linking" id="toc-static-and-dynamic-linking" class="nav-link" data-scroll-target="#static-and-dynamic-linking"><strong>静态链接与动态链接</strong></a></li>
+  <li><a href="#arguments-environment-and-initial-stack" id="toc-arguments-environment-and-initial-stack" class="nav-link" data-scroll-target="#arguments-environment-and-initial-stack"><strong>参数、环境与初始栈</strong></a></li>
+  </ul></li>
+  <li><a href="#context-switching" id="toc-context-switching" class="nav-link" data-scroll-target="#context-switching"><strong>上下文切换</strong></a>
+  <ul>
+  <li><a href="#saving-and-restoring-execution-state" id="toc-saving-and-restoring-execution-state" class="nav-link" data-scroll-target="#saving-and-restoring-execution-state"><strong>保存与恢复执行状态</strong></a></li>
+  <li><a href="#direct-and-indirect-context-switch-costs" id="toc-direct-and-indirect-context-switch-costs" class="nav-link" data-scroll-target="#direct-and-indirect-context-switch-costs"><strong>直接与间接上下文切换成本</strong></a></li>
+  </ul></li>
+  <li><a href="#file-descriptors-as-process-capabilities" id="toc-file-descriptors-as-process-capabilities" class="nav-link" data-scroll-target="#file-descriptors-as-process-capabilities"><strong>文件描述符作为进程能力</strong></a>
+  <ul>
+  <li><a href="#descriptor-tables-and-open-file-descriptions" id="toc-descriptor-tables-and-open-file-descriptions" class="nav-link" data-scroll-target="#descriptor-tables-and-open-file-descriptions"><strong>描述符表与打开文件描述</strong></a></li>
+  <li><a href="#redirection-and-descriptor-inheritance" id="toc-redirection-and-descriptor-inheritance" class="nav-link" data-scroll-target="#redirection-and-descriptor-inheritance"><strong>重定向与描述符继承</strong></a></li>
+  </ul></li>
+  <li><a href="#how-a-shell-builds-the-running-pipeline" id="toc-how-a-shell-builds-the-running-pipeline" class="nav-link" data-scroll-target="#how-a-shell-builds-the-running-pipeline"><strong>Shell 如何构建贯穿管道</strong></a></li>
+  <li><a href="#observing-processes-in-linux" id="toc-observing-processes-in-linux" class="nav-link" data-scroll-target="#observing-processes-in-linux"><strong>在 Linux 中观察进程</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：进程与程序执行</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/02-processes-and-program-execution.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="processes-and-program-execution" class="level2">
+<h2 class="anchored" data-anchor-id="processes-and-program-execution"><strong>进程与程序执行</strong></h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>这条管道需要的不只是把两个可执行文件读入内存。内核必须创建两个受保护的执行实体，建立它们的地址空间和文件描述符关系，在可运行、运行与等待状态之间调度它们，并在退出后回收状态。<strong>程序（program）</strong>描述可以执行什么，<strong>进程（process）</strong>则描述一次正在被操作系统管理的执行实例。</p>
+<p>本章沿程序从磁盘映像到可运行进程的路径，解释 <code>fork</code>、<code>exec</code>、<code>wait</code>、copy-on-write、动态加载、上下文切换和文件描述符继承。核心问题始终是：<strong>哪些状态定义了执行，谁拥有这些状态，以及它们何时被复制、替换、共享或回收？</strong></p>
+<section id="program-process-and-execution-context" class="level3">
+<h3 class="anchored" data-anchor-id="program-process-and-execution-context"><strong>程序、进程与执行上下文</strong></h3>
+<section id="a-program-is-not-yet-a-process" class="level4">
+<h4 class="anchored" data-anchor-id="a-program-is-not-yet-a-process"><strong>程序尚不是进程</strong></h4>
+<p>程序通常是持久存储上的被动表示，包含机器指令、已初始化数据以及加载器需要的元数据。它本身没有当前程序计数器、调度状态、打开文件或正在变化的堆。只有加载器建立地址空间、内核分配身份与资源、CPU 上下文准备完成后，它才成为可执行的进程。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/program-to-process.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/program-to-process.svg" class="img-fluid figure-img" style="width:96.0%" alt="可执行文件经过加载器形成用户虚拟地址空间，并关联内核维护的进程状态。"></a></p>
+<figcaption>程序是被动输入，进程则结合已加载地址空间与内核维护的执行状态</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>状态类别</th>
+<th>典型内容</th>
+<th>为什么需要</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>程序表示</td>
+<td>机器指令、初始化数据、加载元数据</td>
+<td>定义能够进行的计算</td>
+</tr>
+<tr class="even">
+<td>内存上下文</td>
+<td>页表、映射、栈、堆、共享库</td>
+<td>为指令和数据提供受保护虚拟地址</td>
+</tr>
+<tr class="odd">
+<td>CPU 上下文</td>
+<td>程序计数器、栈指针、通用寄存器、状态标志</td>
+<td>精确记录从哪里继续执行</td>
+</tr>
+<tr class="even">
+<td>内核上下文</td>
+<td>PID、凭据、调度状态、描述符、信号与核算</td>
+<td>让内核管理、保护、观察并最终回收执行</td>
+</tr>
+</tbody>
+</table>
+<p>同一个程序文件可以同时对应许多进程，它们拥有不同 PID、参数、环境变量、地址空间和打开文件。反过来，一个进程也可以通过 <code>execve()</code> 保留身份和部分资源，却把当前程序映像整体替换成另一个程序。</p>
+</section>
+<section id="process-identity-and-resource-ownership" class="level4">
+<h4 class="anchored" data-anchor-id="process-identity-and-resource-ownership"><strong>进程身份与资源所有权</strong></h4>
+<p>PID 是查找进程的标识符，却不是完整的安全身份。内核还维护父进程、进程组、会话、用户与组凭据、安全标签、命名空间、资源限制和能力。PID 会复用，因此长期引用不能仅凭一个旧数字判断对象仍是原进程；现代接口可使用 pidfd 等带生命周期语义的句柄。</p>
+<p>“进程拥有资源”通常表示内核在进程上下文中维护引用：描述符表引用打开文件，地址空间引用页表和映射，凭据控制权限，信号状态与计时器随进程或线程组存在。当最后一个引用消失时，内核才能回收相应对象。</p>
+</section>
+</section>
+<section id="the-process-image" class="level3">
+<h3 class="anchored" data-anchor-id="the-process-image"><strong>进程映像</strong></h3>
+<p>进程映像不仅是可执行文件内容，还包括运行时映射、寄存器、用户栈以及内核无法直接放入用户地址空间的管理状态。</p>
+<section id="virtual-address-space-layout" class="level4">
+<h4 class="anchored" data-anchor-id="virtual-address-space-layout"><strong>虚拟地址空间布局</strong></h4>
+<p>典型进程地址空间由多个用途和权限不同的区域组成：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>区域</th>
+<th>典型内容</th>
+<th>常见权限</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Text</td>
+<td>编译后的机器指令</td>
+<td>读、执行</td>
+</tr>
+<tr class="even">
+<td>只读数据</td>
+<td>常量与不可变表</td>
+<td>读</td>
+</tr>
+<tr class="odd">
+<td>Data</td>
+<td>已初始化的可写全局变量</td>
+<td>读、写</td>
+</tr>
+<tr class="even">
+<td>BSS</td>
+<td>零初始化全局变量，文件中可紧凑表示</td>
+<td>读、写</td>
+</tr>
+<tr class="odd">
+<td>Heap</td>
+<td>动态分配，传统上由 <code>brk()</code> 扩展，也可来自映射</td>
+<td>读、写</td>
+</tr>
+<tr class="even">
+<td>Memory mappings</td>
+<td>共享库、映射文件、匿名区、线程栈</td>
+<td>取决于映射</td>
+</tr>
+<tr class="odd">
+<td>用户栈</td>
+<td>调用帧、局部变量、初始参数与环境</td>
+<td>读、写，通常不可执行</td>
+</tr>
+<tr class="even">
+<td>内核提供映射</td>
+<td>例如 Linux vDSO</td>
+<td>取决于映射</td>
+</tr>
+</tbody>
+</table>
+<p>图中地址顺序只是概念模型。ASLR 会随机化位置，栈和堆也不必简单相向生长；真正不变量是每个虚拟区间都有来源、权限与生命周期。</p>
+</section>
+<section id="registers-stacks-and-kernel-state" class="level4">
+<h4 class="anchored" data-anchor-id="registers-stacks-and-kernel-state"><strong>寄存器、栈与内核状态</strong></h4>
+<p>CPU 寄存器说明执行“此刻在哪里”，用户栈保存函数调用链和局部状态，内核栈则服务于该线程进入内核后的受保护执行。用户栈不能用作内核栈，否则恶意程序可以篡改返回路径和局部内核数据。</p>
+<p>当线程被抢占或阻塞时，内核保存足够的寄存器状态，稍后才能像从未离开过一样恢复。并非所有状态都必须在每次切换时主动复制：部分状态已位于线程控制块或内核栈，浮点/向量状态也可按体系结构策略延迟或优化保存。</p>
+</section>
+<section id="the-process-control-block" class="level4">
+<h4 class="anchored" data-anchor-id="the-process-control-block"><strong>进程控制块</strong></h4>
+<p><strong>进程控制块（PCB）</strong>是描述内核所维护每进程信息的教学术语；实际内核可能把信息拆成多个相互引用的结构。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>领域</th>
+<th>代表性信息</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>身份</td>
+<td>PID、父进程、进程组、会话</td>
+</tr>
+<tr class="even">
+<td>执行</td>
+<td>保存寄存器、内核栈、当前状态</td>
+</tr>
+<tr class="odd">
+<td>调度</td>
+<td>优先级、策略、运行时间、队列链接、CPU 亲和性</td>
+</tr>
+<tr class="even">
+<td>内存</td>
+<td>地址空间及映射的引用</td>
+</tr>
+<tr class="odd">
+<td>资源</td>
+<td>描述符表、工作目录、资源限制</td>
+</tr>
+<tr class="even">
+<td>保护</td>
+<td>凭据、安全标签、capability</td>
+</tr>
+<tr class="odd">
+<td>事件</td>
+<td>信号状态、wait 状态、定时器</td>
+</tr>
+<tr class="even">
+<td>核算</td>
+<td>CPU 时间、启动时间、缺页和 I/O 计数</td>
+</tr>
+</tbody>
+</table>
+<p>PCB 不是“整个进程”；它是内核用于定位、调度、保护和回收该执行实体的控制记录。</p>
+</section>
+</section>
+<section id="process-states-and-transitions" class="level3">
+<h3 class="anchored" data-anchor-id="process-states-and-transitions"><strong>进程状态与转换</strong></h3>
+<section id="ready-running-blocked-and-terminated" class="level4">
+<h4 class="anchored" data-anchor-id="ready-running-blocked-and-terminated"><strong>就绪、运行、阻塞与终止</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/process-state-model.png" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/process-state-model.png" class="img-fluid figure-img" style="width:82.0%" alt="new、ready、running、blocked 与 terminated 五种状态及其转换。"></a></p>
+<figcaption>包含接纳、分派、抢占、等待事件、唤醒和终止转换的五状态模型</figcaption>
+</figure>
+</div>
+<ul>
+<li><strong>New：</strong>内核正在创建身份和基本资源，尚未进入普通调度。</li>
+<li><strong>Ready：</strong>拥有运行所需条件，正在等待 CPU。</li>
+<li><strong>Running：</strong>某个 CPU 正在执行其指令或代表它执行内核代码。</li>
+<li><strong>Blocked/Waiting：</strong>必须等待 I/O、锁、计时器或其他事件，暂时不应占用 CPU。</li>
+<li><strong>Terminated：</strong>执行已经结束，但退出状态可能仍待父进程收集。</li>
+</ul>
+<p>状态属于调度实体；多线程进程中的某个线程可阻塞，其他线程仍能运行。一次系统调用也不必阻塞：命中缓存的读取可能立刻完成，而缺少数据的读取才把线程放入等待队列。</p>
+</section>
+<section id="parent-child-orphan-and-zombie-processes" class="level4">
+<h4 class="anchored" data-anchor-id="parent-child-orphan-and-zombie-processes"><strong>父进程、子进程、孤儿进程与僵尸进程</strong></h4>
+<p><code>fork()</code> 建立父子关系。子进程先退出时，内核保留少量终止记录，以便父进程通过 <code>wait()</code>/<code>waitpid()</code> 获得退出状态；此时它是<strong>僵尸进程（zombie）</strong>，已不再执行，也不持有完整地址空间。父进程若先退出，存活子进程成为<strong>孤儿进程（orphan）</strong>，会由 init/subreaper 等接管回收责任。</p>
+<p>僵尸不是“仍在运行的死进程”，而是尚未被收割的退出状态。大量僵尸会耗尽 PID 或进程表槽位，因此长期服务必须正确处理子进程完成。</p>
+<details>
+<summary>
+查看僵尸进程观察程序
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="co">// _exit 可避免子进程刷新复制而来的 stdio 缓冲区。</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">42</span><span class="op">);</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"parent=</span><span class="sc">%ld</span><span class="st"> child=</span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">(),</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>child<span class="op">);</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"Inspect with: ps -o pid,ppid,stat,cmd -p </span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>child<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 在这段延迟期间，子进程已经退出，但尚未被回收。</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    sleep<span class="op">(</span><span class="dv">15</span><span class="op">);</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"collected exit status </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WEXITSTATUS<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> zombie_demo.c <span class="at">-o</span> zombie_demo</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./zombie_demo</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 在另一个终端中运行程序打印出的 ps 命令。</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="creating-and-terminating-processes" class="level3">
+<h3 class="anchored" data-anchor-id="creating-and-terminating-processes"><strong>创建与终止进程</strong></h3>
+<section id="fork-exec-wait-and-exit" class="level4">
+<h4 class="anchored" data-anchor-id="fork-exec-wait-and-exit"><strong>fork、exec、wait 与 exit</strong></h4>
+<p>Unix 把“复制执行上下文”和“装入新程序”分成两个原语：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>操作</th>
+<th>创建新 PID？</th>
+<th>替换地址空间？</th>
+<th>关键返回行为</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fork()</code></td>
+<td>是</td>
+<td>否，起初以 copy-on-write 复制映射</td>
+<td>在父子两边返回，返回值不同</td>
+</tr>
+<tr class="even">
+<td><code>execve()</code></td>
+<td>否</td>
+<td>是</td>
+<td>只有失败时返回</td>
+</tr>
+<tr class="odd">
+<td><code>waitpid()</code></td>
+<td>否</td>
+<td>否</td>
+<td>指定子状态可用时返回，选项允许非阻塞</td>
+</tr>
+<tr class="even">
+<td><code>_exit()</code></td>
+<td>否</td>
+<td>销毁当前进程执行</td>
+<td>永不返回</td>
+</tr>
+</tbody>
+</table>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fork-exec-wait-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/fork-exec-wait-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="父子双泳道展示 fork、子进程设置、exec、exit、wait 与回收。"></a></p>
+<figcaption>fork 分裂执行、子进程设置描述符、exec 替换映像、exit 与 wait 回收的动态时间线</figcaption>
+</figure>
+</div>
+<p><code>fork()</code> 后必须依据返回值区分父子路径；子进程完成重定向后调用 <code>execve()</code>。若 <code>execve()</code> 失败，子进程应报告错误并用 <code>_exit()</code> 结束，避免刷新父进程复制来的 stdio 缓冲或执行不安全清理。父进程用循环处理 <code>EINTR</code> 并回收精确目标。</p>
+<details>
+<summary>
+查看最小 fork-exec-wait 实现
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 用 grep 替换当前子进程；execlp() 负责在 PATH 中查找程序。</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"grep"</span><span class="op">,</span> <span class="st">"grep"</span><span class="op">,</span> <span class="st">"kernel"</span><span class="op">,</span> <span class="st">"input.txt"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 只有 exec 失败时才会执行到这里；errno 仍保存失败原因。</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"execlp grep"</span><span class="op">);</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">127</span><span class="op">);</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span> <span class="co">// A signal interrupted wait; the child may still be live.</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"grep exited with status </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WEXITSTATUS<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> WEXITSTATUS<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFSIGNALED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"grep was terminated by signal </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WTERMSIG<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">128</span> <span class="op">+</span> WTERMSIG<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="process-spawning-beyond-fork" class="level4">
+<h4 class="anchored" data-anchor-id="process-spawning-beyond-fork"><strong>fork 之外的进程创建方式</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>接口</th>
+<th>核心思路</th>
+<th>优势</th>
+<th>限制或风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fork()</code> + <code>execve()</code></td>
+<td>复制调用者、设置子进程、替换映像</td>
+<td>Unix 组合能力最强</td>
+<td>多线程程序中 fork 后设置非常敏感</td>
+</tr>
+<tr class="even">
+<td><code>posix_spawn()</code></td>
+<td>用声明式动作描述创建和重定向</td>
+<td>普通命令启动更方便，常更便宜安全</td>
+<td>只支持刻意限定的定制集合</td>
+</tr>
+<tr class="odd">
+<td><code>vfork()</code> + <code>execve()</code></td>
+<td>子进程临时共享父地址空间上下文</td>
+<td>某些实现可避免复制工作</td>
+<td>父进程暂停，子进程在 exec/exit 前限制极严</td>
+</tr>
+<tr class="even">
+<td>Linux <code>clone()</code> 家族</td>
+<td>选择共享哪些执行资源</td>
+<td>线程、namespace 与运行时基础</td>
+<td>Linux 特有，直接使用容易出错</td>
+</tr>
+<tr class="odd">
+<td>Windows <code>CreateProcess()</code></td>
+<td>一步创建进程并加载指定程序</td>
+<td>创建模型直接</td>
+<td>继承和设置约定与 Unix 不同</td>
+</tr>
+</tbody>
+</table>
+<p>多线程进程在 <code>fork()</code> 后只有调用线程存在，其他线程曾持有的锁可能永久保持“已锁定”副本。因此子进程在 <code>exec()</code> 前只能执行严格受限的 async-signal-safe 操作，普通应用更适合 <code>posix_spawn()</code>。</p>
+</section>
+<section id="copy-on-write-as-an-enabling-mechanism" class="level4">
+<h4 class="anchored" data-anchor-id="copy-on-write-as-an-enabling-mechanism"><strong>写时复制作为支撑机制</strong></h4>
+<p>朴素 <code>fork()</code> 若立即复制全部物理页会很昂贵，而子进程常立刻 <code>exec()</code> 丢弃这些页。<strong>写时复制（copy-on-write, COW）</strong>让父子页表先指向同一物理页，并把映射标成只读；任何一方写入时触发保护故障，内核再为写入者复制该页并恢复写权限。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/copy-on-write-fork.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/copy-on-write-fork.svg" class="img-fluid figure-img" style="width:96.0%" alt="fork 前父进程页面、fork 后只读共享页框、写故障后子进程私有页框。"></a></p>
+<figcaption>fork 前、fork 后共享以及子进程写入后的 COW 过程</figcaption>
+</figure>
+</div>
+<p>COW 推迟并避免不必要复制，却不是“完全免费的 fork”：仍需建立页表结构、增加页引用、复制内核元数据，后续写故障还会产生分配与复制成本。</p>
+</section>
+</section>
+<section id="loading-and-linking-a-program" class="level3">
+<h3 class="anchored" data-anchor-id="loading-and-linking-a-program"><strong>加载与链接程序</strong></h3>
+<section id="executable-layout-and-the-loader" class="level4">
+<h4 class="anchored" data-anchor-id="executable-layout-and-the-loader"><strong>可执行文件布局与加载器</strong></h4>
+<p>Linux 常用 ELF。加载器关心 program header 描述的可加载 segment，而链接器和调试器更多使用 section。内核验证格式和体系结构，建立带权限的映射，创建初始栈和入口状态；动态链接程序还会先把控制交给动态加载器。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/elf-file-layout.png" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/elf-file-layout.png" class="img-fluid figure-img" style="width:76.0%" alt="ELF 文件包含 ELF header、program header table、多个 section 与 section header table。"></a></p>
+<figcaption>ELF 文件头、程序头表、节与节头表布局</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+查看 ELF 可执行文件检查命令
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 识别文件格式、体系结构与链接方式。</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">file</span> /usr/bin/grep</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查 ELF 文件头以及面向加载器的程序头。</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-h</span> /usr/bin/grep</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-l</span> /usr/bin/grep</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 如果文件指定了程序解释器，则定位它。</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-l</span> /usr/bin/grep <span class="kw">|</span> <span class="fu">grep</span> INTERP</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 在不执行文件的情况下检查节元数据与动态依赖。</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-S</span> /usr/bin/grep</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-d</span> /usr/bin/grep</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 观察程序运行后的内存映射。</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'grep|libc|ld-linux|\[stack\]|\[heap\]'</span> /proc/<span class="op">&lt;</span>PID<span class="op">&gt;</span>/maps</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>W^X 原则要求可写页不同时可执行；代码通常映射为读/执行，数据映射为读/写。BSS 可通过“零填充内存大小大于文件大小”表示，无需在文件中存储大量零。</p>
+</section>
+<section id="static-and-dynamic-linking" class="level4">
+<h4 class="anchored" data-anchor-id="static-and-dynamic-linking"><strong>静态链接与动态链接</strong></h4>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>静态链接</th>
+<th>动态链接</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>库代码</td>
+<td>链接时复制到可执行文件</td>
+<td>运行时映射共享对象</td>
+</tr>
+<tr class="even">
+<td>部署</td>
+<td>运行时库依赖较少</td>
+<td>需要兼容加载器与库</td>
+</tr>
+<tr class="odd">
+<td>文件/内存</td>
+<td>文件更大，多个程序可能重复代码</td>
+<td>只读库页可跨进程共享</td>
+</tr>
+<tr class="even">
+<td>更新</td>
+<td>需重新链接并部署</td>
+<td>兼容库更新可影响许多程序</td>
+</tr>
+<tr class="odd">
+<td>启动工作</td>
+<td>运行时符号解析较少</td>
+<td>加载依赖并重定位</td>
+</tr>
+<tr class="even">
+<td>可复现性</td>
+<td>更自包含，但仍依赖内核和外部数据</td>
+<td>行为受运行库环境影响</td>
+</tr>
+</tbody>
+</table>
+<p>动态链接通过重定位、GOT/PLT 和符号解析把编译时引用连接到运行时地址。惰性绑定可把部分解析推迟到首次调用，但会改变第一次调用时延和安全配置。</p>
+</section>
+<section id="arguments-environment-and-initial-stack" class="level4">
+<h4 class="anchored" data-anchor-id="arguments-environment-and-initial-stack"><strong>参数、环境与初始栈</strong></h4>
+<p>内核和加载器在新用户栈上放置 <code>argc</code>、<code>argv[]</code>、<code>envp[]</code> 以及 auxiliary vector；后者携带页大小、入口地址、程序头、随机数据位置等启动信息。概念布局如下，实际顺序、对齐与内容由 ABI 决定：</p>
+<pre class="text"><code>较高虚拟地址
++-------------------------------+
+| 参数与环境字符串              |
++-------------------------------+
+| 辅助向量条目                  |  AT_PAGESZ, AT_ENTRY, AT_EXECFN, ...
+| NULL                           |
+| envp[] 指针                   |
+| NULL                           |
+| argv[] 指针                   |
+| argc                          |
++-------------------------------+  初始栈指针
+较低虚拟地址</code></pre>
+<details>
+<summary>
+查看检查启动数据的 C 程序
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/auxv.h&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">extern</span> <span class="dt">char</span> <span class="op">**</span>environ<span class="op">;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="op">**</span>argv<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"pid=</span><span class="sc">%ld</span><span class="st"> argc=</span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">(),</span> argc<span class="op">);</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> argc<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"argv[</span><span class="sc">%d</span><span class="st">] = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> i<span class="op">,</span> argv<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 辅助向量由内核与加载器的启动路径提供。</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"page size = </span><span class="sc">%lu\n</span><span class="st">"</span><span class="op">,</span> getauxval<span class="op">(</span>AT_PAGESZ<span class="op">));</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"entry     = 0x</span><span class="sc">%lx\n</span><span class="st">"</span><span class="op">,</span> getauxval<span class="op">(</span>AT_ENTRY<span class="op">));</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>exec_name <span class="op">=</span> <span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*)</span>getauxval<span class="op">(</span>AT_EXECFN<span class="op">);</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>exec_name <span class="op">!=</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"exec file = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> exec_name<span class="op">);</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 仅打印有限样本；真实环境可能很大，也可能包含敏感信息。</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> environ<span class="op">[</span>i<span class="op">]</span> <span class="op">!=</span> NULL <span class="op">&amp;&amp;</span> i <span class="op">&lt;</span> <span class="dv">3</span><span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"env[</span><span class="sc">%d</span><span class="st">] = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> i<span class="op">,</span> environ<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> startup.c <span class="at">-o</span> startup</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="va">DEMO_MODE</span><span class="op">=</span>loader <span class="ex">./startup</span> alpha <span class="st">"two words"</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>参数和环境来自不可信外部输入，程序不应把它们当作已验证配置；敏感程序还要避免信任可能影响动态加载、搜索路径或 locale 的危险环境变量。</p>
+</section>
+</section>
+<section id="context-switching" class="level3">
+<h3 class="anchored" data-anchor-id="context-switching"><strong>上下文切换</strong></h3>
+<section id="saving-and-restoring-execution-state" class="level4">
+<h4 class="anchored" data-anchor-id="saving-and-restoring-execution-state"><strong>保存与恢复执行状态</strong></h4>
+<p>线程因时间片到期、阻塞、主动让出或更高优先级工作到来而停止运行时，内核保存其可恢复 CPU 状态，选择另一个可运行实体，切换必要的地址空间和内核栈，再恢复目标寄存器并返回用户态。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/context-switch-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/context-switch-path.svg" class="img-fluid figure-img" style="width:96.0%" alt="进程 A 进入内核，保存状态，调度并恢复进程 B，标出直接和间接成本。"></a></p>
+<figcaption>从进程 A 经 trap、保存、调度、内存上下文切换与恢复到进程 B</figcaption>
+</figure>
+</div>
+<p>模式切换不等于上下文切换，线程切换也不一定更换地址空间：同一进程的线程通常共享页表，而不同进程往往需要切换地址空间标识和相关翻译状态。</p>
+</section>
+<section id="direct-and-indirect-context-switch-costs" class="level4">
+<h4 class="anchored" data-anchor-id="direct-and-indirect-context-switch-costs"><strong>直接与间接上下文切换成本</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>成本类别</th>
+<th>示例</th>
+<th>变化原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>直接软件工作</td>
+<td>入口/返回、寄存器保存、队列和核算</td>
+<td>体系结构、内核路径、安全功能</td>
+</tr>
+<tr class="even">
+<td>地址翻译状态</td>
+<td>页表上下文、TLB 影响</td>
+<td>进程/线程切换、PCID/ASID 支持</td>
+</tr>
+<tr class="odd">
+<td>缓存局部性</td>
+<td>指令和数据被替换、缓存一致性</td>
+<td>工作集及目标最近是否运行</td>
+</tr>
+<tr class="even">
+<td>预测状态</td>
+<td>分支预测器与前端重新升温</td>
+<td>处理器和负载</td>
+</tr>
+<tr class="odd">
+<td>拓扑</td>
+<td>跨核或 NUMA 迁移</td>
+<td>亲和性、负载均衡、内存放置</td>
+</tr>
+</tbody>
+</table>
+<p>真正昂贵的部分常是切换后的冷缓存和迁移，而不是保存几个寄存器。测量时应区分“发生了多少次切换”和“每次切换破坏了多少局部性”。</p>
+<details>
+<summary>
+查看 Linux 上下文切换观察命令
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Linux 为每个进程维护的主动与被动上下文切换计数。</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'voluntary_ctxt_switches|nonvoluntary_ctxt_switches'</span> /proc/<span class="op">&lt;</span>PID<span class="op">&gt;</span>/status</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 重复报告进程级上下文切换（需要 sysstat 软件包）。</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pidstat</span> <span class="at">-w</span> <span class="at">-p</span> <span class="op">&lt;</span>PID<span class="op">&gt;</span> 1</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 运行一个命令时观察全系统事件（需要 perf 软件包）。</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> stat <span class="at">-e</span> context-switches,cpu-migrations,page-faults <span class="at">--</span> ./your_program</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 按时间戳比较调度历史；需要相应权限。</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> sched record <span class="at">--</span> ./your_program</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> sched timehist</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="file-descriptors-as-process-capabilities" class="level3">
+<h3 class="anchored" data-anchor-id="file-descriptors-as-process-capabilities"><strong>文件描述符作为进程能力</strong></h3>
+<section id="descriptor-tables-and-open-file-descriptions" class="level4">
+<h4 class="anchored" data-anchor-id="descriptor-tables-and-open-file-descriptions"><strong>描述符表与打开文件描述</strong></h4>
+<p>文件描述符是进程局部的小整数，它通过描述符表引用系统级的 <strong>open file description</strong>，后者再引用 inode、管道、套接字或设备等底层对象。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unix-file-table.png" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/unix-file-table.png" class="img-fluid figure-img" style="width:82.0%" alt="两个进程的文件描述符表指向共享文件表项，再指向 inode 表项。"></a></p>
+<figcaption>每进程描述符表引用系统级打开文件描述和 inode</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>层次</th>
+<th>代表性状态</th>
+<th>共享行为</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>描述符表项</td>
+<td><code>FD_CLOEXEC</code> 等描述符标志、打开文件描述指针</td>
+<td><code>fork()</code> 复制表项；<code>dup2()</code>/<code>close()</code> 按进程修改</td>
+</tr>
+<tr class="even">
+<td>打开文件描述</td>
+<td>当前偏移、访问模式、<code>O_APPEND</code> 等状态标志</td>
+<td><code>dup()</code> 与 <code>fork()</code> 产生的描述符可共享</td>
+</tr>
+<tr class="odd">
+<td>底层对象</td>
+<td>inode/数据、管道缓冲、socket、设备</td>
+<td>可被多个打开文件描述或端点引用</td>
+</tr>
+</tbody>
+</table>
+<p>因此父子进程继承同一打开文件描述时会共享文件偏移；两个独立 <code>open()</code> 即使打开同一路径，通常也拥有独立偏移。</p>
+<details>
+<summary>
+查看共享文件偏移的确定性演示
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>path <span class="op">=</span> <span class="st">"offset-demo.tmp"</span><span class="op">;</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> fd <span class="op">=</span> open<span class="op">(</span>path<span class="op">,</span> O_RDWR <span class="op">|</span> O_CREAT <span class="op">|</span> O_TRUNC<span class="op">,</span> <span class="bn">0600</span><span class="op">);</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open"</span><span class="op">);</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>fd<span class="op">,</span> <span class="st">"ABCDE"</span><span class="op">,</span> <span class="dv">5</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">5</span> <span class="op">||</span> lseek<span class="op">(</span>fd<span class="op">,</span> <span class="dv">0</span><span class="op">,</span> SEEK_SET<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"prepare file"</span><span class="op">);</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">char</span> bytes<span class="op">[</span><span class="dv">3</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span><span class="dv">0</span><span class="op">};</span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 该读取把共享打开文件描述的偏移量从 0 推进到 2。</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>fd<span class="op">,</span> bytes<span class="op">,</span> <span class="dv">2</span><span class="op">)</span> <span class="op">==</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>            dprintf<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> <span class="st">"child read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> bytes<span class="op">);</span> <span class="co">// AB</span></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 等待子进程可使演示顺序保持确定。</span></span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> bytes<span class="op">[</span><span class="dv">3</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span><span class="dv">0</span><span class="op">};</span></span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>fd<span class="op">,</span> bytes<span class="op">,</span> <span class="dv">2</span><span class="op">)</span> <span class="op">==</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"parent read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> bytes<span class="op">);</span> <span class="co">// CD, not AB</span></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>    unlink<span class="op">(</span>path<span class="op">);</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="redirection-and-descriptor-inheritance" class="level4">
+<h4 class="anchored" data-anchor-id="redirection-and-descriptor-inheritance"><strong>重定向与描述符继承</strong></h4>
+<p><code>dup2(oldfd, STDOUT_FILENO)</code> 让描述符 <code>1</code> 引用与 <code>oldfd</code> 相同的打开对象，程序随后无需知道输出已被重定向。<code>fork()</code> 继承描述符，<code>execve()</code> 默认继续保留，只有带 <code>FD_CLOEXEC</code> 的描述符会在成功 exec 时关闭。</p>
+<p>描述符继承既提供强大的组合能力，也容易泄漏权限和破坏协议。创建内部描述符时优先使用 <code>O_CLOEXEC</code>、<code>pipe2(O_CLOEXEC)</code> 等原子接口，避免多线程程序在“创建”和“设置 close-on-exec”之间被另一个线程 fork。</p>
+</section>
+</section>
+<section id="how-a-shell-builds-the-running-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="how-a-shell-builds-the-running-pipeline"><strong>Shell 如何构建贯穿管道</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-process-build.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/pipeline-process-build.svg" class="img-fluid figure-img" style="width:96.0%" alt="Shell 创建管道与输出文件、fork 两个子进程、dup2 与 exec，最后关闭描述符并回收。"></a></p>
+<figcaption>构建 cat 到 grep 管道的四个阶段</figcaption>
+</figure>
+</div>
+<p>实现要点包括：先创建管道和输出文件；分别 fork 两个子进程；在子进程中用 <code>dup2()</code> 安装标准流并关闭所有无关端；调用 <code>execvp()</code>；父进程立即关闭自己的管道端，再可靠等待两个 PID。任何遗留写端都会让 <code>grep</code> 永远等不到 EOF。</p>
+<details>
+<summary>
+查看完整带注释 C 管道实现
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;signal.h&gt;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> child_failure<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>operation<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 为便于说明，这里使用 perror。生产级多线程启动器</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 应将 fork 后的子进程路径限制为安全操作。</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>operation<span class="op">);</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    _exit<span class="op">(</span><span class="dv">127</span><span class="op">);</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> wait_for<span class="op">(</span>pid_t child<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>name<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> code <span class="op">=</span> WEXITSTATUS<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st"> exited with </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">,</span> code<span class="op">);</span></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> code<span class="op">;</span></span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFSIGNALED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> signal_number <span class="op">=</span> WTERMSIG<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st"> terminated by signal </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">,</span> signal_number<span class="op">);</span></span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">128</span> <span class="op">+</span> signal_number<span class="op">;</span></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> pipe_fd<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe<span class="op">(</span>pipe_fd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"pipe"</span><span class="op">);</span></span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> output_fd <span class="op">=</span> open<span class="op">(</span></span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>        <span class="st">"result.txt"</span><span class="op">,</span></span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>        O_WRONLY <span class="op">|</span> O_CREAT <span class="op">|</span> O_TRUNC<span class="op">,</span></span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a>        <span class="bn">0644</span></span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>output_fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open result.txt"</span><span class="op">);</span></span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-58"><a href="#cb11-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a>    pid_t cat_pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>cat_pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork cat"</span><span class="op">);</span></span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-65"><a href="#cb11-65" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-66"><a href="#cb11-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-67"><a href="#cb11-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-68"><a href="#cb11-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-69"><a href="#cb11-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>cat_pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-70"><a href="#cb11-70" aria-hidden="true" tabindex="-1"></a>        <span class="co">// cat 把正常的标准输出写入管道。</span></span>
+<span id="cb11-71"><a href="#cb11-71" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">],</span> STDOUT_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 cat stdout"</span><span class="op">);</span></span>
+<span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"cat"</span><span class="op">,</span> <span class="st">"cat"</span><span class="op">,</span> <span class="st">"input.txt"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a>        child_failure<span class="op">(</span><span class="st">"exec cat"</span><span class="op">);</span></span>
+<span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>    pid_t grep_pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb11-84"><a href="#cb11-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>grep_pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-85"><a href="#cb11-85" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork grep"</span><span class="op">);</span></span>
+<span id="cb11-86"><a href="#cb11-86" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-87"><a href="#cb11-87" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-88"><a href="#cb11-88" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-89"><a href="#cb11-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-90"><a href="#cb11-90" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 避免让已经创建的子进程失去管理。</span></span>
+<span id="cb11-91"><a href="#cb11-91" aria-hidden="true" tabindex="-1"></a>        kill<span class="op">(</span>cat_pid<span class="op">,</span> SIGTERM<span class="op">);</span></span>
+<span id="cb11-92"><a href="#cb11-92" aria-hidden="true" tabindex="-1"></a>        waitpid<span class="op">(</span>cat_pid<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-94"><a href="#cb11-94" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-95"><a href="#cb11-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>grep_pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a>        <span class="co">// grep 从管道读取，并把匹配行写入文件。</span></span>
+<span id="cb11-98"><a href="#cb11-98" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> STDIN_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-99"><a href="#cb11-99" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 grep stdin"</span><span class="op">);</span></span>
+<span id="cb11-100"><a href="#cb11-100" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>output_fd<span class="op">,</span> STDOUT_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 grep stdout"</span><span class="op">);</span></span>
+<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"grep"</span><span class="op">,</span> <span class="st">"grep"</span><span class="op">,</span> <span class="st">"kernel"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a>        child_failure<span class="op">(</span><span class="st">"exec grep"</span><span class="op">);</span></span>
+<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 对这个前台作业而言，shell 既不是管道读端，也不是写端。</span></span>
+<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-117"><a href="#cb11-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-118"><a href="#cb11-118" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> cat_status <span class="op">=</span> wait_for<span class="op">(</span>cat_pid<span class="op">,</span> <span class="st">"cat"</span><span class="op">);</span></span>
+<span id="cb11-119"><a href="#cb11-119" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> grep_status <span class="op">=</span> wait_for<span class="op">(</span>grep_pid<span class="op">,</span> <span class="st">"grep"</span><span class="op">);</span></span>
+<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 简单 shell 通常报告最后一个命令的状态；真实 shell</span></span>
+<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 还可能提供 pipefail 策略，把前面命令的失败也纳入判断。</span></span>
+<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="dt">void</span><span class="op">)</span>cat_status<span class="op">;</span></span>
+<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> grep_status<span class="op">;</span></span>
+<span id="cb11-125"><a href="#cb11-125" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> pipeline.c <span class="at">-o</span> pipeline</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'kernel entry\nuser process\nkernel scheduler\n'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./pipeline</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="observing-processes-in-linux" class="level3">
+<h3 class="anchored" data-anchor-id="observing-processes-in-linux"><strong>在 Linux 中观察进程</strong></h3>
+<p>不同工具回答不同问题：<code>ps</code> 和 <code>/proc/&lt;pid&gt;/status</code> 查看身份与状态；<code>/proc/&lt;pid&gt;/exe</code> 和 <code>cmdline</code> 查看程序映像；<code>maps</code>/<code>pmap</code> 查看地址空间；<code>fd</code>/<code>lsof</code> 查看描述符；<code>strace</code>、<code>wchan</code> 或调试器查看阻塞位置；<code>pstree</code> 查看层级。</p>
+<details>
+<summary>
+查看聚焦的 Linux 观察流程
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 在后台启动管道，并保留 shell 作业 PID。</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sh</span> <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span> <span class="kw">&amp;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="va">job_pid</span><span class="op">=</span><span class="va">$!</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看层级、状态、进程组与等待通道。</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eo</span> pid,ppid,pgid,sid,stat,psr,wchan:24,cmd <span class="at">--forest</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="fu">pstree</span> <span class="at">-ap</span> <span class="st">"</span><span class="va">$job_pid</span><span class="st">"</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查指定进程；把 PID 替换为 ps/pstree 给出的真实值。</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=&lt;</span>PID<span class="op">&gt;</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">readlink</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/exe"</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="fu">tr</span> <span class="st">'\0'</span> <span class="st">' '</span> <span class="op">&lt;</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cmdline"</span><span class="kw">;</span> <span class="bu">echo</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Name|State|Pid|PPid|Threads|voluntary|nonvoluntary)'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/status"</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="fu">sed</span> <span class="at">-n</span> <span class="st">'1,20p'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/maps"</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/fd"</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 跟踪进程创建、描述符变化、exec、等待与退出。</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-e</span> trace=process,desc <span class="at">-o</span> pipeline.trace <span class="dt">\</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="fu">less</span> pipeline.trace</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>观测本身有竞态：进程可能在读取多个 <code>/proc</code> 文件之间改变状态或退出。因此应记录采样时间、PID namespace 和权限条件，并把一次快照视为证据而不是永恒事实。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>回答的稳定问题</th>
+<th>当前不占用 CPU 时仍存在吗？</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>程序</td>
+<td>有哪些可执行指令与静态数据？</td>
+<td>是</td>
+</tr>
+<tr class="even">
+<td>进程</td>
+<td>哪些受保护资源和身份属于这次执行？</td>
+<td>是</td>
+</tr>
+<tr class="odd">
+<td>线程</td>
+<td>调度器可以运行哪条寄存器流和栈？</td>
+<td>是</td>
+</tr>
+<tr class="even">
+<td>地址空间</td>
+<td>哪些虚拟地址与权限可见？</td>
+<td>是</td>
+</tr>
+<tr class="odd">
+<td>文件描述符</td>
+<td>进程可通过表项访问哪个内核对象？</td>
+<td>是</td>
+</tr>
+</tbody>
+</table>
+<p>贯穿本章的生命周期是：可执行文件经加载形成地址空间；内核为执行分配身份和控制状态；调度器让线程获得 CPU；系统调用使其阻塞与唤醒；<code>fork()</code> 复制引用和 COW 映射；<code>exec()</code> 替换程序映像；<code>exit()</code> 释放大部分资源；<code>wait()</code> 最终回收终止记录。</p>
+<p>最关键的区别是：<strong><code>fork()</code> 创建新执行身份但不选择新程序，<code>exec()</code> 选择新程序但不创建新 PID。</strong> Unix shell 正是利用这种分离，在 exec 之前把文件、管道和标准流组合成所需拓扑。</p>
+<p><a href="03-threads-and-interprocess-communication.html">下一章：线程与进程间通信</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

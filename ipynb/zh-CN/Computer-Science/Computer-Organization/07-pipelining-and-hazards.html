@@ -1,0 +1,1971 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机组成与体系结构：流水线与冒险</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="07-pipelining-and-hazards_files/libs/clipboard/clipboard.min.js"></script>
+<script src="07-pipelining-and-hazards_files/libs/quarto-html/quarto.js"></script>
+<script src="07-pipelining-and-hazards_files/libs/quarto-html/popper.min.js"></script>
+<script src="07-pipelining-and-hazards_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="07-pipelining-and-hazards_files/libs/quarto-html/anchor.min.js"></script>
+<link href="07-pipelining-and-hazards_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="07-pipelining-and-hazards_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="07-pipelining-and-hazards_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="07-pipelining-and-hazards_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="07-pipelining-and-hazards_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="07-pipelining-and-hazards_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="07-pipelining-and-hazards_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="07-pipelining-and-hazards_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="/ipynb/blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#pipelining-and-hazards" id="toc-pipelining-and-hazards" class="nav-link active" data-scroll-target="#pipelining-and-hazards"><strong>流水线与冒险</strong></a>
+  <ul>
+  <li><a href="#why-pipelining-improves-throughput" id="toc-why-pipelining-improves-throughput" class="nav-link" data-scroll-target="#why-pipelining-improves-throughput"><strong>流水线为什么提高吞吐量</strong></a></li>
+  <li><a href="#the-five-stage-instruction-pipeline" id="toc-the-five-stage-instruction-pipeline" class="nav-link" data-scroll-target="#the-five-stage-instruction-pipeline"><strong>五级指令流水线</strong></a>
+  <ul>
+  <li><a href="#instruction-fetch" id="toc-instruction-fetch" class="nav-link" data-scroll-target="#instruction-fetch"><strong>取指</strong></a></li>
+  <li><a href="#instruction-decode" id="toc-instruction-decode" class="nav-link" data-scroll-target="#instruction-decode"><strong>指令译码</strong></a></li>
+  <li><a href="#execute" id="toc-execute" class="nav-link" data-scroll-target="#execute"><strong>执行</strong></a></li>
+  <li><a href="#memory-access" id="toc-memory-access" class="nav-link" data-scroll-target="#memory-access"><strong>访存</strong></a></li>
+  <li><a href="#write-back" id="toc-write-back" class="nav-link" data-scroll-target="#write-back"><strong>写回</strong></a></li>
+  </ul></li>
+  <li><a href="#pipeline-registers-and-timing" id="toc-pipeline-registers-and-timing" class="nav-link" data-scroll-target="#pipeline-registers-and-timing"><strong>流水线寄存器与时序</strong></a></li>
+  <li><a href="#pipeline-performance" id="toc-pipeline-performance" class="nav-link" data-scroll-target="#pipeline-performance"><strong>流水线性能</strong></a>
+  <ul>
+  <li><a href="#latency-and-throughput" id="toc-latency-and-throughput" class="nav-link" data-scroll-target="#latency-and-throughput"><strong>延迟与吞吐量</strong></a></li>
+  <li><a href="#ideal-speedup" id="toc-ideal-speedup" class="nav-link" data-scroll-target="#ideal-speedup"><strong>理想加速比</strong></a></li>
+  <li><a href="#cpi-with-stalls" id="toc-cpi-with-stalls" class="nav-link" data-scroll-target="#cpi-with-stalls"><strong>含停顿的 CPI</strong></a></li>
+  </ul></li>
+  <li><a href="#structural-hazards" id="toc-structural-hazards" class="nav-link" data-scroll-target="#structural-hazards"><strong>结构冒险</strong></a></li>
+  <li><a href="#data-hazards" id="toc-data-hazards" class="nav-link" data-scroll-target="#data-hazards"><strong>数据冒险</strong></a>
+  <ul>
+  <li><a href="#raw-war-and-waw-dependencies" id="toc-raw-war-and-waw-dependencies" class="nav-link" data-scroll-target="#raw-war-and-waw-dependencies"><strong>RAW、WAR 与 WAW 依赖</strong></a></li>
+  <li><a href="#forwarding" id="toc-forwarding" class="nav-link" data-scroll-target="#forwarding"><strong>旁路</strong></a></li>
+  <li><a href="#stalling-and-interlocks" id="toc-stalling-and-interlocks" class="nav-link" data-scroll-target="#stalling-and-interlocks"><strong>停顿与互锁</strong></a></li>
+  </ul></li>
+  <li><a href="#control-hazards" id="toc-control-hazards" class="nav-link" data-scroll-target="#control-hazards"><strong>控制冒险</strong></a>
+  <ul>
+  <li><a href="#pipeline-flushes" id="toc-pipeline-flushes" class="nav-link" data-scroll-target="#pipeline-flushes"><strong>流水线冲刷</strong></a></li>
+  <li><a href="#static-prediction" id="toc-static-prediction" class="nav-link" data-scroll-target="#static-prediction"><strong>静态预测</strong></a></li>
+  <li><a href="#dynamic-branch-prediction" id="toc-dynamic-branch-prediction" class="nav-link" data-scroll-target="#dynamic-branch-prediction"><strong>动态分支预测</strong></a></li>
+  </ul></li>
+  <li><a href="#exceptions-in-a-pipeline" id="toc-exceptions-in-a-pipeline" class="nav-link" data-scroll-target="#exceptions-in-a-pipeline"><strong>流水线中的异常</strong></a></li>
+  <li><a href="#from-scalar-pipelines-to-superscalar-execution" id="toc-from-scalar-pipelines-to-superscalar-execution" class="nav-link" data-scroll-target="#from-scalar-pipelines-to-superscalar-execution"><strong>从标量流水线到超标量执行</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机组成与体系结构：流水线与冒险</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Organization/07-pipelining-and-hazards.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="/ipynb/zh-CN/Computer-Science/Computer-Organization/Computer-Organization.html">返回计算机组成与体系结构总览</a></p>
+<section id="pipelining-and-hazards" class="level2">
+<h2 class="anchored" data-anchor-id="pipelining-and-hazards"><strong>流水线与冒险</strong></h2>
+<p>第 06 章让一条指令依次经过取指、译码、执行、访存和写回。单周期处理器在一个长周期内完成全部活动，多周期处理器则在多个短周期中复用硬件。<strong>流水线（pipelining）</strong>作出第三种选择：把各阶段保留在不同硬件区域，让不同指令同时占据不同阶段。</p>
+<p>这种重叠改变的是微体系结构，而不是 ISA 契约。无论处理器是单周期、五级流水线还是超标量，<code>add x5, x6, x7</code> 都必须产生完全相同的体系结构结果。内部可以存在部分执行甚至推测执行的指令，但提交后的寄存器、内存、陷阱与控制流必须与顺序程序执行不可区分。</p>
+<section id="why-pipelining-improves-throughput" class="level3">
+<h3 class="anchored" data-anchor-id="why-pipelining-improves-throughput"><strong>流水线为什么提高吞吐量</strong></h3>
+<p>流水线类似装配线。若一个工人完成全部五步后才接收下一件产品，完成间隔等于各步时间之和；若五个专业工位并发工作，第一件产品仍要经过所有工位，但只要最慢工位空闲就可加入下一件。因此主要提升的是<strong>吞吐量</strong>，即完成指令的速率，而不是单条指令延迟。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-throughput-latency.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="没有重叠时四条指令消耗二十个阶段时间；五级流水线填满后只需八个阶段时间，但每条指令仍经过全部五级。"><img src="assets/pipeline-throughput-latency.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="没有重叠时四条指令消耗二十个阶段时间；五级流水线填满后只需八个阶段时间，但每条指令仍经过全部五级。"></a></p>
+</figure>
+</div>
+<figcaption>没有重叠时四条指令消耗二十个阶段时间；五级流水线填满后只需八个阶段时间，但每条指令仍经过全部五级。</figcaption>
+</figure>
+</div>
+<p>若五级组合延迟为 <span class="math inline">\(t_{IF}\)</span>、<span class="math inline">\(t_{ID}\)</span>、<span class="math inline">\(t_{EX}\)</span>、<span class="math inline">\(t_{MEM}\)</span> 与 <span class="math inline">\(t_{WB}\)</span>，单周期实现约需</p>
+<p><span class="math display">\[
+T_{single}\ge t_{IF}+t_{ID}+t_{EX}+t_{MEM}+t_{WB}.
+\]</span></p>
+<p>插入流水线寄存器后，周期由最慢阶段加寄存器开销决定：</p>
+<p><span class="math display">\[
+T_{pipe}\ge\max(t_{IF},t_{ID},t_{EX},t_{MEM},t_{WB})+t_{reg}.
+\]</span></p>
+<p><span class="math inline">\(t_{reg}\)</span> 包括时钟到 Q、建立时间和时钟不确定性。所有阶段共用同一周期，所以取最大值而非平均值。</p>
+<p>当长操作可分成较均衡阶段且存在许多独立工作时，流水线最有效。如果某一级仍明显更慢、寄存器开销很大，或依赖频繁阻止新工作推进，收益就会下降。这也是本章必须研究冒险，而不能把五级流水线直接当作五倍加速的原因。</p>
+</section>
+<section id="the-five-stage-instruction-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="the-five-stage-instruction-pipeline"><strong>五级指令流水线</strong></h3>
+<p>经典教学流水线把标量 RISC 指令分为 <strong>IF、ID、EX、MEM、WB</strong>。这不是体系结构要求；真实处理器可以进一步拆分取指、译码、执行与访存，也可以合并简单阶段或为不同指令类别使用不同执行流水线。五级模型的价值是清楚展示数值时序与冒险。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/five-stage-pipeline-overview.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="五级流水线包含与第 06 章相同的主要功能，但四组流水线寄存器在阶段间保存每条指令的数据、目的、控制与有效性。"><img src="assets/five-stage-pipeline-overview.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="五级流水线包含与第 06 章相同的主要功能，但四组流水线寄存器在阶段间保存每条指令的数据、目的、控制与有效性。"></a></p>
+</figure>
+</div>
+<figcaption>五级流水线包含与第 06 章相同的主要功能，但四组流水线寄存器在阶段间保存每条指令的数据、目的、控制与有效性。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>核心问题</th>
+<th>代表性工作</th>
+<th>向后传递的值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>IF</td>
+<td>哪条指令应进入？</td>
+<td>读指令，计算顺序或预测下一 PC</td>
+<td>指令位、PC、预测元数据</td>
+</tr>
+<tr class="even">
+<td>ID</td>
+<td>指令要求什么？</td>
+<td>译码、读寄存器、生成立即数、检测冒险</td>
+<td>操作数、源/目的名、控制</td>
+</tr>
+<tr class="odd">
+<td>EX</td>
+<td>需要何种结果、地址或决定？</td>
+<td>ALU、地址、分支比较与目标</td>
+<td>ALU 结果、分支结果、存储数据</td>
+</tr>
+<tr class="even">
+<td>MEM</td>
+<td>是否访问数据内存？</td>
+<td>加载、存储或传递 ALU 结果</td>
+<td>加载数据或先前结果</td>
+</tr>
+<tr class="odd">
+<td>WB</td>
+<td>哪个体系结构寄存器改变？</td>
+<td>选择结果并应用 <code>RegWrite</code></td>
+<td>已提交寄存器值</td>
+</tr>
+</tbody>
+</table>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/five-instruction-pipeline-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="彼此独立的 add、load、store、branch 和 jal 在多个周期中重叠；每条指令每周期前进一级，每一级同时服务不同指令。"><img src="assets/five-instruction-pipeline-timeline.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="彼此独立的 add、load、store、branch 和 jal 在多个周期中重叠；每条指令每周期前进一级，每一级同时服务不同指令。"></a></p>
+</figure>
+</div>
+<figcaption>彼此独立的 add、load、store、branch 和 jal 在多个周期中重叠；每条指令每周期前进一级，每一级同时服务不同指令。</figcaption>
+</figure>
+</div>
+</div>
+<p>第一条结果要等流水线填满后出现，之后理想标量流水线每周期完成一条，虽然每条指令在机器内停留约五个周期。结果依赖尚未就绪、多个阶段竞争同一资源、预测 PC 错误或异常使年轻工作失效时，实际轨迹会偏离理想情况。</p>
+<section id="instruction-fetch" class="level4">
+<h4 class="anchored" data-anchor-id="instruction-fetch"><strong>取指</strong></h4>
+<p><strong>取指阶段（IF）</strong>用当前 PC 请求指令字节并计算候选下一 PC。最简单 RV32I 流水线选择 <span class="math inline">\(PC+4\)</span>；加入控制流预测后，IF 可选择预测分支或跳转目标，避免等待旧分支到达 EX。</p>
+<p>IF 不只保存指令比特。指令自身 PC 后续还用于 PC 相对目标、<code>jal</code> 链接、异常的 <code>mepc</code> 与调试。因此 IF/ID 载荷至少包含 <code>(valid, PC, instruction)</code>，也可携带预测方向、预测目标和取指错误。</p>
+<p>指令缓存未命中或权限错误会打破一周期图景。取指接口可以保持 PC、把响应标为无效，或注入异常记录直到存储层次返回。PC 与 IF/ID 必须协调更新：普通周期两者都推进；数据冒险停顿时两者都保持；分支纠正时 PC 重定向，已顺序取到的 IF/ID 条目失效。只更新其中一个会重复或丢失指令。</p>
+</section>
+<section id="instruction-decode" class="level4">
+<h4 class="anchored" data-anchor-id="instruction-decode"><strong>指令译码</strong></h4>
+<p><strong>指令译码阶段（ID）</strong>解释 opcode 和功能字段、重建立即数、读取 <code>R[rs1]</code> 与 <code>R[rs2]</code>，并生成后级控制。它还把源和目的寄存器名暴露给冒险单元，所以既是语义阶段，也是调度检查点。</p>
+<p>例如 <code>sw x10, 4(x11)</code> 把 <code>x11</code> 识别为基址源、<code>x10</code> 识别为存储数据源，重建 S 型立即数 4，并请求 EX 做地址加法、MEM 写内存。<code>beq x12, x13, L</code> 则识别两个比较源、B 型偏移与条件控制流。</p>
+<p>ID 读到的寄存器值不一定最新。旧指令可能已算出替代值但尚未写回。流水线把源名字带入 ID/EX，旁路单元在 ALU 使用前与旧指令目的名比较并替换陈旧值。若没有旁路能及时送达，互锁会让指令停在 ID。</p>
+<p>并非每种格式都使用表面上的所有寄存器字段。冒险逻辑必须依据译码后的 <code>uses_rs1</code>/<code>uses_rs2</code>，而不能盲目比较比特位置，否则立即数比特偶然等于旧目的寄存器会制造假停顿。</p>
+</section>
+<section id="execute" class="level4">
+<h4 class="anchored" data-anchor-id="execute"><strong>执行</strong></h4>
+<p><strong>执行阶段（EX）</strong>完成指令主要组合变换。ALU 可以加两个寄存器、组合寄存器与立即数、计算访存有效地址或形成 PC 相对目标，分支比较器则判断相等等条件。</p>
+<p>加载地址为</p>
+<p><span class="math display">\[
+EA=(R[rs1]+Imm)\bmod2^{32}.
+\]</span></p>
+<p>对于 <code>beq</code>，EX 通常同时产生</p>
+<p><span class="math display">\[
+taken=(A=B),\qquad target=PC+Imm.
+\]</span></p>
+<p><span class="math inline">\(A\)</span>、<span class="math inline">\(B\)</span> 是旁路后的比较操作数，PC 必须是该指令保存的 PC，而不是当前取指 PC，因为已有年轻指令进入流水线。</p>
+<p>EX 是旁路数据的主要消费者。MUX 在原 ID/EX 操作数、EX/MEM 中更新结果和 MEM/WB 中接近写回的值之间选择。分支在 EX 解析时，结果出来前已有两条年轻指令进入 IF 与 ID；把解析提前可降低惩罚，却会把比较、目标与旁路逻辑移到更早阶段。</p>
+</section>
+<section id="memory-access" class="level4">
+<h4 class="anchored" data-anchor-id="memory-access"><strong>访存</strong></h4>
+<p><strong>访存阶段（MEM）</strong>使用 EX 地址完成加载或存储。加载请求字节并按大小进行符号/零扩展，之后送往 WB；存储组合地址、旁路后的存储数据与字节使能。算术指令不访问数据内存，其 ALU 结果只是穿过 EX/MEM 与 MEM/WB。</p>
+<p>内存副作用必须严格门控。内部存在的存储若 <code>valid=0</code>、被旧异常重定向，或自身访问失败，就不能修改内存。精确顺序流水线可以把存储使能推迟到确认指令有效且不会再被更老指令取消之后。</p>
+<p>一周期 MEM 抽象假定缓存命中。数据缓存未命中时，预期周期末没有加载结果，流水线必须停顿依赖工作或采用通用请求/响应机制。存储层次同时影响时钟周期与平均 CPI。</p>
+</section>
+<section id="write-back" class="level4">
+<h4 class="anchored" data-anchor-id="write-back"><strong>写回</strong></h4>
+<p><strong>写回阶段（WB）</strong>选择成为体系结构寄存器可见值的结果。算术指令选 ALU，加载选内存数据，<code>jal</code> 选链接 <span class="math inline">\(PC+4\)</span>。只有条目有效、<code>RegWrite=1</code>、没有抑制异常且 <span class="math inline">\(rd\ne0\)</span> 时才写入：</p>
+<p><span class="math display">\[
+R^{+}[rd]=
+\begin{cases}
+WBValue,&amp;valid\land RegWrite\land(rd\ne0),\\
+R[rd],&amp;\text{其他情况}.
+\end{cases}
+\]</span></p>
+<p>WB 为寄存器结果提供简单有序提交点：旧指令比年轻指令先到达。但消费者不应等待已经在 EX 计算或 MEM 返回的结果走到 WB；旁路改善可用时间，却不改变寄存器文件更新的体系结构时刻。</p>
+</section>
+</section>
+<section id="pipeline-registers-and-timing" class="level3">
+<h3 class="anchored" data-anchor-id="pipeline-registers-and-timing"><strong>流水线寄存器与时序</strong></h3>
+<p>流水线寄存器不只是分隔线。每一个都要保存后级需要的完整<strong>飞行中记录</strong>：数值、寄存器名、控制位、指令 PC、异常元数据与有效位。若数据和控制错位，一条指令可能误用另一条指令的目的或内存写使能。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-register-payloads.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="每组流水线寄存器携带后续仍需要的字段；字段在最后消费者后消失，有效位、目的、控制与异常信息则按需继续传播。"><img src="assets/pipeline-register-payloads.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="每组流水线寄存器携带后续仍需要的字段；字段在最后消费者后消失，有效位、目的、控制与异常信息则按需继续传播。"></a></p>
+</figure>
+</div>
+<figcaption>每组流水线寄存器携带后续仍需要的字段；字段在最后消费者后消失，有效位、目的、控制与异常信息则按需继续传播。</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>寄存器</th>
+<th>典型载荷</th>
+<th>保留原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>IF/ID</td>
+<td>valid、PC、指令、预测/取指状态</td>
+<td>译码并识别指令</td>
+</tr>
+<tr class="even">
+<td>ID/EX</td>
+<td>操作数、<code>rs1</code>、<code>rs2</code>、<code>rd</code>、立即数、PC、控制</td>
+<td>用冒险感知值执行</td>
+</tr>
+<tr class="odd">
+<td>EX/MEM</td>
+<td>ALU、分支结果/目标、存储数据、<code>rd</code>、控制</td>
+<td>访存或重定向</td>
+</tr>
+<tr class="even">
+<td>MEM/WB</td>
+<td>加载数据或 ALU/链接、<code>rd</code>、<code>RegWrite</code></td>
+<td>完成寄存器更新</td>
+</tr>
+</tbody>
+</table>
+<p><span class="math display">\[
+T_{clk}\ge t_{cq}+\max_i(t_{logic,i})+t_{setup}+t_{skew}.
+\]</span></p>
+<p>时钟必须覆盖源寄存器输出、相邻寄存器间最慢组合路径、目的建立时间和时钟裕量。最大值而不是平均值控制周期。把 400 ps 阶段拆成两个 200 ps 阶段可能提高频率，却增加寄存器、指令延迟、飞行中状态，并扩大分支错误时要冲刷的深度。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>动作</th>
+<th>状态更新</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>正常推进</td>
+<td>每级捕获前级</td>
+<td>所有有效指令前进一步</td>
+</tr>
+<tr class="even">
+<td>停顿</td>
+<td>选定寄存器保持旧值</td>
+<td>指令等待，较老级仍可继续</td>
+</tr>
+<tr class="odd">
+<td>气泡</td>
+<td>目的寄存器捕获 <code>valid=0</code> 或零副作用控制</td>
+<td>空槽沿流水线移动</td>
+</tr>
+<tr class="even">
+<td>冲刷</td>
+<td>一个或多个年轻条目失效</td>
+<td>丢弃错误路径或异常后的工作</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：用有效位明确表达推进、停顿、气泡与冲刷
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PipeEntry:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    valid: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">str</span> <span class="op">=</span> <span class="st">"bubble"</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> update_front_end(pc, if_id, fetched, <span class="op">*</span>, stall<span class="op">=</span><span class="va">False</span>, flush<span class="op">=</span><span class="va">False</span>, target<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""只模拟一个边沿上 PC 与 IF/ID 状态的改变。"""</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> flush:</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> target, PipeEntry()</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> stall:</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> pc, if_id</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pc <span class="op">+</span> <span class="dv">4</span>, fetched</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>pc <span class="op">=</span> <span class="bn">0x100</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>if_id <span class="op">=</span> PipeEntry(<span class="va">True</span>, <span class="st">"add x5, x6, x7"</span>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>held_pc, held_if_id <span class="op">=</span> update_front_end(pc, if_id, PipeEntry(), stall<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (held_pc, held_if_id) <span class="op">==</span> (pc, if_id)</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>new_pc, cleared_if_id <span class="op">=</span> update_front_end(</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    pc, if_id, PipeEntry(), flush<span class="op">=</span><span class="va">True</span>, target<span class="op">=</span><span class="bn">0x180</span></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> new_pc <span class="op">==</span> <span class="bn">0x180</span> <span class="kw">and</span> <span class="kw">not</span> cleared_if_id.valid</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="pipeline-performance" class="level3">
+<h3 class="anchored" data-anchor-id="pipeline-performance"><strong>流水线性能</strong></h3>
+<p>分析流水线性能时，需要把理想情况下的阶段重叠与导致流水线槽位空闲的事件区分开来。对于由 <span class="math inline">\(k\)</span> 个阶段组成、时钟周期统一为 <span class="math inline">\(T_{clk}\)</span> 的流水线，执行 <span class="math inline">\(N\)</span> 条彼此独立的指令时，理想执行时间为</p>
+<p><span class="math display">\[
+T_{ideal}(N)=(k+N-1)T_{clk}.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(N\)</span> 是被测指令序列中的指令数量。</li>
+<li><span class="math inline">\(k\)</span> 是流水线的阶段数。</li>
+<li>前 <span class="math inline">\(k\)</span> 个周期用于填充流水线，并完成第一条指令。</li>
+<li>其余 <span class="math inline">\(N-1\)</span> 条指令在理想情况下各自只比前一条晚一个周期完成。</li>
+<li><span class="math inline">\(T_{clk}\)</span> 将周期数换算为实际时间。</li>
+</ul>
+<p>对于五级流水线和五条独立指令，所需周期数为 <span class="math inline">\(k+N-1=5+5-1=9\)</span>，与前面理想化的对角线时序图一致。当指令序列足够长时，最初四个填充周期占总时间的比例会很小；而停顿和冲刷产生的额外周期并未包含在这个理想公式中。</p>
+<section id="latency-and-throughput" class="level4">
+<h4 class="anchored" data-anchor-id="latency-and-throughput"><strong>延迟与吞吐量</strong></h4>
+<p><strong>指令延迟</strong>是指一条指令从进入 IF 到最终完成所经历的时间。在理想的固定级数模型中，</p>
+<p><span class="math display">\[
+L_{instruction}\approx kT_{clk}.
+\]</span></p>
+<p><strong>稳态吞吐量</strong>则表示流水线填满后，单位时间内能够完成多少条指令：</p>
+<p><span class="math display">\[
+Throughput_{ideal}\approx \frac{1}{T_{clk}}\quad\text{条指令/单位时间}.
+\]</span></p>
+<p>两个公式回答的是不同问题。增加流水线级数 <span class="math inline">\(k\)</span> 可能缩短每一级的组合逻辑延迟，从而提高吞吐量；但新增的寄存器开销可能使 <span class="math inline">\(kT_{clk}\)</span> 基本不变，甚至使单条指令延迟增大。例如，时钟周期为 250 ps 的五级处理器在理想状态下每 250 ps 完成一条指令，但一条具体指令仍需约 <span class="math inline">\(5\times250=1250\)</span> ps 才能穿过全部阶段。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>它回答的问题</th>
+<th>流水线化的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>延迟</td>
+<td>一条指令从进入到完成需要多久？</td>
+<td>可能近似不变，也可能增加</td>
+</tr>
+<tr class="even">
+<td>吞吐量</td>
+<td>多久能够完成一条新指令？</td>
+<td>流水线填满后通常提高</td>
+</tr>
+<tr class="odd">
+<td>时钟周期</td>
+<td>一个周期至少需要多长？</td>
+<td>由最慢阶段与寄存器开销决定</td>
+</tr>
+<tr class="even">
+<td>对依赖的响应</td>
+<td>下一条指令现在能否继续推进？</td>
+<td>可能插入气泡并降低有效吞吐量</td>
+</tr>
+</tbody>
+</table>
+<p>因此，“五个阶段都在工作”并不意味着每条指令快了五倍，而是机器能够让不同指令并发使用这五组阶段资源。</p>
+</section>
+<section id="ideal-speedup" class="level4">
+<h4 class="anchored" data-anchor-id="ideal-speedup"><strong>理想加速比</strong></h4>
+<p>假设未流水线化的实现需要为每条指令依次完成所有阶段，其简化执行时间为</p>
+<p><span class="math display">\[
+T_{unpipe}(N)=N\sum_{i=1}^{k}t_i.
+\]</span></p>
+<p>结合理想流水线时间，可以得到</p>
+<p><span class="math display">\[
+Speedup(N)=
+\frac{N\sum_{i=1}^{k}t_i}
+{(k+N-1)(\max_i t_i+t_{reg})}.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(t_i\)</span> 是第 <span class="math inline">\(i\)</span> 个阶段在不计寄存器开销时的有效延迟。</li>
+<li><span class="math inline">\(\sum t_i\)</span> 是未流水线化路径上的总有效工作时间。</li>
+<li><span class="math inline">\(\max_i t_i+t_{reg}\)</span> 是该简化模型中的流水线时钟周期。</li>
+<li><span class="math inline">\(k+N-1\)</span> 包含流水线填充与排空的影响。</li>
+</ul>
+<p>只有当各阶段完全均衡、寄存器开销可以忽略且 <span class="math inline">\(N\)</span> 足够大时，加速比才会逼近 <span class="math inline">\(k\)</span>。现实中的阶段延迟并不相等，流水线寄存器会消耗时间和能量，各种冒险还会增加周期，因此理想上界是设计目标而不是性能保证。</p>
+<details>
+<summary>
+Python 示例：量化阶段不均衡与寄存器开销
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ideal_pipeline_speedup(stage_delays_ps, register_overhead_ps, instructions):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""比较顺序完成各阶段与理想流水线执行的时间。"""</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    k <span class="op">=</span> <span class="bu">len</span>(stage_delays_ps)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    unpipelined_time <span class="op">=</span> instructions <span class="op">*</span> <span class="bu">sum</span>(stage_delays_ps)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    pipeline_clock <span class="op">=</span> <span class="bu">max</span>(stage_delays_ps) <span class="op">+</span> register_overhead_ps</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    pipelined_time <span class="op">=</span> (k <span class="op">+</span> instructions <span class="op">-</span> <span class="dv">1</span>) <span class="op">*</span> pipeline_clock</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"clock_ps"</span>: pipeline_clock,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">"unpipelined_ps"</span>: unpipelined_time,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"pipelined_ps"</span>: pipelined_time,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"speedup"</span>: unpipelined_time <span class="op">/</span> pipelined_time,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> ideal_pipeline_speedup(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    stage_delays_ps<span class="op">=</span>[<span class="dv">180</span>, <span class="dv">150</span>, <span class="dv">220</span>, <span class="dv">200</span>, <span class="dv">100</span>],</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    register_overhead_ps<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    instructions<span class="op">=</span><span class="dv">100</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> result[<span class="st">"clock_ps"</span>] <span class="op">==</span> <span class="dv">240</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(result[<span class="st">"speedup"</span>], <span class="dv">2</span>) <span class="op">==</span> <span class="fl">3.41</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>例子虽然采用五级流水线，但 100 条指令的理想序列加速比只有约 <span class="math inline">\(3.41\times\)</span>。其中 220 ps 的 EX 阶段决定了 240 ps 的时钟周期，较短阶段存在无法利用的时序余量；寄存器开销和四个填充周期进一步缩小了收益。</p>
+</section>
+<section id="cpi-with-stalls" class="level4">
+<h4 class="anchored" data-anchor-id="cpi-with-stalls"><strong>含停顿的 CPI</strong></h4>
+<p><strong>每条指令周期数（Cycles per Instruction, CPI）</strong>表示平均完成一条指令需要消耗多少个时钟周期。如果一个 <span class="math inline">\(k\)</span> 级标量流水线完成 <span class="math inline">\(N\)</span> 条指令的过程中出现了 <span class="math inline">\(S\)</span> 个额外的停顿或冲刷周期，则</p>
+<p><span class="math display">\[
+Cycles=(k-1)+N+S,
+\]</span></p>
+<p><span class="math display">\[
+CPI=\frac{(k-1)+N+S}{N}.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(k-1\)</span> 是除每条指令理想占用的一个周期外，流水线填充与排空带来的额外开销。</li>
+<li><span class="math inline">\(N\)</span> 只计算已经完成的体系结构指令；被冲刷的错误路径指令不计入其中。</li>
+<li><span class="math inline">\(S\)</span> 包含值尚未就绪、资源冲突、分支纠正或缓存延迟造成的所有额外周期。</li>
+<li>当序列很长时，<span class="math inline">\((k-1)/N\)</span> 趋近于零，因此 <span class="math inline">\(CPI\approx1+S/N\)</span>。</li>
+</ul>
+<p>执行时间仍遵循第 01 章介绍的乘积关系：</p>
+<p><span class="math display">\[
+CPU\ Time=N\times CPI\times T_{clk}.
+\]</span></p>
+<p>更深的流水线可能减小 <span class="math inline">\(T_{clk}\)</span>，但也可能增大分支预测失败的惩罚并提高 CPI。因此，仅比较时钟频率可能反而选出执行更慢的处理器。</p>
+<details>
+<summary>
+Python 示例：合并装载-使用、分支与缓存惩罚
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pipeline_cpi(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    instructions,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    stages,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    load_use_events<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    load_use_penalty<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    branch_misses<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    branch_penalty<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    cache_misses<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    cache_penalty<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""统计填充周期和相互独立的周期损失来源。"""</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    stalls <span class="op">=</span> (</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        load_use_events <span class="op">*</span> load_use_penalty</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> branch_misses <span class="op">*</span> branch_penalty</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> cache_misses <span class="op">*</span> cache_penalty</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    cycles <span class="op">=</span> (stages <span class="op">-</span> <span class="dv">1</span>) <span class="op">+</span> instructions <span class="op">+</span> stalls</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> cycles, cycles <span class="op">/</span> instructions</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>cycles, cpi <span class="op">=</span> pipeline_cpi(</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    instructions<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    stages<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    load_use_events<span class="op">=</span><span class="dv">40</span>,</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    branch_misses<span class="op">=</span><span class="dv">25</span>,</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    cache_misses<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    cache_penalty<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cycles <span class="op">==</span> <span class="dv">1154</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(cpi, <span class="dv">3</span>) <span class="op">==</span> <span class="fl">1.154</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"cycles=</span><span class="sc">{</span>cycles<span class="sc">}</span><span class="ss">, CPI=</span><span class="sc">{</span>cpi<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码为了便于说明而直接相加各种惩罚，但真实事件可能彼此重叠。例如，缓存未命中造成的停顿可能已经阻塞某条分支或依赖指令，因此周期精确模拟器必须建模流水线状态，而不能机械地叠加独立概率。这个加法模型更适合作为解释 CPI 为什么高于 1 的一阶近似。</p>
+</section>
+</section>
+<section id="structural-hazards" class="level3">
+<h3 class="anchored" data-anchor-id="structural-hazards"><strong>结构冒险</strong></h3>
+<p>当同一个周期中的多个流水线阶段，请求某类硬件资源的数量或端口数超过实现所能提供的容量时，就发生了<strong>结构冒险（structural hazard）</strong>。它本质上是资源容量不足，而不要求指令之间存在寄存器依赖或控制流关系。</p>
+<p>经典例子是统一的单端口存储器：IF 每个周期都要读取下一条指令，而 MEM 中的装载或存储指令也要在同一周期访问数据。一个端口只能接收一个请求，所以实现必须增加容量，或让其中一个请求者等待。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/structural-hazard-memory-conflict.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="IF 中的取指与 MEM 中的装载争用同一个统一存储器端口。通过分离指令和数据缓存、增加端口或存储体，或者插入停顿，都可以保证实现正确。"><img src="assets/structural-hazard-memory-conflict.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="IF 中的取指与 MEM 中的装载争用同一个统一存储器端口。通过分离指令和数据缓存、增加端口或存储体，或者插入停顿，都可以保证实现正确。"></a></p>
+</figure>
+</div>
+<figcaption>IF 中的取指与 MEM 中的装载争用同一个统一存储器端口。通过分离指令和数据缓存、增加端口或存储体，或者插入停顿，都可以保证实现正确。</figcaption>
+</figure>
+</div>
+<p>常见的结构冲突及设计选择如下：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>冲突</th>
+<th>硬件方案</th>
+<th>调度方案</th>
+<th>权衡</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>IF 与 MEM 都需要存储器</td>
+<td>分离指令/数据缓存或提供两个端口</td>
+<td>停顿 IF 或 MEM</td>
+<td>增加容量消耗面积；停顿损失 CPI</td>
+</tr>
+<tr class="even">
+<td>WB 写寄存器时 ID 读寄存器</td>
+<td>多端口寄存器堆并定义同周期读写时序</td>
+<td>停顿或增加写到读的旁路</td>
+<td>更多端口会增加阵列延迟与布线</td>
+</tr>
+<tr class="odd">
+<td>EX 同时需要分支目标和算术运算</td>
+<td>独立的目标加法器或比较器</td>
+<td>跨周期复用 ALU</td>
+<td>复制硬件提高吞吐量</td>
+</tr>
+<tr class="even">
+<td>双发射需要两个 ALU</td>
+<td>复制执行单元</td>
+<td>该周期只发射一条指令</td>
+<td>只有资源匹配时宽度才有价值</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：检测对单周期资源的竞争性预留
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> structural_conflicts(stage_requests, capacities):</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回同周期请求数量超过容量的资源。"""</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    demand <span class="op">=</span> Counter(stage_requests.values())</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        resource: {<span class="st">"demand"</span>: count, <span class="st">"capacity"</span>: capacities.get(resource, <span class="dv">0</span>)}</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> resource, count <span class="kw">in</span> demand.items()</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> count <span class="op">&gt;</span> capacities.get(resource, <span class="dv">0</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>requests <span class="op">=</span> {</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"IF"</span>: <span class="st">"unified_memory_port"</span>,</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"MEM"</span>: <span class="st">"unified_memory_port"</span>,  <span class="co"># 本周期有一条 load 位于 MEM</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"EX"</span>: <span class="st">"integer_alu"</span>,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>conflicts <span class="op">=</span> structural_conflicts(</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    requests,</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    capacities<span class="op">=</span>{<span class="st">"unified_memory_port"</span>: <span class="dv">1</span>, <span class="st">"integer_alu"</span>: <span class="dv">1</span>},</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> conflicts[<span class="st">"unified_memory_port"</span>] <span class="op">==</span> {<span class="st">"demand"</span>: <span class="dv">2</span>, <span class="st">"capacity"</span>: <span class="dv">1</span>}</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(conflicts)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>消除所有结构停顿不一定是最优方案。对于很少发生的冲突，通过调度避让可能比复制大型资源更划算。真正的工程问题是：额外容量所节省的执行时间，是否值得付出面积、能耗、关键路径和验证成本。</p>
+</section>
+<section id="data-hazards" class="level3">
+<h3 class="anchored" data-anchor-id="data-hazards"><strong>数据冒险</strong></h3>
+<p><strong>数据依赖</strong>是程序本身的性质：一条指令的含义与另一条指令的读写有关。<strong>数据冒险（data hazard）</strong>则是微体系结构中的时序问题：阶段重叠可能使操作以违反该依赖的顺序发生。同一种程序依赖在某条流水线中可能需要停顿，在另一条流水线中可以用旁路解决，而在单周期实现中甚至不需要特殊处理，因此必须区分二者。</p>
+<p>考虑下面两条指令：</p>
+<pre class="text"><code>I0: add x5, x1, x2
+I1: sub x7, x5, x3</code></pre>
+<p><code>I1</code> 确实需要 <code>I0</code> 产生的值。顺序执行时，<code>I0</code> 会在 <code>I1</code> 读取前写入 <code>x5</code>；但在五级流水线中，<code>I1</code> 可能已经到达 EX，而 <code>I0</code> 尚未进入 WB。因此判断冒险时应询问：</p>
+<blockquote class="blockquote">
+<p>生产者的值在哪个阶段可用，而消费者在哪个阶段需要这个值？</p>
+</blockquote>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>值</th>
+<th>通常何时可用</th>
+<th>消费者通常何时需要</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>整数 ALU 结果</td>
+<td>生产者 EX 结束</td>
+<td>消费者 EX 开始</td>
+<td>从 EX/MEM 旁路到 EX</td>
+</tr>
+<tr class="even">
+<td>缓存命中的装载结果</td>
+<td>生产者 MEM 结束</td>
+<td>消费者 EX 开始</td>
+<td>紧随其后的消费者停顿一次</td>
+</tr>
+<tr class="odd">
+<td>存储数据</td>
+<td>随指令向 MEM 传递</td>
+<td>生产结果可能在 store 的 MEM 前到达</td>
+<td>增加存储数据旁路</td>
+</tr>
+<tr class="even">
+<td>分支操作数</td>
+<td>分支比较阶段</td>
+<td>在本设计中通常为 EX</td>
+<td>使用类似 ALU 的旁路或停顿</td>
+</tr>
+</tbody>
+</table>
+<p>冒险处理应基于“何时产生、何时需要”的时序关系，而不是死记某几个指令组合。这个视角同样适用于乘法器、缓存未命中、浮点单元和乱序执行。</p>
+<section id="raw-war-and-waw-dependencies" class="level4">
+<h4 class="anchored" data-anchor-id="raw-war-and-waw-dependencies"><strong>RAW、WAR 与 WAW 依赖</strong></h4>
+<p>寄存器依赖按照对同一体系结构名称的读（<strong>R</strong>）和写（<strong>W</strong>）顺序分类。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dependency-types.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="RAW 在生产者和消费者之间传递真实的值；WAR 与 WAW 则维持对同一寄存器名称的访问顺序，并在执行或完成可能重排时形成冒险。"><img src="assets/dependency-types.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="RAW 在生产者和消费者之间传递真实的值；WAR 与 WAW 则维持对同一寄存器名称的访问顺序，并在执行或完成可能重排时形成冒险。"></a></p>
+</figure>
+</div>
+<figcaption>RAW 在生产者和消费者之间传递真实的值；WAR 与 WAW 则维持对同一寄存器名称的访问顺序，并在执行或完成可能重排时形成冒险。</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>类型</th>
+<th>程序必须维持的顺序</th>
+<th>含义</th>
+<th>五级顺序标量流水线中的情况</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>RAW</td>
+<td>较早的写先于较晚的读</td>
+<td>真依赖/流依赖，指令之间传递值</td>
+<td>可能形成冒险，需要旁路或停顿</td>
+</tr>
+<tr class="even">
+<td>WAR</td>
+<td>较早的读先于较晚的写</td>
+<td>因复用名称形成的反依赖</td>
+<td>当读写始终顺序发生时不会形成冒险</td>
+</tr>
+<tr class="odd">
+<td>WAW</td>
+<td>较早的写先于较晚的写</td>
+<td>因复用名称形成的输出依赖</td>
+<td>只有一条顺序 WB 路径时不会形成冒险</td>
+</tr>
+</tbody>
+</table>
+<p>RAW 不能在不改变算法的前提下消除，因为后续指令确实需要先前结果。WAR 和 WAW 是<strong>名称依赖</strong>：两条指令碰巧使用相同的体系结构寄存器，但较早指令并未向较晚指令传递值。乱序处理器可以通过寄存器重命名为写操作分配不同物理目的寄存器，从而解除这些伪依赖。</p>
+<details>
+<summary>
+Python 模型：根据读集合与写集合识别依赖
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RegisterUse:</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">str</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    reads: <span class="bu">frozenset</span>[<span class="bu">str</span>]</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    writes: <span class="bu">frozenset</span>[<span class="bu">str</span>]</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dependencies(older, younger):</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""从较早指令到较晚指令识别三类寄存器依赖。"""</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"RAW"</span>: older.writes <span class="op">&amp;</span> younger.reads,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"WAR"</span>: older.reads <span class="op">&amp;</span> younger.writes,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"WAW"</span>: older.writes <span class="op">&amp;</span> younger.writes,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>add <span class="op">=</span> RegisterUse(<span class="st">"add x5,x1,x2"</span>, <span class="bu">frozenset</span>({<span class="st">"x1"</span>, <span class="st">"x2"</span>}), <span class="bu">frozenset</span>({<span class="st">"x5"</span>}))</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>sub <span class="op">=</span> RegisterUse(<span class="st">"sub x7,x5,x3"</span>, <span class="bu">frozenset</span>({<span class="st">"x5"</span>, <span class="st">"x3"</span>}), <span class="bu">frozenset</span>({<span class="st">"x7"</span>}))</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> dependencies(add, sub)</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> result[<span class="st">"RAW"</span>] <span class="op">==</span> <span class="bu">frozenset</span>({<span class="st">"x5"</span>})</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> result[<span class="st">"WAR"</span>] <span class="kw">and</span> <span class="kw">not</span> result[<span class="st">"WAW"</span>]</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>存储器依赖需要比较地址，而不能只看寄存器名称。例如，store 后跟一条访问同一地址的 load，形成了类似 RAW 的内存依赖，但处理器可能直到 EX 才知道两个地址是否相同。对于推测执行的乱序处理器，内存消歧因而成为重要挑战。</p>
+</section>
+<section id="forwarding" class="level4">
+<h4 class="anchored" data-anchor-id="forwarding"><strong>旁路</strong></h4>
+<p><strong>旁路（forwarding，也称 bypassing）</strong>将已经算出的结果直接从较后的流水线寄存器送到需要它的阶段，而不必等待寄存器堆写回。它改变的是值在硬件中的传输路线和到达时间，并不改变程序顺序或体系结构寄存器语义。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-forwarding-network.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="旁路单元把消费者的 rs1、rs2 与 EX/MEM 和 MEM/WB 中的目的寄存器比较。最近的匹配生产者优先，因为它保存的是最新值。"><img src="assets/pipeline-forwarding-network.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="旁路单元把消费者的 rs1、rs2 与 EX/MEM 和 MEM/WB 中的目的寄存器比较。最近的匹配生产者优先，因为它保存的是最新值。"></a></p>
+</figure>
+</div>
+<figcaption>旁路单元把消费者的 rs1、rs2 与 EX/MEM 和 MEM/WB 中的目的寄存器比较。最近的匹配生产者优先，因为它保存的是最新值。</figcaption>
+</figure>
+</div>
+</div>
+<p>对于 ALU 输入 A，一个简化的优先级规则是</p>
+<p><span class="math display">\[
+ForwardA=
+\begin{cases}
+EXMEM, &amp; EXMEM.RegWrite\land(EXMEM.rd\ne0)\land(EXMEM.rd=IDEX.rs1),\\
+MEMWB, &amp; MEMWB.RegWrite\land(MEMWB.rd\ne0)\land(MEMWB.rd=IDEX.rs1),\\
+IDEX, &amp; \text{其他情况}.
+\end{cases}
+\]</span></p>
+<ul>
+<li><code>IDEX.rs1</code> 表示当前 EX 阶段消费者需要的源寄存器。</li>
+<li><code>EXMEM.rd</code> 属于最近的较早指令，因此具有最高优先级。</li>
+<li><code>MEMWB.rd</code> 属于更早的生产者，只有 EX/MEM 不匹配时才使用。</li>
+<li><code>RegWrite</code> 防止把分支或 store 指令中偶然出现的 <code>rd</code> 位误认为有效结果。</li>
+<li><span class="math inline">\(rd\ne0\)</span> 防止转发对 RISC-V 零寄存器 <code>x0</code> 的伪写入。</li>
+</ul>
+<p>同样的规则可用于 <code>rs2</code> 和 ALU 输入 B。存储数据可能需要独立旁路，因为 store 在 MEM 阶段消费该值，而不是把它作为地址 ALU 的第二个输入。</p>
+<details>
+<summary>
+Python 模型：选择最新的旁路操作数
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Producer:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    reg_write: <span class="bu">bool</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    rd: <span class="bu">int</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    value: <span class="bu">int</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forwarded_operand(source_reg, register_value, ex_mem, mem_wb):</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""优先使用最近的有效生产者，否则保留寄存器堆读出的值。"""</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ex_mem.reg_write <span class="kw">and</span> ex_mem.rd <span class="op">!=</span> <span class="dv">0</span> <span class="kw">and</span> ex_mem.rd <span class="op">==</span> source_reg:</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> ex_mem.value, <span class="st">"EX/MEM"</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> mem_wb.reg_write <span class="kw">and</span> mem_wb.rd <span class="op">!=</span> <span class="dv">0</span> <span class="kw">and</span> mem_wb.rd <span class="op">==</span> source_reg:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> mem_wb.value, <span class="st">"MEM/WB"</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> register_value, <span class="st">"ID/EX"</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co"># add x5,... 位于 EX/MEM，同时 sub ...,x5,... 进入 EX。</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>value, source <span class="op">=</span> forwarded_operand(</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    source_reg<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    register_value<span class="op">=</span><span class="dv">19</span>,              <span class="co"># ID 阶段读出的旧 x5</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    ex_mem<span class="op">=</span>Producer(<span class="va">True</span>, <span class="dv">5</span>, <span class="dv">42</span>),   <span class="co"># 最新的 add 结果</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    mem_wb<span class="op">=</span>Producer(<span class="va">True</span>, <span class="dv">5</span>, <span class="dv">31</span>),   <span class="co"># 更早的 x5 结果</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (value, source) <span class="op">==</span> (<span class="dv">42</span>, <span class="st">"EX/MEM"</span>)</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(value, source)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>只有值已经产生时，旁路才能弥补时序差距。ALU 结果在 EX 结束时可用，可以在下一周期送到后续指令的 EX 输入；装载值直到 MEM 结束才出现，紧随其后的消费者会过早到达 EX，因此必须使用互锁。</p>
+</section>
+<section id="stalling-and-interlocks" class="level4">
+<h4 class="anchored" data-anchor-id="stalling-and-interlocks"><strong>停顿与互锁</strong></h4>
+<p><strong>停顿（stall）</strong>阻止选定指令继续推进；<strong>互锁（interlock）</strong>则是自动检测不安全条件并产生保持与气泡控制信号的硬件。因此，正确的软件不需要针对普通依赖手工插入与特定实现相关的空操作。</p>
+<p>考虑装载-使用组合：</p>
+<pre class="text"><code>lw  x5, 0(x6)
+add x7, x5, x8</code></pre>
+<p>load 在周期 C3 的 EX 中计算地址，但数据到 C4 的 MEM 结束时才返回；add 通常也会在 C4 开始 EX，并且一开始就需要 <code>x5</code>。即使存在 MEM 到 EX 的旁路，也不可能在值产生之前交付它。流水线必须把 add 延迟一个周期，随后才能把返回的装载值旁路给它。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/load-use-stall-bubble.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="load 继续进入 MEM，而 PC 与 IF/ID 保持不变。清除 ID/EX 控制信号会插入一个气泡，使依赖 add 晚一个周期进入 EX，并通过旁路收到装载结果。"><img src="assets/load-use-stall-bubble.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="load 继续进入 MEM，而 PC 与 IF/ID 保持不变。清除 ID/EX 控制信号会插入一个气泡，使依赖 add 晚一个周期进入 EX，并通过旁路收到装载结果。"></a></p>
+</figure>
+</div>
+<figcaption>load 继续进入 MEM，而 PC 与 IF/ID 保持不变。清除 ID/EX 控制信号会插入一个气泡，使依赖 add 晚一个周期进入 EX，并通过旁路收到装载结果。</figcaption>
+</figure>
+</div>
+</div>
+<p>常见的检测条件为</p>
+<p><span class="math display">\[
+stall=IDEX.MemRead\land(IDEX.rd\ne0)\land
+\left[
+(uses\_rs1\land IDEX.rd=IFID.rs1)\lor
+(uses\_rs2\land IDEX.rd=IFID.rs2)
+\right].
+\]</span></p>
+<ul>
+<li><code>IDEX.MemRead</code> 表明较早的 EX 阶段指令是一条结果较晚到达的 load。</li>
+<li><code>IDEX.rd</code> 是这条 load 的目的寄存器。</li>
+<li><code>IFID.rs1</code> 与 <code>IFID.rs2</code> 是正在译码的消费者源寄存器。</li>
+<li><code>uses_rs1</code> 与 <code>uses_rs2</code> 可避免比较译码后实际上不会读取的字段。</li>
+</ul>
+<p>条件成立时，冒险单元保持 PC、保持 IF/ID、清除即将进入 ID/EX 的副作用控制信号，同时允许 EX/MEM 及之后的阶段继续前进。于是 load 向后推进，EX 中出现一个气泡，而消费者留在 ID 等待下一次译码。</p>
+<details>
+<summary>
+Python 模型：检测装载-使用冒险并生成精确的互锁响应
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load_use_hazard(load, consumer):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""仅当已译码源操作数需要 EX 阶段 load 的结果时返回 True。"""</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> load[<span class="st">"mem_read"</span>] <span class="kw">or</span> load[<span class="st">"rd"</span>] <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    needs_rs1 <span class="op">=</span> consumer[<span class="st">"uses_rs1"</span>] <span class="kw">and</span> consumer[<span class="st">"rs1"</span>] <span class="op">==</span> load[<span class="st">"rd"</span>]</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    needs_rs2 <span class="op">=</span> consumer[<span class="st">"uses_rs2"</span>] <span class="kw">and</span> consumer[<span class="st">"rs2"</span>] <span class="op">==</span> load[<span class="st">"rd"</span>]</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> needs_rs1 <span class="kw">or</span> needs_rs2</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>load <span class="op">=</span> {<span class="st">"mem_read"</span>: <span class="va">True</span>, <span class="st">"rd"</span>: <span class="dv">5</span>}</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>consumer <span class="op">=</span> {<span class="st">"uses_rs1"</span>: <span class="va">True</span>, <span class="st">"rs1"</span>: <span class="dv">5</span>, <span class="st">"uses_rs2"</span>: <span class="va">True</span>, <span class="st">"rs2"</span>: <span class="dv">8</span>}</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>stall <span class="op">=</span> load_use_hazard(load, consumer)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>control <span class="op">=</span> {</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"PCWrite"</span>: <span class="kw">not</span> stall,       <span class="co"># False：保持取指地址</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"IFIDWrite"</span>: <span class="kw">not</span> stall,     <span class="co"># False：让消费者留在译码阶段</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"IDEXControls"</span>: <span class="st">"zero"</span> <span class="cf">if</span> stall <span class="cf">else</span> <span class="st">"decoded"</span>,  <span class="co"># 注入气泡</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> stall</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> control <span class="op">==</span> {<span class="st">"PCWrite"</span>: <span class="va">False</span>, <span class="st">"IFIDWrite"</span>: <span class="va">False</span>, <span class="st">"IDEXControls"</span>: <span class="st">"zero"</span>}</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(control)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>技术</th>
+<th>适用情况</th>
+<th>代价</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>旁路</td>
+<td>生产者的值在消费者需要前已经存在</td>
+<td>多路选择器、比较器和更长的旁路线</td>
+</tr>
+<tr class="even">
+<td>单周期互锁</td>
+<td>值将在一个固定的短延迟后出现</td>
+<td>损失一个发射槽位</td>
+</tr>
+<tr class="odd">
+<td>可变周期停顿</td>
+<td>存储器或执行延迟不固定</td>
+<td>更通用的 ready/valid 控制，且可能损失多个周期</td>
+</tr>
+<tr class="even">
+<td>编译器调度</td>
+<td>有独立指令可以填补空隙</td>
+<td>依赖可用的独立工作以及对目标流水线的了解</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="control-hazards" class="level3">
+<h3 class="anchored" data-anchor-id="control-hazards"><strong>控制冒险</strong></h3>
+<p>当取指阶段需要下一条 PC，而较早的分支、跳转、返回或陷阱尚未最终确定该 PC 时，就出现了<strong>控制冒险（control hazard）</strong>。等待每次决策完成当然正确，但会浪费取指机会；预测一条路径可以保持流水线忙碌，但处理器必须能够彻底撤销错误预测造成的所有影响。</p>
+<p>如果分支到 EX 才解析，顺序取指单元在结果已知前可能让两条更年轻的指令进入流水线：一条到 ID，另一条仍在 IF。若 IF 预测 <span class="math inline">\(PC+4\)</span>，而分支最终跳转，则两条指令均来自错误路径。惩罚大小取决于分支在哪个阶段解析、目标地址多快可用，以及需要清除多少个错误路径阶段。</p>
+<p><code>jal</code> 是无条件跳转，译码阶段通常能比条件分支完成寄存器比较更早判断控制流将改变。return 更困难，因为目标来自寄存器，通常借助返回地址栈预测；间接调用和跳转则既需要方向判断，也需要目标预测。</p>
+<section id="pipeline-flushes" class="level4">
+<h4 class="anchored" data-anchor-id="pipeline-flushes"><strong>流水线冲刷</strong></h4>
+<p><strong>流水线冲刷（pipeline flush）</strong>使那些不应再影响体系结构状态的在途指令失效。若一个实际跳转的分支被预测为不跳转，处理器会选择目标 PC，并清除更年轻的顺序路径指令的有效位；较老指令和分支本身继续正常执行。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/control-hazard-flush.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="当 EX 中的分支解析为跳转时，ID 和 IF 中的顺序指令更年轻且位于错误路径。控制单元使它们失效，并把取指重定向到目标。"><img src="assets/control-hazard-flush.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="当 EX 中的分支解析为跳转时，ID 和 IF 中的顺序指令更年轻且位于错误路径。控制单元使它们失效，并把取指重定向到目标。"></a></p>
+</figure>
+</div>
+<figcaption>当 EX 中的分支解析为跳转时，ID 和 IF 中的顺序指令更年轻且位于错误路径。控制单元使它们失效，并把取指重定向到目标。</figcaption>
+</figure>
+</div>
+<p>冲刷不能只忽略某个计算结果，失效条目可能产生的每一种副作用都必须被有效位屏蔽：</p>
+<p><span class="math display">\[
+RegWrite_{effective}=valid\land RegWrite,
+\]</span></p>
+<p><span class="math display">\[
+MemWrite_{effective}=valid\land MemWrite.
+\]</span></p>
+<p>同一有效性规则也会抑制错误路径异常。例如，错误预测路径上的推测 load 可能在内部遇到访问问题，但当较早分支证明该 load 本不应执行后，它不能引发体系结构可见的陷阱。</p>
+<details>
+<summary>
+Python 模型：重定向 PC，并且只撤销更年轻的条目
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass, replace</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InFlight:</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    age: <span class="bu">int</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">str</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    valid: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resolve_taken_branch(branch_age, target, entries):</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""保留分支与更老工作，使更年轻的错误路径工作失效。"""</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    corrected <span class="op">=</span> [</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        replace(entry, valid<span class="op">=</span><span class="va">False</span>) <span class="cf">if</span> entry.age <span class="op">&gt;</span> branch_age <span class="cf">else</span> entry</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> entry <span class="kw">in</span> entries</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> target, corrected</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>entries <span class="op">=</span> [</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    InFlight(<span class="dv">0</span>, <span class="st">"older add"</span>),</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    InFlight(<span class="dv">1</span>, <span class="st">"beq x5,x0,L"</span>),</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    InFlight(<span class="dv">2</span>, <span class="st">"wrong-path sub"</span>),</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>    InFlight(<span class="dv">3</span>, <span class="st">"wrong-path add"</span>),</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>pc, entries <span class="op">=</span> resolve_taken_branch(<span class="dv">1</span>, <span class="bn">0x200</span>, entries)</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> pc <span class="op">==</span> <span class="bn">0x200</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [entry.valid <span class="cf">for</span> entry <span class="kw">in</span> entries] <span class="op">==</span> [<span class="va">True</span>, <span class="va">True</span>, <span class="va">False</span>, <span class="va">False</span>]</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>RV32I 不向软件暴露体系结构分支延迟槽：软件语义不要求跳转分支之后的那条指令必须执行。任何错误路径工作都只是内部推测，实现必须透明地将其移除。</p>
+</section>
+<section id="static-prediction" class="level4">
+<h4 class="anchored" data-anchor-id="static-prediction"><strong>静态预测</strong></h4>
+<p><strong>静态预测</strong>依据固定规则选择方向，不记录每条分支的运行时历史。最简单的流水线把所有条件分支都预测为不跳转，并继续顺序取指。这种方案成本低，因为 <span class="math inline">\(PC+4\)</span> 已经可用，只有实际跳转的分支才需要纠正。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>静态策略</th>
+<th>依据</th>
+<th>典型弱点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>等待分支解析</td>
+<td>绝不取错误路径指令</td>
+<td>每条分支都会损失周期</td>
+</tr>
+<tr class="even">
+<td>总是不跳转</td>
+<td>直线代码常见，顺序 PC 容易获得</td>
+<td>循环中反复跳转的分支会频繁预测失败</td>
+</tr>
+<tr class="odd">
+<td>总是跳转</td>
+<td>目标能够较早提供时有用</td>
+<td>向前条件分支往往不跳转</td>
+</tr>
+<tr class="even">
+<td>向后跳转、向前不跳转</td>
+<td>向后分支通常构成循环</td>
+<td>代码结构只是一种启发式信息</td>
+</tr>
+<tr class="odd">
+<td>编译器提示或剖析决策</td>
+<td>利用离线知识</td>
+<td>行为可能随输入改变</td>
+</tr>
+</tbody>
+</table>
+<p>对于长指令流，分支预测对 CPI 的一阶贡献可写为</p>
+<p><span class="math display">\[
+CPI=CPI_{base}+f_b\times m\times P.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(CPI_{base}\)</span> 是没有分支预测失败时的 CPI。</li>
+<li><span class="math inline">\(f_b\)</span> 是已完成指令中条件分支所占比例。</li>
+<li><span class="math inline">\(m\)</span> 是这些分支的预测错误率。</li>
+<li><span class="math inline">\(P\)</span> 是每次预测失败损失的周期数。</li>
+</ul>
+<p>若 20% 的指令是分支，其中 35% 预测错误，每次错误损失两个周期，则增加的 CPI 为 <span class="math inline">\(0.20\times0.35\times2=0.14\)</span>。</p>
+<details>
+<summary>
+Python 示例：在同一结果序列上比较静态分支策略
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> static_accuracy(outcomes, policy):</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""在 T/N 结果序列上测量总是跳转或总是不跳转策略。"""</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> <span class="st">"T"</span> <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"taken"</span> <span class="cf">else</span> <span class="st">"N"</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> <span class="bu">sum</span>(outcome <span class="op">==</span> prediction <span class="cf">for</span> outcome <span class="kw">in</span> outcomes)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> correct <span class="op">/</span> <span class="bu">len</span>(outcomes)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 四次跳回循环，最后一次不跳转并退出循环。</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>loop <span class="op">=</span> <span class="bu">list</span>(<span class="st">"TTTTN"</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> static_accuracy(loop, <span class="st">"taken"</span>) <span class="op">==</span> <span class="fl">0.8</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> static_accuracy(loop, <span class="st">"not_taken"</span>) <span class="op">==</span> <span class="fl">0.2</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>branch_fraction <span class="op">=</span> <span class="fl">0.20</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>misprediction_rate <span class="op">=</span> <span class="fl">0.35</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>penalty <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>added_cpi <span class="op">=</span> branch_fraction <span class="op">*</span> misprediction_rate <span class="op">*</span> penalty</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(added_cpi, <span class="dv">2</span>) <span class="op">==</span> <span class="fl">0.14</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"added CPI = </span><span class="sc">{</span>added_cpi<span class="sc">:.2f}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>静态方法的成本与时序非常可预测，因此适合小型处理器；但当同一分支在不同执行过程中表现不同时，它无法自适应，这就引出了动态历史预测。</p>
+</section>
+<section id="dynamic-branch-prediction" class="level4">
+<h4 class="anchored" data-anchor-id="dynamic-branch-prediction"><strong>动态分支预测</strong></h4>
+<p><strong>动态预测</strong>记录近期运行行为，并用它预测未来控制流。基础的分支历史表（Branch History Table, BHT）使用分支 PC 的若干位索引一个小状态。常见的两位饱和计数器允许一次反常结果先削弱强预测，而不会立即反转方向。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/two-bit-branch-predictor.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="两位计数器包含强不跳转、弱不跳转、弱跳转和强跳转四个状态。实际跳转时计数器饱和递增，不跳转时饱和递减。"><img src="assets/two-bit-branch-predictor.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="两位计数器包含强不跳转、弱不跳转、弱跳转和强跳转四个状态。实际跳转时计数器饱和递增，不跳转时饱和递减。"></a></p>
+</figure>
+</div>
+<figcaption>两位计数器包含强不跳转、弱不跳转、弱跳转和强跳转四个状态。实际跳转时计数器饱和递增，不跳转时饱和递减。</figcaption>
+</figure>
+</div>
+<p>设计数器 <span class="math inline">\(c\in\{0,1,2,3\}\)</span>。状态 0、1 预测不跳转，状态 2、3 预测跳转，其更新规则为</p>
+<p><span class="math display">\[
+c^{+}=\begin{cases}
+\min(3,c+1), &amp; outcome=taken,\\
+\max(0,c-1), &amp; outcome=not\ taken.
+\end{cases}
+\]</span></p>
+<ul>
+<li><span class="math inline">\(c\)</span> 是已解析分支更新预测器前的状态。</li>
+<li><span class="math inline">\(c^{+}\)</span> 是为下一次遇到该分支而保存的新状态。</li>
+<li><code>min</code> 与 <code>max</code> 让计数器在边界饱和，而不是从强跳转绕回强不跳转。</li>
+</ul>
+<p>对跳转方向的预测还不够，取指阶段还需要目标地址。<strong>分支目标缓冲区（Branch Target Buffer, BTB）</strong>缓存可能的目标，使 IF 能立即重定向；<strong>返回地址栈（Return-Address Stack, RAS）</strong>根据嵌套调用结构预测函数返回目标，通常比通用 BTB 更准确。现代预测器还会组合局部和全局历史，但概念仍相同：预测控制流是否改变、预测它将前往何处，并在稍后验证。</p>
+<details>
+<summary>
+Python 模型：存在别名冲突的 PC 索引两位预测器
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TwoBitPredictor:</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, entries<span class="op">=</span><span class="dv">16</span>, initial_state<span class="op">=</span><span class="dv">1</span>):</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.counters <span class="op">=</span> [initial_state] <span class="op">*</span> entries  <span class="co"># 1 表示弱不跳转</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _index(<span class="va">self</span>, pc):</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 去掉两个对齐位，再映射到有限表项范围内。</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (pc <span class="op">&gt;&gt;</span> <span class="dv">2</span>) <span class="op">%</span> <span class="bu">len</span>(<span class="va">self</span>.counters)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> predict(<span class="va">self</span>, pc):</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.counters[<span class="va">self</span>._index(pc)] <span class="op">&gt;=</span> <span class="dv">2</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> update(<span class="va">self</span>, pc, taken):</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        index <span class="op">=</span> <span class="va">self</span>._index(pc)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        old <span class="op">=</span> <span class="va">self</span>.counters[index]</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.counters[index] <span class="op">=</span> <span class="bu">min</span>(<span class="dv">3</span>, old <span class="op">+</span> <span class="dv">1</span>) <span class="cf">if</span> taken <span class="cf">else</span> <span class="bu">max</span>(<span class="dv">0</span>, old <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>predictor <span class="op">=</span> TwoBitPredictor(entries<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>pc <span class="op">=</span> <span class="bn">0x100</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>outcomes <span class="op">=</span> [<span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">False</span>]</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>predictions <span class="op">=</span> []</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> taken <span class="kw">in</span> outcomes:</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    predictions.append(predictor.predict(pc))</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    predictor.update(pc, taken)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> predictions <span class="op">==</span> [<span class="va">False</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>]</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> predictor.counters[predictor._index(pc)] <span class="op">==</span> <span class="dv">2</span>  <span class="co"># 退出后为弱跳转</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(predictions)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>不同静态分支可能映射到有限 BHT 的同一个表项，这种<strong>别名冲突（aliasing）</strong>会使一条分支的结果干扰另一条分支的状态。更大的表和更丰富的历史可以提高准确率，但会消耗存储、能量和前端时序。预测器只有足够早地返回方向和目标，才能真正帮助取指。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>预测器</th>
+<th>保存的状态</th>
+<th style="text-align: right;">能否适应输入行为？</th>
+<th>主要代价</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>总是不跳转</td>
+<td>无</td>
+<td style="text-align: right;">否</td>
+<td>跳转分支需要冲刷</td>
+</tr>
+<tr class="even">
+<td>向后跳转、向前不跳转</td>
+<td>分支位移符号</td>
+<td style="text-align: right;">否</td>
+<td>启发式判断可能出错</td>
+</tr>
+<tr class="odd">
+<td>两位 BHT</td>
+<td>每个索引表项一个计数器</td>
+<td style="text-align: right;">是</td>
+<td>预热与别名冲突</td>
+</tr>
+<tr class="even">
+<td>基于历史的预测器</td>
+<td>由局部/全局模式索引的计数器</td>
+<td style="text-align: right;">是</td>
+<td>更多存储、更长延迟和更新逻辑</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="exceptions-in-a-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="exceptions-in-a-pipeline"><strong>流水线中的异常</strong></h3>
+<p>第 06 章把<strong>精确异常</strong>定义为清晰的体系结构边界：所有更老指令均已完成，故障指令没有执行普通副作用，也没有更年轻的指令改变体系结构状态。流水线使这个要求更难实现，因为三类指令可能同时处于不同阶段。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/precise-exception-pipeline.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="当一条 load 在 MEM 中发生故障时，更老工作可以完成；load 抑制普通写回并记录陷阱状态；更年轻条目被置为无效；取指重定向到 mtvec。"><img src="assets/precise-exception-pipeline.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="当一条 load 在 MEM 中发生故障时，更老工作可以完成；load 抑制普通写回并记录陷阱状态；更年轻条目被置为无效；取指重定向到 mtvec。"></a></p>
+</figure>
+</div>
+<figcaption>当一条 load 在 MEM 中发生故障时，更老工作可以完成；load 抑制普通写回并记录陷阱状态；更年轻条目被置为无效；取指重定向到 mtvec。</figcaption>
+</figure>
+</div>
+<p>因此，每个流水线条目都应携带其 PC、有效位以及已经检测到的异常元数据，直到控制逻辑可以确定正确的年龄顺序。非法指令可能在 ID 检测，分支目标问题可能在 EX 检测，数据访问故障则可能到 MEM 才出现。如果同一周期有多条指令报告异常，体系结构上最老的有效指令必须获胜；若较老的分支预测失败或异常冲刷了更年轻指令，更年轻的故障甚至会直接消失。</p>
+<p>简单的顺序处理流程是：</p>
+<ol type="1">
+<li>允许故障指令之前的指令完成所有被允许的体系结构更新；</li>
+<li>抑制故障指令的 <code>RegWrite</code> 或 <code>MemWrite</code>；</li>
+<li>写入 <code>mepc</code>、<code>mcause</code> 和 <code>mtval</code> 等陷阱状态；</li>
+<li>使所有更年轻的流水线条目失效；</li>
+<li>将取指 PC 重定向到 <code>mtvec</code>。</li>
+</ol>
+<p>中断是异步请求，而不是当前指令直接导致的故障，但处理器仍要呈现精确边界。通常处理器会在已完成指令之间接受中断，并记录下一条可恢复指令的 PC。</p>
+<details>
+<summary>
+Python 模型：选择最老的有效异常并推导流水线动作
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PipelineStatus:</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    age: <span class="bu">int</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    pc: <span class="bu">int</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">str</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    valid: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    exception: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> precise_trap(entries, mtvec):</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""选择最老的有效异常，并划分所有在途工作。"""</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    faults <span class="op">=</span> [entry <span class="cf">for</span> entry <span class="kw">in</span> entries <span class="cf">if</span> entry.valid <span class="kw">and</span> entry.exception]</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> faults:</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    fault <span class="op">=</span> <span class="bu">min</span>(faults, key<span class="op">=</span><span class="kw">lambda</span> entry: entry.age)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"next_pc"</span>: mtvec,</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"mepc"</span>: fault.pc,</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"mcause"</span>: fault.exception,</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"commit_older"</span>: [entry.text <span class="cf">for</span> entry <span class="kw">in</span> entries <span class="cf">if</span> entry.valid <span class="kw">and</span> entry.age <span class="op">&lt;</span> fault.age],</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"suppress_faulting"</span>: fault.text,</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">"flush_younger"</span>: [entry.text <span class="cf">for</span> entry <span class="kw">in</span> entries <span class="cf">if</span> entry.valid <span class="kw">and</span> entry.age <span class="op">&gt;</span> fault.age],</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>snapshot <span class="op">=</span> [</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    PipelineStatus(<span class="dv">0</span>, <span class="bn">0x100</span>, <span class="st">"older add in WB"</span>),</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    PipelineStatus(<span class="dv">1</span>, <span class="bn">0x104</span>, <span class="st">"faulting load in MEM"</span>, exception<span class="op">=</span><span class="st">"load access fault"</span>),</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>    PipelineStatus(<span class="dv">2</span>, <span class="bn">0x108</span>, <span class="st">"younger branch in EX"</span>),</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    PipelineStatus(<span class="dv">3</span>, <span class="bn">0x10C</span>, <span class="st">"younger add in ID"</span>, exception<span class="op">=</span><span class="st">"illegal instruction"</span>),</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>action <span class="op">=</span> precise_trap(snapshot, mtvec<span class="op">=</span><span class="bn">0x80000000</span>)</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> action[<span class="st">"mepc"</span>] <span class="op">==</span> <span class="bn">0x104</span></span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> action[<span class="st">"commit_older"</span>] <span class="op">==</span> [<span class="st">"older add in WB"</span>]</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> action[<span class="st">"flush_younger"</span>] <span class="op">==</span> [<span class="st">"younger branch in EX"</span>, <span class="st">"younger add in ID"</span>]</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(action)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>事件</th>
+<th>为什么需要使工作失效</th>
+<th style="text-align: right;">触发事件的指令是否正常提交？</th>
+<th>恢复信息</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>分支预测失败</td>
+<td>预测控制流与解析结果不同</td>
+<td style="text-align: right;">是，分支本身有效</td>
+<td>已解析目标或顺序 PC</td>
+</tr>
+<tr class="even">
+<td>同步异常</td>
+<td>当前指令无法正常完成</td>
+<td style="text-align: right;">否，故障指令不能产生普通副作用</td>
+<td>故障 PC 与原因</td>
+</tr>
+<tr class="odd">
+<td>中断</td>
+<td>在指令边界接受外部事件</td>
+<td style="text-align: right;">所有更老工作完成</td>
+<td>下一条可恢复 PC 与原因</td>
+</tr>
+</tbody>
+</table>
+<p>精确状态是五级处理器与高度推测处理器共同遵守的不变量。更宽或乱序的机器需要显式提交机制，因为内部执行完成顺序已经不能保证体系结构顺序。</p>
+</section>
+<section id="from-scalar-pipelines-to-superscalar-execution" class="level3">
+<h3 class="anchored" data-anchor-id="from-scalar-pipelines-to-superscalar-execution"><strong>从标量流水线到超标量执行</strong></h3>
+<p>五级设计是<strong>标量（scalar）</strong>流水线：每个周期最多有一条指令进入每个阶段，因此理想稳态完成率是一条指令/周期。<strong>超标量（superscalar）</strong>处理器的发射宽度大于 1，尝试在同一周期开始多条指令。流水线深度与发射宽度是两个独立维度：深度沿时间重叠不同阶段，宽度则复制或共享资源，让多条指令能够同时使用某个阶段。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/scalar-to-superscalar.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="双发射前端检查一对指令的同周期依赖与资源容量，将它们分派到多条执行通道；即使内部执行更灵活，仍保持顺序提交。"><img src="assets/scalar-to-superscalar.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="双发射前端检查一对指令的同周期依赖与资源容量，将它们分派到多条执行通道；即使内部执行更灵活，仍保持顺序提交。"></a></p>
+</figure>
+</div>
+<figcaption>双发射前端检查一对指令的同周期依赖与资源容量，将它们分派到多条执行通道；即使内部执行更灵活，仍保持顺序提交。</figcaption>
+</figure>
+</div>
+<p>实际完成速率常用<strong>每周期指令数（Instructions per Cycle, IPC）</strong>表示：</p>
+<p><span class="math display">\[
+IPC=\frac{Instructions\ retired}{Cycles},
+\qquad
+CPI=\frac{Cycles}{Instructions\ retired}=\frac{1}{IPC}.
+\]</span></p>
+<p>只有当两个指标描述相同时间区间、相同已完成指令流时，它们才互为倒数。双发射设计的峰值 IPC 为 2，但只有在独立指令、执行单元、寄存器堆端口、缓存带宽和正确控制流预测都充足时才可能达到。</p>
+<p>一个发射组内部也会出现新问题。如果槽位 1 读取槽位 0 的目的寄存器，除非实现提供同周期旁路，否则两条指令不能直接并行执行。两条 load 可能争用一个数据缓存端口；更宽的旁路网络需要比较更多生产者和消费者，其布线本身可能成为限制时钟的关键路径。</p>
+<p>乱序超标量处理器通常加入以下机制：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>寄存器重命名</td>
+<td>消除 WAR 与 WAW 名称依赖</td>
+</tr>
+<tr class="even">
+<td>发射队列/调度器</td>
+<td>等待真实操作数和执行单元就绪</td>
+</tr>
+<tr class="odd">
+<td>多个功能单元</td>
+<td>为并行执行提供结构容量</td>
+</tr>
+<tr class="even">
+<td>重排序缓冲区</td>
+<td>按程序顺序提交结果并维持精确异常</td>
+</tr>
+<tr class="odd">
+<td>load/store 队列</td>
+<td>检查内存顺序，并把 store 数据转发给 load</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：判断两条指令能否在同一周期发射
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> IssueInstruction:</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    text: <span class="bu">str</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    reads: <span class="bu">frozenset</span>[<span class="bu">str</span>]</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    writes: <span class="bu">frozenset</span>[<span class="bu">str</span>]</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    resource: <span class="bu">str</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> can_issue_pair(first, second, capacities):</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""检查没有寄存器重命名的顺序双发射组合。"""</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    reasons <span class="op">=</span> []</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> first.writes <span class="op">&amp;</span> second.reads:</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        reasons.append(<span class="st">"same-group RAW dependency"</span>)</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> first.reads <span class="op">&amp;</span> second.writes:</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        reasons.append(<span class="st">"same-group WAR dependency"</span>)</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> first.writes <span class="op">&amp;</span> second.writes:</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>        reasons.append(<span class="st">"same-group WAW dependency"</span>)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> first.resource <span class="op">==</span> second.resource <span class="kw">and</span> capacities.get(first.resource, <span class="dv">0</span>) <span class="op">&lt;</span> <span class="dv">2</span>:</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>        reasons.append(<span class="ss">f"only one </span><span class="sc">{</span>first<span class="sc">.</span>resource<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">not</span> reasons, reasons</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>i0 <span class="op">=</span> IssueInstruction(</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"add x5,x1,x2"</span>, <span class="bu">frozenset</span>({<span class="st">"x1"</span>, <span class="st">"x2"</span>}), <span class="bu">frozenset</span>({<span class="st">"x5"</span>}), <span class="st">"ALU"</span></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>i1 <span class="op">=</span> IssueInstruction(</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"sub x7,x5,x3"</span>, <span class="bu">frozenset</span>({<span class="st">"x5"</span>, <span class="st">"x3"</span>}), <span class="bu">frozenset</span>({<span class="st">"x7"</span>}), <span class="st">"ALU"</span></span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>allowed, reasons <span class="op">=</span> can_issue_pair(i0, i1, capacities<span class="op">=</span>{<span class="st">"ALU"</span>: <span class="dv">2</span>})</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> allowed <span class="kw">and</span> reasons <span class="op">==</span> [<span class="st">"same-group RAW dependency"</span>]</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(reasons)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th style="text-align: right;">峰值发射宽度</th>
+<th>主要优势</th>
+<th>主要限制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>单周期标量</td>
+<td style="text-align: right;">每个长周期一条指令</td>
+<td>状态转换简单</td>
+<td>时钟周期长，阶段之间没有重叠</td>
+</tr>
+<tr class="even">
+<td>五级标量流水线</td>
+<td style="text-align: right;">每个短周期一条指令</td>
+<td>以可理解的控制获得较好吞吐量</td>
+<td>冒险提高 CPI，旁路也增加时序成本</td>
+</tr>
+<tr class="odd">
+<td>顺序超标量</td>
+<td style="text-align: right;">按程序顺序同时发射多条指令</td>
+<td>利用相邻指令中明显的独立性</td>
+<td>下一发射组存在依赖时就会阻塞</td>
+</tr>
+<tr class="even">
+<td>乱序超标量</td>
+<td style="text-align: right;">动态选择多条已就绪指令</td>
+<td>越过受阻指令寻找并行工作</td>
+<td>重命名、调度、恢复、功耗与验证非常复杂</td>
+</tr>
+</tbody>
+</table>
+<p>流水线揭示了一条普遍的性能原则：快速的常见路径必须配有在假设失败时维持正确性的恢复路径。旁路假设值已经就绪，互锁负责处理尚未就绪；预测先假设下一 PC，冲刷负责修复错误；推测提前执行内部工作，而顺序提交防止这些工作破坏体系结构状态。</p>
+<p><strong>本章总结。</strong> 五级流水线重叠 IF、ID、EX、MEM 和 WB，在维持顺序 ISA 契约的同时提高吞吐量。流水线寄存器跨时钟边沿携带数据、控制信号、有效位、PC 与异常元数据。理想状态下可以逼近每周期完成一条指令，但实际性能由最慢阶段、寄存器开销、填充时间、停顿和冲刷共同决定。结构冒险来自硬件容量不足；RAW 数据冒险在值已就绪时用旁路处理，尚未就绪时则需要互锁；WAR 与 WAW 会在执行可能重排时变得重要。控制冒险推动了静态和动态预测，而有效位与冲刷会抑制错误路径副作用。精确异常逻辑在进入陷阱前完成更老工作、抑制故障指令并移除更年轻工作。超标量执行进一步允许每个阶段并行处理多条指令，因此需要更多资源、更广的依赖检查，并往往需要寄存器重命名与顺序提交。第 08 章将沿着 IF 和 MEM 的请求进入缓存层次，分析命中时间如何影响流水线时钟，以及未命中如何向 CPI 中加入可变停顿周期。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","loop":false,"closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

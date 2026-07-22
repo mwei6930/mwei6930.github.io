@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：同步、并发正确性与活性</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="05-synchronization-correctness-and-liveness_files/libs/clipboard/clipboard.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/quarto.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/popper.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/anchor.min.js"></script>
+<link href="05-synchronization-correctness-and-liveness_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="05-synchronization-correctness-and-liveness_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#synchronization-concurrent-correctness-and-liveness" id="toc-synchronization-concurrent-correctness-and-liveness" class="nav-link active" data-scroll-target="#synchronization-concurrent-correctness-and-liveness"><strong>同步、并发正确性与活性</strong></a>
+  <ul>
+  <li><a href="#why-concurrent-programs-are-difficult" id="toc-why-concurrent-programs-are-difficult" class="nav-link" data-scroll-target="#why-concurrent-programs-are-difficult"><strong>并发程序为何困难？</strong></a>
+  <ul>
+  <li><a href="#interleavings-and-nondeterminism" id="toc-interleavings-and-nondeterminism" class="nav-link" data-scroll-target="#interleavings-and-nondeterminism"><strong>交错与非确定性</strong></a></li>
+  <li><a href="#safety-and-liveness-properties" id="toc-safety-and-liveness-properties" class="nav-link" data-scroll-target="#safety-and-liveness-properties"><strong>安全性与活性属性</strong></a></li>
+  </ul></li>
+  <li><a href="#race-conditions-and-critical-sections" id="toc-race-conditions-and-critical-sections" class="nav-link" data-scroll-target="#race-conditions-and-critical-sections"><strong>竞态条件与临界区</strong></a>
+  <ul>
+  <li><a href="#atomicity-visibility-and-ordering" id="toc-atomicity-visibility-and-ordering" class="nav-link" data-scroll-target="#atomicity-visibility-and-ordering"><strong>原子性、可见性与顺序</strong></a></li>
+  <li><a href="#the-memory-model" id="toc-the-memory-model" class="nav-link" data-scroll-target="#the-memory-model"><strong>内存模型</strong></a></li>
+  </ul></li>
+  <li><a href="#hardware-support-for-synchronization" id="toc-hardware-support-for-synchronization" class="nav-link" data-scroll-target="#hardware-support-for-synchronization"><strong>同步的硬件支持</strong></a>
+  <ul>
+  <li><a href="#disabling-interrupts-and-its-limits" id="toc-disabling-interrupts-and-its-limits" class="nav-link" data-scroll-target="#disabling-interrupts-and-its-limits"><strong>关闭中断及其局限</strong></a></li>
+  <li><a href="#test-and-set-compare-and-swap-and-fetch-and-add" id="toc-test-and-set-compare-and-swap-and-fetch-and-add" class="nav-link" data-scroll-target="#test-and-set-compare-and-swap-and-fetch-and-add"><strong>Test-and-Set、Compare-and-Swap 与 Fetch-and-Add</strong></a></li>
+  <li><a href="#memory-barriers" id="toc-memory-barriers" class="nav-link" data-scroll-target="#memory-barriers"><strong>内存屏障</strong></a></li>
+  </ul></li>
+  <li><a href="#mutual-exclusion-locks" id="toc-mutual-exclusion-locks" class="nav-link" data-scroll-target="#mutual-exclusion-locks"><strong>互斥锁</strong></a>
+  <ul>
+  <li><a href="#spinlocks-and-mutexes" id="toc-spinlocks-and-mutexes" class="nav-link" data-scroll-target="#spinlocks-and-mutexes"><strong>自旋锁与互斥量</strong></a></li>
+  <li><a href="#lock-granularity-and-contention" id="toc-lock-granularity-and-contention" class="nav-link" data-scroll-target="#lock-granularity-and-contention"><strong>锁粒度与争用</strong></a></li>
+  </ul></li>
+  <li><a href="#semaphores-condition-variables-and-monitors" id="toc-semaphores-condition-variables-and-monitors" class="nav-link" data-scroll-target="#semaphores-condition-variables-and-monitors"><strong>信号量、条件变量与监视器</strong></a></li>
+  <li><a href="#barriers-and-read-write-coordination" id="toc-barriers-and-read-write-coordination" class="nav-link" data-scroll-target="#barriers-and-read-write-coordination"><strong>屏障与读写协调</strong></a></li>
+  <li><a href="#classical-synchronization-problems" id="toc-classical-synchronization-problems" class="nav-link" data-scroll-target="#classical-synchronization-problems"><strong>经典同步问题</strong></a>
+  <ul>
+  <li><a href="#producer-consumer" id="toc-producer-consumer" class="nav-link" data-scroll-target="#producer-consumer"><strong>生产者-消费者</strong></a></li>
+  <li><a href="#readers-writers" id="toc-readers-writers" class="nav-link" data-scroll-target="#readers-writers"><strong>读者-写者</strong></a></li>
+  <li><a href="#dining-philosophers" id="toc-dining-philosophers" class="nav-link" data-scroll-target="#dining-philosophers"><strong>哲学家就餐</strong></a></li>
+  </ul></li>
+  <li><a href="#deadlock" id="toc-deadlock" class="nav-link" data-scroll-target="#deadlock"><strong>死锁</strong></a>
+  <ul>
+  <li><a href="#necessary-conditions-and-resource-allocation-graphs" id="toc-necessary-conditions-and-resource-allocation-graphs" class="nav-link" data-scroll-target="#necessary-conditions-and-resource-allocation-graphs"><strong>必要条件与资源分配图</strong></a></li>
+  <li><a href="#prevention-avoidance-detection-and-recovery" id="toc-prevention-avoidance-detection-and-recovery" class="nav-link" data-scroll-target="#prevention-avoidance-detection-and-recovery"><strong>预防、避免、检测与恢复</strong></a></li>
+  </ul></li>
+  <li><a href="#starvation-livelock-and-priority-inversion" id="toc-starvation-livelock-and-priority-inversion" class="nav-link" data-scroll-target="#starvation-livelock-and-priority-inversion"><strong>饥饿、活锁与优先级反转</strong></a></li>
+  <li><a href="#lock-free-techniques-and-read-copy-update" id="toc-lock-free-techniques-and-read-copy-update" class="nav-link" data-scroll-target="#lock-free-techniques-and-read-copy-update"><strong>无锁技术与读-复制-更新</strong></a></li>
+  <li><a href="#diagnosing-and-testing-concurrent-code" id="toc-diagnosing-and-testing-concurrent-code" class="nav-link" data-scroll-target="#diagnosing-and-testing-concurrent-code"><strong>诊断与测试并发代码</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：同步、并发正确性与活性</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/05-synchronization-correctness-and-liveness.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="synchronization-concurrent-correctness-and-liveness" class="level2">
+<h2 class="anchored" data-anchor-id="synchronization-concurrent-correctness-and-liveness"><strong>同步、并发正确性与活性</strong></h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>线程和 IPC 让多个活动重叠，但也使结果取决于看不见的交错、编译器优化、CPU 内存序和调度。<strong>同步（synchronization）</strong>不是“给代码加锁”的同义词，而是建立可证明的原子性、可见性、顺序和进展条件。</p>
+<p>本章从丢失更新出发，依次建立 memory model、原子读改写、锁、条件变量、信号量、屏障、经典问题、死锁与 lock-free/RCU。阅读任何并发设计时都应先写出不变量，再问：哪些操作必须原子发生？哪个事件使另一个线程可见？等待条件由谁改变？若线程暂停或崩溃，其他线程还能否前进？</p>
+<section id="why-concurrent-programs-are-difficult" class="level3">
+<h3 class="anchored" data-anchor-id="why-concurrent-programs-are-difficult"><strong>并发程序为何困难？</strong></h3>
+<section id="interleavings-and-nondeterminism" class="level4">
+<h4 class="anchored" data-anchor-id="interleavings-and-nondeterminism"><strong>交错与非确定性</strong></h4>
+<p>高级语句常展开为多个机器操作：</p>
+<pre class="text"><code>register = load(counter)       // 从共享计数器加载
+register = register + 1       // 在寄存器中递增
+store(counter, register)      // 写回共享计数器</code></pre>
+<p>两个线程都执行 <code>counter++</code> 时，可以同时读到旧值，再各自写入同一个新值，于是两次增量只保留一次。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lost-update-interleaving-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/lost-update-interleaving-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="两个 counter 增量的指令时间线发生交错，最终得到 1 而非 2。"></a></p>
+<figcaption>两个线程读取同一计数并都写回 1，造成一次更新丢失</figcaption>
+</figure>
+</div>
+<p>操作系统调度、缓存未命中、中断和 I/O 会改变交错；编译器还可在语言规则允许时重排或删除访问。调试输出常改变时序，因此“加一行日志后错误消失”并不表示问题解决。</p>
+<details>
+<summary>
+<strong>C：故意制造的 pthread 数据竞争</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span> ITERATIONS <span class="op">=</span> <span class="dv">1000000</span> <span class="op">};</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> counter <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>increment<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>unused<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="dt">void</span><span class="op">)</span>unused<span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">long</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> ITERATIONS<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        counter<span class="op">++;</span>  <span class="co">// Data race: read-modify-write is not synchronized.</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    pthread_t first<span class="op">;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    pthread_t second<span class="op">;</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pthread_create<span class="op">(&amp;</span>first<span class="op">,</span> NULL<span class="op">,</span> increment<span class="op">,</span> NULL<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"first pthread_create failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pthread_create<span class="op">(&amp;</span>second<span class="op">,</span> NULL<span class="op">,</span> increment<span class="op">,</span> NULL<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"second pthread_create failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> first_join <span class="op">=</span> pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> second_join <span class="op">=</span> pthread_join<span class="op">(</span>second<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>first_join <span class="op">!=</span> <span class="dv">0</span> <span class="op">||</span> second_join <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"pthread_join failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"counter = </span><span class="sc">%ld</span><span class="st">; expected = </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> counter<span class="op">,</span> <span class="dv">2</span> <span class="op">*</span> ITERATIONS<span class="op">);</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="safety-and-liveness-properties" class="level4">
+<h4 class="anchored" data-anchor-id="safety-and-liveness-properties"><strong>安全性与活性属性</strong></h4>
+<p><strong>安全性（safety）</strong>表示坏事永远不会发生，例如队列计数不越界、两个线程不会同时处于互斥临界区。<strong>活性（liveness）</strong>表示好事最终会发生，例如等待者最终获得锁、已提交请求最终完成。</p>
+<p>进一步可区分：deadlock-free 保证系统中至少有人推进；starvation-free 保证每个持续合格参与者最终推进；wait-free 则要求每个操作在有限自身步骤内完成。越强的保证通常需要更严格的算法与资源假设。</p>
+<p>正确性必须说明观察模型。仅在一次测试中输出正确，不能证明所有允许调度都安全；“没有死锁”也不能证明没有饥饿或 livelock。</p>
+</section>
+</section>
+<section id="race-conditions-and-critical-sections" class="level3">
+<h3 class="anchored" data-anchor-id="race-conditions-and-critical-sections"><strong>竞态条件与临界区</strong></h3>
+<p><strong>竞态条件（race condition）</strong>是结果或正确性依赖不受控时序。语言层面的 <strong>data race</strong> 通常更具体：不同线程并发访问同一内存位置、至少一个写入，且访问既非原子也没有 happens-before 关系。在 C/C++ 中，data race 会造成未定义行为，而不只是偶尔得到旧值。</p>
+<p><strong>临界区（critical section）</strong>是访问共享不变量、必须受协议保护的代码。目标不是把整段程序串行化，而是让从一个合法共享状态到下一个合法状态的转换具有所需原子性。</p>
+<section id="atomicity-visibility-and-ordering" class="level4">
+<h4 class="anchored" data-anchor-id="atomicity-visibility-and-ordering"><strong>原子性、可见性与顺序</strong></h4>
+<ul>
+<li><strong>原子性：</strong>其他线程不能观察操作的中间状态。</li>
+<li><strong>可见性：</strong>一个线程完成的写入何时能被另一个线程观察到。</li>
+<li><strong>顺序：</strong>不同操作之间哪些先后关系必须保留。</li>
+</ul>
+<p>三者互不替代。单个原子 flag 不会自动让附近普通数据安全；互斥锁既提供排他，也通过 acquire/release 语义发布临界区内写入。修复计数器可用锁：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> pthread_mutex_t counter_lock <span class="op">=</span> PTHREAD_MUTEX_INITIALIZER<span class="op">;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> counter<span class="op">;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> increment_counter<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>counter_lock<span class="op">);</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    counter<span class="op">++;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>counter_lock<span class="op">);</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>锁保护的是“计数器不变量”，而不是某一行语法。所有访问该不变量的路径都必须遵守同一协议。</p>
+</section>
+<section id="the-memory-model" class="level4">
+<h4 class="anchored" data-anchor-id="the-memory-model"><strong>内存模型</strong></h4>
+<p>内存模型定义哪些执行和观察是允许的。<strong>sequenced-before</strong> 描述单线程语言顺序；原子 release 与观察到它的 acquire 之间建立 <strong>synchronizes-with</strong>；二者的传递闭包形成 <strong>happens-before</strong>。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/happens-before-release-acquire.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/happens-before-release-acquire.svg" class="img-fluid figure-img" style="width:96.0%" alt="两线程图展示 sequenced-before、synchronizes-with 与传递的 happens-before 边。"></a></p>
+<figcaption>release store 把之前的载荷写发布给观察该 flag 的 acquire load</figcaption>
+</figure>
+</div>
+<pre class="text"><code>写线程：普通初始化 -&gt; RELEASE 发布
+读线程：ACQUIRE 观察 -&gt; 普通使用</code></pre>
+<details>
+<summary>
+<strong>C11：使用 release/acquire 安全发布初始化数据</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> payload <span class="op">{</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> value<span class="op">;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> message<span class="op">[</span><span class="dv">32</span><span class="op">];</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="kw">struct</span> payload shared_payload<span class="op">;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> atomic_bool ready <span class="op">=</span> ATOMIC_VAR_INIT<span class="op">(</span><span class="kw">false</span><span class="op">);</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> producer<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 这些普通写入在发布之前仅对写线程可见。</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    shared_payload<span class="op">.</span>value <span class="op">=</span> <span class="dv">42</span><span class="op">;</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    snprintf<span class="op">(</span>shared_payload<span class="op">.</span>message<span class="op">,</span> <span class="kw">sizeof</span> shared_payload<span class="op">.</span>message<span class="op">,</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>             <span class="st">"initialized"</span><span class="op">);</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 向执行匹配 acquire 的读线程发布此前的全部写入。</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    atomic_store_explicit<span class="op">(&amp;</span>ready<span class="op">,</span> <span class="kw">true</span><span class="op">,</span> memory_order_release<span class="op">);</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> try_consume<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>atomic_load_explicit<span class="op">(&amp;</span>ready<span class="op">,</span> memory_order_acquire<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">// acquire 已观察到 release 发布，因此这里的读取是安全的。</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"</span><span class="sc">%d</span><span class="st"> </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> shared_payload<span class="op">.</span>value<span class="op">,</span> shared_payload<span class="op">.</span>message<span class="op">);</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Relaxed atomic 只保证该原子对象自身读写不可撕裂和修改顺序，不发布周边普通数据。Sequential consistency 最易推理但可能限制优化；正确做法是先证明所需关系，再选择最弱且仍正确的序，而不是凭性能直觉削弱。</p>
+</section>
+</section>
+<section id="hardware-support-for-synchronization" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-support-for-synchronization"><strong>同步的硬件支持</strong></h3>
+<section id="disabling-interrupts-and-its-limits" class="level4">
+<h4 class="anchored" data-anchor-id="disabling-interrupts-and-its-limits"><strong>关闭中断及其局限</strong></h4>
+<p>单核内核可在很短区域关闭本地中断，避免同一 CPU 上中断处理器抢占当前代码；用户程序无权这样做，多核上也不能阻止其他 CPU 并发访问。长时间关闭中断会损害时延并可能丢失服务，因此它只适合底层、局部且有严格上界的机制，不是通用互斥方案。</p>
+</section>
+<section id="test-and-set-compare-and-swap-and-fetch-and-add" class="level4">
+<h4 class="anchored" data-anchor-id="test-and-set-compare-and-swap-and-fetch-and-add"><strong>Test-and-Set、Compare-and-Swap 与 Fetch-and-Add</strong></h4>
+<p>原子 read-modify-write 在一个不可分割动作中读取旧值并写新值：exchange/test-and-set 适合简单锁；CAS 仅在当前值等于预期时更新，是许多 lock-free 算法基础；fetch-and-add 返回旧值并加增量，可分配唯一票号。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/atomic-rmw-and-ticket-lock.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/atomic-rmw-and-ticket-lock.svg" class="img-fluid figure-img" style="width:98.0%" alt="三种原子读改写语义，以及票锁的取票、等待、临界区和释放阶段。"></a></p>
+<figcaption>原子 exchange、CAS、fetch-and-add 与 FIFO ticket lock</figcaption>
+</figure>
+</div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    atomic_flag held<span class="op">;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> spinlock_t<span class="op">;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#define SPINLOCK_INIT </span><span class="op">{</span><span class="pp"> ATOMIC_FLAG_INIT </span><span class="op">}</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> spin_lock<span class="op">(</span>spinlock_t <span class="op">*</span>lock<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>atomic_flag_test_and_set_explicit<span class="op">(&amp;</span>lock<span class="op">-&gt;</span>held<span class="op">,</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>                                              memory_order_acquire<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 在生产环境中，应使用体系结构的暂停提示与有界等待策略。</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> spin_unlock<span class="op">(</span>spinlock_t <span class="op">*</span>lock<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    atomic_flag_clear_explicit<span class="op">(&amp;</span>lock<span class="op">-&gt;</span>held<span class="op">,</span> memory_order_release<span class="op">);</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>原子指令仍会引发缓存行所有权转移和争用。CAS 循环还面临 ABA、内存回收和失败重试问题；“无锁”并不等于没有同步成本。</p>
+</section>
+<section id="memory-barriers" class="level4">
+<h4 class="anchored" data-anchor-id="memory-barriers"><strong>内存屏障</strong></h4>
+<p>屏障约束编译器和处理器对内存操作的重排，并配合缓存一致性形成可见顺序。屏障不是刷新全部缓存，也不能把非原子数据竞争变安全。语言级原子和锁应是应用首选，因为编译器能把其语义正确映射到不同体系结构；直接使用硬件 fence 需要同时理解语言模型、编译器和 CPU。</p>
+</section>
+</section>
+<section id="mutual-exclusion-locks" class="level3">
+<h3 class="anchored" data-anchor-id="mutual-exclusion-locks"><strong>互斥锁</strong></h3>
+<section id="spinlocks-and-mutexes" class="level4">
+<h4 class="anchored" data-anchor-id="spinlocks-and-mutexes"><strong>自旋锁与互斥量</strong></h4>
+<p><strong>自旋锁</strong>在等待时持续检查，避免睡眠/唤醒开销，适合临界区极短、持有者会很快运行且不能睡眠的内核路径；过度自旋会浪费 CPU 和共享互连带宽。<strong>mutex</strong> 在长等待时让线程睡眠，常见实现先尝试用户态原子 fast path，争用时才进入 futex 等内核等待机制。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/spin-mutex-futex-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/spin-mutex-futex-path.svg" class="img-fluid figure-img" style="width:98.0%" alt="流程图区分用户态原子锁操作与内核 futex 等待和唤醒。"></a></p>
+<figcaption>自适应 mutex 的原子 fast path、自旋与 futex wait/wake</figcaption>
+</figure>
+</div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pthread_mutex_lock<span class="op">(&amp;</span>mutex<span class="op">);</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="op">(!</span>predicate<span class="op">())</span> <span class="op">{</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    pthread_cond_wait<span class="op">(&amp;</span>condition<span class="op">,</span> <span class="op">&amp;</span>mutex<span class="op">);</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>use_state_that_satisfies_predicate<span class="op">();</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>pthread_mutex_unlock<span class="op">(&amp;</span>mutex<span class="op">);</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>锁的契约还包括所有权、是否可递归、取消行为、优先级协议和进程共享属性。不能根据“通常能工作”混用不同语义。</p>
+</section>
+<section id="lock-granularity-and-contention" class="level4">
+<h4 class="anchored" data-anchor-id="lock-granularity-and-contention"><strong>锁粒度与争用</strong></h4>
+<p>粗粒度锁容易证明但并行度低；细粒度锁减少无关争用，却增加锁数量、顺序约束和生命周期复杂度。优化前应测量等待时间、持锁时间和争用路径。拆锁后必须重新定义不变量，因为跨多个锁的状态快照可能不再一致。</p>
+<p>减少临界区工作、避免在持锁时执行阻塞 I/O、分片数据、使用每 CPU 状态或读多写少机制，往往比盲目换“更快的锁”有效。</p>
+</section>
+</section>
+<section id="semaphores-condition-variables-and-monitors" class="level3">
+<h3 class="anchored" data-anchor-id="semaphores-condition-variables-and-monitors"><strong>信号量、条件变量与监视器</strong></h3>
+<p>计数信号量表示可用许可数，<code>wait/P</code> 在许可为零时等待并消耗一个，<code>post/V</code> 增加许可并唤醒等待者；二值信号量可表现互斥，但通常不要求释放者就是获取者。</p>
+<p>条件变量本身不保存业务条件，它与 mutex 保护的<strong>谓词</strong>配合：持锁检查谓词；不成立时 <code>wait</code> 原子释放 mutex 并睡眠；醒来后重新获得锁并在 <code>while</code> 中重查。必须循环是因为虚假唤醒、多个消费者竞争以及通知到真正运行之间状态可能再次改变。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/condition-variable-protocol-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/condition-variable-protocol-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="检查谓词、原子释放锁并等待、修改状态、signal、重获锁和重新检查。"></a></p>
+<figcaption>围绕一个 mutex 保护谓词的消费者等待与生产者通知</figcaption>
+</figure>
+</div>
+<p><strong>monitor</strong> 把共享状态、互斥进入和条件等待封装在一个抽象中。无论语法是否直接支持 monitor，设计核心都是让每个操作在持有正确锁时维护表示不变量。</p>
+<details>
+<summary>
+<strong>C：带关闭语义的有界 pthread 队列</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stddef.h&gt;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span> QUEUE_CAPACITY <span class="op">=</span> <span class="dv">8</span> <span class="op">};</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> queue <span class="op">{</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> items<span class="op">[</span>QUEUE_CAPACITY<span class="op">];</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> head<span class="op">;</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> tail<span class="op">;</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> count<span class="op">;</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> closed<span class="op">;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_t mutex<span class="op">;</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    pthread_cond_t not_empty<span class="op">;</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    pthread_cond_t not_full<span class="op">;</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="pp">#define QUEUE_INITIALIZER </span><span class="op">{</span><span class="pp">                         </span><span class="op">\</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">head </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">tail </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">count </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">closed </span><span class="op">=</span><span class="pp"> </span><span class="kw">false</span><span class="op">,</span><span class="pp"> </span><span class="op">\</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">mutex </span><span class="op">=</span><span class="pp"> PTHREAD_MUTEX_INITIALIZER</span><span class="op">,</span><span class="pp">             </span><span class="op">\</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">not_empty </span><span class="op">=</span><span class="pp"> PTHREAD_COND_INITIALIZER</span><span class="op">,</span><span class="pp">           </span><span class="op">\</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">not_full </span><span class="op">=</span><span class="pp"> PTHREAD_COND_INITIALIZER             </span><span class="op">\</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co">// 成功返回 0；若队列已关闭，则返回 EPIPE。</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> queue_put<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">,</span> <span class="dt">int</span> value<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> QUEUE_CAPACITY <span class="op">&amp;&amp;</span> <span class="op">!</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>        pthread_cond_wait<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">,</span> <span class="op">&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EPIPE<span class="op">;</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>items<span class="op">[</span>queue<span class="op">-&gt;</span>tail<span class="op">]</span> <span class="op">=</span> value<span class="op">;</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>tail <span class="op">=</span> <span class="op">(</span>queue<span class="op">-&gt;</span>tail <span class="op">+</span> <span class="dv">1</span><span class="op">)</span> <span class="op">%</span> QUEUE_CAPACITY<span class="op">;</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>count<span class="op">++;</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    pthread_cond_signal<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">);</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="co">// 仅当已关闭队列变为空时返回 false。</span></span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> queue_get<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">,</span> <span class="dt">int</span> <span class="op">*</span>value<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> <span class="op">!</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>        pthread_cond_wait<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">,</span> <span class="op">&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>        pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>value <span class="op">=</span> queue<span class="op">-&gt;</span>items<span class="op">[</span>queue<span class="op">-&gt;</span>head<span class="op">];</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>head <span class="op">=</span> <span class="op">(</span>queue<span class="op">-&gt;</span>head <span class="op">+</span> <span class="dv">1</span><span class="op">)</span> <span class="op">%</span> QUEUE_CAPACITY<span class="op">;</span></span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>count<span class="op">--;</span></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>    pthread_cond_signal<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">);</span></span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> queue_close<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>closed <span class="op">=</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 每个等待者都必须重新检查数据是否可用或队列是否关闭。</span></span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>    pthread_cond_broadcast<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">);</span></span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>    pthread_cond_broadcast<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">);</span></span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="barriers-and-read-write-coordination" class="level3">
+<h3 class="anchored" data-anchor-id="barriers-and-read-write-coordination"><strong>屏障与读写协调</strong></h3>
+<p>屏障要求一代中的所有参与线程到达后才能进入下一阶段。可复用屏障必须带 generation，避免快线程把下一轮到达误计入上一轮。参与者退出或取消时，协议还要说明计数如何调整。</p>
+<p>读写锁允许多个读者同时进入，写者独占。读者优先可饿死写者，写者优先可放大读延迟，公平策略增加管理成本。只有读临界区足够长、读多写少且争用明显时，读写锁才可能优于 mutex。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/barrier-and-rwlock.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/barrier-and-rwlock.svg" class="img-fluid figure-img" style="width:98.0%" alt="可复用阶段屏障和共享/排他准入的读写锁。"></a></p>
+<figcaption>generation barrier 与读写锁准入策略</figcaption>
+</figure>
+</div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_rdlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="kw">struct</span> record <span class="op">*</span>record <span class="op">=</span> lookup_without_mutation<span class="op">(</span>key<span class="op">);</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>copy_record_for_caller<span class="op">(</span>record<span class="op">);</span>  <span class="co">// Do not return an unprotected pointer.</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_unlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_wrlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>insert_or_replace_record<span class="op">(</span>key<span class="op">,</span> value<span class="op">);</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_unlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="classical-synchronization-problems" class="level3">
+<h3 class="anchored" data-anchor-id="classical-synchronization-problems"><strong>经典同步问题</strong></h3>
+<section id="producer-consumer" class="level4">
+<h4 class="anchored" data-anchor-id="producer-consumer"><strong>生产者-消费者</strong></h4>
+<p>有界缓冲区不变量是 <span class="math inline">\(0\le count\le capacity\)</span>，生产者等待 <code>not_full</code>，消费者等待 <code>not_empty</code>，所有队列索引与计数在同一 mutex 下更新。关闭状态必须唤醒所有等待者，并让消费者区分“暂时为空”和“永久不会再有数据”。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bounded-buffer-producer-consumer.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/bounded-buffer-producer-consumer.svg" class="img-fluid figure-img" style="width:98.0%" alt="生产者与消费者围绕 not-full/not-empty 谓词操作有界环形队列。"></a></p>
+<figcaption>带谓词、mutex 与条件变量唤醒的有界环形缓冲区</figcaption>
+</figure>
+</div>
+</section>
+<section id="readers-writers" class="level4">
+<h4 class="anchored" data-anchor-id="readers-writers"><strong>读者-写者</strong></h4>
+<p>读者-写者问题不是简单允许并发读，还要定义到达顺序、升级/降级、取消和饥饿策略。若读者持续到达而总能越过等待写者，写者永远无法进入；反之严格写者优先会造成读尾延迟。选择必须由工作负载和服务目标决定。</p>
+</section>
+<section id="dining-philosophers" class="level4">
+<h4 class="anchored" data-anchor-id="dining-philosophers"><strong>哲学家就餐</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dining-philosophers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/dining-philosophers.svg" class="img-fluid figure-img" style="width:44.0%" alt="五位哲学家围成一圈，每把叉子由相邻两人共享。"></a></p>
+<figcaption>五位哲学家与相邻共享的五把叉子</figcaption>
+</figure>
+</div>
+<p>所有哲学家先拿左叉再等右叉会形成环路。常见修复包括全局锁顺序、最多允许 <span class="math inline">\(N-1\)</span> 人竞争、由服务员原子授予一对叉子，或让一人反向获取。重点不是餐具，而是多个资源请求如何形成循环等待。</p>
+</section>
+</section>
+<section id="deadlock" class="level3">
+<h3 class="anchored" data-anchor-id="deadlock"><strong>死锁</strong></h3>
+<section id="necessary-conditions-and-resource-allocation-graphs" class="level4">
+<h4 class="anchored" data-anchor-id="necessary-conditions-and-resource-allocation-graphs"><strong>必要条件与资源分配图</strong></h4>
+<p>死锁需要四个 Coffman 条件同时成立：互斥、持有并等待、不可抢占、循环等待。资源分配图中，进程到资源是请求边，资源实例到进程是分配边；单实例资源下环意味着死锁，多实例下环只表示可能。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/resource-allocation-graph.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/resource-allocation-graph.svg" class="img-fluid figure-img" style="width:58.0%" alt="图中包含进程、资源实例、请求边和分配边。"></a></p>
+<figcaption>包含请求边与分配边的资源分配图</figcaption>
+</figure>
+</div>
+<pre class="text"><code>线程 A：lock(X) -&gt; lock(Y)
+线程 B：lock(Y) -&gt; lock(X)</code></pre>
+</section>
+<section id="prevention-avoidance-detection-and-recovery" class="level4">
+<h4 class="anchored" data-anchor-id="prevention-avoidance-detection-and-recovery"><strong>预防、避免、检测与恢复</strong></h4>
+<ul>
+<li><strong>预防：</strong>破坏必要条件，例如全局锁顺序、一次请求全部资源或允许回滚。</li>
+<li><strong>避免：</strong>如 Banker 算法，只接受仍处于安全状态的请求，需要知道最大需求。</li>
+<li><strong>检测：</strong>允许死锁发生，周期构建 wait-for graph 或检测无可满足请求。</li>
+<li><strong>恢复：</strong>终止/回滚参与者、抢占资源或重启子系统，并处理副作用。</li>
+</ul>
+<p>超时只是怀疑和恢复策略，不是死锁证明；太短会误杀慢操作，太长又延迟恢复。数据库、内核和分布式系统会根据可回滚性与故障范围选择不同策略。</p>
+</section>
+</section>
+<section id="starvation-livelock-and-priority-inversion" class="level3">
+<h3 class="anchored" data-anchor-id="starvation-livelock-and-priority-inversion"><strong>饥饿、活锁与优先级反转</strong></h3>
+<p><strong>饥饿</strong>是某个参与者持续合格却长期得不到资源；<strong>活锁</strong>是参与者不断改变状态和重试，却没有完成有用工作；<strong>优先级反转</strong>是高优先级线程等待低优先级持锁者，而中优先级工作又抢占持锁者。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/priority-inversion-inheritance.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/priority-inversion-inheritance.svg" class="img-fluid figure-img" style="width:98.0%" alt="无继承时中优先级工作延迟低优先级锁持有者，继承时持有者临时提升。"></a></p>
+<figcaption>优先级继承前后的反转时间线</figcaption>
+</figure>
+</div>
+<p>priority inheritance 临时把等待者优先级传给持锁者，缩短间接阻塞；priority ceiling 为资源预设上限并限制获取。两者都要求锁实现与调度器协作，且不能修复任意长临界区。</p>
+</section>
+<section id="lock-free-techniques-and-read-copy-update" class="level3">
+<h3 class="anchored" data-anchor-id="lock-free-techniques-and-read-copy-update"><strong>无锁技术与读-复制-更新</strong></h3>
+<p>Lock-free 保证系统整体持续推进，wait-free 才保证每个操作在有限步骤完成。CAS 循环是常见基础：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> increment_with_cas<span class="op">(</span>atomic_long <span class="op">*</span>counter<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> observed <span class="op">=</span> atomic_load_explicit<span class="op">(</span>counter<span class="op">,</span> memory_order_relaxed<span class="op">);</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>atomic_compare_exchange_weak_explicit<span class="op">(</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        counter<span class="op">,</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">&amp;</span>observed<span class="op">,</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        observed <span class="op">+</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        memory_order_relaxed<span class="op">,</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        memory_order_relaxed<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 失败时，observed 会被替换为导致本次比较失败的值。</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>算法还必须解决 ABA 和安全回收。一个节点从结构中移除，不代表没有线程仍持有指针；hazard pointer、epoch-based reclamation 和 RCU 都是在确定何时可释放。</p>
+<p>RCU 让读者进入极轻的 read-side 临界区，更新者构造新版本并原子发布，旧版本等待一个 <strong>grace period</strong>，确认所有可能看见旧指针的既有读者退出后再回收。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rcu-grace-period.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/rcu-grace-period.svg" class="img-fluid figure-img" style="width:98.0%" alt="发布前开始的读者可继续用旧对象，宽限期后更新者安全回收。"></a></p>
+<figcaption>RCU 发布、宽限期与延迟回收</figcaption>
+</figure>
+</div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">/* 读线程 */</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>rcu_read_lock<span class="op">();</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>item <span class="op">=</span> rcu_dereference<span class="op">(</span>current_item<span class="op">);</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>use_immutable_fields<span class="op">(</span>item<span class="op">);</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>rcu_read_unlock<span class="op">();</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co">/* 写线程；多个写线程之间另行串行化 */</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>new_item <span class="op">=</span> copy_and_modify<span class="op">(</span>old_item<span class="op">);</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>rcu_assign_pointer<span class="op">(</span>current_item<span class="op">,</span> new_item<span class="op">);</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>synchronize_rcu<span class="op">();</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>free<span class="op">(</span>old_item<span class="op">);</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>RCU 优化读多写少路径，但写者复制、版本管理和延迟回收更复杂，并不适合所有数据结构。</p>
+</section>
+<section id="diagnosing-and-testing-concurrent-code" class="level3">
+<h3 class="anchored" data-anchor-id="diagnosing-and-testing-concurrent-code"><strong>诊断与测试并发代码</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/concurrency-diagnostics-workflow.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/concurrency-diagnostics-workflow.svg" class="img-fluid figure-img" style="width:98.0%" alt="定义不变量、可执行检查、race detector、调度探索、最小化轨迹、修复和回归的循环。"></a></p>
+<figcaption>从不变量、检测器、调度探索到修复与回归的并发诊断流程</figcaption>
+</figure>
+</div>
+<p>有效流程是：先写不变量和进展条件；在代码中加入断言与有界超时；使用 ThreadSanitizer 等动态检测真实执行中的 data race；通过压力、随机延迟或系统性调度探索扩大交错覆盖；保留最小失败轨迹；修复协议并加入回归。</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">clang</span> <span class="at">-O1</span> <span class="at">-g</span> <span class="at">-fsanitize</span><span class="op">=</span>thread <span class="at">-fno-omit-frame-pointer</span> <span class="dt">\</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  race.c <span class="at">-pthread</span> <span class="at">-o</span> race-tsan</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./race-tsan</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>检测器各自只覆盖模型的一部分：TSan 不证明无 race；一次压力测试不覆盖所有调度；模型检查的抽象也可能遗漏实现细节。工具证据必须与 happens-before 和不变量推理结合。</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>assert<span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">&lt;=</span> QUEUE_CAPACITY<span class="op">);</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>assert<span class="op">(</span>queue_representation_is_consistent<span class="op">(</span>queue<span class="op">));</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>等待方式</th>
+<th>主要用途</th>
+<th>关键风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>原子操作</td>
+<td>重试或无等待</td>
+<td>单变量状态、lock-free 基础</td>
+<td>内存序、ABA、回收与争用</td>
+</tr>
+<tr class="even">
+<td>自旋锁</td>
+<td>忙等</td>
+<td>极短且不能睡眠的临界区</td>
+<td>浪费 CPU、缓存行抖动</td>
+</tr>
+<tr class="odd">
+<td>Mutex</td>
+<td>争用时睡眠</td>
+<td>通用互斥与不变量保护</td>
+<td>死锁、优先级反转、粗粒度争用</td>
+</tr>
+<tr class="even">
+<td>Semaphore</td>
+<td>许可计数等待</td>
+<td>有界资源与事件计数</td>
+<td>所有权不明显，易出现许可泄漏</td>
+</tr>
+<tr class="odd">
+<td>Condition variable</td>
+<td>原子释放锁并睡眠</td>
+<td>等待受 mutex 保护的谓词</td>
+<td>必须循环检查、处理关闭</td>
+</tr>
+<tr class="even">
+<td>Barrier</td>
+<td>等待同代参与者</td>
+<td>阶段同步</td>
+<td>参与者丢失、代际混淆</td>
+</tr>
+<tr class="odd">
+<td>RW lock</td>
+<td>共享读/排他写</td>
+<td>读多写少且临界区较长</td>
+<td>读者或写者饥饿</td>
+</tr>
+<tr class="even">
+<td>RCU</td>
+<td>读者极轻，写者等宽限期</td>
+<td>读极多、更新少的指针结构</td>
+<td>延迟回收和更新复杂度</td>
+</tr>
+</tbody>
+</table>
+<p>可靠同步始于协议而不是原语名称：共享状态的不变量是什么，谁在什么锁或原子序下读写，等待谓词由谁改变，关闭/取消如何唤醒，资源获取顺序是否成环，调度优先级是否会被锁依赖颠倒。只有同时满足安全性与活性，程序才算并发正确。</p>
+<p><a href="06-address-spaces-page-tables-and-tlb.html">下一章：地址空间、页表与 TLB</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

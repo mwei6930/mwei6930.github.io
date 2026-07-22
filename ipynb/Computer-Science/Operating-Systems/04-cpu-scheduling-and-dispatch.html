@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: CPU Scheduling and Dispatch</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="04-cpu-scheduling-and-dispatch_files/libs/clipboard/clipboard.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/quarto.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/popper.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/anchor.min.js"></script>
+<link href="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#cpu-scheduling-and-dispatch" id="toc-cpu-scheduling-and-dispatch" class="nav-link active" data-scroll-target="#cpu-scheduling-and-dispatch"><strong>CPU Scheduling and Dispatch</strong></a>
+  <ul>
+  <li><a href="#the-cpu-scheduling-problem" id="toc-the-cpu-scheduling-problem" class="nav-link" data-scroll-target="#the-cpu-scheduling-problem"><strong>The CPU Scheduling Problem</strong></a>
+  <ul>
+  <li><a href="#policy-versus-dispatch-mechanism" id="toc-policy-versus-dispatch-mechanism" class="nav-link" data-scroll-target="#policy-versus-dispatch-mechanism"><strong>Policy Versus Dispatch Mechanism</strong></a></li>
+  <li><a href="#workload-models-and-scheduling-assumptions" id="toc-workload-models-and-scheduling-assumptions" class="nav-link" data-scroll-target="#workload-models-and-scheduling-assumptions"><strong>Workload Models and Scheduling Assumptions</strong></a></li>
+  </ul></li>
+  <li><a href="#scheduling-goals-and-metrics" id="toc-scheduling-goals-and-metrics" class="nav-link" data-scroll-target="#scheduling-goals-and-metrics"><strong>Scheduling Goals and Metrics</strong></a>
+  <ul>
+  <li><a href="#turnaround-response-waiting-and-throughput" id="toc-turnaround-response-waiting-and-throughput" class="nav-link" data-scroll-target="#turnaround-response-waiting-and-throughput"><strong>Turnaround, Response, Waiting, and Throughput</strong></a></li>
+  <li><a href="#fairness-predictability-and-deadline-satisfaction" id="toc-fairness-predictability-and-deadline-satisfaction" class="nav-link" data-scroll-target="#fairness-predictability-and-deadline-satisfaction"><strong>Fairness, Predictability, and Deadline Satisfaction</strong></a></li>
+  </ul></li>
+  <li><a href="#non-preemptive-scheduling" id="toc-non-preemptive-scheduling" class="nav-link" data-scroll-target="#non-preemptive-scheduling"><strong>Non-Preemptive Scheduling</strong></a>
+  <ul>
+  <li><a href="#first-come-first-served" id="toc-first-come-first-served" class="nav-link" data-scroll-target="#first-come-first-served"><strong>First-Come, First-Served</strong></a></li>
+  <li><a href="#shortest-job-first" id="toc-shortest-job-first" class="nav-link" data-scroll-target="#shortest-job-first"><strong>Shortest Job First</strong></a></li>
+  </ul></li>
+  <li><a href="#preemptive-scheduling" id="toc-preemptive-scheduling" class="nav-link" data-scroll-target="#preemptive-scheduling"><strong>Preemptive Scheduling</strong></a>
+  <ul>
+  <li><a href="#shortest-remaining-time-first" id="toc-shortest-remaining-time-first" class="nav-link" data-scroll-target="#shortest-remaining-time-first"><strong>Shortest Remaining Time First</strong></a></li>
+  <li><a href="#round-robin" id="toc-round-robin" class="nav-link" data-scroll-target="#round-robin"><strong>Round Robin</strong></a></li>
+  <li><a href="#priority-scheduling-and-aging" id="toc-priority-scheduling-and-aging" class="nav-link" data-scroll-target="#priority-scheduling-and-aging"><strong>Priority Scheduling and Aging</strong></a></li>
+  </ul></li>
+  <li><a href="#multilevel-feedback-queue-scheduling" id="toc-multilevel-feedback-queue-scheduling" class="nav-link" data-scroll-target="#multilevel-feedback-queue-scheduling"><strong>Multilevel Feedback Queue Scheduling</strong></a></li>
+  <li><a href="#proportional-share-scheduling" id="toc-proportional-share-scheduling" class="nav-link" data-scroll-target="#proportional-share-scheduling"><strong>Proportional-Share Scheduling</strong></a>
+  <ul>
+  <li><a href="#lottery-and-stride-scheduling" id="toc-lottery-and-stride-scheduling" class="nav-link" data-scroll-target="#lottery-and-stride-scheduling"><strong>Lottery and Stride Scheduling</strong></a></li>
+  </ul></li>
+  <li><a href="#preemption-timer-interrupts-and-dispatch" id="toc-preemption-timer-interrupts-and-dispatch" class="nav-link" data-scroll-target="#preemption-timer-interrupts-and-dispatch"><strong>Preemption, Timer Interrupts, and Dispatch</strong></a></li>
+  <li><a href="#multiprocessor-scheduling" id="toc-multiprocessor-scheduling" class="nav-link" data-scroll-target="#multiprocessor-scheduling"><strong>Multiprocessor Scheduling</strong></a>
+  <ul>
+  <li><a href="#affinity-load-balancing-and-cache-locality" id="toc-affinity-load-balancing-and-cache-locality" class="nav-link" data-scroll-target="#affinity-load-balancing-and-cache-locality"><strong>Affinity, Load Balancing, and Cache Locality</strong></a></li>
+  <li><a href="#numa-and-heterogeneous-cores" id="toc-numa-and-heterogeneous-cores" class="nav-link" data-scroll-target="#numa-and-heterogeneous-cores"><strong>NUMA and Heterogeneous Cores</strong></a></li>
+  </ul></li>
+  <li><a href="#real-time-scheduling" id="toc-real-time-scheduling" class="nav-link" data-scroll-target="#real-time-scheduling"><strong>Real-Time Scheduling</strong></a>
+  <ul>
+  <li><a href="#rate-monotonic-and-earliest-deadline-first" id="toc-rate-monotonic-and-earliest-deadline-first" class="nav-link" data-scroll-target="#rate-monotonic-and-earliest-deadline-first"><strong>Rate Monotonic and Earliest Deadline First</strong></a></li>
+  </ul></li>
+  <li><a href="#linux-scheduling-from-cfs-to-eevdf" id="toc-linux-scheduling-from-cfs-to-eevdf" class="nav-link" data-scroll-target="#linux-scheduling-from-cfs-to-eevdf"><strong>Linux Scheduling: From CFS to EEVDF</strong></a></li>
+  <li><a href="#simulating-and-comparing-scheduling-policies" id="toc-simulating-and-comparing-scheduling-policies" class="nav-link" data-scroll-target="#simulating-and-comparing-scheduling-policies"><strong>Simulating and Comparing Scheduling Policies</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: CPU Scheduling and Dispatch</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/04-cpu-scheduling-and-dispatch.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="cpu-scheduling-and-dispatch" class="level2">
+<h2 class="anchored" data-anchor-id="cpu-scheduling-and-dispatch"><strong>CPU Scheduling and Dispatch</strong></h2>
+<p>At any instant, a computer may contain far more runnable threads than hardware execution contexts. <strong>CPU scheduling</strong> is the operating system decision process that maps those runnable threads onto processors over time. It answers three linked questions: which thread should run next, on which CPU should it run, and when should the current thread stop running? <strong>Dispatch</strong> is the mechanism that carries out the answer by changing the processor from one execution context to another.</p>
+<p>Scheduling matters even when every program is correct. A poor policy can leave an interactive terminal waiting behind a long computation, move a thread so often that its cache state is repeatedly lost, give one user much more CPU time than another, or complete a real-time computation after its result has become useless. No single policy is best for all of these goals. A scheduler is therefore an explicit statement about what the system values and what it assumes about future work.</p>
+<p>The recurring pipeline provides a useful concrete case:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>cat</code> is runnable while it copies input, then may block while storage supplies another page. <code>grep</code> may block while the pipe is empty, become runnable when <code>cat</code> writes data, consume CPU while matching lines, and block again when output storage applies backpressure. The shell normally sleeps while waiting for both children. Scheduling does not create this producer-consumer structure, but it determines how quickly each runnable stage receives a CPU and whether one stage is delayed enough to leave the other idle.</p>
+<section id="the-cpu-scheduling-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-cpu-scheduling-problem"><strong>The CPU Scheduling Problem</strong></h3>
+<p>A thread moves among states such as <strong>running</strong>, <strong>runnable</strong>, and <strong>blocked</strong>. A runnable thread has everything it needs except a processor. The scheduler operates primarily on this runnable set. It is invoked, or a scheduling decision is requested, after events such as:</p>
+<ul>
+<li>the running thread blocks, exits, or voluntarily yields;</li>
+<li>a timer interrupt indicates that a time allocation has expired;</li>
+<li>an I/O completion or synchronization event wakes another thread;</li>
+<li>a higher-urgency task becomes runnable;</li>
+<li>a CPU becomes idle or the system detects load imbalance;</li>
+<li>a task changes priority, affinity, deadline, or resource-control group.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/scheduler-policy-dispatch-loop.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/scheduler-policy-dispatch-loop.svg" class="img-fluid figure-img" style="width:94.0%" alt="Flowchart separating scheduling policy from dispatch mechanism and showing block, preempt, and exit paths from the CPU."></a></p>
+<figcaption>Runnable threads enter a run queue, scheduling policy selects one, and the dispatcher makes that selection execute.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter. The event and context-switch structure follows the scheduler model in the <a href="https://pdos.csail.mit.edu/6.1810/2025/xv6/book-riscv-rev5.pdf">xv6 book</a> and the Linux policy terminology in <a href="https://man7.org/linux/man-pages/man7/sched.7.html"><code>sched(7)</code></a>.</em></p>
+<p>The scheduler does not normally know a thread’s exact future. It can observe prior CPU use, wakeup history, priorities, weights, deadlines supplied by an application, and hardware topology. It must turn incomplete evidence into a decision quickly because scheduling code runs frequently and directly adds overhead. This creates the central tension: sophisticated policy may make better decisions, but the decision itself must remain bounded, scalable, and safe inside the kernel.</p>
+<p>On one CPU, scheduling is an ordering problem. On several CPUs, it is simultaneously an ordering and placement problem. A thread can be selected promptly yet placed badly: moving it to an idle remote CPU may start it sooner but discard warm cache state or separate it from its memory on a NUMA machine. Modern scheduling therefore combines temporal policy, spatial placement, and resource accounting.</p>
+<section id="policy-versus-dispatch-mechanism" class="level4">
+<h4 class="anchored" data-anchor-id="policy-versus-dispatch-mechanism"><strong>Policy Versus Dispatch Mechanism</strong></h4>
+<p><strong>Policy</strong> expresses preference. FCFS prefers the earliest arrival, SJF prefers the shortest predicted job, Round Robin rotates among peers, a fair scheduler tries to match CPU service to weights, and EDF prefers the earliest absolute deadline. <strong>Mechanism</strong> provides reusable operations: maintain runnable queues, enter the kernel, stop a thread, save and restore context, change address-space state when required, program a timer, and return to user mode.</p>
+<p>Keeping them conceptually separate makes systems easier to reason about. The same low-level context-switch mechanism can serve fair, priority, and real-time classes. Conversely, changing the queue order does not require redesigning how registers are saved. A simplified interface looks like this:</p>
+<pre class="text"><code>on_scheduling_event(event):
+    update_accounting(current, event.time)
+    update_runnable_set(event)
+
+    next = policy.pick_next(runnable_set)
+    if next != current:
+        dispatcher.switch(current, next)
+    else:
+        return_to(current)</code></pre>
+<p>The distinction prevents two common errors. First, a timer interrupt is not itself a context switch; the kernel may decide that the interrupted thread should continue. Second, a context switch is not necessarily a process switch. Switching between two threads in one process changes stacks and registers but can retain the same address space, whereas switching processes may also change page-table context and affect the TLB.</p>
+<p>A useful abstract run-queue interface is:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Operation</th>
+<th>Meaning</th>
+<th>Policy-dependent question</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>enqueue(thread)</code></td>
+<td>make a thread eligible to run</td>
+<td>where and at what rank?</td>
+</tr>
+<tr class="even">
+<td><code>dequeue(thread)</code></td>
+<td>remove a blocked, exiting, or migrated thread</td>
+<td>how is partial service preserved?</td>
+</tr>
+<tr class="odd">
+<td><code>pick_next()</code></td>
+<td>select an eligible thread</td>
+<td>earliest arrival, minimum runtime, highest priority, or deadline?</td>
+</tr>
+<tr class="even">
+<td><code>account(thread, delta)</code></td>
+<td>charge consumed CPU time</td>
+<td>wall time, weighted virtual time, budget, or quantum?</td>
+</tr>
+<tr class="odd">
+<td><code>should_preempt(current, new)</code></td>
+<td>compare current work with a new event</td>
+<td>does urgency justify switch cost?</td>
+</tr>
+</tbody>
+</table>
+<p>The asymptotic cost of these operations matters, but constants and contention matter too. A FIFO queue can offer constant-time insertion and removal. A policy ordered by remaining time, deadline, or virtual runtime often uses a heap or balanced tree and pays <code>O(log n)</code> updates. A single global queue is easy to balance but can become a shared lock bottleneck; per-CPU queues scale better but require migration and balancing logic.</p>
+</section>
+<section id="workload-models-and-scheduling-assumptions" class="level4">
+<h4 class="anchored" data-anchor-id="workload-models-and-scheduling-assumptions"><strong>Workload Models and Scheduling Assumptions</strong></h4>
+<p>Scheduling analysis starts by stating what a <strong>job</strong> represents. In a simple model, job <span class="math inline">\(i\)</span> has:</p>
+<ul>
+<li>release or arrival time <span class="math inline">\(r_i\)</span>;</li>
+<li>required CPU service, often called burst time, <span class="math inline">\(p_i\)</span>;</li>
+<li>first execution time <span class="math inline">\(S_i\)</span> and completion time <span class="math inline">\(C_i\)</span>;</li>
+<li>optional deadline <span class="math inline">\(d_i\)</span>, static priority <span class="math inline">\(q_i\)</span>, or weight <span class="math inline">\(w_i\)</span>;</li>
+<li>one CPU and no internal parallelism.</li>
+</ul>
+<p>Real threads are more complicated. They alternate between CPU bursts and blocking operations, their burst lengths are initially unknown, wakeups can depend on other threads, and execution time changes with cache state, frequency scaling, and interference. A model is still useful if its assumptions are kept visible.</p>
+<p>This chapter uses one small workload repeatedly:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Job</th>
+<th style="text-align: right;">Arrival <span class="math inline">\(r_i\)</span></th>
+<th style="text-align: right;">CPU burst <span class="math inline">\(p_i\)</span></th>
+<th>Informal role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">8</td>
+<td>long CPU-bound work</td>
+</tr>
+<tr class="even">
+<td>B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">4</td>
+<td>medium request</td>
+</tr>
+<tr class="odd">
+<td>C</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>short request</td>
+</tr>
+<tr class="even">
+<td>D</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1</td>
+<td>very short interactive work</td>
+</tr>
+</tbody>
+</table>
+<p>The table deliberately exposes uncertainty. FCFS needs only arrival order. SJF and SRTF appear to know exact burst lengths, which makes them <strong>clairvoyant</strong> textbook policies. A real scheduler must estimate those lengths or infer interactivity from behavior. Round Robin avoids burst prediction but introduces a quantum. Priority policies need a trusted method for assigning priority. Real-time policies require meaningful timing parameters and admission control.</p>
+<p>Other assumptions can change a theorem or reverse a comparison:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Assumption</th>
+<th>Simplification</th>
+<th>What changes when it is false</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>one processor</td>
+<td>only one job executes at once</td>
+<td>placement, migration, and parallel execution appear</td>
+</tr>
+<tr class="even">
+<td>all jobs arrive together</td>
+<td>no future arrivals interrupt the plan</td>
+<td>online decisions and preemption become important</td>
+</tr>
+<tr class="odd">
+<td>exact burst lengths known</td>
+<td>SJF/SRTF can rank perfectly</td>
+<td>prediction error can delay the wrong job</td>
+</tr>
+<tr class="even">
+<td>zero switch cost</td>
+<td>arbitrarily small quanta seem attractive</td>
+<td>overhead and cache disruption limit preemption rate</td>
+</tr>
+<tr class="odd">
+<td>independent jobs</td>
+<td>order only affects metrics</td>
+<td>locks, pipelines, and priority inversion create dependencies</td>
+</tr>
+<tr class="even">
+<td>stationary workload</td>
+<td>recent behavior predicts future behavior</td>
+<td>phase changes require feedback and adaptation</td>
+</tr>
+</tbody>
+</table>
+<p>Always ask whether a result is <strong>offline</strong> or <strong>online</strong>, <strong>preemptive</strong> or <strong>non-preemptive</strong>, and whether it optimizes a mean, a tail, a fairness target, or a deadline constraint. “Shortest is optimal” is meaningful only after those qualifications.</p>
+</section>
+</section>
+<section id="scheduling-goals-and-metrics" class="level3">
+<h3 class="anchored" data-anchor-id="scheduling-goals-and-metrics"><strong>Scheduling Goals and Metrics</strong></h3>
+<p>Scheduling objectives often conflict. Batch processing may value total completions per hour. An editor values low response latency. A shared server values isolation and proportional allocation. Audio processing values bounded jitter, while a flight controller may require a provable deadline. A useful evaluation reports several metrics and the workload distribution instead of declaring a policy “fast.”</p>
+<section id="turnaround-response-waiting-and-throughput" class="level4">
+<h4 class="anchored" data-anchor-id="turnaround-response-waiting-and-throughput"><strong>Turnaround, Response, Waiting, and Throughput</strong></h4>
+<p>For job <span class="math inline">\(i\)</span>, define:</p>
+<p><span class="math display">\[
+\begin{aligned}
+\text{turnaround}_i &amp;= C_i-r_i,\\
+\text{response}_i &amp;= S_i-r_i,\\
+\text{waiting}_i &amp;= \text{time runnable but not running}.
+\end{aligned}
+\]</span></p>
+<p>If the simple model contains only runnable and running time after arrival, then:</p>
+<p><span class="math display">\[
+\text{waiting}_i = (C_i-r_i)-p_i.
+\]</span></p>
+<p>That identity does not hold unchanged when a real thread spends time blocked for I/O or synchronization; blocked time is part of turnaround but is not ready-queue waiting. Measurement tools must distinguish these states.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/scheduling-metrics-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/scheduling-metrics-timeline.svg" class="img-fluid figure-img" style="width:92.0%" alt="Timeline for one preempted job showing how scheduling metrics are calculated."></a></p>
+<figcaption>Timeline distinguishing arrival, first execution, preemption, completion, response time, turnaround time, waiting time, and CPU service.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter from the standard timing terms used by <a href="https://man7.org/linux/man-pages/man7/sched.7.html"><code>sched(7)</code></a>.</em></p>
+<p><strong>Throughput</strong> is the number of completed jobs per unit time. <strong>CPU utilization</strong> is the fraction of an observation interval during which the processor performs useful scheduled work. High utilization is not sufficient evidence of good service: an overloaded system can keep every CPU busy while queues and tail latency grow without bound.</p>
+<p><strong>Slowdown</strong>, also called normalized turnaround, compares completion delay with the job’s own service demand:</p>
+<p><span class="math display">\[
+\text{slowdown}_i = \frac{C_i-r_i}{p_i}.
+\]</span></p>
+<p>A turnaround of ten units is minor for a job needing nine units and severe for a job needing one. Slowdown makes that asymmetry visible, although extremely short jobs may require a lower-bound convention to prevent unstable ratios.</p>
+<p>Means should be accompanied by distributions. Average response can improve while the 99th percentile becomes much worse, and two policies with identical mean waiting time can feel very different if one is predictable and the other occasionally stalls a request for seconds. For interactive and service workloads, report at least median and high-percentile response or queueing delay. For batch workloads, report throughput, turnaround, and bounded starvation behavior.</p>
+</section>
+<section id="fairness-predictability-and-deadline-satisfaction" class="level4">
+<h4 class="anchored" data-anchor-id="fairness-predictability-and-deadline-satisfaction"><strong>Fairness, Predictability, and Deadline Satisfaction</strong></h4>
+<p>Fairness has no universal definition. Equal CPU time among runnable threads is one policy. Weighted fairness gives thread <span class="math inline">\(i\)</span> a target share</p>
+<p><span class="math display">\[
+s_i = \frac{w_i}{\sum_{j \in R} w_j},
+\]</span></p>
+<p>where <span class="math inline">\(R\)</span> is the runnable set. Per-user or per-container fairness may first divide service among groups and only then among their threads. Without this hierarchy, a user can gain a larger share merely by creating more threads.</p>
+<p>For observed allocations <span class="math inline">\(x_1,\ldots,x_n\)</span>, Jain’s index is one summary:</p>
+<p><span class="math display">\[
+J(x_1,\ldots,x_n)=\frac{(\sum_i x_i)^2}{n\sum_i x_i^2}.
+\]</span></p>
+<p>It ranges from <span class="math inline">\(1/n\)</span> to <span class="math inline">\(1\)</span>, but a high value only means allocations are similar. It does not prove that the intended weights, priorities, or service-level objectives were respected.</p>
+<p><strong>Predictability</strong> concerns variation: response-time variance, scheduling jitter, and the maximum interval for which an eligible thread can be delayed. A policy with slightly worse average latency but a tight upper tail may be better for media and control loops. <strong>Deadline satisfaction</strong> asks whether <span class="math inline">\(C_i \le d_i\)</span>. Useful measurements include miss ratio, maximum lateness <span class="math inline">\(\max(C_i-d_i)\)</span>, and tardiness <span class="math inline">\(\max(0,C_i-d_i)\)</span>.</p>
+<p>These objectives create explicit trade-offs:</p>
+<ul>
+<li>minimizing mean waiting favors short work and can starve long jobs;</li>
+<li>frequent rotation improves initial response but spends more time switching;</li>
+<li>strict priority protects urgent work but can deny service to lower levels;</li>
+<li>preserving affinity protects locality but can leave another CPU idle;</li>
+<li>maximizing throughput under sustained load can increase latency and jitter;</li>
+<li>meeting hard deadlines requires admission and bounded interference, not merely high average speed.</li>
+</ul>
+</section>
+</section>
+<section id="non-preemptive-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="non-preemptive-scheduling"><strong>Non-Preemptive Scheduling</strong></h3>
+<p>A non-preemptive scheduler lets the selected job retain the CPU until it blocks, exits, or yields. The approach reduces policy intervention and preserves locality during a burst, but newly arrived urgent work cannot displace the current job. Non-preemptive policies are therefore easiest to analyze when jobs are short, trusted, or naturally yield at bounded intervals.</p>
+<section id="first-come-first-served" class="level4">
+<h4 class="anchored" data-anchor-id="first-come-first-served"><strong>First-Come, First-Served</strong></h4>
+<p><strong>First-Come, First-Served</strong> (FCFS), also called FIFO scheduling, runs ready jobs in arrival order. It needs no burst prediction and can be implemented with a queue:</p>
+<pre class="text"><code>enqueue(job):
+    ready.push_back(job)
+
+pick_next():
+    return ready.pop_front()</code></pre>
+<p>Both operations are <code>O(1)</code> with a linked queue or circular buffer. Ties require a stable rule, such as insertion order or job identifier. Once a job starts its CPU burst, later arrivals wait.</p>
+<p>For the common workload, FCFS produces:</p>
+<pre class="text"><code>time  0--------8----12--14-15
+CPU   |   A    | B  | C |D|</code></pre>
+<p>The waiting times are <code>A=0</code>, <code>B=7</code>, <code>C=10</code>, and <code>D=10</code>, so average waiting is <code>6.75</code>. The result demonstrates the <strong>convoy effect</strong>: short jobs C and D wait behind long job A. In an I/O-heavy system, a CPU-bound job can similarly delay several I/O-oriented jobs, causing devices to become idle while the CPU queue drains and then causing a burst of device requests later.</p>
+<p>FCFS remains useful when ordering itself matters, jobs are similar in size, preemption is impossible or expensive, or it forms the queue discipline inside a larger policy. Its simplicity also makes it a valuable baseline. FCFS prevents starvation only when every earlier burst is finite; arrival order alone cannot bound response behind a thread that may run indefinitely.</p>
+</section>
+<section id="shortest-job-first" class="level4">
+<h4 class="anchored" data-anchor-id="shortest-job-first"><strong>Shortest Job First</strong></h4>
+<p><strong>Shortest Job First</strong> (SJF) selects the available job with the smallest predicted CPU burst and then runs it non-preemptively. When all considered jobs are simultaneously available, service times are known, jobs are independent, and the objective is mean waiting time, ordering them from shortest to longest minimizes the sum of waiting times. An exchange argument explains why: if adjacent jobs have lengths <span class="math inline">\(a&gt;b\)</span> but run as <span class="math inline">\(a\)</span> then <span class="math inline">\(b\)</span>, swapping them reduces the second job’s wait by <span class="math inline">\(a-b\)</span> without delaying earlier jobs. With staggered releases, choosing the shortest currently ready job is an online rule; a future arrival cannot change a non-preemptive decision already made, and allowing intentional idle time produces a different optimization problem.</p>
+<pre class="text"><code>pick_next(ready):
+    return job with minimum (predicted_burst, arrival_time, id)</code></pre>
+<p>A binary heap gives <code>O(log n)</code> enqueue and removal, but a plain scan can be reasonable for tiny queues. SJF does not reconsider the running job. In the example, only A exists at time 0, so A still runs to completion. At time 8, the scheduler chooses D, then C, then B:</p>
+<pre class="text"><code>time  0--------8-9--11----15
+CPU   |   A    |D| C | B  |</code></pre>
+<p>Average waiting falls from <code>6.75</code> to <code>5.25</code>, but D still waited four units because SJF could not preempt A. This is an important boundary: choosing optimally at a decision point cannot recover an opportunity that a non-preemptive policy never creates.</p>
+<p>Real systems do not know the next burst. One classical estimate applies exponential smoothing to prior bursts:</p>
+<p><span class="math display">\[
+\tau_{n+1}=\alpha t_n+(1-\alpha)\tau_n, \qquad 0\le\alpha\le1,
+\]</span></p>
+<p>where <span class="math inline">\(t_n\)</span> is the observed burst and <span class="math inline">\(\tau_n\)</span> is the prior prediction. A larger <span class="math inline">\(\alpha\)</span> reacts quickly but is noisy; a smaller value is stable but slow to detect phase changes. Prediction errors can put a supposedly short job at the front for a long time, and a steady stream of short arrivals can starve long work. Aging, service guarantees, or a feedback scheduler is needed if bounded progress matters.</p>
+</section>
+</section>
+<section id="preemptive-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="preemptive-scheduling"><strong>Preemptive Scheduling</strong></h3>
+<p>A preemptive scheduler may stop a runnable thread before it blocks or completes. Preemption lets the system react to short arrivals, expiring quanta, priorities, and deadlines. It also creates overhead: kernel entry, accounting, queue updates, register switching, cache disruption, and sometimes TLB effects. The right question is therefore not whether preemption is good, but which event justifies it and how often it may occur.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/classic-scheduling-comparison-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/classic-scheduling-comparison-animated.svg" class="img-fluid figure-img" style="width:100.0%" alt="Four aligned Gantt charts compare classic scheduling algorithms with a moving simulated-time cursor."></a></p>
+<figcaption>FCFS, SJF, SRTF, and Round Robin applied to the same arrivals and CPU bursts.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original animated comparison created for this chapter. The complete schedules remain visible when reduced-motion preferences disable animation.</em></p>
+<p>The aligned chart is more informative than four unrelated examples. It shows that the algorithms optimize different experiences: SRTF completes new short jobs rapidly, Round Robin starts multiple jobs early, and the two non-preemptive policies cannot react while A is running.</p>
+<section id="shortest-remaining-time-first" class="level4">
+<h4 class="anchored" data-anchor-id="shortest-remaining-time-first"><strong>Shortest Remaining Time First</strong></h4>
+<p><strong>Shortest Remaining Time First</strong> (SRTF) is the preemptive form of SJF. At every arrival or completion, it runs the job with the least remaining service. If a new job is shorter than the current job’s remainder, it preempts immediately.</p>
+<pre class="text"><code>on arrival(job):
+    ready.insert(job, key=remaining_time)
+    if job.remaining &lt; current.remaining:
+        preempt(current)
+
+pick_next():
+    return ready.remove_min()</code></pre>
+<p>For the common workload, A runs for one unit. B arrives with length 4 while A has 7 remaining, so B preempts A. C then arrives with length 2 while B has 3 remaining. C completes at time 4, D completes at 5, B completes at 8, and A completes at 15. Average waiting is <code>2.50</code>.</p>
+<p>Under ideal single-CPU assumptions with known processing times, SRTF minimizes mean flow time, where flow time is turnaround. The intuition is that finishing a short job removes one member from the waiting population sooner. The result does not mean SRTF is universally optimal: it can starve long work, is highly sensitive to prediction error, and may switch frequently when estimates are close.</p>
+<p>A min-heap supports arrivals and selections in <code>O(log n)</code>. Remaining-time accounting itself is constant time, but every preemption also pays a machine cost. Practical variants introduce thresholds, minimum granularity, or fairness accounting so a tiny predicted advantage does not trigger an expensive switch.</p>
+</section>
+<section id="round-robin" class="level4">
+<h4 class="anchored" data-anchor-id="round-robin"><strong>Round Robin</strong></h4>
+<p><strong>Round Robin</strong> (RR) gives each runnable peer at most a <strong>time quantum</strong> <span class="math inline">\(q\)</span>. A thread that blocks or finishes before <span class="math inline">\(q\)</span> leaves the CPU early. A thread that consumes the whole quantum is appended to the queue tail.</p>
+<pre class="text"><code>ready.push_back(new_job)
+
+while ready is not empty:
+    job = ready.pop_front()
+    run job for min(q, job.remaining)
+    enqueue arrivals that occurred during this interval
+    if job still has work:
+        ready.push_back(job)</code></pre>
+<p>With <code>q=2</code> and arrivals inserted before the expired job is requeued at the same timestamp, the example runs:</p>
+<pre class="text"><code>A 0-2, B 2-4, C 4-6, A 6-8,
+D 8-9, B 9-11, A 11-13, A 13-15</code></pre>
+<p>Average waiting is <code>4.75</code>, worse than SRTF, but B, C, and D receive first service before FCFS would have completed A. Average response is <code>1.75</code> instead of FCFS’s <code>6.75</code>. Exact tie behavior at a quantum boundary is part of the specification; a different rule can change individual response times without changing the core policy.</p>
+<p>Quantum size controls the trade-off:</p>
+<ul>
+<li>as <span class="math inline">\(q \rightarrow \infty\)</span>, RR approaches FCFS;</li>
+<li>a smaller <span class="math inline">\(q\)</span> reduces the maximum wait between turns when <span class="math inline">\(n\)</span> peers remain runnable, roughly toward <span class="math inline">\((n-1)q\)</span> before accounting for new arrivals and overhead;</li>
+<li>if <span class="math inline">\(q\)</span> is close to context-switch cost <span class="math inline">\(s\)</span>, efficiency can be poor. In a worst-case rotation where every quantum causes a switch, the useful fraction is approximately <span class="math inline">\(q/(q+s)\)</span>;</li>
+<li>a very small quantum can also damage cache locality even when direct switch time looks acceptable.</li>
+</ul>
+<p>Round Robin is a mechanism for time sharing, not a complete definition of fairness. Threads that frequently block may receive less CPU because they do not use full quanta, and multiple users can receive unequal shares if one creates many more runnable threads. Hierarchical weights or group scheduling address that policy question.</p>
+</section>
+<section id="priority-scheduling-and-aging" class="level4">
+<h4 class="anchored" data-anchor-id="priority-scheduling-and-aging"><strong>Priority Scheduling and Aging</strong></h4>
+<p>Priority scheduling runs the highest-priority eligible thread. Priorities may be static, derived from deadlines, changed by feedback, inherited from a resource owner, or combined with a fair policy within each level. A preemptive priority scheduler immediately displaces lower-priority work when a higher-priority thread wakes; a non-preemptive version waits for the current burst to end.</p>
+<p>Strict priority is appropriate only when the ordering expresses a real service requirement. Otherwise, a continuous stream of high-priority arrivals can cause <strong>starvation</strong>. <strong>Aging</strong> repairs this by improving a waiting job’s effective priority over time. If lower numeric values denote higher priority, one simple rule is:</p>
+<p><span class="math display">\[
+q_i^{\text{effective}}(t)=\max(q_{\min}, q_i-\lfloor W_i(t)/A\rfloor),
+\]</span></p>
+<p>where <span class="math inline">\(W_i(t)\)</span> is accumulated ready-queue waiting and <span class="math inline">\(A\)</span> is an aging interval. The exact units and reset rule belong to the policy contract.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/priority-aging-mlfq.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/priority-aging-mlfq.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two-panel diagram of priority aging and a three-level multilevel feedback queue."></a></p>
+<figcaption>Aging gradually makes an old low-priority job competitive; an illustrative multilevel feedback queue uses demotion and periodic boosts.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter. The MLFQ rules are intentionally labeled illustrative because implementations differ.</em></p>
+<p>Aging prevents indefinite waiting only if the improvement rate eventually overcomes incoming priorities and the scheduler honors the resulting rank. It does not solve <strong>priority inversion</strong>, where a high-priority thread waits for a lock held by a lower-priority thread. Priority inheritance and ceiling protocols address that dependency and are treated with synchronization in the next chapter.</p>
+</section>
+</section>
+<section id="multilevel-feedback-queue-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="multilevel-feedback-queue-scheduling"><strong>Multilevel Feedback Queue Scheduling</strong></h3>
+<p><strong>Multilevel Feedback Queue</strong> (MLFQ) scheduling approximates the responsiveness of shortest-job policies without knowing burst lengths in advance. It maintains several priority queues and uses observed CPU consumption as feedback. Short or frequently blocking jobs tend to remain near the top; jobs that repeatedly consume full allocations move downward and receive longer quanta.</p>
+<p>A defensible illustrative policy is:</p>
+<pre class="text"><code>1. New jobs enter Q0, the highest-priority queue.
+2. Always choose a job from the highest nonempty queue.
+3. Use Round Robin within a queue.
+4. Charge CPU use against a level-specific allotment.
+5. Demote a job after it consumes that allotment, even across voluntary yields.
+6. Periodically boost all runnable jobs to Q0.</code></pre>
+<p>If Q0 uses quantum 2, Q1 uses 4, and Q2 uses 8, an interactive job that runs briefly and blocks for input receives quick service after wakeup, while a long computation gradually moves to queues with less frequent but longer turns. Longer lower-level quanta reduce switching overhead for CPU-bound work.</p>
+<p>Two details determine whether the design is robust. First, accounting must span yields. If a job can reset its allotment by yielding just before a quantum expires, it can game the policy and remain at high priority. Second, a periodic global boost or equivalent aging rule is needed so jobs in lower queues cannot starve when high-priority arrivals continue.</p>
+<p>MLFQ is a family, not one algorithm. Systems vary in number of queues, quantum growth, whether I/O completion preserves or raises priority, how sleep time is treated, and how group weights interact with feedback. Its advantage is adaptive behavior; its cost is more parameters and less transparent guarantees. A workload can also change phase, so old CPU-bound history should not condemn a newly interactive phase forever.</p>
+</section>
+<section id="proportional-share-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="proportional-share-scheduling"><strong>Proportional-Share Scheduling</strong></h3>
+<p>Proportional-share scheduling asks a different question from shortest-job or strict-priority scheduling: over a sufficiently long interval, what fraction of a resource should each client receive? A weight or ticket count expresses a relative entitlement. If A, B, and C have weights <code>60</code>, <code>30</code>, and <code>10</code> and remain runnable, their targets are 60%, 30%, and 10% of CPU service.</p>
+<p>Shares should be defined over the correct entity. Per-thread weights let an application gain service by spawning threads. Hierarchical scheduling can first allocate among users, containers, or control groups and then distribute each group’s allocation internally. Quotas add an upper bound, while weights usually resolve contention rather than reserving idle capacity.</p>
+<section id="lottery-and-stride-scheduling" class="level4">
+<h4 class="anchored" data-anchor-id="lottery-and-stride-scheduling"><strong>Lottery and Stride Scheduling</strong></h4>
+<p><strong>Lottery scheduling</strong> represents rights as tickets. Each allocation draws a uniformly random winning ticket, so client <span class="math inline">\(i\)</span> wins with probability</p>
+<p><span class="math display">\[
+P(i)=\frac{t_i}{\sum_j t_j}.
+\]</span></p>
+<pre class="text"><code>winner = random_integer(1, total_tickets)
+for client in runnable_clients:
+    winner -= client.tickets
+    if winner &lt;= 0:
+        run client for one quantum
+        break</code></pre>
+<p>The mechanism is simple and flexible: tickets can be transferred, grouped, or denominated through currencies. Its guarantee is statistical. Over <span class="math inline">\(m\)</span> independent lotteries, a client’s allocation fluctuates around its target; short windows can be noticeably uneven. Efficient selection can use a tree of ticket sums rather than a linear scan.</p>
+<p><strong>Stride scheduling</strong> replaces randomness with deterministic virtual progress. Choose a large constant <span class="math inline">\(K\)</span>, set</p>
+<p><span class="math display">\[
+\text{stride}_i=\frac{K}{t_i},
+\]</span></p>
+<p>and repeatedly run the client with the smallest <code>pass</code> value:</p>
+<pre class="text"><code>client = remove_min_by_pass()
+run client for one quantum
+client.pass += client.stride
+insert_by_pass(client)</code></pre>
+<p>More tickets produce a smaller stride, so the client becomes minimum more often. A heap gives <code>O(log n)</code> selection and reinsertion. Stride reduces short-term variance relative to a lottery, but dynamic joins, departures, changing tickets, overflow, and pass normalization must be handled so a new client neither monopolizes nor waits excessively.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lottery-stride.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/lottery-stride.svg" class="img-fluid figure-img" style="width:96.0%" alt="Side-by-side comparison of ticket ranges and deterministic stride pass values."></a></p>
+<figcaption>Lottery uses a random ticket draw, whereas stride repeatedly chooses the smallest pass value; both target the same long-run shares.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Waldspurger and Weihl’s <a href="https://www.usenix.org/publications/library/proceedings/osdi/full_papers/waldspurger.pdf">Lottery Scheduling paper</a> and Waldspurger’s <a href="https://waldspurger.org/carl/papers/phd-mit-tr667.pdf">Lottery and Stride Scheduling dissertation</a>.</em></p>
+<p>Neither mechanism is a deadline scheduler. A 10% share does not say when the next quantum will occur, especially under a randomized lottery, and a task can miss a deadline while receiving the correct long-run amount. Service shares, latency bounds, and deadline guarantees are separate contracts.</p>
+</section>
+</section>
+<section id="preemption-timer-interrupts-and-dispatch" class="level3">
+<h3 class="anchored" data-anchor-id="preemption-timer-interrupts-and-dispatch"><strong>Preemption, Timer Interrupts, and Dispatch</strong></h3>
+<p>Preemption requires the kernel to regain control. A hardware timer is commonly programmed to generate an interrupt, but timer frequency and scheduling quantum are not necessarily identical. A tick may update accounting without switching, and tickless operation can program the next relevant event directly instead of interrupting at a fixed rate.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/timer-preemption-dispatch.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/timer-preemption-dispatch.svg" class="img-fluid figure-img" style="width:96.0%" alt="Flowchart showing the full path from a timer interrupt to either continuing the current thread or dispatching another."></a></p>
+<figcaption>Timer interrupt, kernel accounting, scheduling decision, optional context switch, and return to user execution.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter from the trap and scheduling mechanisms described in the <a href="https://pdos.csail.mit.edu/6.1810/2025/xv6/book-riscv-rev5.pdf">xv6 book</a>.</em></p>
+<p>A simplified preemption path is:</p>
+<ol type="1">
+<li>The CPU finishes an instruction boundary permitted by the architecture and vectors to an interrupt handler.</li>
+<li>Hardware and entry code establish kernel privilege and preserve enough state to run safely.</li>
+<li>The kernel acknowledges the timer, updates elapsed runtime, expires timers, and records whether rescheduling is required.</li>
+<li>At a safe scheduling point, policy compares the current thread with eligible alternatives.</li>
+<li>If the current thread remains best, the kernel restores it. Otherwise, it enqueues that thread if still runnable and selects another.</li>
+<li>The switch path saves callee context, changes kernel stack and architecture state, changes memory context if required, restores the selected context, and returns.</li>
+</ol>
+<p>The <strong>dispatch latency</strong> is the delay between a thread becoming the selected runnable choice and actually executing. It can include time spent in non-preemptible kernel regions, interrupt handling, scheduler work, and the context switch. <strong>Interrupt latency</strong> is the delay before an interrupt handler starts. <strong>Context-switch time</strong> is only the state-transition portion. Treating them as synonyms makes performance diagnosis imprecise.</p>
+<p>Direct switch cost is only part of the overhead. A migrated task may refill private caches, branch predictors may lose history, and a process switch can disturb address-translation state. These indirect costs can exceed the instructions in the switch routine. This is why a scheduler may preserve the current thread when two choices are nearly equal and why minimum granularity exists in practical fair schedulers.</p>
+<p>The kernel must also control where preemption is legal. Switching while low-level scheduler data is inconsistent would corrupt the system. Kernels use short protected regions, interrupt state, preemption counters, and strict lock ordering to delay a switch until invariants hold. That mechanism does not excuse long non-preemptible work: it contributes directly to worst-case latency.</p>
+</section>
+<section id="multiprocessor-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="multiprocessor-scheduling"><strong>Multiprocessor Scheduling</strong></h3>
+<p>With <span class="math inline">\(m\)</span> processors, up to <span class="math inline">\(m\)</span> runnable threads can execute simultaneously. A global ready queue makes idle CPUs easy to feed but becomes a shared synchronization and cache-coherence point. Per-CPU queues reduce contention and preserve locality, but the scheduler must decide where a waking thread enters and when imbalance justifies migration.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multicore-scheduling-topology.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/multicore-scheduling-topology.svg" class="img-fluid figure-img" style="width:98.0%" alt="Two NUMA nodes with per-CPU run queues, caches, local memory, a task migration path, and one high-capacity core."></a></p>
+<figcaption>Per-CPU run queues inside two NUMA nodes show the trade-off among balance, cache affinity, memory locality, and heterogeneous CPU capacity.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://docs.kernel.org/scheduler/sched-domains.html">scheduler domains</a>, <a href="https://docs.kernel.org/mm/numa.html">NUMA</a>, and <a href="https://docs.kernel.org/scheduler/sched-energy.html">energy-aware scheduling</a> documentation.</em></p>
+<p>Two broad placement styles are:</p>
+<ul>
+<li><strong>push balancing</strong>, where a busy CPU or periodic balancer moves work away;</li>
+<li><strong>pull balancing</strong>, where an idle CPU searches another queue for movable work.</li>
+</ul>
+<p>Production systems combine wakeup placement, periodic balancing, idle balancing, affinity constraints, and topology-aware domains. The objective is not perfectly equal queue lengths. One CPU may contain a single heavy runnable thread while another has several light threads, and moving a task may cost more than waiting briefly.</p>
+<section id="affinity-load-balancing-and-cache-locality" class="level4">
+<h4 class="anchored" data-anchor-id="affinity-load-balancing-and-cache-locality"><strong>Affinity, Load Balancing, and Cache Locality</strong></h4>
+<p><strong>Processor affinity</strong> is the preference or constraint that keeps a thread on a set of CPUs. Soft or natural affinity favors the previous CPU because its cache may still contain useful lines. Hard affinity restricts eligibility through a CPU mask. Linux exposes this through <code>sched_setaffinity(2)</code> and tools such as <code>taskset</code>.</p>
+<details>
+<summary>
+<strong>Linux: inspect and constrain CPU affinity</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Show the CPUs on which this shell may run.</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">taskset</span> <span class="at">-pc</span> <span class="va">$$</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Launch a CPU-bound command on logical CPUs 0 and 2 only.</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">taskset</span> <span class="at">--cpu-list</span> 0,2 ./worker</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Show each thread, its last observed CPU, class, nice value, and state.</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eLo</span> pid,tid,psr,cls,rtprio,ni,stat,comm <span class="at">--sort</span><span class="op">=</span>pid,tid</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The mask limits legal placement; it does not reserve those CPUs or guarantee immediate execution. Container cpusets, online CPUs, and other kernel restrictions are intersected with the requested mask.</p>
+</details>
+<details>
+<summary>
+<strong>C: pin the calling Linux thread to one CPU</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sched.h&gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    cpu_set_t allowed<span class="op">;</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    CPU_ZERO<span class="op">(&amp;</span>allowed<span class="op">);</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    CPU_SET<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="op">&amp;</span>allowed<span class="op">);</span>  <span class="co">// The calling thread may run only on CPU 0.</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sched_setaffinity<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>allowed<span class="op">),</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"sched_setaffinity: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    CPU_ZERO<span class="op">(&amp;</span>allowed<span class="op">);</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sched_getaffinity<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>allowed<span class="op">),</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"sched_getaffinity: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"CPU 0 allowed: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> CPU_ISSET<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">?</span> <span class="st">"yes"</span> <span class="op">:</span> <span class="st">"no"</span><span class="op">);</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile on Linux with <code>cc -O2 -Wall affinity.c -o affinity</code>. The API controls the calling thread when <code>pid</code> is zero. A POSIX-threaded program can use <code>pthread_setaffinity_np</code> for a particular <code>pthread_t</code>.</p>
+</details>
+<p>Affinity is a hint or constraint, not a free optimization. Pinning can improve repeatability and cache warmth, but it can also strand work on a busy CPU while another is idle, overload one shared cache, or conflict with interrupts and container policy. Measure migrations, cache misses, and latency before fixing a mask permanently.</p>
+</section>
+<section id="numa-and-heterogeneous-cores" class="level4">
+<h4 class="anchored" data-anchor-id="numa-and-heterogeneous-cores"><strong>NUMA and Heterogeneous Cores</strong></h4>
+<p>On a <strong>non-uniform memory access</strong> (NUMA) machine, memory access cost depends on the relationship between the executing CPU and the physical memory node containing a page. Migrating a thread without its working set can turn local accesses into remote accesses. Moving pages as well has a cost and may be wasteful if the thread soon moves again. Linux represents topology through scheduling domains and can use NUMA balancing to coordinate task and page placement.</p>
+<p>Heterogeneous processors add unequal capacity and energy cost. A high-capacity core may finish latency-sensitive work faster but consume more power; an efficiency core may be preferable for background work. Linux Energy Aware Scheduling uses a platform energy model to compare candidate placements on supported asymmetric topologies. This is a multi-objective decision, not a simple “fast jobs on big cores” rule: thermal state, current utilization, frequency, affinity, and the cost of waking a power domain can change the answer.</p>
+<p>Three principles remain useful:</p>
+<ul>
+<li>balance <strong>capacity-normalized load</strong>, not merely thread counts;</li>
+<li>preserve cache and NUMA locality until imbalance or urgency outweighs it;</li>
+<li>keep administrative constraints explicit, because an unschedulable affinity mask cannot be repaired by policy cleverness.</li>
+</ul>
+</section>
+</section>
+<section id="real-time-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="real-time-scheduling"><strong>Real-Time Scheduling</strong></h3>
+<p>A real-time system is one in which correctness depends on <strong>when</strong> a result is produced as well as what the result contains. “Real-time” does not mean “usually fast.” A hard real-time deadline must not be missed under the stated fault and workload model. A firm deadline makes late results worthless, while a soft real-time system tolerates occasional lateness with degraded quality.</p>
+<p>A periodic or sporadic task is commonly described by execution budget <span class="math inline">\(C_i\)</span>, relative deadline <span class="math inline">\(D_i\)</span>, and period or minimum inter-arrival time <span class="math inline">\(T_i\)</span>. Each release creates a job with an absolute deadline. Safe analysis needs a credible worst-case execution time, bounded blocking and interrupt interference, a defined CPU model, and an admission test. Average execution time cannot establish a hard guarantee.</p>
+<section id="rate-monotonic-and-earliest-deadline-first" class="level4">
+<h4 class="anchored" data-anchor-id="rate-monotonic-and-earliest-deadline-first"><strong>Rate Monotonic and Earliest Deadline First</strong></h4>
+<p><strong>Rate Monotonic Scheduling</strong> (RMS) assigns fixed priorities by period: a shorter period receives higher priority. Under the classical Liu-Layland assumptions of independent preemptible periodic tasks on one CPU, deadlines equal periods, and negligible overhead, the utilization</p>
+<p><span class="math display">\[
+U=\sum_{i=1}^{n}\frac{C_i}{T_i}
+\]</span></p>
+<p>is guaranteed schedulable by RMS if</p>
+<p><span class="math display">\[
+U \le n(2^{1/n}-1).
+\]</span></p>
+<p>The bound approaches <span class="math inline">\(\ln 2 \approx 0.693\)</span> as <span class="math inline">\(n\)</span> grows. It is sufficient, not necessary: exceeding it means this quick test cannot guarantee the task set, not that every such task set fails. Harmonic periods can reach full utilization, and exact response-time analysis can accept task sets rejected by the bound.</p>
+<p><strong>Earliest Deadline First</strong> (EDF) uses dynamic priority: among ready jobs, run the one with the earliest absolute deadline. Under the same ideal single-CPU model with implicit deadlines, EDF can schedule any task set with <span class="math inline">\(U\le1\)</span>. Its stronger utilization result does not make implementation free; deadline ordering, overload behavior, admission, and bounded kernel latency still matter.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rms-edf-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/rms-edf-timeline.svg" class="img-fluid figure-img" style="width:98.0%" alt="Two Gantt charts compare rate-monotonic and earliest-deadline-first schedules for periodic tasks."></a></p>
+<figcaption>RMS misses the first T2 deadline for a high-utilization task set, while EDF completes the same job before its absolute deadline.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original worked example based on the model introduced by Liu and Layland in <a href="https://dl.acm.org/doi/10.1145/321738.321743">Scheduling Algorithms for Multiprogramming in a Hard-Real-Time Environment</a>.</em></p>
+<p>The example has <code>T1: C=2, D=T=5</code> and <code>T2: C=4, D=T=7</code>, giving <span class="math inline">\(U\approx0.971\)</span>. RMS always gives T1 higher priority and preempts T2 at time 5, leaving one unit unfinished at T2’s deadline 7. EDF sees that T2’s absolute deadline 7 is earlier than the newly released T1 deadline 10, so it completes T2 first. Later, it similarly lets the second T2 job with deadline 14 continue through the T1 release at time 10.</p>
+<p>When deadlines differ from periods, tasks share locks, execution is non-preemptible, or multiple CPUs are involved, these simple tests no longer apply directly. Blocking terms, release jitter, migration, and multiprocessor interference require richer analysis. Linux <code>SCHED_DEADLINE</code> uses Global EDF with Constant Bandwidth Server concepts and requires <code>runtime &lt;= deadline &lt;= period</code>; the kernel also performs admission control, as documented in <a href="https://man7.org/linux/man-pages/man7/sched.7.html"><code>sched(7)</code></a> and the <a href="https://docs.kernel.org/scheduler/sched-deadline.html">deadline scheduler documentation</a>.</p>
+</section>
+</section>
+<section id="linux-scheduling-from-cfs-to-eevdf" class="level3">
+<h3 class="anchored" data-anchor-id="linux-scheduling-from-cfs-to-eevdf"><strong>Linux Scheduling: From CFS to EEVDF</strong></h3>
+<p>Linux exposes several scheduling policies rather than forcing every workload through one queueing rule. User-visible normal policies include <code>SCHED_OTHER</code>, <code>SCHED_BATCH</code>, and <code>SCHED_IDLE</code>; real-time policies include <code>SCHED_FIFO</code> and <code>SCHED_RR</code>; <code>SCHED_DEADLINE</code> accepts explicit runtime, deadline, and period parameters. These policies have different privilege requirements and semantics. A runaway FIFO or deadline thread can deny CPU service to ordinary work, so experiments require resource limits and a recovery path.</p>
+<p>The <strong>Completely Fair Scheduler</strong> (CFS) established the key mental model for normal tasks: approximate an ideal processor that continuously divides service among runnable tasks. Each task accumulates <strong>virtual runtime</strong>. A task with greater weight accumulates virtual runtime more slowly for the same real CPU time, which gives it a larger long-run share. Selecting the runnable task with the smallest virtual runtime favors the task that is furthest behind its weighted entitlement.</p>
+<p>Linux began transitioning the fair scheduling class toward <strong>Earliest Eligible Virtual Deadline First</strong> (EEVDF) in kernel 6.6. EEVDF keeps virtual-time fairness accounting but separates two questions:</p>
+<ol type="1">
+<li><strong>Eligibility:</strong> lag measures the difference between entitled and received service. A positive lag means the task is owed CPU time; a negative lag means it has received more than its share. Only eligible tasks, described by the kernel documentation as lag greater than or equal to zero, compete in the next step.</li>
+<li><strong>Latency choice:</strong> among eligible tasks, choose the earliest virtual deadline. Shorter requested slices can therefore express latency sensitivity without discarding proportional fairness.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cfs-eevdf-concepts.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/cfs-eevdf-concepts.svg" class="img-fluid figure-img" style="width:98.0%" alt="Conceptual two-panel comparison of CFS virtual runtime and EEVDF eligibility plus virtual deadline."></a></p>
+<figcaption>CFS selects the smallest weighted virtual runtime, while EEVDF first filters by lag and then selects the earliest virtual deadline.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original conceptual diagram based on the official Linux <a href="https://docs.kernel.org/scheduler/sched-design-CFS.html">CFS design</a> and <a href="https://docs.kernel.org/scheduler/sched-eevdf.html">EEVDF scheduler</a> documentation.</em></p>
+<p>The figure is intentionally conceptual. Linux also handles waking sleepers, per-CPU queues, cgroup hierarchy, bandwidth control, affinity, migration, NUMA, and architecture-specific capacity. Internal data structures and tunables evolve; the stable lesson is that fairness accounting and latency selection are related but distinct.</p>
+<p><code>nice</code> values are not absolute reservations. They influence relative weight among competing normal tasks. Likewise, cgroup <code>cpu.weight</code> expresses relative share under contention, while bandwidth controls such as <code>cpu.max</code> can impose a quota. If other groups are idle, a weighted group may use more than its nominal fraction unless a quota limits it.</p>
+<details>
+<summary>
+<strong>Linux: inspect scheduling policy and observed execution</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-thread class, real-time priority, nice value, last CPU, and state.</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eLo</span> pid,tid,cls,rtprio,ni,pri,psr,stat,comm <span class="at">--sort</span><span class="op">=</span>pid,tid</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the current shell's policy and priority.</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">chrt</span> <span class="at">-p</span> <span class="va">$$</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect scheduler accounting exported for one process.</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/<span class="va">$$</span>/sched</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Record and display a short scheduler timeline when perf is available.</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf sched record <span class="at">--</span> sleep 2</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf sched timehist</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Field availability and permissions depend on the kernel and distribution. <code>/proc/PID/sched</code> is an implementation-oriented diagnostic interface rather than a portable application API.</p>
+</details>
+<p>For the <code>cat | grep</code> pipeline, normal fair scheduling usually rewards the stages’ actual runnable behavior rather than reserving two full CPUs. A stage blocked on the pipe is not competing for CPU. When a wakeup makes it runnable, latency policy affects how quickly the pipeline restarts. If many unrelated CPU-bound tasks compete, group weights and placement may matter more than the names or process boundaries of <code>cat</code> and <code>grep</code>.</p>
+</section>
+<section id="simulating-and-comparing-scheduling-policies" class="level3">
+<h3 class="anchored" data-anchor-id="simulating-and-comparing-scheduling-policies"><strong>Simulating and Comparing Scheduling Policies</strong></h3>
+<p>A scheduling simulator makes assumptions executable. It should separate the workload from the policy, log every execution interval, and derive metrics from the log rather than from hand-maintained counters. The compact simulator below implements FCFS, non-preemptive SJF, unit-resolution SRTF, and Round Robin for integer arrival and burst times.</p>
+<details>
+<summary>
+<strong>Python: discrete-event comparison of FCFS, SJF, SRTF, and Round Robin</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> statistics <span class="im">import</span> mean</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Job:</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    arrival: <span class="bu">int</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    burst: <span class="bu">int</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>JOBS <span class="op">=</span> [</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"A"</span>, arrival<span class="op">=</span><span class="dv">0</span>, burst<span class="op">=</span><span class="dv">8</span>),</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"B"</span>, arrival<span class="op">=</span><span class="dv">1</span>, burst<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"C"</span>, arrival<span class="op">=</span><span class="dv">2</span>, burst<span class="op">=</span><span class="dv">2</span>),</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"D"</span>, arrival<span class="op">=</span><span class="dv">4</span>, burst<span class="op">=</span><span class="dv">1</span>),</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> append_segment(timeline, name, start, end):</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Append an interval, merging adjacent runs of the same job."""</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> timeline <span class="kw">and</span> timeline[<span class="op">-</span><span class="dv">1</span>][<span class="dv">0</span>] <span class="op">==</span> name <span class="kw">and</span> timeline[<span class="op">-</span><span class="dv">1</span>][<span class="dv">2</span>] <span class="op">==</span> start:</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>        old_name, old_start, _ <span class="op">=</span> timeline[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>        timeline[<span class="op">-</span><span class="dv">1</span>] <span class="op">=</span> (old_name, old_start, end)</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>        timeline.append((name, start, end))</span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_non_preemptive(jobs, policy):</span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run FCFS or SJF; a selected job keeps the CPU until completion."""</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>    pending <span class="op">=</span> <span class="bu">list</span>(jobs)</span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> pending)</span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> pending:</span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>        ready <span class="op">=</span> [job <span class="cf">for</span> job <span class="kw">in</span> pending <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now]</span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a>            <span class="co"># No runnable job: move simulated time to the next arrival.</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> pending)</span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a>            ready <span class="op">=</span> [job <span class="cf">for</span> job <span class="kw">in</span> pending <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now]</span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FCFS"</span>:</span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a>            job <span class="op">=</span> <span class="bu">min</span>(ready, key<span class="op">=</span><span class="kw">lambda</span> item: (item.arrival, item.name))</span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"SJF"</span>:</span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a>            job <span class="op">=</span> <span class="bu">min</span>(ready, key<span class="op">=</span><span class="kw">lambda</span> item: (item.burst, item.arrival, item.name))</span>
+<span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"unknown non-preemptive policy: </span><span class="sc">{</span>policy<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> job.burst)</span>
+<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> job.burst</span>
+<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a>        pending.remove(job)</span>
+<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-56"><a href="#cb16-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-57"><a href="#cb16-57" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_srtf(jobs):</span>
+<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Reconsider the shortest remaining job at each integer time unit."""</span></span>
+<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> {job.name: job.burst <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a>    by_name <span class="op">=</span> {job.name: job <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-61"><a href="#cb16-61" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-62"><a href="#cb16-62" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> jobs)</span>
+<span id="cb16-63"><a href="#cb16-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-64"><a href="#cb16-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">any</span>(value <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">for</span> value <span class="kw">in</span> remaining.values()):</span>
+<span id="cb16-65"><a href="#cb16-65" aria-hidden="true" tabindex="-1"></a>        ready <span class="op">=</span> [</span>
+<span id="cb16-66"><a href="#cb16-66" aria-hidden="true" tabindex="-1"></a>            job <span class="cf">for</span> job <span class="kw">in</span> jobs</span>
+<span id="cb16-67"><a href="#cb16-67" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now <span class="kw">and</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb16-68"><a href="#cb16-68" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb16-69"><a href="#cb16-69" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-70"><a href="#cb16-70" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb16-71"><a href="#cb16-71" aria-hidden="true" tabindex="-1"></a>                job.arrival <span class="cf">for</span> job <span class="kw">in</span> jobs</span>
+<span id="cb16-72"><a href="#cb16-72" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span> <span class="kw">and</span> job.arrival <span class="op">&gt;</span> now</span>
+<span id="cb16-73"><a href="#cb16-73" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb16-74"><a href="#cb16-74" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb16-75"><a href="#cb16-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-76"><a href="#cb16-76" aria-hidden="true" tabindex="-1"></a>        job <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb16-77"><a href="#cb16-77" aria-hidden="true" tabindex="-1"></a>            ready,</span>
+<span id="cb16-78"><a href="#cb16-78" aria-hidden="true" tabindex="-1"></a>            key<span class="op">=</span><span class="kw">lambda</span> item: (remaining[item.name], item.arrival, item.name),</span>
+<span id="cb16-79"><a href="#cb16-79" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb16-80"><a href="#cb16-80" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb16-81"><a href="#cb16-81" aria-hidden="true" tabindex="-1"></a>        remaining[job.name] <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb16-82"><a href="#cb16-82" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb16-83"><a href="#cb16-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-84"><a href="#cb16-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-85"><a href="#cb16-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-87"><a href="#cb16-87" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_round_robin(jobs, quantum):</span>
+<span id="cb16-88"><a href="#cb16-88" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Add arrivals during a slice before requeueing the expired job."""</span></span>
+<span id="cb16-89"><a href="#cb16-89" aria-hidden="true" tabindex="-1"></a>    pending <span class="op">=</span> deque(<span class="bu">sorted</span>(jobs, key<span class="op">=</span><span class="kw">lambda</span> item: (item.arrival, item.name)))</span>
+<span id="cb16-90"><a href="#cb16-90" aria-hidden="true" tabindex="-1"></a>    ready <span class="op">=</span> deque()</span>
+<span id="cb16-91"><a href="#cb16-91" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> {job.name: job.burst <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-92"><a href="#cb16-92" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-93"><a href="#cb16-93" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> pending[<span class="dv">0</span>].arrival</span>
+<span id="cb16-94"><a href="#cb16-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-95"><a href="#cb16-95" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> pending <span class="kw">or</span> ready:</span>
+<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> pending <span class="kw">and</span> pending[<span class="dv">0</span>].arrival <span class="op">&lt;=</span> now:</span>
+<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a>            ready.append(pending.popleft())</span>
+<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-99"><a href="#cb16-99" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-100"><a href="#cb16-100" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> pending[<span class="dv">0</span>].arrival</span>
+<span id="cb16-101"><a href="#cb16-101" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb16-102"><a href="#cb16-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-103"><a href="#cb16-103" aria-hidden="true" tabindex="-1"></a>        job <span class="op">=</span> ready.popleft()</span>
+<span id="cb16-104"><a href="#cb16-104" aria-hidden="true" tabindex="-1"></a>        duration <span class="op">=</span> <span class="bu">min</span>(quantum, remaining[job.name])</span>
+<span id="cb16-105"><a href="#cb16-105" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> duration)</span>
+<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> duration</span>
+<span id="cb16-107"><a href="#cb16-107" aria-hidden="true" tabindex="-1"></a>        remaining[job.name] <span class="op">-=</span> duration</span>
+<span id="cb16-108"><a href="#cb16-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-109"><a href="#cb16-109" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Arrivals at the boundary enter before the expired job is requeued.</span></span>
+<span id="cb16-110"><a href="#cb16-110" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> pending <span class="kw">and</span> pending[<span class="dv">0</span>].arrival <span class="op">&lt;=</span> now:</span>
+<span id="cb16-111"><a href="#cb16-111" aria-hidden="true" tabindex="-1"></a>            ready.append(pending.popleft())</span>
+<span id="cb16-112"><a href="#cb16-112" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb16-113"><a href="#cb16-113" aria-hidden="true" tabindex="-1"></a>            ready.append(job)</span>
+<span id="cb16-114"><a href="#cb16-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-115"><a href="#cb16-115" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-117"><a href="#cb16-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-118"><a href="#cb16-118" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> calculate_metrics(jobs, timeline):</span>
+<span id="cb16-119"><a href="#cb16-119" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Derive first start and completion from the execution trace."""</span></span>
+<span id="cb16-120"><a href="#cb16-120" aria-hidden="true" tabindex="-1"></a>    first_start <span class="op">=</span> {}</span>
+<span id="cb16-121"><a href="#cb16-121" aria-hidden="true" tabindex="-1"></a>    completion <span class="op">=</span> {}</span>
+<span id="cb16-122"><a href="#cb16-122" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, start, end <span class="kw">in</span> timeline:</span>
+<span id="cb16-123"><a href="#cb16-123" aria-hidden="true" tabindex="-1"></a>        first_start.setdefault(name, start)</span>
+<span id="cb16-124"><a href="#cb16-124" aria-hidden="true" tabindex="-1"></a>        completion[name] <span class="op">=</span> end</span>
+<span id="cb16-125"><a href="#cb16-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-126"><a href="#cb16-126" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> []</span>
+<span id="cb16-127"><a href="#cb16-127" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> job <span class="kw">in</span> jobs:</span>
+<span id="cb16-128"><a href="#cb16-128" aria-hidden="true" tabindex="-1"></a>        turnaround <span class="op">=</span> completion[job.name] <span class="op">-</span> job.arrival</span>
+<span id="cb16-129"><a href="#cb16-129" aria-hidden="true" tabindex="-1"></a>        waiting <span class="op">=</span> turnaround <span class="op">-</span> job.burst</span>
+<span id="cb16-130"><a href="#cb16-130" aria-hidden="true" tabindex="-1"></a>        response <span class="op">=</span> first_start[job.name] <span class="op">-</span> job.arrival</span>
+<span id="cb16-131"><a href="#cb16-131" aria-hidden="true" tabindex="-1"></a>        rows.append((job.name, waiting, response, turnaround))</span>
+<span id="cb16-132"><a href="#cb16-132" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> rows</span>
+<span id="cb16-133"><a href="#cb16-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-134"><a href="#cb16-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-135"><a href="#cb16-135" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> print_report(name, jobs, timeline):</span>
+<span id="cb16-136"><a href="#cb16-136" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> calculate_metrics(jobs, timeline)</span>
+<span id="cb16-137"><a href="#cb16-137" aria-hidden="true" tabindex="-1"></a>    gantt <span class="op">=</span> <span class="st">" | "</span>.join(<span class="ss">f"</span><span class="sc">{</span>job<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>start<span class="sc">}</span><span class="ss">-</span><span class="sc">{</span>end<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> job, start, end <span class="kw">in</span> timeline)</span>
+<span id="cb16-138"><a href="#cb16-138" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:4}</span><span class="ss">  </span><span class="sc">{</span>gantt<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb16-139"><a href="#cb16-139" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb16-140"><a href="#cb16-140" aria-hidden="true" tabindex="-1"></a>        <span class="st">"      averages: "</span></span>
+<span id="cb16-141"><a href="#cb16-141" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"wait=</span><span class="sc">{</span>mean(row[<span class="dv">1</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">, "</span></span>
+<span id="cb16-142"><a href="#cb16-142" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"response=</span><span class="sc">{</span>mean(row[<span class="dv">2</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">, "</span></span>
+<span id="cb16-143"><a href="#cb16-143" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"turnaround=</span><span class="sc">{</span>mean(row[<span class="dv">3</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">"</span></span>
+<span id="cb16-144"><a href="#cb16-144" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb16-145"><a href="#cb16-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-146"><a href="#cb16-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-147"><a href="#cb16-147" aria-hidden="true" tabindex="-1"></a>experiments <span class="op">=</span> {</span>
+<span id="cb16-148"><a href="#cb16-148" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FCFS"</span>: run_non_preemptive(JOBS, <span class="st">"FCFS"</span>),</span>
+<span id="cb16-149"><a href="#cb16-149" aria-hidden="true" tabindex="-1"></a>    <span class="st">"SJF"</span>: run_non_preemptive(JOBS, <span class="st">"SJF"</span>),</span>
+<span id="cb16-150"><a href="#cb16-150" aria-hidden="true" tabindex="-1"></a>    <span class="st">"SRTF"</span>: run_srtf(JOBS),</span>
+<span id="cb16-151"><a href="#cb16-151" aria-hidden="true" tabindex="-1"></a>    <span class="st">"RR"</span>: run_round_robin(JOBS, quantum<span class="op">=</span><span class="dv">2</span>),</span>
+<span id="cb16-152"><a href="#cb16-152" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb16-153"><a href="#cb16-153" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-154"><a href="#cb16-154" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> policy_name, execution_trace <span class="kw">in</span> experiments.items():</span>
+<span id="cb16-155"><a href="#cb16-155" aria-hidden="true" tabindex="-1"></a>    print_report(policy_name, JOBS, execution_trace)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Expected output:</p>
+<pre class="text"><code>FCFS  A 0-8 | B 8-12 | C 12-14 | D 14-15
+      averages: wait=6.75, response=6.75, turnaround=10.50
+SJF   A 0-8 | D 8-9 | C 9-11 | B 11-15
+      averages: wait=5.25, response=5.25, turnaround=9.00
+SRTF  A 0-1 | B 1-2 | C 2-4 | D 4-5 | B 5-8 | A 8-15
+      averages: wait=2.50, response=0.00, turnaround=6.25
+RR    A 0-2 | B 2-4 | C 4-6 | A 6-8 | D 8-9 | B 9-11 | A 11-15
+      averages: wait=4.75, response=1.75, turnaround=8.50</code></pre>
+</details>
+<p>The simulator intentionally omits context-switch cost, I/O blocking, multiple CPUs, prediction error, and cache effects. That is a feature if the goal is to isolate policy, but it is a limitation if the results are presented as operating-system performance. A stronger experiment should:</p>
+<ol type="1">
+<li>define arrival and burst distributions or replay a trace;</li>
+<li>include switch and migration cost;</li>
+<li>run long enough to separate warm-up from steady state;</li>
+<li>report per-class and tail metrics, not only global means;</li>
+<li>repeat randomized policies with fixed recorded seeds and confidence intervals;</li>
+<li>validate the model against measured scheduler traces before making system claims.</li>
+</ol>
+<p>For Linux observations, <code>perf sched timehist</code>, tracepoints, and per-thread <code>/proc</code> accounting can reveal wakeup-to-run delay, runtime, migrations, and switch sequences. Measurements should be collected under controlled affinity, frequency, and background load. The simulator answers “what does this policy imply under this model?”; tracing answers “what did this implementation do on this machine?”</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Policy</th>
+<th>Preemptive?</th>
+<th>Information or state required</th>
+<th>Main strength</th>
+<th>Main risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FCFS</td>
+<td>no</td>
+<td>arrival order</td>
+<td>minimal overhead and transparent order</td>
+<td>convoy effect and poor short-job response</td>
+</tr>
+<tr class="even">
+<td>SJF</td>
+<td>no</td>
+<td>predicted full burst</td>
+<td>minimum mean waiting under ideal assumptions</td>
+<td>prediction error, starvation, no reaction mid-burst</td>
+</tr>
+<tr class="odd">
+<td>SRTF</td>
+<td>yes</td>
+<td>predicted remaining time</td>
+<td>excellent mean flow time for known sizes</td>
+<td>starvation and frequent preemption</td>
+</tr>
+<tr class="even">
+<td>Round Robin</td>
+<td>yes</td>
+<td>FIFO queue and quantum</td>
+<td>bounded rotation among peers, good initial response</td>
+<td>quantum overhead and no group fairness by itself</td>
+</tr>
+<tr class="odd">
+<td>strict priority</td>
+<td>either</td>
+<td>trusted priority</td>
+<td>protects explicitly urgent classes</td>
+<td>starvation and priority inversion dependencies</td>
+</tr>
+<tr class="even">
+<td>MLFQ</td>
+<td>yes</td>
+<td>queues plus usage history</td>
+<td>adapts to interactive and CPU-bound behavior</td>
+<td>tunable complexity and gaming without robust accounting</td>
+</tr>
+<tr class="odd">
+<td>lottery</td>
+<td>normally</td>
+<td>tickets plus randomness</td>
+<td>flexible proportional shares</td>
+<td>short-term variance</td>
+</tr>
+<tr class="even">
+<td>stride</td>
+<td>normally</td>
+<td>tickets, stride, pass</td>
+<td>deterministic proportional shares</td>
+<td>dynamic membership and normalization complexity</td>
+</tr>
+<tr class="odd">
+<td>RMS</td>
+<td>yes</td>
+<td>period and WCET model</td>
+<td>analyzable fixed priorities</td>
+<td>conservative bound and strict assumptions</td>
+</tr>
+<tr class="even">
+<td>EDF</td>
+<td>yes</td>
+<td>absolute deadlines and budgets</td>
+<td>strong uniprocessor utilization result</td>
+<td>overload and implementation require careful control</td>
+</tr>
+<tr class="odd">
+<td>CFS/EEVDF family</td>
+<td>yes</td>
+<td>weights, virtual time, lag, virtual deadlines</td>
+<td>practical weighted fairness with latency awareness</td>
+<td>behavior also depends on hierarchy, placement, and kernel details</td>
+</tr>
+</tbody>
+</table>
+<p>A reasonable selection process starts from the contract:</p>
+<ul>
+<li>use FCFS as a simple baseline or where non-preemptive order is required;</li>
+<li>use shortest-job reasoning when sizes are known or predictably estimated and mean completion time dominates;</li>
+<li>use Round Robin or feedback queues for responsive time sharing without exact size knowledge;</li>
+<li>use hierarchical proportional share when tenants or groups need relative service isolation;</li>
+<li>use a real-time class only with valid timing parameters, bounded interference, admission control, and operational safeguards;</li>
+<li>on multicore systems, evaluate placement and memory locality together with temporal policy.</li>
+</ul>
+<p>Several misconceptions are now easier to reject. A runnable thread is not the same as a running thread. A timer interrupt need not cause a switch. A smaller quantum is not free responsiveness. Equal per-thread treatment is not necessarily equal per-user treatment. CPU affinity is not CPU reservation. High average utilization is not proof of good latency, and a high priority is not a deadline guarantee.</p>
+<p>The durable model is a loop: events change eligibility, accounting records received service, policy ranks legal candidates, placement chooses a processor, and dispatch realizes the decision. The quality of a scheduler is the quality of that loop under stated workload assumptions, measured against an explicit combination of response, throughput, fairness, locality, predictability, and deadlines.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1735 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Processes and Program Execution</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="02-processes-and-program-execution_files/libs/clipboard/clipboard.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/quarto.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/popper.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="02-processes-and-program-execution_files/libs/quarto-html/anchor.min.js"></script>
+<link href="02-processes-and-program-execution_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="02-processes-and-program-execution_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="02-processes-and-program-execution_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="02-processes-and-program-execution_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="02-processes-and-program-execution_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#processes-and-program-execution" id="toc-processes-and-program-execution" class="nav-link active" data-scroll-target="#processes-and-program-execution"><strong>Processes and Program Execution</strong></a>
+  <ul>
+  <li><a href="#program-process-and-execution-context" id="toc-program-process-and-execution-context" class="nav-link" data-scroll-target="#program-process-and-execution-context"><strong>Program, Process, and Execution Context</strong></a>
+  <ul>
+  <li><a href="#a-program-is-not-yet-a-process" id="toc-a-program-is-not-yet-a-process" class="nav-link" data-scroll-target="#a-program-is-not-yet-a-process"><strong>A Program Is Not Yet a Process</strong></a></li>
+  <li><a href="#process-identity-and-resource-ownership" id="toc-process-identity-and-resource-ownership" class="nav-link" data-scroll-target="#process-identity-and-resource-ownership"><strong>Process Identity and Resource Ownership</strong></a></li>
+  </ul></li>
+  <li><a href="#the-process-image" id="toc-the-process-image" class="nav-link" data-scroll-target="#the-process-image"><strong>The Process Image</strong></a>
+  <ul>
+  <li><a href="#virtual-address-space-layout" id="toc-virtual-address-space-layout" class="nav-link" data-scroll-target="#virtual-address-space-layout"><strong>Virtual Address-Space Layout</strong></a></li>
+  <li><a href="#registers-stacks-and-kernel-state" id="toc-registers-stacks-and-kernel-state" class="nav-link" data-scroll-target="#registers-stacks-and-kernel-state"><strong>Registers, Stacks, and Kernel State</strong></a></li>
+  <li><a href="#the-process-control-block" id="toc-the-process-control-block" class="nav-link" data-scroll-target="#the-process-control-block"><strong>The Process Control Block</strong></a></li>
+  </ul></li>
+  <li><a href="#process-states-and-transitions" id="toc-process-states-and-transitions" class="nav-link" data-scroll-target="#process-states-and-transitions"><strong>Process States and Transitions</strong></a>
+  <ul>
+  <li><a href="#ready-running-blocked-and-terminated" id="toc-ready-running-blocked-and-terminated" class="nav-link" data-scroll-target="#ready-running-blocked-and-terminated"><strong>Ready, Running, Blocked, and Terminated</strong></a></li>
+  <li><a href="#parent-child-orphan-and-zombie-processes" id="toc-parent-child-orphan-and-zombie-processes" class="nav-link" data-scroll-target="#parent-child-orphan-and-zombie-processes"><strong>Parent, Child, Orphan, and Zombie Processes</strong></a></li>
+  </ul></li>
+  <li><a href="#creating-and-terminating-processes" id="toc-creating-and-terminating-processes" class="nav-link" data-scroll-target="#creating-and-terminating-processes"><strong>Creating and Terminating Processes</strong></a>
+  <ul>
+  <li><a href="#fork-exec-wait-and-exit" id="toc-fork-exec-wait-and-exit" class="nav-link" data-scroll-target="#fork-exec-wait-and-exit"><strong>fork, exec, wait, and exit</strong></a></li>
+  <li><a href="#process-spawning-beyond-fork" id="toc-process-spawning-beyond-fork" class="nav-link" data-scroll-target="#process-spawning-beyond-fork"><strong>Process Spawning Beyond fork</strong></a></li>
+  <li><a href="#copy-on-write-as-an-enabling-mechanism" id="toc-copy-on-write-as-an-enabling-mechanism" class="nav-link" data-scroll-target="#copy-on-write-as-an-enabling-mechanism"><strong>Copy-on-Write as an Enabling Mechanism</strong></a></li>
+  </ul></li>
+  <li><a href="#loading-and-linking-a-program" id="toc-loading-and-linking-a-program" class="nav-link" data-scroll-target="#loading-and-linking-a-program"><strong>Loading and Linking a Program</strong></a>
+  <ul>
+  <li><a href="#executable-layout-and-the-loader" id="toc-executable-layout-and-the-loader" class="nav-link" data-scroll-target="#executable-layout-and-the-loader"><strong>Executable Layout and the Loader</strong></a></li>
+  <li><a href="#static-and-dynamic-linking" id="toc-static-and-dynamic-linking" class="nav-link" data-scroll-target="#static-and-dynamic-linking"><strong>Static and Dynamic Linking</strong></a></li>
+  <li><a href="#arguments-environment-and-initial-stack" id="toc-arguments-environment-and-initial-stack" class="nav-link" data-scroll-target="#arguments-environment-and-initial-stack"><strong>Arguments, Environment, and Initial Stack</strong></a></li>
+  </ul></li>
+  <li><a href="#context-switching" id="toc-context-switching" class="nav-link" data-scroll-target="#context-switching"><strong>Context Switching</strong></a>
+  <ul>
+  <li><a href="#saving-and-restoring-execution-state" id="toc-saving-and-restoring-execution-state" class="nav-link" data-scroll-target="#saving-and-restoring-execution-state"><strong>Saving and Restoring Execution State</strong></a></li>
+  <li><a href="#direct-and-indirect-context-switch-costs" id="toc-direct-and-indirect-context-switch-costs" class="nav-link" data-scroll-target="#direct-and-indirect-context-switch-costs"><strong>Direct and Indirect Context-Switch Costs</strong></a></li>
+  </ul></li>
+  <li><a href="#file-descriptors-as-process-capabilities" id="toc-file-descriptors-as-process-capabilities" class="nav-link" data-scroll-target="#file-descriptors-as-process-capabilities"><strong>File Descriptors as Process Capabilities</strong></a>
+  <ul>
+  <li><a href="#descriptor-tables-and-open-file-descriptions" id="toc-descriptor-tables-and-open-file-descriptions" class="nav-link" data-scroll-target="#descriptor-tables-and-open-file-descriptions"><strong>Descriptor Tables and Open File Descriptions</strong></a></li>
+  <li><a href="#redirection-and-descriptor-inheritance" id="toc-redirection-and-descriptor-inheritance" class="nav-link" data-scroll-target="#redirection-and-descriptor-inheritance"><strong>Redirection and Descriptor Inheritance</strong></a></li>
+  </ul></li>
+  <li><a href="#how-a-shell-builds-the-running-pipeline" id="toc-how-a-shell-builds-the-running-pipeline" class="nav-link" data-scroll-target="#how-a-shell-builds-the-running-pipeline"><strong>How a Shell Builds the Running Pipeline</strong></a></li>
+  <li><a href="#observing-processes-in-linux" id="toc-observing-processes-in-linux" class="nav-link" data-scroll-target="#observing-processes-in-linux"><strong>Observing Processes in Linux</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Processes and Program Execution</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/02-processes-and-program-execution.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="processes-and-program-execution" class="level2">
+<h2 class="anchored" data-anchor-id="processes-and-program-execution"><strong>Processes and Program Execution</strong></h2>
+<p>A <strong>process</strong> is the operating system’s managed instance of a program in execution. A program file contains instructions and data, but it has no live register values, no scheduled CPU time, no private virtual address space, and no kernel-maintained identity. Those properties appear only when the operating system creates an execution context around the program.</p>
+<p>This distinction is central to almost every later operating-system topic. Scheduling chooses among processes or threads, virtual memory protects their address spaces, file systems expose resources through descriptors, and security checks use process credentials. A process is therefore more than “a program currently on the CPU.” It remains a process while it is ready, sleeping, stopped, or waiting for a child, even though it is not executing instructions at that moment.</p>
+<p>The running example for this chapter is the shell command:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>What looks like one command line actually asks the shell and kernel to coordinate several mechanisms:</p>
+<ul>
+<li>create a pipe and open <code>result.txt</code>;</li>
+<li>create two child processes;</li>
+<li>redirect their standard descriptors;</li>
+<li>replace each child’s program image with <code>cat</code> or <code>grep</code>;</li>
+<li>schedule the resulting processes independently;</li>
+<li>deliver end-of-file when every unused pipe writer has closed; and</li>
+<li>retain each exit status until the shell collects it.</li>
+</ul>
+<p>Following that path gives a concrete answer to the chapter’s main question: <strong>how does a passive executable become a protected, observable, and reclaimable computation?</strong></p>
+<section id="program-process-and-execution-context" class="level3">
+<h3 class="anchored" data-anchor-id="program-process-and-execution-context"><strong>Program, Process, and Execution Context</strong></h3>
+<p>The words <em>program</em> and <em>process</em> are sometimes used casually as synonyms, but the operating system must keep them separate. A program is reusable input. A process is a temporary execution that owns or references resources and whose state changes over time.</p>
+<section id="a-program-is-not-yet-a-process" class="level4">
+<h4 class="anchored" data-anchor-id="a-program-is-not-yet-a-process"><strong>A Program Is Not Yet a Process</strong></h4>
+<p>An executable file such as <code>/usr/bin/grep</code> is an organized sequence of bytes on persistent storage. Its headers describe how code and data should be mapped, where execution should begin, and whether a dynamic linker is required. The file can remain unchanged for years and can be executed by thousands of processes.</p>
+<p>To run it, the operating system must combine at least four kinds of state:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Kind of state</th>
+<th>Typical contents</th>
+<th>Why it is needed</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Program representation</td>
+<td>machine instructions, initialized data, loader metadata</td>
+<td>Defines what computation can be performed</td>
+</tr>
+<tr class="even">
+<td>Memory context</td>
+<td>page tables, mappings, stack, heap, shared libraries</td>
+<td>Gives instructions and data protected virtual addresses</td>
+</tr>
+<tr class="odd">
+<td>CPU context</td>
+<td>program counter, stack pointer, general registers, status flags</td>
+<td>Records exactly where execution can resume</td>
+</tr>
+<tr class="even">
+<td>Kernel context</td>
+<td>PID, credentials, scheduling state, descriptors, signals, accounting</td>
+<td>Lets the kernel manage, protect, observe, and eventually reclaim the execution</td>
+</tr>
+</tbody>
+</table>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/program-to-process.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/program-to-process.svg" class="img-fluid figure-img" style="width:96.0%" alt="Diagram showing an executable file passing through a loader into a user virtual address space and kernel-maintained process state."></a></p>
+<figcaption>A program is passive input, while a process combines a loaded address space with kernel-managed execution state.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter. Click the image to inspect it at full size.</em></p>
+<p>The loader path in the figure should not be interpreted as eagerly copying the whole executable into RAM. Modern systems usually create virtual-memory mappings and bring pages into physical memory on demand. Loading establishes a valid future execution, while paging decides when individual bytes must become resident.</p>
+<p>One executable can produce many processes. If three users run <code>grep</code>, the code pages may be physically shared because they are read-only, while each process still has distinct registers, stacks, credentials, descriptors, and writable data. Conversely, one process can replace its executable program through <code>execve()</code> without changing its PID. The process is the continuing kernel identity; the program image is replaceable content.</p>
+</section>
+<section id="process-identity-and-resource-ownership" class="level4">
+<h4 class="anchored" data-anchor-id="process-identity-and-resource-ownership"><strong>Process Identity and Resource Ownership</strong></h4>
+<p>Unix-like systems identify a process with a <strong>process ID</strong>, or PID. <code>getpid()</code> returns the caller’s PID and <code>getppid()</code> reports its parent. A PID is useful for observation and many control operations, but it is not a permanent global identity: PID values are reused, PID namespaces can give the same process different visible numbers, and a PID may refer to a different process after the original exits. Linux <code>pidfd</code> interfaces provide a race-resistant reference when software must retain a stable handle to a particular process.</p>
+<p>A process also carries a collection of security and resource attributes:</p>
+<ul>
+<li>real, effective, and saved user and group credentials;</li>
+<li>a current working directory, root directory, and file-creation mask;</li>
+<li>resource limits and accounting counters;</li>
+<li>signal dispositions and pending signals;</li>
+<li>a table of file descriptors;</li>
+<li>references to an address space and executable image;</li>
+<li>parent-child relationships and an eventual exit status; and</li>
+<li>one or more schedulable threads.</li>
+</ul>
+<p>“Ownership” does not mean every object is copied or exclusively held. Kernel objects are commonly reference-counted and shared. After <code>fork()</code>, parent and child initially refer to the same open-file descriptions, and copy-on-write lets their page tables refer to the same physical frames. The process boundary defines which references and permissions belong to each execution context, not a rule that all underlying data must be private.</p>
+<p>This chapter initially treats a process as having one execution thread so that the control flow is easy to see. A later chapter separates <strong>process resource ownership</strong> from <strong>thread execution state</strong>. On Linux, this distinction also explains why many kernel details are represented per task rather than by one textbook-style process record.</p>
+</section>
+</section>
+<section id="the-process-image" class="level3">
+<h3 class="anchored" data-anchor-id="the-process-image"><strong>The Process Image</strong></h3>
+<p>The <strong>process image</strong> is the complete state required to continue a process. In a narrow user-space sense it means the virtual address space. In a broader operating-system sense it includes CPU state and the kernel metadata that connects the process to protected resources.</p>
+<section id="virtual-address-space-layout" class="level4">
+<h4 class="anchored" data-anchor-id="virtual-address-space-layout"><strong>Virtual Address-Space Layout</strong></h4>
+<p>Each process observes a virtual address space rather than raw physical memory. A typical 64-bit Unix process may contain the following regions, although exact ordering and addresses vary by executable format, architecture, loader, security settings, and individual <code>mmap()</code> calls.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Region</th>
+<th>Typical contents</th>
+<th>Common protection</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Text</td>
+<td>compiled machine instructions</td>
+<td>read and execute</td>
+</tr>
+<tr class="even">
+<td>Read-only data</td>
+<td>constants and immutable tables</td>
+<td>read</td>
+</tr>
+<tr class="odd">
+<td>Data</td>
+<td>initialized writable globals</td>
+<td>read and write</td>
+</tr>
+<tr class="even">
+<td>BSS</td>
+<td>zero-initialized globals; represented compactly in the file</td>
+<td>read and write</td>
+</tr>
+<tr class="odd">
+<td>Heap</td>
+<td>dynamic allocations traditionally expanded by <code>brk()</code> or supplied by the allocator</td>
+<td>read and write</td>
+</tr>
+<tr class="even">
+<td>Memory mappings</td>
+<td>shared libraries, mapped files, anonymous regions, thread stacks</td>
+<td>mapping-dependent</td>
+</tr>
+<tr class="odd">
+<td>User stack</td>
+<td>call frames, local variables, initial arguments and environment</td>
+<td>read and write, normally non-executable</td>
+</tr>
+<tr class="even">
+<td>Kernel-provided mappings</td>
+<td>facilities such as Linux vDSO</td>
+<td>mapping-dependent</td>
+</tr>
+</tbody>
+</table>
+<p>The layout is a set of mappings, not necessarily one dense block of allocated physical memory. An address can be valid but not resident; the first access can trigger a page fault that causes the kernel to allocate a zero-filled page or read data from a file. Unmapped addresses and forbidden accesses instead produce a fault that the process cannot normally recover from.</p>
+<p><strong>Address-space layout randomization</strong> changes mapping locations between executions, making fixed-address assumptions unreliable and raising the cost of many memory-corruption attacks. Position-independent executables and libraries cooperate with relocation mechanisms so code can run at those varying addresses. Later memory chapters examine page tables, the TLB, demand paging, and replacement in depth; here the important point is that a process image is a protected virtual view assembled from several kinds of backing objects.</p>
+</section>
+<section id="registers-stacks-and-kernel-state" class="level4">
+<h4 class="anchored" data-anchor-id="registers-stacks-and-kernel-state"><strong>Registers, Stacks, and Kernel State</strong></h4>
+<p>Memory alone cannot identify an execution point. To pause and resume a process, the operating system must preserve its architectural state, including the program counter, stack pointer, general-purpose registers, status flags, and architecture-specific control state. Floating-point and vector registers may be included when used or managed with lazy/eager save policies chosen by the architecture and kernel.</p>
+<p>The term <strong>stack</strong> can refer to two different structures:</p>
+<ul>
+<li>The <strong>user stack</strong> stores ordinary function frames, return addresses, local variables, and user-mode bookkeeping. Its pages belong to the process’s virtual address space.</li>
+<li>A <strong>kernel stack</strong> is used while a thread executes kernel code after a system call, interrupt, or fault. User code cannot directly read or write it. It holds kernel call frames and may contain a saved trap frame for returning to user mode.</li>
+</ul>
+<p>Keeping these stacks separate is a protection requirement. If the kernel trusted an arbitrary user stack while running privileged code, a process could modify kernel return state or make fault handling depend on untrusted memory. Entering the kernel therefore switches to controlled kernel state before normal kernel functions proceed.</p>
+<p>When a process is not running, some saved state resides in memory owned by the kernel. When it is running, much of its current state is physically in CPU registers. The process image is thus partly concrete data structures and partly a logical promise: the kernel has enough information to reconstruct the next legal instruction.</p>
+</section>
+<section id="the-process-control-block" class="level4">
+<h4 class="anchored" data-anchor-id="the-process-control-block"><strong>The Process Control Block</strong></h4>
+<p>Textbooks call the kernel’s per-process record a <strong>process control block</strong> (PCB). It is an abstraction rather than a portable C structure. Real kernels distribute the information across architecture-specific context records, scheduling entities, memory descriptors, credential objects, descriptor tables, signal structures, and parent-child lists.</p>
+<p>A conceptual PCB includes:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Area</th>
+<th>Representative information</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Identity</td>
+<td>PID, parent, process group, session</td>
+</tr>
+<tr class="even">
+<td>Execution</td>
+<td>saved registers, kernel stack, current state</td>
+</tr>
+<tr class="odd">
+<td>Scheduling</td>
+<td>priority, policy, runtime, run-queue links, CPU affinity</td>
+</tr>
+<tr class="even">
+<td>Memory</td>
+<td>reference to the address space and its mappings</td>
+</tr>
+<tr class="odd">
+<td>Resources</td>
+<td>descriptor table, working directory, limits</td>
+</tr>
+<tr class="even">
+<td>Protection</td>
+<td>credentials, security labels, capabilities</td>
+</tr>
+<tr class="odd">
+<td>Events</td>
+<td>signal state, wait status, timers</td>
+</tr>
+<tr class="even">
+<td>Accounting</td>
+<td>CPU time, start time, faults, I/O counters</td>
+</tr>
+</tbody>
+</table>
+<p>Linux’s <code>task_struct</code> is often described as a PCB, but the mapping is not exact. Linux represents each schedulable thread as a task; threads in one process share selected structures such as the address space and descriptor table. Treating the PCB as a checklist of responsibilities is more useful than assuming one universal layout.</p>
+</section>
+</section>
+<section id="process-states-and-transitions" class="level3">
+<h3 class="anchored" data-anchor-id="process-states-and-transitions"><strong>Process States and Transitions</strong></h3>
+<p>A process alternates between executing, being eligible to execute, and waiting for an event. States let the scheduler avoid wasting CPU time on work that cannot currently make progress.</p>
+<section id="ready-running-blocked-and-terminated" class="level4">
+<h4 class="anchored" data-anchor-id="ready-running-blocked-and-terminated"><strong>Ready, Running, Blocked, and Terminated</strong></h4>
+<p>The classic state model distinguishes:</p>
+<ul>
+<li><strong>New</strong>: creation has begun, but the process is not yet eligible to run.</li>
+<li><strong>Ready</strong>: the process can run as soon as a CPU is assigned.</li>
+<li><strong>Running</strong>: instructions from this execution context are currently being executed on a CPU.</li>
+<li><strong>Blocked or waiting</strong>: progress depends on an event such as input, a timer, a lock, or child termination.</li>
+<li><strong>Terminated</strong>: execution has ended; some status metadata may remain until the parent reaps it.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/process-state-model.png" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/process-state-model.png" class="img-fluid figure-img" style="width:82.0%" alt="Five-state process diagram showing new, ready, running, blocked, and terminated states with labeled transitions."></a></p>
+<figcaption>Five-state process model with admission, dispatch, preemption, event waiting, wakeup, and termination transitions.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:Process_state.svg">MrDrBob, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>. A local copy is used for reliable rendering.</em></p>
+<p>A state transition has a cause. A scheduler dispatch changes ready to running. Timer preemption can change running back to ready. A blocking <code>read()</code> can move a process from running to waiting, and device completion can make it ready again. Waking a process does <strong>not</strong> imply immediate execution; it joins an eligible queue and still competes for a CPU.</p>
+<p>Linux exposes more detailed state codes in tools such as <code>ps</code> and <code>/proc/&lt;pid&gt;/stat</code>. Common codes include <code>R</code> for running or runnable, <code>S</code> for interruptible sleep, <code>D</code> for uninterruptible sleep, <code>T</code> for stopped or traced, and <code>Z</code> for zombie. These are implementation-oriented categories, so they should not be forced into a one-to-one mapping with every textbook diagram. In particular, Linux <code>R</code> combines the conceptual ready and running states.</p>
+<p>The distinction between <strong>interruptible</strong> and <strong>uninterruptible</strong> sleep also matters. An interruptible sleeper can wake for a relevant signal, while a task in uninterruptible sleep is waiting in a kernel path that should not be abandoned at that point. A sustained <code>D</code> state often points to delayed I/O or a kernel subsystem, but the state alone is not a diagnosis.</p>
+</section>
+<section id="parent-child-orphan-and-zombie-processes" class="level4">
+<h4 class="anchored" data-anchor-id="parent-child-orphan-and-zombie-processes"><strong>Parent, Child, Orphan, and Zombie Processes</strong></h4>
+<p>Unix process creation establishes a parent-child relation. The relation supports status collection and hierarchical management, but it does not mean a child executes inside the parent or that the parent must run first. After <code>fork()</code>, both are independently schedulable.</p>
+<p>A child that calls <code>_exit()</code> or otherwise terminates becomes a <strong>zombie</strong> until its parent collects the termination status with <code>wait()</code> or <code>waitpid()</code>. A zombie does not retain the child’s normal user memory or continue consuming CPU. It retains a small kernel record, including identity and status, because discarding that information immediately would race with the parent’s later wait. Large numbers of unreaped zombies can still exhaust process identifiers or table capacity.</p>
+<p>An <strong>orphan</strong> is a live child whose parent exits first. Unix-like systems reparent it to an implementation-defined system process, commonly the namespace’s init process or a designated subreaper, which can eventually collect its status. Inside containers, PID 1 therefore has a practical responsibility to reap descendants.</p>
+<p>The following Linux example deliberately leaves a zombie visible for a short interval. It is an observation tool, not a pattern for production code.</p>
+<details>
+<summary>
+Show the annotated zombie observation program
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="co">// _exit avoids flushing copied stdio buffers in the child.</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">42</span><span class="op">);</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"parent=</span><span class="sc">%ld</span><span class="st"> child=</span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">(),</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>child<span class="op">);</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"Inspect with: ps -o pid,ppid,stat,cmd -p </span><span class="sc">%ld\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>child<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">// During this delay the child has exited but has not been reaped.</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    sleep<span class="op">(</span><span class="dv">15</span><span class="op">);</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"collected exit status </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WEXITSTATUS<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile and observe it with:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> zombie_demo.c <span class="at">-o</span> zombie_demo</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./zombie_demo</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># In another terminal, run the ps command printed by the program.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="creating-and-terminating-processes" class="level3">
+<h3 class="anchored" data-anchor-id="creating-and-terminating-processes"><strong>Creating and Terminating Processes</strong></h3>
+<p>Unix deliberately separates <strong>creating an execution branch</strong> from <strong>selecting the program that branch will run</strong>. The separation makes descriptor redirection and pipeline construction remarkably composable, but it also creates an interval in which child setup must be handled carefully.</p>
+<section id="fork-exec-wait-and-exit" class="level4">
+<h4 class="anchored" data-anchor-id="fork-exec-wait-and-exit"><strong>fork, exec, wait, and exit</strong></h4>
+<p><code>fork()</code> creates a child process by duplicating the caller’s process context. It returns twice: the parent receives the child’s PID, while the child receives zero. Both continue after the same call, and either one may run first.</p>
+<p><code>execve()</code> does something fundamentally different: it replaces the calling process’s program image with a new one. On success it does not return. The PID is preserved, while the old address space, user stack, and instruction stream are replaced. This is why saying “exec creates a process” is incorrect.</p>
+<p><code>waitpid()</code> allows a parent to wait for and collect a child’s state change. <code>exit()</code> performs user-space termination work such as flushing C standard-I/O streams and running registered handlers, then ultimately asks the kernel to terminate the process. <code>_exit()</code> enters kernel termination directly and is normally preferred in a post-<code>fork()</code> child when <code>exec</code> fails, because copied user-space buffers and handlers should not be run again.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/fork-exec-wait-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/fork-exec-wait-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated two-lane timeline for a parent and child showing fork, child setup, exec, exit, wait, and process reaping."></a></p>
+<figcaption>Animated process timeline showing fork splitting execution, child descriptor setup, exec replacing the child image, exit, and wait-based reaping.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching animation for this chapter. The moving markers illustrate one legal history, not a guaranteed schedule; the complete sequence remains visible when animation is unavailable.</em></p>
+<p>The essential contracts are:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 28%">
+<col style="width: 28%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Operation</th>
+<th style="text-align: right;">Creates a new PID?</th>
+<th style="text-align: right;">Replaces address space?</th>
+<th>Important return behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fork()</code></td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">no; initially duplicates mappings using copy-on-write</td>
+<td>returns in both parent and child</td>
+</tr>
+<tr class="even">
+<td><code>execve()</code></td>
+<td style="text-align: right;">no</td>
+<td style="text-align: right;">yes</td>
+<td>returns only on failure</td>
+</tr>
+<tr class="odd">
+<td><code>waitpid()</code></td>
+<td style="text-align: right;">no</td>
+<td style="text-align: right;">no</td>
+<td>returns when the requested child state is available, or immediately with suitable options</td>
+</tr>
+<tr class="even">
+<td><code>_exit()</code></td>
+<td style="text-align: right;">no</td>
+<td style="text-align: right;">destroys the calling process’s execution</td>
+<td>never returns</td>
+</tr>
+</tbody>
+</table>
+<p>The Linux manual pages for <a href="https://man7.org/linux/man-pages/man2/fork.2.html"><code>fork(2)</code></a>, <a href="https://man7.org/linux/man-pages/man2/execve.2.html"><code>execve(2)</code></a>, and <a href="https://man7.org/linux/man-pages/man2/wait.2.html"><code>waitpid(2)</code></a> define the exact inherited and reset attributes. Several details are easy to miss:</p>
+<ul>
+<li><code>fork()</code> duplicates descriptor-table entries, but those entries refer to the same open-file descriptions, so offsets and status flags can remain shared.</li>
+<li><code>execve()</code> normally preserves open descriptors unless they have the close-on-exec flag.</li>
+<li>caught signal dispositions are reset by <code>execve()</code>, while many other process attributes have operation-specific rules.</li>
+<li>after <code>fork()</code> in a multithreaded process, the child contains only the calling thread; before <code>exec</code>, it should call only async-signal-safe operations unless the program has arranged stronger guarantees.</li>
+<li><code>waitpid()</code> reports a packed status that must be interpreted with macros such as <code>WIFEXITED</code>, <code>WEXITSTATUS</code>, and <code>WIFSIGNALED</code>.</li>
+</ul>
+<details>
+<summary>
+Show a minimal fork-exec-wait implementation
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Replace this child with grep. PATH lookup is provided by execlp().</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"grep"</span><span class="op">,</span> <span class="st">"grep"</span><span class="op">,</span> <span class="st">"kernel"</span><span class="op">,</span> <span class="st">"input.txt"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Reached only when exec failed. errno still explains the failure.</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"execlp grep"</span><span class="op">);</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">127</span><span class="op">);</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span> <span class="co">// A signal interrupted wait; the child may still be live.</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"grep exited with status </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WEXITSTATUS<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> WEXITSTATUS<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFSIGNALED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"grep was terminated by signal </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> WTERMSIG<span class="op">(</span>status<span class="op">));</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">128</span> <span class="op">+</span> WTERMSIG<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>This example is intentionally small, but its error path is semantically important. Exit status <code>127</code> is a shell convention for a command that could not be executed. More generally, a caller must decide how setup or execution failures are communicated; <code>fork()</code> succeeding does not imply that a later <code>exec()</code> will succeed.</p>
+</section>
+<section id="process-spawning-beyond-fork" class="level4">
+<h4 class="anchored" data-anchor-id="process-spawning-beyond-fork"><strong>Process Spawning Beyond fork</strong></h4>
+<p>The fork-then-exec model is elegant, but it is not the only creation interface. Different systems expose different trade-offs.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Interface</th>
+<th>Main idea</th>
+<th>Strength</th>
+<th>Constraint or risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>fork()</code> + <code>execve()</code></td>
+<td>clone the caller, customize child, replace image</td>
+<td>maximum Unix composability</td>
+<td>child setup is delicate in multithreaded programs; page-table creation still costs work</td>
+</tr>
+<tr class="even">
+<td><code>posix_spawn()</code></td>
+<td>describe selected file and process actions in one spawn request</td>
+<td>convenient and often cheaper or safer for ordinary command launch</td>
+<td>supports a deliberate subset of arbitrary post-fork customization</td>
+</tr>
+<tr class="odd">
+<td><code>vfork()</code> + <code>execve()</code></td>
+<td>temporarily let the child share the parent’s address-space context</td>
+<td>can avoid duplication work on some implementations</td>
+<td>parent is suspended; child must obey severe restrictions before exec or exit</td>
+</tr>
+<tr class="even">
+<td>Linux <code>clone()</code> family</td>
+<td>select which execution resources are shared</td>
+<td>foundation for threads, namespaces, and specialized runtimes</td>
+<td>Linux-specific and easy to misuse directly</td>
+</tr>
+<tr class="odd">
+<td>Windows <code>CreateProcess()</code></td>
+<td>create a process and load a specified executable as one operation</td>
+<td>direct process-and-program creation model</td>
+<td>different inheritance and setup conventions from Unix</td>
+</tr>
+</tbody>
+</table>
+<p>POSIX <a href="https://man7.org/linux/man-pages/man3/posix_spawn.3.html"><code>posix_spawn()</code></a> is particularly useful when a caller mainly needs descriptor actions, attributes, and an executable selection. Its implementation may use fork-like or vfork-like mechanisms, but applications program against the higher-level contract rather than assuming the internal method.</p>
+<p>The important design lesson is not that one API is universally best. <code>fork()</code> exposes a general intermediate child state; spawn APIs constrain that state so an implementation can create common process shapes more efficiently and safely.</p>
+</section>
+<section id="copy-on-write-as-an-enabling-mechanism" class="level4">
+<h4 class="anchored" data-anchor-id="copy-on-write-as-an-enabling-mechanism"><strong>Copy-on-Write as an Enabling Mechanism</strong></h4>
+<p>Naively copying every writable memory page during <code>fork()</code> would make process creation proportional to the parent’s resident writable memory, even when the child immediately discards that memory with <code>execve()</code>. <strong>Copy-on-write</strong> (COW) avoids this eager copy.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/copy-on-write-fork.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/copy-on-write-fork.svg" class="img-fluid figure-img" style="width:96.0%" alt="Three-stage diagram showing parent pages before fork, shared read-only copy-on-write frames after fork, and a private child frame after a write fault."></a></p>
+<figcaption>Copy-on-write sequence before fork, immediately after fork, and after the child writes a shared page.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The mechanism proceeds in stages:</p>
+<ol type="1">
+<li>Before <code>fork()</code>, the parent has writable virtual mappings to physical frames.</li>
+<li>The kernel creates a child page-table structure whose relevant entries refer to the same frames.</li>
+<li>Parent and child mappings are marked read-only for COW purposes, and the kernel records that the frames are shared.</li>
+<li>Reads proceed without copying. If neither process writes before the child executes a new program, no content copy is needed.</li>
+<li>A write causes a protection fault. The kernel allocates a private frame, copies the old page, remaps the writer’s virtual page as writable, and resumes the faulting instruction.</li>
+</ol>
+<p>COW delays data copying, but <code>fork()</code> is not free. The kernel still creates process metadata and page-table structures, manages reference counts, duplicates or shares resource references according to documented rules, and may invalidate or update translation state. The MIT xv6 material uses a COW fork exercise to expose exactly these page-table and fault-handling responsibilities: <a href="https://pdos.csail.mit.edu/6.1810/2025/xv6/book-riscv-rev5.pdf">xv6 book and labs</a>.</p>
+<p>COW also preserves isolation. Once either process modifies a page, the change is private unless the mapping was deliberately created as shared memory. “Initially shares physical frames” is therefore not the same as “shares writable variables forever.”</p>
+</section>
+</section>
+<section id="loading-and-linking-a-program" class="level3">
+<h3 class="anchored" data-anchor-id="loading-and-linking-a-program"><strong>Loading and Linking a Program</strong></h3>
+<p>After a child has prepared descriptors and other inherited state, <code>execve()</code> asks the kernel to replace the process image. The executable format and loader define how file bytes become memory mappings and where the first user instruction comes from.</p>
+<section id="executable-layout-and-the-loader" class="level4">
+<h4 class="anchored" data-anchor-id="executable-layout-and-the-loader"><strong>Executable Layout and the Loader</strong></h4>
+<p>Linux commonly uses the <strong>Executable and Linkable Format</strong> (ELF). An ELF file contains headers plus data organized from two perspectives:</p>
+<ul>
+<li><strong>Sections</strong> are mainly a linker’s view: code, symbols, relocation information, string tables, debug data, and related categories.</li>
+<li><strong>Segments</strong> are a loader’s view: ranges that must be mapped with particular offsets, sizes, alignment, and permissions to construct the process image.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/elf-file-layout.png" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/elf-file-layout.png" class="img-fluid figure-img" style="width:76.0%" alt="Diagram of an ELF file with an ELF header, program header table, multiple sections, and a section header table."></a></p>
+<figcaption>ELF file layout showing the ELF header, program header table, sections, and section header table.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:Elf-layout--en.svg">Suruena, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA 3.0</a>. A local raster copy is used for consistent rendering.</em></p>
+<p>The generic ELF ABI describes program headers as the structures needed to create a process image: <a href="https://refspecs.linuxfoundation.org/elf/gabi4%2B/ch5.pheader.html">ELF Program Loading</a>. A simplified <code>execve()</code> path is:</p>
+<ol type="1">
+<li>Validate the executable, permissions, architecture, and format.</li>
+<li>Build a new memory-map description rather than modifying the old image piecemeal.</li>
+<li>Create mappings for loadable segments with appropriate read, write, and execute permissions.</li>
+<li>Arrange zero-filled memory where a segment’s memory size exceeds its file-backed size, which supports BSS.</li>
+<li>If an interpreter is named, map the dynamic linker and transfer it enough metadata to load required shared objects.</li>
+<li>Construct the initial user stack containing arguments, environment strings, and auxiliary metadata.</li>
+<li>Install a new initial register state and commit the replacement.</li>
+<li>Return to user mode at the selected entry point. The successful call never returns to the old program.</li>
+</ol>
+<p>This high-level sequence hides implementation details but preserves the key transactional intuition: failure before commitment leaves the caller able to receive an error, while success destroys the old user-space execution path.</p>
+<details>
+<summary>
+Show commands for inspecting an ELF executable
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify the file format, architecture, and linking style.</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="fu">file</span> /usr/bin/grep</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the ELF header and the loader-oriented program headers.</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-h</span> /usr/bin/grep</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-l</span> /usr/bin/grep</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Locate a requested program interpreter, if one exists.</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-l</span> /usr/bin/grep <span class="kw">|</span> <span class="fu">grep</span> INTERP</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect section metadata and dynamic dependencies without executing the file.</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-S</span> /usr/bin/grep</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="ex">readelf</span> <span class="at">-d</span> /usr/bin/grep</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Observe the mappings after a program is running.</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'grep|libc|ld-linux|\[stack\]|\[heap\]'</span> /proc/<span class="op">&lt;</span>PID<span class="op">&gt;</span>/maps</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Avoid running <code>ldd</code> on an untrusted executable. Depending on platform and file type, dependency inspection may involve the program’s interpreter. Static inspection with <code>readelf</code> or <code>objdump</code> is the safer first choice.</p>
+</details>
+</section>
+<section id="static-and-dynamic-linking" class="level4">
+<h4 class="anchored" data-anchor-id="static-and-dynamic-linking"><strong>Static and Dynamic Linking</strong></h4>
+<p><strong>Linking</strong> resolves references among separately compiled components. It can happen mostly before execution or continue during process startup and runtime.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Static linking</th>
+<th>Dynamic linking</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Library code</td>
+<td>copied into the executable at link time</td>
+<td>provided by shared objects mapped at runtime</td>
+</tr>
+<tr class="even">
+<td>Deployment</td>
+<td>fewer runtime library dependencies</td>
+<td>requires compatible loader and libraries</td>
+</tr>
+<tr class="odd">
+<td>File and memory use</td>
+<td>larger executable; code repeated across binaries</td>
+<td>shared read-only library pages can reduce duplication</td>
+</tr>
+<tr class="even">
+<td>Updates</td>
+<td>relink and redeploy the executable</td>
+<td>compatible library updates can affect many programs</td>
+</tr>
+<tr class="odd">
+<td>Startup work</td>
+<td>less runtime symbol-resolution work</td>
+<td>loader maps dependencies and performs relocations</td>
+</tr>
+<tr class="even">
+<td>Isolation and reproducibility</td>
+<td>more self-contained, though kernel and external data still matter</td>
+<td>behavior depends on the runtime library environment</td>
+</tr>
+</tbody>
+</table>
+<p>For a dynamically linked ELF program, the kernel maps the interpreter named by the executable, and that <strong>dynamic linker</strong> maps needed shared objects, performs relocations, initializes runtime structures, and transfers control toward the program entry path. Linux documents this role in <a href="https://man7.org/linux/man-pages/man8/ld.so.8.html"><code>ld.so(8)</code></a>.</p>
+<p>Position-independent code makes it possible to place shared objects at varying addresses. Symbol binding may occur eagerly at startup or lazily on first use, depending on executable, loader, and security settings. These choices trade startup latency against later surprises and can affect hardening. The simple statement “the kernel loads every library” is therefore misleading: the kernel establishes executable mappings and the interpreter path, while a user-space dynamic linker performs much of the dependency work under kernel-enforced mapping rules.</p>
+</section>
+<section id="arguments-environment-and-initial-stack" class="level4">
+<h4 class="anchored" data-anchor-id="arguments-environment-and-initial-stack"><strong>Arguments, Environment, and Initial Stack</strong></h4>
+<p>A new program needs more than code. It must learn what command was requested and receive runtime metadata. Conceptually, the initial user stack contains data like:</p>
+<pre class="text"><code>higher virtual addresses
++-------------------------------+
+| argument and environment text |
++-------------------------------+
+| auxiliary vector entries      |  AT_PAGESZ, AT_ENTRY, AT_EXECFN, ...
+| NULL                           |
+| envp[] pointers               |
+| NULL                           |
+| argv[] pointers               |
+| argc                          |
++-------------------------------+  initial stack pointer
+lower virtual addresses</code></pre>
+<p>The exact order, alignment, and metadata are ABI-specific. The C function <code>main(int argc, char **argv)</code> is not normally the first instruction executed. An entry routine such as <code>_start</code> receives the ABI-defined initial state, initializes the language runtime, arranges constructors and termination behavior, and then calls <code>main</code>.</p>
+<p>The environment is inherited by default across <code>fork()</code> and supplied explicitly to <code>execve()</code> as <code>envp</code>. Because environment variables can influence library loading, locale, parsing, and application behavior, privileged programs must treat them as untrusted input rather than harmless configuration.</p>
+<details>
+<summary>
+Show a C program that inspects startup data
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/auxv.h&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">extern</span> <span class="dt">char</span> <span class="op">**</span>environ<span class="op">;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">int</span> argc<span class="op">,</span> <span class="dt">char</span> <span class="op">**</span>argv<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"pid=</span><span class="sc">%ld</span><span class="st"> argc=</span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">(</span><span class="dt">long</span><span class="op">)</span>getpid<span class="op">(),</span> argc<span class="op">);</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> argc<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"argv[</span><span class="sc">%d</span><span class="st">] = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> i<span class="op">,</span> argv<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// The auxiliary vector is supplied by the kernel/loader startup path.</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"page size = </span><span class="sc">%lu\n</span><span class="st">"</span><span class="op">,</span> getauxval<span class="op">(</span>AT_PAGESZ<span class="op">));</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"entry     = 0x</span><span class="sc">%lx\n</span><span class="st">"</span><span class="op">,</span> getauxval<span class="op">(</span>AT_ENTRY<span class="op">));</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>exec_name <span class="op">=</span> <span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*)</span>getauxval<span class="op">(</span>AT_EXECFN<span class="op">);</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>exec_name <span class="op">!=</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"exec file = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> exec_name<span class="op">);</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Print only a bounded sample; a real environment can be large or secret.</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> environ<span class="op">[</span>i<span class="op">]</span> <span class="op">!=</span> NULL <span class="op">&amp;&amp;</span> i <span class="op">&lt;</span> <span class="dv">3</span><span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"env[</span><span class="sc">%d</span><span class="st">] = </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> i<span class="op">,</span> environ<span class="op">[</span>i<span class="op">]);</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> startup.c <span class="at">-o</span> startup</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="va">DEMO_MODE</span><span class="op">=</span>loader <span class="ex">./startup</span> alpha <span class="st">"two words"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="context-switching" class="level3">
+<h3 class="anchored" data-anchor-id="context-switching"><strong>Context Switching</strong></h3>
+<p>Multiprogramming requires the CPU to stop executing one context and continue another. A <strong>context switch</strong> is the kernel-controlled transfer between execution contexts. It is related to, but not identical with, entering kernel mode.</p>
+<section id="saving-and-restoring-execution-state" class="level4">
+<h4 class="anchored" data-anchor-id="saving-and-restoring-execution-state"><strong>Saving and Restoring Execution State</strong></h4>
+<p>A process can leave the CPU because its time slice expires, it blocks, it yields, a higher-priority task becomes eligible, or the kernel makes another scheduling decision. A simplified process-to-process switch is:</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/context-switch-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/context-switch-path.svg" class="img-fluid figure-img" style="width:96.0%" alt="Flow diagram showing process A entering the kernel, saving state, scheduling process B, restoring B, and returning to user mode, with direct and indirect costs."></a></p>
+<figcaption>Context-switch path from process A through a kernel trap, saved state, scheduling, memory-context change, restoration, and process B.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The path contains several conceptually distinct actions:</p>
+<ol type="1">
+<li>A trap, interrupt, fault, or blocking operation transfers control to a protected kernel entry path.</li>
+<li>The kernel saves enough of the current execution state to resume process A later.</li>
+<li>A’s state and queue membership are updated: it may become ready, blocked, stopped, or terminated.</li>
+<li>The scheduler selects process B according to policy and eligibility.</li>
+<li>The kernel switches kernel execution context and, when A and B use different address spaces, selects B’s memory-protection context.</li>
+<li>B’s saved state is restored, and a protected return resumes B in user mode or continues its pending kernel path.</li>
+</ol>
+<p>A <strong>mode switch</strong> only changes privilege level. A system call can enter the kernel and return to the same process without selecting another process. Conversely, a context switch may occur while the kernel is already handling an event. Conflating the two makes performance counts and control-flow explanations inaccurate.</p>
+<p>The exact saved register set depends on the architecture, calling path, and kernel. Not every register must be written to a PCB on every entry; assembly entry code and kernel stacks can preserve part of the state. The invariant is simply that the old context can later continue as if the intervening execution had not modified its private architectural state.</p>
+</section>
+<section id="direct-and-indirect-context-switch-costs" class="level4">
+<h4 class="anchored" data-anchor-id="direct-and-indirect-context-switch-costs"><strong>Direct and Indirect Context-Switch Costs</strong></h4>
+<p>Context switching consumes no application-level work, but its cost is not one fixed number.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Cost class</th>
+<th>Examples</th>
+<th>Why it varies</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Direct software work</td>
+<td>entry/return, register save/restore, scheduler queues, accounting</td>
+<td>architecture, kernel path, enabled security features</td>
+</tr>
+<tr class="even">
+<td>Translation state</td>
+<td>page-table context selection, TLB effects</td>
+<td>process versus thread switch, PCID/ASID support, shared address space</td>
+</tr>
+<tr class="odd">
+<td>Cache locality</td>
+<td>displaced instructions and data, cache coherence</td>
+<td>working-set size and whether the next task ran recently</td>
+</tr>
+<tr class="even">
+<td>Prediction state</td>
+<td>branch predictor and front-end warmup</td>
+<td>processor design and workload behavior</td>
+</tr>
+<tr class="odd">
+<td>Topology effects</td>
+<td>migration to another core or NUMA node</td>
+<td>CPU affinity, load balancing, memory placement</td>
+</tr>
+</tbody>
+</table>
+<p>Switching between threads in one address space can avoid changing the page-table context, but it still changes registers, stacks, scheduler state, and potentially cache locality. Switching between processes may preserve more translation state than older descriptions suggest because modern CPUs tag translations with process-context identifiers. The correct conclusion is not “threads are free” or “every switch flushes the TLB,” but that shared memory context can reduce one component of a workload-dependent cost.</p>
+<p>Measurements must also distinguish <strong>voluntary</strong> context switches, often caused by blocking or yielding, from <strong>involuntary</strong> switches caused by preemption. A high count can indicate healthy I/O concurrency, lock contention, tiny time slices, or an overloaded machine; the count needs workload context.</p>
+<details>
+<summary>
+Show Linux commands for observing switch activity
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Per-process voluntary and involuntary counts maintained by Linux.</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'voluntary_ctxt_switches|nonvoluntary_ctxt_switches'</span> /proc/<span class="op">&lt;</span>PID<span class="op">&gt;</span>/status</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Repeated process-level context-switch reporting (sysstat package).</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ex">pidstat</span> <span class="at">-w</span> <span class="at">-p</span> <span class="op">&lt;</span>PID<span class="op">&gt;</span> 1</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># System-wide events while running one command (perf package).</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> stat <span class="at">-e</span> context-switches,cpu-migrations,page-faults <span class="at">--</span> ./your_program</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare scheduling history with timestamps; requires suitable permission.</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> sched record <span class="at">--</span> ./your_program</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="ex">perf</span> sched timehist</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>These counters show symptoms, not causes. Pair them with CPU utilization, blocked time, system calls, lock profiles, and application-level latency before optimizing.</p>
+</details>
+</section>
+</section>
+<section id="file-descriptors-as-process-capabilities" class="level3">
+<h3 class="anchored" data-anchor-id="file-descriptors-as-process-capabilities"><strong>File Descriptors as Process Capabilities</strong></h3>
+<p>A Unix process accesses many kernel objects through small nonnegative integers called <strong>file descriptors</strong>. Standard input, output, and error conventionally occupy descriptors <code>0</code>, <code>1</code>, and <code>2</code>. Other values can refer to regular files, pipes, sockets, terminals, event sources, and device endpoints.</p>
+<p>Calling a descriptor a <strong>process capability</strong> is useful in a practical sense: possessing an open descriptor gives the process authority to request operations supported by that handle, even if the original pathname later changes. Unix descriptors are not a complete formal capability system, because ambient namespaces and other authority can still exist, but descriptor passing and inheritance are central to least-authority designs.</p>
+<section id="descriptor-tables-and-open-file-descriptions" class="level4">
+<h4 class="anchored" data-anchor-id="descriptor-tables-and-open-file-descriptions"><strong>Descriptor Tables and Open File Descriptions</strong></h4>
+<p>The integer is an index in a per-process descriptor table. The table entry refers to a kernel <strong>open file description</strong>, which in turn refers to a file-system object, pipe endpoint, socket, or another kernel object.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unix-file-table.png" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/unix-file-table.png" class="img-fluid figure-img" style="width:82.0%" alt="Diagram showing two processes with file descriptor tables pointing to shared file-table entries and inode-table entries."></a></p>
+<figcaption>Per-process file-descriptor tables referencing system-wide open-file descriptions and inode objects.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: <a href="https://commons.wikimedia.org/wiki/File:File_table_and_inode_table.svg">Qwertyus, Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>. A local copy is used for reliable rendering.</em></p>
+<p>Separating these layers explains several otherwise surprising behaviors:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layer</th>
+<th>Representative state</th>
+<th>Sharing behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Descriptor-table entry</td>
+<td>descriptor flags such as <code>FD_CLOEXEC</code>, pointer to open-file description</td>
+<td>copied as an entry by <code>fork()</code>; modified by <code>dup2()</code> or <code>close()</code> per process</td>
+</tr>
+<tr class="even">
+<td>Open-file description</td>
+<td>current file offset, access mode, file status flags such as <code>O_APPEND</code></td>
+<td>can be shared by descriptors created with <code>dup()</code> and inherited across <code>fork()</code></td>
+</tr>
+<tr class="odd">
+<td>Underlying object</td>
+<td>inode/file data, pipe buffer, socket state, device</td>
+<td>can have many open-file descriptions or endpoints referring to it</td>
+</tr>
+</tbody>
+</table>
+<p>Two independent <code>open()</code> calls for the same path normally create two open-file descriptions with independent offsets. By contrast, <code>dup(fd)</code> creates another descriptor referring to the same open-file description, so the descriptors share an offset. After <code>fork()</code>, corresponding parent and child descriptors also refer to the same descriptions unless either process deliberately replaces or closes them.</p>
+<details>
+<summary>
+Show a deterministic shared-offset demonstration
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>path <span class="op">=</span> <span class="st">"offset-demo.tmp"</span><span class="op">;</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> fd <span class="op">=</span> open<span class="op">(</span>path<span class="op">,</span> O_RDWR <span class="op">|</span> O_CREAT <span class="op">|</span> O_TRUNC<span class="op">,</span> <span class="bn">0600</span><span class="op">);</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open"</span><span class="op">);</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>fd<span class="op">,</span> <span class="st">"ABCDE"</span><span class="op">,</span> <span class="dv">5</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">5</span> <span class="op">||</span> lseek<span class="op">(</span>fd<span class="op">,</span> <span class="dv">0</span><span class="op">,</span> SEEK_SET<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"prepare file"</span><span class="op">);</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    pid_t child <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>child <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="dt">char</span> bytes<span class="op">[</span><span class="dv">3</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span><span class="dv">0</span><span class="op">};</span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>        <span class="co">// This advances the shared open-file-description offset from 0 to 2.</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>fd<span class="op">,</span> bytes<span class="op">,</span> <span class="dv">2</span><span class="op">)</span> <span class="op">==</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>            dprintf<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> <span class="st">"child read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> bytes<span class="op">);</span> <span class="co">// AB</span></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Waiting makes the demonstration order deterministic.</span></span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    waitpid<span class="op">(</span>child<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> bytes<span class="op">[</span><span class="dv">3</span><span class="op">]</span> <span class="op">=</span> <span class="op">{</span><span class="dv">0</span><span class="op">};</span></span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>fd<span class="op">,</span> bytes<span class="op">,</span> <span class="dv">2</span><span class="op">)</span> <span class="op">==</span> <span class="dv">2</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>        printf<span class="op">(</span><span class="st">"parent read: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> bytes<span class="op">);</span> <span class="co">// CD, not AB</span></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>fd<span class="op">);</span></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>    unlink<span class="op">(</span>path<span class="op">);</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The shared offset is a property of the open-file description, not global state in the inode and not a private integer stored directly in each descriptor-table slot.</p>
+</section>
+<section id="redirection-and-descriptor-inheritance" class="level4">
+<h4 class="anchored" data-anchor-id="redirection-and-descriptor-inheritance"><strong>Redirection and Descriptor Inheritance</strong></h4>
+<p>Shell redirection works by changing the descriptor graph before <code>exec</code>. If a child opens <code>result.txt</code> and executes <code>dup2(output_fd, STDOUT_FILENO)</code>, descriptor <code>1</code> now refers to the same open-file description as <code>output_fd</code>. The program started by <code>exec</code> does not need to know a shell was involved; its normal writes to standard output reach the file.</p>
+<p>Descriptor inheritance is powerful but must be controlled:</p>
+<ul>
+<li>close unused descriptors so resources and pipe endpoints do not remain alive accidentally;</li>
+<li>use <code>O_CLOEXEC</code>, <code>pipe2(O_CLOEXEC)</code>, or atomic close-on-exec variants when creating descriptors that should not cross an <code>exec</code> boundary;</li>
+<li>avoid a separate <code>open()</code> followed much later by <code>fcntl(F_SETFD)</code> in multithreaded launchers when another thread could fork in between;</li>
+<li>check <code>dup2()</code> and <code>close()</code> errors where failure affects correctness; and</li>
+<li>remember that successful <code>exec</code> preserves descriptors without <code>FD_CLOEXEC</code>, but replaces the program that can use them.</li>
+</ul>
+<p>This inheritance model is why a pipeline can be assembled without modifying <code>cat</code> or <code>grep</code>. The shell passes authority by arranging descriptors, then those generic programs simply read <code>0</code> and write <code>1</code>.</p>
+</section>
+</section>
+<section id="how-a-shell-builds-the-running-pipeline" class="level3">
+<h3 class="anchored" data-anchor-id="how-a-shell-builds-the-running-pipeline"><strong>How a Shell Builds the Running Pipeline</strong></h3>
+<p>The complete running example combines all previous mechanisms. The figure uses descriptor numbers <code>3</code>, <code>4</code>, and <code>5</code> as examples; actual numbers are whichever unused entries the kernel returns.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-process-build.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/pipeline-process-build.svg" class="img-fluid figure-img" style="width:96.0%" alt="Four-column process diagram showing a shell creating a pipe and output file, forking cat and grep children, applying dup2 and exec, then closing descriptors and waiting."></a></p>
+<figcaption>Four-stage construction of the cat-to-grep pipeline: create kernel objects, fork children, redirect and exec, then close and reap.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original teaching diagram for this chapter.</em></p>
+<p>The shell’s causal sequence is:</p>
+<ol type="1">
+<li>Parse the pipeline and redirection before creating children.</li>
+<li>Call <code>pipe()</code> to obtain read and write endpoints, then open <code>result.txt</code> with the requested create/truncate policy.</li>
+<li>Fork the child that will become <code>cat</code>. In that child, connect standard output to the pipe’s write end, close unused descriptors, and execute <code>cat input.txt</code>.</li>
+<li>Fork the child that will become <code>grep</code>. Connect standard input to the pipe’s read end, connect standard output to <code>result.txt</code>, close unused descriptors, and execute <code>grep kernel</code>.</li>
+<li>In the shell, close both pipe endpoints and the output descriptor. The shell should not accidentally count as a writer or reader.</li>
+<li>Schedule both children independently. The pipe buffers bytes and blocks a reader or writer when progress requires the other side.</li>
+<li>When <code>cat</code> and every other process close the last write endpoint, <code>grep</code> can observe end-of-file after consuming buffered data.</li>
+<li>Collect both exit statuses with <code>waitpid()</code> and derive the shell-visible pipeline status according to shell policy.</li>
+</ol>
+<p>Closing descriptors is part of correctness, not housekeeping. If the parent retains a pipe write end, the kernel still sees a possible writer, so <code>grep</code> may wait forever for an EOF that cannot arrive while the shell is waiting for <code>grep</code>.</p>
+<details>
+<summary>
+Show the complete annotated C pipeline
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define _POSIX_C_SOURCE </span><span class="dv">200809</span><span class="bu">L</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;signal.h&gt;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/types.h&gt;</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> child_failure<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>operation<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">// perror is used here for clarity. Production multithreaded launchers</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">// should keep the post-fork child path restricted to safe operations.</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>operation<span class="op">);</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    _exit<span class="op">(</span><span class="dv">127</span><span class="op">);</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">int</span> wait_for<span class="op">(</span>pid_t child<span class="op">,</span> <span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>name<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> status<span class="op">;</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>waitpid<span class="op">(</span>child<span class="op">,</span> <span class="op">&amp;</span>status<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFEXITED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> code <span class="op">=</span> WEXITSTATUS<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st"> exited with </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">,</span> code<span class="op">);</span></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> code<span class="op">;</span></span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>WIFSIGNALED<span class="op">(</span>status<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>        <span class="dt">int</span> signal_number <span class="op">=</span> WTERMSIG<span class="op">(</span>status<span class="op">);</span></span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"</span><span class="sc">%s</span><span class="st"> terminated by signal </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> name<span class="op">,</span> signal_number<span class="op">);</span></span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">128</span> <span class="op">+</span> signal_number<span class="op">;</span></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> pipe_fd<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe<span class="op">(</span>pipe_fd<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"pipe"</span><span class="op">);</span></span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> output_fd <span class="op">=</span> open<span class="op">(</span></span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>        <span class="st">"result.txt"</span><span class="op">,</span></span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>        O_WRONLY <span class="op">|</span> O_CREAT <span class="op">|</span> O_TRUNC<span class="op">,</span></span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a>        <span class="bn">0644</span></span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a>    <span class="op">);</span></span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>output_fd <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"open result.txt"</span><span class="op">);</span></span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-58"><a href="#cb11-58" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a>    pid_t cat_pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>cat_pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork cat"</span><span class="op">);</span></span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-65"><a href="#cb11-65" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-66"><a href="#cb11-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-67"><a href="#cb11-67" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-68"><a href="#cb11-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-69"><a href="#cb11-69" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>cat_pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-70"><a href="#cb11-70" aria-hidden="true" tabindex="-1"></a>        <span class="co">// cat writes its normal stdout into the pipe.</span></span>
+<span id="cb11-71"><a href="#cb11-71" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">],</span> STDOUT_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 cat stdout"</span><span class="op">);</span></span>
+<span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"cat"</span><span class="op">,</span> <span class="st">"cat"</span><span class="op">,</span> <span class="st">"input.txt"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a>        child_failure<span class="op">(</span><span class="st">"exec cat"</span><span class="op">);</span></span>
+<span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>    pid_t grep_pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb11-84"><a href="#cb11-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>grep_pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-85"><a href="#cb11-85" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork grep"</span><span class="op">);</span></span>
+<span id="cb11-86"><a href="#cb11-86" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-87"><a href="#cb11-87" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-88"><a href="#cb11-88" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-89"><a href="#cb11-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-90"><a href="#cb11-90" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Avoid leaving the already-created child unmanaged.</span></span>
+<span id="cb11-91"><a href="#cb11-91" aria-hidden="true" tabindex="-1"></a>        kill<span class="op">(</span>cat_pid<span class="op">,</span> SIGTERM<span class="op">);</span></span>
+<span id="cb11-92"><a href="#cb11-92" aria-hidden="true" tabindex="-1"></a>        waitpid<span class="op">(</span>cat_pid<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb11-94"><a href="#cb11-94" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-95"><a href="#cb11-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>grep_pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a>        <span class="co">// grep reads from the pipe and writes matching lines to the file.</span></span>
+<span id="cb11-98"><a href="#cb11-98" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">],</span> STDIN_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-99"><a href="#cb11-99" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 grep stdin"</span><span class="op">);</span></span>
+<span id="cb11-100"><a href="#cb11-100" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>dup2<span class="op">(</span>output_fd<span class="op">,</span> STDOUT_FILENO<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a>            child_failure<span class="op">(</span><span class="st">"dup2 grep stdout"</span><span class="op">);</span></span>
+<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a>        execlp<span class="op">(</span><span class="st">"grep"</span><span class="op">,</span> <span class="st">"grep"</span><span class="op">,</span> <span class="st">"kernel"</span><span class="op">,</span> <span class="op">(</span><span class="dt">char</span> <span class="op">*)</span>NULL<span class="op">);</span></span>
+<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a>        child_failure<span class="op">(</span><span class="st">"exec grep"</span><span class="op">);</span></span>
+<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a>    <span class="co">// The shell is neither a pipe reader nor writer for this foreground job.</span></span>
+<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>pipe_fd<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>output_fd<span class="op">);</span></span>
+<span id="cb11-117"><a href="#cb11-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-118"><a href="#cb11-118" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> cat_status <span class="op">=</span> wait_for<span class="op">(</span>cat_pid<span class="op">,</span> <span class="st">"cat"</span><span class="op">);</span></span>
+<span id="cb11-119"><a href="#cb11-119" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> grep_status <span class="op">=</span> wait_for<span class="op">(</span>grep_pid<span class="op">,</span> <span class="st">"grep"</span><span class="op">);</span></span>
+<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a>    <span class="co">// A simple shell commonly reports the last command's status. Real shells</span></span>
+<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a>    <span class="co">// may offer a pipefail policy that also considers earlier failures.</span></span>
+<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="dt">void</span><span class="op">)</span>cat_status<span class="op">;</span></span>
+<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> grep_status<span class="op">;</span></span>
+<span id="cb11-125"><a href="#cb11-125" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> pipeline.c <span class="at">-o</span> pipeline</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'kernel entry\nuser process\nkernel scheduler\n'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./pipeline</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The program shows the architecture of a shell pipeline but omits full job control. An interactive shell also manages process groups, terminal foreground ownership, signal forwarding, stopped jobs, and asynchronous status notifications. Those policies build on the same process and descriptor primitives.</p>
+</section>
+<section id="observing-processes-in-linux" class="level3">
+<h3 class="anchored" data-anchor-id="observing-processes-in-linux"><strong>Observing Processes in Linux</strong></h3>
+<p>Linux exposes process state through system calls, <code>/proc</code>, and tracing tools. Observation should answer a specific question rather than produce a wall of output.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>Useful interface</th>
+<th>What to inspect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Who created this process?</td>
+<td><code>ps</code>, <code>/proc/&lt;PID&gt;/status</code></td>
+<td>PID, PPID, process group, session</td>
+</tr>
+<tr class="even">
+<td>What is its current scheduler state?</td>
+<td><code>ps</code>, <code>/proc/&lt;PID&gt;/stat</code></td>
+<td>state code, CPU, priority, runtime</td>
+</tr>
+<tr class="odd">
+<td>Which program image is installed?</td>
+<td><code>/proc/&lt;PID&gt;/exe</code>, command line</td>
+<td>executable link and arguments</td>
+</tr>
+<tr class="even">
+<td>What memory image exists?</td>
+<td><code>/proc/&lt;PID&gt;/maps</code>, <code>pmap</code></td>
+<td>executable, libraries, heap, stack, mapped files</td>
+</tr>
+<tr class="odd">
+<td>Which descriptors survived?</td>
+<td><code>/proc/&lt;PID&gt;/fd</code>, <code>lsof</code></td>
+<td>descriptor targets, pipes, sockets, files</td>
+</tr>
+<tr class="even">
+<td>Where is it blocked?</td>
+<td><code>strace</code>, <code>/proc/&lt;PID&gt;/wchan</code>, debugger</td>
+<td>current system call or kernel wait point</td>
+</tr>
+<tr class="odd">
+<td>What children and descendants exist?</td>
+<td><code>pstree</code>, <code>ps --forest</code></td>
+<td>process hierarchy and state</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Show a focused Linux observation workflow
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Start a pipeline in the background and retain the shell job PID.</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">sh</span> <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span> <span class="kw">&amp;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="va">job_pid</span><span class="op">=</span><span class="va">$!</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># View hierarchy, state, process group, and wait channel.</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eo</span> pid,ppid,pgid,sid,stat,psr,wchan:24,cmd <span class="at">--forest</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="fu">pstree</span> <span class="at">-ap</span> <span class="st">"</span><span class="va">$job_pid</span><span class="st">"</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect one selected process. Replace PID with a real value from ps/pstree.</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=&lt;</span>PID<span class="op">&gt;</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">readlink</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/exe"</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="fu">tr</span> <span class="st">'\0'</span> <span class="st">' '</span> <span class="op">&lt;</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cmdline"</span><span class="kw">;</span> <span class="bu">echo</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Name|State|Pid|PPid|Threads|voluntary|nonvoluntary)'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/status"</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="fu">sed</span> <span class="at">-n</span> <span class="st">'1,20p'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/maps"</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/fd"</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Trace process creation, descriptor changes, exec, waiting, and exit.</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-e</span> trace=process,desc <span class="at">-o</span> pipeline.trace <span class="dt">\</span></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.txt'</span></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="fu">less</span> pipeline.trace</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Short-lived commands may exit before manual inspection. For repeatable study, insert a controlled delay in a test program or rely on <code>strace -f</code>, which follows descendants and records the event sequence.</p>
+</details>
+<p><code>/proc/&lt;PID&gt;/stat</code> is compact and machine-oriented; field positions and escaping details make casual parsing error-prone. Prefer documented parsers or targeted files such as <code>status</code> when possible. The official <a href="https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html"><code>proc_pid_stat(5)</code></a> page defines Linux state characters and fields.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>The main abstractions can now be separated cleanly:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 30%">
+<col style="width: 40%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Concept</th>
+<th>Stable question it answers</th>
+<th style="text-align: right;">Can it exist without currently using a CPU?</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Program</td>
+<td>What executable instructions and static data are available?</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="even">
+<td>Process</td>
+<td>Which protected resources and identity belong to this execution?</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="odd">
+<td>Thread</td>
+<td>Which register stream and stack can the scheduler run?</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="even">
+<td>Address space</td>
+<td>Which virtual addresses and permissions are visible?</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="odd">
+<td>File descriptor</td>
+<td>Which kernel object can this process access through this table entry?</td>
+<td style="text-align: right;">yes</td>
+</tr>
+</tbody>
+</table>
+<p>Several common misconceptions are worth correcting explicitly:</p>
+<ul>
+<li><strong>“A process is a program.”</strong> A program is passive and reusable; a process adds live execution and kernel state.</li>
+<li><strong>“Running means the process exists.”</strong> Ready, blocked, stopped, and zombie processes are not running but still have kernel-visible state.</li>
+<li><strong>“fork copies every byte immediately.”</strong> Modern Unix implementations normally use copy-on-write, although process and page-table setup still costs work.</li>
+<li><strong>“exec creates another process.”</strong> Successful exec replaces the current process image and preserves the process identity.</li>
+<li><strong>“A zombie still owns all of its memory.”</strong> Most resources are gone; a small status record remains until collection.</li>
+<li><strong>“Entering the kernel always switches processes.”</strong> A mode switch can return to the same process without a context switch.</li>
+<li><strong>“A descriptor is the file.”</strong> It is a per-process table index that refers through an open-file description to an underlying object.</li>
+<li><strong>“Closing unused pipe ends is optional cleanup.”</strong> Endpoint lifetime determines end-of-file and can decide whether a pipeline terminates.</li>
+</ul>
+<p>The end-to-end story for <code>cat input.txt | grep kernel &gt; result.txt</code> is now precise. The shell creates kernel objects, forks execution branches, rewires descriptor tables, and executes new program images. The loader maps executable segments and builds initial stacks. The scheduler alternates runnable contexts while pipes block and wake them as data moves. Each process exits, retains waitable status briefly, and is finally reaped by the shell.</p>
+<p>This chapter establishes the single-threaded process model. The next chapter, <a href="03-threads-and-interprocess-communication.html">Threads and Interprocess Communication</a>, asks what changes when several execution streams share one process and when separate processes must exchange data deliberately. Memory behavior is developed further in <a href="06-address-spaces-page-tables-and-tlb.html">Address Spaces, Page Tables, and the TLB</a> and <a href="07-demand-paging-and-memory-management.html">Demand Paging and Memory Management</a>.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

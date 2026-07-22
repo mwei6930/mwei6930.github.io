@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：按需分页与内存管理</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="07-demand-paging-and-memory-management_files/libs/clipboard/clipboard.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/quarto.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/popper.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/anchor.min.js"></script>
+<link href="07-demand-paging-and-memory-management_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="07-demand-paging-and-memory-management_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#demand-paging-and-memory-management" id="toc-demand-paging-and-memory-management" class="nav-link active" data-scroll-target="#demand-paging-and-memory-management"><strong>按需分页与内存管理</strong></a>
+  <ul>
+  <li><a href="#from-address-translation-to-demand-paging" id="toc-from-address-translation-to-demand-paging" class="nav-link" data-scroll-target="#from-address-translation-to-demand-paging"><strong>从地址翻译到按需分页</strong></a></li>
+  <li><a href="#the-page-fault-lifecycle" id="toc-the-page-fault-lifecycle" class="nav-link" data-scroll-target="#the-page-fault-lifecycle"><strong>缺页生命周期</strong></a>
+  <ul>
+  <li><a href="#classifying-faults" id="toc-classifying-faults" class="nav-link" data-scroll-target="#classifying-faults"><strong>缺页分类</strong></a></li>
+  <li><a href="#locating-loading-and-installing-a-page" id="toc-locating-loading-and-installing-a-page" class="nav-link" data-scroll-target="#locating-loading-and-installing-a-page"><strong>定位、装入并安装页面</strong></a></li>
+  <li><a href="#restarting-the-faulting-instruction" id="toc-restarting-the-faulting-instruction" class="nav-link" data-scroll-target="#restarting-the-faulting-instruction"><strong>重启产生故障的指令</strong></a></li>
+  </ul></li>
+  <li><a href="#lazy-allocation-and-zero-fill-on-demand" id="toc-lazy-allocation-and-zero-fill-on-demand" class="nav-link" data-scroll-target="#lazy-allocation-and-zero-fill-on-demand"><strong>惰性分配与首次访问零填充</strong></a></li>
+  <li><a href="#copy-on-write" id="toc-copy-on-write" class="nav-link" data-scroll-target="#copy-on-write"><strong>写时复制</strong></a></li>
+  <li><a href="#memory-mapped-files-and-shared-pages" id="toc-memory-mapped-files-and-shared-pages" class="nav-link" data-scroll-target="#memory-mapped-files-and-shared-pages"><strong>内存映射文件与共享页面</strong></a></li>
+  <li><a href="#page-replacement" id="toc-page-replacement" class="nav-link" data-scroll-target="#page-replacement"><strong>页面置换</strong></a>
+  <ul>
+  <li><a href="#optimal-fifo-and-random-replacement" id="toc-optimal-fifo-and-random-replacement" class="nav-link" data-scroll-target="#optimal-fifo-and-random-replacement"><strong>OPT、FIFO 与随机置换</strong></a></li>
+  <li><a href="#lru-and-clock-approximations" id="toc-lru-and-clock-approximations" class="nav-link" data-scroll-target="#lru-and-clock-approximations"><strong>LRU 与 Clock 近似</strong></a></li>
+  <li><a href="#local-and-global-replacement" id="toc-local-and-global-replacement" class="nav-link" data-scroll-target="#local-and-global-replacement"><strong>局部与全局置换</strong></a></li>
+  </ul></li>
+  <li><a href="#working-sets-thrashing-and-memory-pressure" id="toc-working-sets-thrashing-and-memory-pressure" class="nav-link" data-scroll-target="#working-sets-thrashing-and-memory-pressure"><strong>工作集、抖动与内存压力</strong></a></li>
+  <li><a href="#swap-overcommit-and-out-of-memory-handling" id="toc-swap-overcommit-and-out-of-memory-handling" class="nav-link" data-scroll-target="#swap-overcommit-and-out-of-memory-handling"><strong>Swap、过量承诺与 OOM 处理</strong></a></li>
+  <li><a href="#physical-memory-allocation" id="toc-physical-memory-allocation" class="nav-link" data-scroll-target="#physical-memory-allocation"><strong>物理内存分配</strong></a>
+  <ul>
+  <li><a href="#buddy-allocation" id="toc-buddy-allocation" class="nav-link" data-scroll-target="#buddy-allocation"><strong>伙伴分配器</strong></a></li>
+  <li><a href="#slab-and-object-caches" id="toc-slab-and-object-caches" class="nav-link" data-scroll-target="#slab-and-object-caches"><strong>Slab 与对象缓存</strong></a></li>
+  </ul></li>
+  <li><a href="#huge-pages-numa-and-modern-memory-systems" id="toc-huge-pages-numa-and-modern-memory-systems" class="nav-link" data-scroll-target="#huge-pages-numa-and-modern-memory-systems"><strong>大页、NUMA 与现代内存系统</strong></a></li>
+  <li><a href="#observing-memory-behavior-in-linux" id="toc-observing-memory-behavior-in-linux" class="nav-link" data-scroll-target="#observing-memory-behavior-in-linux"><strong>在 Linux 中观察内存行为</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：按需分页与内存管理</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/07-demand-paging-and-memory-management.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="demand-paging-and-memory-management" class="level2">
+<h2 class="anchored" data-anchor-id="demand-paging-and-memory-management"><strong>按需分页与内存管理</strong></h2>
+<p>页表让进程拥有受保护虚拟地址，但 PTE 不必始终指向驻留 RAM 的页框。<strong>按需分页（demand paging）</strong>把“地址合法”与“页面当前驻留”分开：只有首次访问时才分配或读取页面；内存紧张时，内核又可回收冷页并在之后重新 fault。</p>
+<p>这种延迟工作支撑稀疏堆、快速 <code>fork()</code>、文件映射和超出物理内存的工作集，却把普通 load/store 连接到复杂的异常、I/O、置换和 OOM 路径。本章重点是完整生命周期，而不是只背几种置换算法。</p>
+<section id="from-address-translation-to-demand-paging" class="level3">
+<h3 class="anchored" data-anchor-id="from-address-translation-to-demand-paging"><strong>从地址翻译到按需分页</strong></h3>
+<p>一个 VMA 可以存在，而其中页面尚无私有页框。CPU 访问时发现 PTE 不 present，触发精确异常；内核根据区域语义决定页面来自全零页、可执行文件、page cache、swap，还是 COW 副本。</p>
+<p>若普通内存访问时间为 <span class="math inline">\(t_m\)</span>，缺页概率为 <span class="math inline">\(p\)</span>，平均 fault 服务时间为 <span class="math inline">\(t_f\)</span>，简化有效访问时间为</p>
+<p><span class="math display">\[E[T]=(1-p)t_m+p(t_f+t_m).\]</span></p>
+<p>由于 <span class="math inline">\(t_f\)</span> 可能包含微秒级分配甚至毫秒级存储 I/O，即使极小的 <span class="math inline">\(p\)</span> 也会显著影响平均值和尾延迟。因此“缺页次数”必须区分 minor/major、来源和等待时间。</p>
+</section>
+<section id="the-page-fault-lifecycle" class="level3">
+<h3 class="anchored" data-anchor-id="the-page-fault-lifecycle"><strong>缺页生命周期</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/demand-paging-fault-lifecycle.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/demand-paging-fault-lifecycle.svg" class="img-fluid figure-img" style="width:98.0%" alt="合法 fault 经过验证并选择 zero、COW、page cache 或 swap 来源，分配页框、原子安装再重启；非法访问走信号路径。"></a></p>
+<figcaption>按需分页故障被分类、寻找 backing、填充、安装并重启</figcaption>
+</figure>
+</div>
+<pre class="text"><code>处理缺页(task, address, access)：
+    重复：
+        region = lookup_and_lock_region(task.address_space, address)
+        如果 region 不存在，或 access 违反 region.policy：
+            返回 deliver_memory_signal(task, address, access)
+
+        identity, action = classify_backing(region, address, access)
+        page = find_or_begin_population(identity)
+
+        如果 page 表示“另一个线程正在填充”：
+            release_region_lock()
+            wait_for_page(page)
+            继续
+
+        如果 action 需要新页框：
+            frame = allocate_frame_with_reclaim(region.constraints)
+            如果 frame 不可用：
+                release_region_lock()
+                返回 allocation_failure_or_oom()
+            populate(frame, action, identity)  // 清零、复制、文件或交换区
+
+        如果可能阻塞的工作期间 region 已改变：
+            discard_temporary_result_safely()
+            release_region_lock()
+            继续
+
+        install_pte_atomically(address, page_or_frame, permissions(action))
+        release_region_lock()
+        返回并重新执行触发异常的指令</code></pre>
+<section id="classifying-faults" class="level4">
+<h4 class="anchored" data-anchor-id="classifying-faults"><strong>缺页分类</strong></h4>
+<p>内核首先判断地址是否 canonical、是否属于 VMA、访问类型是否符合区域权限、故障来自用户态还是内核态，以及条目是缺失、只读 COW、交换条目还是保护违规。</p>
+<ul>
+<li><strong>Minor fault：</strong>通常不需从慢速存储读取，例如分配零页、映射已在 page cache 的文件页或完成 COW。</li>
+<li><strong>Major fault：</strong>需要等待 backing storage，常显著阻塞线程。</li>
+<li><strong>Invalid/protection fault：</strong>地址无映射或权限不允许，用户进程通常收到 <code>SIGSEGV</code>/<code>SIGBUS</code>。</li>
+</ul>
+<p>同一个“page fault”名称覆盖性能机制和程序错误，诊断时不能混为一谈。</p>
+</section>
+<section id="locating-loading-and-installing-a-page" class="level4">
+<h4 class="anchored" data-anchor-id="locating-loading-and-installing-a-page"><strong>定位、装入并安装页面</strong></h4>
+<p>合法 fault 的 backing 由 VMA 决定。匿名页可分配清零；文件页查询 page cache 并发起读取；swap 条目定位交换槽；COW 复制旧页。内核需要分配页框，必要时触发 reclaim/compaction，等待 I/O，验证操作期间映射未被其他线程改变，再原子更新 PTE。</p>
+<p>并发线程可能同时 fault 同一页，文件也可能截断，进程可能在 I/O 期间 unmap。正确实现必须用锁、引用计数和重检避免重复安装、use-after-free 或把过期数据映射回来。</p>
+</section>
+<section id="restarting-the-faulting-instruction" class="level4">
+<h4 class="anchored" data-anchor-id="restarting-the-faulting-instruction"><strong>重启产生故障的指令</strong></h4>
+<p>硬件保存精确 fault 地址与访问原因。内核完成映射、更新必要 accessed/dirty 状态、执行 TLB 失效或同步后，返回同一程序计数器；原 load/store 再执行一次。应用通常只观察到一次较慢访问。</p>
+<p>并非所有指令都易于重启，体系结构必须定义精确异常语义。内核也要避免在持有不可重入锁时访问可能 fault 的用户页，常先使用 <code>copy_from_user</code> 等受保护路径或预先 fault/pin。</p>
+</section>
+</section>
+<section id="lazy-allocation-and-zero-fill-on-demand" class="level3">
+<h3 class="anchored" data-anchor-id="lazy-allocation-and-zero-fill-on-demand"><strong>惰性分配与首次访问零填充</strong></h3>
+<p>申请虚拟内存并不必立即分配物理页。匿名映射可先只创建 VMA；首次读取可映射共享、只读的全零页，首次写入再 fault 并获得私有清零页。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lazy-zero-first-touch-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/lazy-zero-first-touch-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="保留虚拟范围最初无私有页框，首次读映射不可变共享零页，首次写 fault 到私有清零可写页。"></a></p>
+<figcaption>匿名内存可在首次写入前共享零页</figcaption>
+</figure>
+</div>
+<p>这减少未使用分配的启动和内存成本，也避免泄露旧物理页数据。代价是首次触碰延迟和内存承诺不确定；实时程序可能选择 prefault/lock 以把延迟移到可控阶段。</p>
+<details>
+<summary>
+<strong>C：使用 mmap、mincore 与 madvise 观察首次访问</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">size_t</span> resident_pages<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>base<span class="op">,</span> <span class="dt">size_t</span> length<span class="op">,</span> <span class="dt">size_t</span> page_size<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> pages <span class="op">=</span> <span class="op">(</span>length <span class="op">+</span> page_size <span class="op">-</span> <span class="dv">1</span><span class="op">)</span> <span class="op">/</span> page_size<span class="op">;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>state <span class="op">=</span> calloc<span class="op">(</span>pages<span class="op">,</span> <span class="dv">1</span><span class="op">);</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>state <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"calloc"</span><span class="op">);</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// mincore() 查询某一时刻的驻留状态，而不是页面所有权。</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>mincore<span class="op">(</span>base<span class="op">,</span> length<span class="op">,</span> state<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mincore"</span><span class="op">);</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        free<span class="op">(</span>state<span class="op">);</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> resident <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        resident <span class="op">+=</span> <span class="op">(</span>state<span class="op">[</span>i<span class="op">]</span> <span class="op">&amp;</span> <span class="dv">1</span><span class="bu">U</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>state<span class="op">);</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> resident<span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> page_size <span class="op">=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">;</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> pages <span class="op">=</span> <span class="dv">64</span><span class="op">;</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> length <span class="op">=</span> pages <span class="op">*</span> page_size<span class="op">;</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>region <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> length<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>                                 MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>region <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after mmap:       </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 每隔四页读取一个字节；读取可能使用共享零页。</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>    <span class="dt">volatile</span> <span class="dt">unsigned</span> <span class="dt">int</span> sum <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> i <span class="op">+=</span> <span class="dv">4</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>        sum <span class="op">+=</span> region<span class="op">[</span>i <span class="op">*</span> page_size<span class="op">];</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after sparse read: </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 每隔四页写入一次会要求可写的私有页面内容。</span></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> i <span class="op">+=</span> <span class="dv">4</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>        region<span class="op">[</span>i <span class="op">*</span> page_size<span class="op">]</span> <span class="op">=</span> <span class="op">(</span><span class="dt">unsigned</span> <span class="dt">char</span><span class="op">)</span>i<span class="op">;</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after sparse write:</span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 对私有匿名内存，DONTNEED 会丢弃当前内容；</span></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 后续访问将再次看到用零填充的页面。</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>madvise<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> MADV_DONTNEED<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"madvise"</span><span class="op">);</span></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after DONTNEED:    </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">(</span>region<span class="op">,</span> length<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> sum <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span>  <span class="co">// keeps the reads observable to the compiler</span></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> first_touch.c <span class="at">-o</span> first_touch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./first_touch</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="copy-on-write" class="level3">
+<h3 class="anchored" data-anchor-id="copy-on-write"><strong>写时复制</strong></h3>
+<p><code>fork()</code> 后父子把原本可写页面都映射为只读 COW 并共享页框。任一方写入时，fault handler 分配新页、复制内容，只让写入方映射新页为可写，并减少旧页引用。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cow-private-write-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/cow-private-write-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="父子只读 COW PTE 指向同一页框，子写 fault 后复制并只把子映射改为可写。"></a></p>
+<figcaption>子进程写入把一个共享 COW 页变成两个私有页</figcaption>
+</figure>
+</div>
+<p>若旧页引用只剩当前进程，内核可直接恢复写权限而无需复制。COW 需要与 pin、DMA、huge page、并发 unmap 和 dirty tracking 正确交互；它节省的是未发生的写复制，不会消除页表和 fault 成本。</p>
+<details>
+<summary>
+<strong>C：观察 fork 后私有内存语义</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> page_size <span class="op">=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> <span class="op">*</span>value <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> page_size<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                      MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>value <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>value <span class="op">=</span> <span class="dv">41</span><span class="op">;</span>  <span class="co">// 在 fork() 前让该页实际物化。</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> ready<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe<span class="op">(</span>ready<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"pipe"</span><span class="op">);</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>value<span class="op">,</span> page_size<span class="op">);</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    pid_t pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>value <span class="op">=</span> <span class="dv">99</span><span class="op">;</span>  <span class="co">// 通常会为子进程映射触发写时复制。</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>        dprintf<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> <span class="st">"child sees  </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">*</span>value<span class="op">);</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">],</span> <span class="st">"x"</span><span class="op">,</span> <span class="dv">1</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>            _exit<span class="op">(</span><span class="dv">2</span><span class="op">);</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> byte<span class="op">;</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">],</span> <span class="op">&amp;</span>byte<span class="op">,</span> <span class="dv">1</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"child did not signal completion</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 子进程的写入修改的是其私有映射，而不是父进程的映射。</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"parent sees </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">*</span>value<span class="op">);</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>pid<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">(</span>value<span class="op">,</span> page_size<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> cow.c <span class="at">-o</span> cow</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./cow</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="memory-mapped-files-and-shared-pages" class="level3">
+<h3 class="anchored" data-anchor-id="memory-mapped-files-and-shared-pages"><strong>内存映射文件与共享页面</strong></h3>
+<p>文件 <code>read/write</code> 和 <code>mmap</code> 常汇聚到同一个 page cache。<code>MAP_SHARED</code> 写入修改缓存页并可回写文件；<code>MAP_PRIVATE</code> 初始读取同一文件页，写入时创建匿名 COW 页，不把私有修改写回文件。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-cache-mmap-sharing.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/page-cache-mmap-sharing.svg" class="img-fluid figure-img" style="width:98.0%" alt="read/write、shared mapping 与 private mapping 使用缓存文件页；shared 写使缓存页变脏，private 写创建匿名 COW 页。"></a></p>
+<figcaption>缓冲文件 I/O 与内存映射汇聚到 page cache</figcaption>
+</figure>
+</div>
+<p>映射不等于立即持久化。<code>msync</code>、<code>fsync</code>、写回策略和存储缓存共同决定耐久性；文件截断、映射越界和 I/O 错误还可能通过 <code>SIGBUS</code> 表现，而不是普通返回码。</p>
+</section>
+<section id="page-replacement" class="level3">
+<h3 class="anchored" data-anchor-id="page-replacement"><strong>页面置换</strong></h3>
+<p>内存不足时，reclaim 必须选择牺牲页。干净文件页可直接丢弃并从文件重读；脏文件页需先回写；匿名页若要保留内容通常需要 swap。置换成本因此不仅取决于“多久未访问”，也取决于页类型、dirty、写回拥塞、NUMA 和 cgroup 范围。</p>
+<section id="optimal-fifo-and-random-replacement" class="level4">
+<h4 class="anchored" data-anchor-id="optimal-fifo-and-random-replacement"><strong>OPT、FIFO 与随机置换</strong></h4>
+<p><strong>OPT/Belady</strong> 淘汰未来最久不用的页，给定完整未来引用时 fault 最少，只能作为离线下界。<strong>FIFO</strong> 淘汰最早装入页，实现简单却可能出现 Belady anomaly：页框增加反而 fault 更多。<strong>Random</strong> 随机选 victim，状态低且避免某些对抗模式，但不利用局部性。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/replacement-policy-trace.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/replacement-policy-trace.svg" class="img-fluid figure-img" style="width:98.0%" alt="四个面板比较同一 13 页引用串、3 页框下的策略、状态需求和 fault 数。"></a></p>
+<figcaption>OPT、FIFO、LRU 与 Random 对同一引用串的 victim 信息</figcaption>
+</figure>
+</div>
+</section>
+<section id="lru-and-clock-approximations" class="level4">
+<h4 class="anchored" data-anchor-id="lru-and-clock-approximations"><strong>LRU 与 Clock 近似</strong></h4>
+<p><strong>LRU</strong> 淘汰过去最久未使用页，利用时间局部性，但精确维护每次访问顺序会产生高成本。硬件 accessed/reference 位提供近似证据。Clock/second chance 用环形指针扫描：引用位为 1 时清零并跳过，为 0 时选择 victim。</p>
+<pre class="text"><code>访问页面(page)时：
+    更新策略为 page 记录的历史
+
+发生缺页(requested_page)时：
+    如果存在空闲页框：
+        装入 requested_page
+    否则：
+        victim = 从可淘汰驻留页中选择牺牲页
+        必要时保存 victim 的内容
+        移除 victim 的映射
+        装入 requested_page</code></pre>
+<pre class="text"><code>选择 Clock 牺牲页：
+    循环：
+        page = frame_at(clock_hand)
+        如果 page 不可回收：
+            advance(clock_hand)
+        否则如果 page.referenced == 1：
+            page.referenced = 0
+            advance(clock_hand)       // 给予第二次机会
+        否则：
+            victim = page
+            advance(clock_hand)
+            返回 victim</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/clock-second-chance-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/clock-second-chance-animated.svg" class="img-fluid figure-img" style="width:94.0%" alt="时钟指针绕四个页框扫描，清除近期引用位并选中第一个 reference=0 的页。"></a></p>
+<figcaption>Clock 扫描并清除引用位，选择第一个合格的零位页</figcaption>
+</figure>
+</div>
+<p>Dirty 位、active/inactive 列表和多代 LRU 可进一步区分回收成本与年龄。任何近似都应在真实访问分布上评估，而不是只看一条教学引用串。</p>
+<details>
+<summary>
+<strong>Python：在同一引用串上比较 OPT、FIFO、LRU、Random 与 Clock</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> __future__ <span class="im">import</span> annotations</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> random <span class="im">import</span> Random</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Iterable</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Step:</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    time: <span class="bu">int</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    page: <span class="bu">int</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    hit: <span class="bu">bool</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    victim: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">tuple</span>[<span class="bu">int</span>, ...]</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> simulate_stack_policy(</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    references: Iterable[<span class="bu">int</span>],</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    capacity: <span class="bu">int</span>,</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    policy: <span class="bu">str</span>,</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">=</span> <span class="dv">7</span>,</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[Step]:</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""模拟 OPT、FIFO、LRU 或使用确定种子的 Random。"""</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    refs <span class="op">=</span> <span class="bu">list</span>(references)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> capacity <span class="op">&lt;=</span> <span class="dv">0</span>:</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"capacity must be positive"</span>)</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> policy <span class="kw">not</span> <span class="kw">in</span> {<span class="st">"OPT"</span>, <span class="st">"FIFO"</span>, <span class="st">"LRU"</span>, <span class="st">"Random"</span>}:</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"unknown policy: </span><span class="sc">{</span>policy<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">list</span>[<span class="bu">int</span>] <span class="op">=</span> []</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>    fifo_order: deque[<span class="bu">int</span>] <span class="op">=</span> deque()</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>    last_used: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">int</span>] <span class="op">=</span> {}</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> Random(seed)</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">list</span>[Step] <span class="op">=</span> []</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> time, page <span class="kw">in</span> <span class="bu">enumerate</span>(refs):</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page <span class="kw">in</span> frames:</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>            last_used[page] <span class="op">=</span> time</span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a>            trace.append(Step(time, page, <span class="va">True</span>, <span class="va">None</span>, <span class="bu">tuple</span>(frames)))</span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a>        victim <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(frames) <span class="op">==</span> capacity:</span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FIFO"</span>:</span>
+<span id="cb8-48"><a href="#cb8-48" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> fifo_order.popleft()</span>
+<span id="cb8-49"><a href="#cb8-49" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"LRU"</span>:</span>
+<span id="cb8-50"><a href="#cb8-50" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> <span class="bu">min</span>(frames, key<span class="op">=</span>last_used.<span class="fu">__getitem__</span>)</span>
+<span id="cb8-51"><a href="#cb8-51" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"Random"</span>:</span>
+<span id="cb8-52"><a href="#cb8-52" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> rng.choice(frames)</span>
+<span id="cb8-53"><a href="#cb8-53" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:  <span class="co"># OPT：选择下一次使用距离最远的页面。</span></span>
+<span id="cb8-54"><a href="#cb8-54" aria-hidden="true" tabindex="-1"></a>                <span class="kw">def</span> next_use(candidate: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb8-55"><a href="#cb8-55" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> future_time <span class="kw">in</span> <span class="bu">range</span>(time <span class="op">+</span> <span class="dv">1</span>, <span class="bu">len</span>(refs)):</span>
+<span id="cb8-56"><a href="#cb8-56" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">if</span> refs[future_time] <span class="op">==</span> candidate:</span>
+<span id="cb8-57"><a href="#cb8-57" aria-hidden="true" tabindex="-1"></a>                            <span class="cf">return</span> future_time</span>
+<span id="cb8-58"><a href="#cb8-58" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">return</span> inf</span>
+<span id="cb8-59"><a href="#cb8-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-60"><a href="#cb8-60" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> <span class="bu">max</span>(frames, key<span class="op">=</span>next_use)</span>
+<span id="cb8-61"><a href="#cb8-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-62"><a href="#cb8-62" aria-hidden="true" tabindex="-1"></a>            frames.remove(victim)</span>
+<span id="cb8-63"><a href="#cb8-63" aria-hidden="true" tabindex="-1"></a>            last_used.pop(victim, <span class="va">None</span>)</span>
+<span id="cb8-64"><a href="#cb8-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-65"><a href="#cb8-65" aria-hidden="true" tabindex="-1"></a>        frames.append(page)</span>
+<span id="cb8-66"><a href="#cb8-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FIFO"</span>:</span>
+<span id="cb8-67"><a href="#cb8-67" aria-hidden="true" tabindex="-1"></a>            fifo_order.append(page)</span>
+<span id="cb8-68"><a href="#cb8-68" aria-hidden="true" tabindex="-1"></a>        last_used[page] <span class="op">=</span> time</span>
+<span id="cb8-69"><a href="#cb8-69" aria-hidden="true" tabindex="-1"></a>        trace.append(Step(time, page, <span class="va">False</span>, victim, <span class="bu">tuple</span>(frames)))</span>
+<span id="cb8-70"><a href="#cb8-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-71"><a href="#cb8-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> trace</span>
+<span id="cb8-72"><a href="#cb8-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-73"><a href="#cb8-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-74"><a href="#cb8-74" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> simulate_clock(references: Iterable[<span class="bu">int</span>], capacity: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Step]:</span>
+<span id="cb8-75"><a href="#cb8-75" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""模拟每个页框带一个引用位的第二次机会 Clock。"""</span></span>
+<span id="cb8-76"><a href="#cb8-76" aria-hidden="true" tabindex="-1"></a>    refs <span class="op">=</span> <span class="bu">list</span>(references)</span>
+<span id="cb8-77"><a href="#cb8-77" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">list</span>[<span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>] <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> capacity</span>
+<span id="cb8-78"><a href="#cb8-78" aria-hidden="true" tabindex="-1"></a>    referenced <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> capacity</span>
+<span id="cb8-79"><a href="#cb8-79" aria-hidden="true" tabindex="-1"></a>    hand <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb8-80"><a href="#cb8-80" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">list</span>[Step] <span class="op">=</span> []</span>
+<span id="cb8-81"><a href="#cb8-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-82"><a href="#cb8-82" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> time, page <span class="kw">in</span> <span class="bu">enumerate</span>(refs):</span>
+<span id="cb8-83"><a href="#cb8-83" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page <span class="kw">in</span> frames:</span>
+<span id="cb8-84"><a href="#cb8-84" aria-hidden="true" tabindex="-1"></a>            slot <span class="op">=</span> frames.index(page)</span>
+<span id="cb8-85"><a href="#cb8-85" aria-hidden="true" tabindex="-1"></a>            referenced[slot] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb8-86"><a href="#cb8-86" aria-hidden="true" tabindex="-1"></a>            visible <span class="op">=</span> <span class="bu">tuple</span>(x <span class="cf">for</span> x <span class="kw">in</span> frames <span class="cf">if</span> x <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>)</span>
+<span id="cb8-87"><a href="#cb8-87" aria-hidden="true" tabindex="-1"></a>            trace.append(Step(time, page, <span class="va">True</span>, <span class="va">None</span>, visible))</span>
+<span id="cb8-88"><a href="#cb8-88" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb8-89"><a href="#cb8-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-90"><a href="#cb8-90" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 循环搜索；已被引用的页面获得第二次机会。</span></span>
+<span id="cb8-91"><a href="#cb8-91" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> frames[hand] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="kw">and</span> referenced[hand] <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb8-92"><a href="#cb8-92" aria-hidden="true" tabindex="-1"></a>            referenced[hand] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb8-93"><a href="#cb8-93" aria-hidden="true" tabindex="-1"></a>            hand <span class="op">=</span> (hand <span class="op">+</span> <span class="dv">1</span>) <span class="op">%</span> capacity</span>
+<span id="cb8-94"><a href="#cb8-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-95"><a href="#cb8-95" aria-hidden="true" tabindex="-1"></a>        victim <span class="op">=</span> frames[hand]</span>
+<span id="cb8-96"><a href="#cb8-96" aria-hidden="true" tabindex="-1"></a>        frames[hand] <span class="op">=</span> page</span>
+<span id="cb8-97"><a href="#cb8-97" aria-hidden="true" tabindex="-1"></a>        referenced[hand] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb8-98"><a href="#cb8-98" aria-hidden="true" tabindex="-1"></a>        hand <span class="op">=</span> (hand <span class="op">+</span> <span class="dv">1</span>) <span class="op">%</span> capacity</span>
+<span id="cb8-99"><a href="#cb8-99" aria-hidden="true" tabindex="-1"></a>        visible <span class="op">=</span> <span class="bu">tuple</span>(x <span class="cf">for</span> x <span class="kw">in</span> frames <span class="cf">if</span> x <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>)</span>
+<span id="cb8-100"><a href="#cb8-100" aria-hidden="true" tabindex="-1"></a>        trace.append(Step(time, page, <span class="va">False</span>, victim, visible))</span>
+<span id="cb8-101"><a href="#cb8-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-102"><a href="#cb8-102" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> trace</span>
+<span id="cb8-103"><a href="#cb8-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-104"><a href="#cb8-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-105"><a href="#cb8-105" aria-hidden="true" tabindex="-1"></a>references <span class="op">=</span> [<span class="dv">7</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">0</span>, <span class="dv">3</span>, <span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">0</span>, <span class="dv">3</span>, <span class="dv">2</span>]</span>
+<span id="cb8-106"><a href="#cb8-106" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name <span class="kw">in</span> [<span class="st">"OPT"</span>, <span class="st">"FIFO"</span>, <span class="st">"LRU"</span>, <span class="st">"Random"</span>]:</span>
+<span id="cb8-107"><a href="#cb8-107" aria-hidden="true" tabindex="-1"></a>    run <span class="op">=</span> simulate_stack_policy(references, <span class="dv">3</span>, name, seed<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb8-108"><a href="#cb8-108" aria-hidden="true" tabindex="-1"></a>    faults <span class="op">=</span> <span class="bu">sum</span>(<span class="kw">not</span> step.hit <span class="cf">for</span> step <span class="kw">in</span> run)</span>
+<span id="cb8-109"><a href="#cb8-109" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:6s}</span><span class="ss">: faults=</span><span class="sc">{</span>faults<span class="sc">}</span><span class="ss">, hits=</span><span class="sc">{</span><span class="bu">len</span>(run) <span class="op">-</span> faults<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb8-110"><a href="#cb8-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-111"><a href="#cb8-111" aria-hidden="true" tabindex="-1"></a>clock_run <span class="op">=</span> simulate_clock(references, <span class="dv">3</span>)</span>
+<span id="cb8-112"><a href="#cb8-112" aria-hidden="true" tabindex="-1"></a>clock_faults <span class="op">=</span> <span class="bu">sum</span>(<span class="kw">not</span> step.hit <span class="cf">for</span> step <span class="kw">in</span> clock_run)</span>
+<span id="cb8-113"><a href="#cb8-113" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Clock'</span><span class="sc">:6s}</span><span class="ss">: faults=</span><span class="sc">{</span>clock_faults<span class="sc">}</span><span class="ss">, hits=</span><span class="sc">{</span><span class="bu">len</span>(clock_run) <span class="op">-</span> clock_faults<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>典型输出：</p>
+<pre class="text"><code>OPT   ：缺页=7，命中=6
+FIFO  ：缺页=10，命中=3
+LRU   ：缺页=9，命中=4
+Random：缺页=11，命中=2
+Clock ：缺页=9，命中=4</code></pre>
+</details>
+</section>
+<section id="local-and-global-replacement" class="level4">
+<h4 class="anchored" data-anchor-id="local-and-global-replacement"><strong>局部与全局置换</strong></h4>
+<p>局部置换只从当前进程/组配额中选 victim，提供隔离但可能让一方在自己配额内 thrash，而系统其他内存空闲。全局置换可从更大池中选冷页，提高容量利用率，却可能让一个激进工作负载驱逐无关进程热页。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/local-global-reclaim.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/local-global-reclaim.svg" class="img-fluid figure-img" style="width:96.0%" alt="局部策略让 A 从自身 quota 淘汰并保护 B；全局策略可选 B 冷页；memory cgroup 构成有界共享池。"></a></p>
+<figcaption>局部与全局 reclaim 的隔离和容量权衡</figcaption>
+</figure>
+</div>
+<p>现代系统常用 cgroup/容器形成层次边界：组内全局、组间受限制，并依据压力、优先级和保护水位调节。</p>
+</section>
+</section>
+<section id="working-sets-thrashing-and-memory-pressure" class="level3">
+<h3 class="anchored" data-anchor-id="working-sets-thrashing-and-memory-pressure"><strong>工作集、抖动与内存压力</strong></h3>
+<p>进程 <span class="math inline">\(i\)</span> 在最近窗口 <span class="math inline">\(\Delta\)</span> 内引用的页面集合为</p>
+<p><span class="math display">\[W_i(t,\Delta)=\{p\mid p\text{ 在 }(t-\Delta,t]\text{ 内被进程 }i\text{ 引用}\}.\]</span></p>
+<p>总需求</p>
+<p><span class="math display">\[D(t,\Delta)=\sum_i|W_i(t,\Delta)|.\]</span></p>
+<p>若活跃工作集总和超过可用页框，系统会淘汰仍将很快使用的页，随后再次 fault，形成 reclaim、I/O、阻塞和低有效进度的反馈环，即 <strong>thrashing</strong>。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/working-set-thrashing-feedback.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/working-set-thrashing-feedback.svg" class="img-fluid figure-img" style="width:98.0%" alt="最近引用窗口定义工作集，需求超过页框后活跃页被淘汰、再次 fault、任务停顿并继续驱逐。"></a></p>
+<figcaption>活跃工作集超过页框后形成反复淘汰与 fault 的反馈环</figcaption>
+</figure>
+</div>
+<p>CPU 利用率下降不应误导系统继续提高并发度；更多进程可能使工作集更超额。应观察 fault rate、reclaim、swap、PSI、I/O 和有用吞吐，必要时降低并发、增加内存、缩小工作集或建立更强隔离。</p>
+</section>
+<section id="swap-overcommit-and-out-of-memory-handling" class="level3">
+<h3 class="anchored" data-anchor-id="swap-overcommit-and-out-of-memory-handling"><strong>Swap、过量承诺与 OOM 处理</strong></h3>
+<p>Swap 为匿名页提供磁盘 backing，可把冷页移出 RAM，却比内存慢几个数量级。Swap 可缓冲短期压力，不应被解释为与 RAM 等价容量。</p>
+<p>Linux overcommit 允许虚拟承诺大于当前物理内存，因为许多保留永远不会全部触碰。严格核算模式下，一个概念 CommitLimit 为</p>
+<p><span class="math display">\[CommitLimit=(RAM-reserved\ hugeTLB)\times\frac{overcommit\ ratio}{100}+swap.\]</span></p>
+<p>Commit、RSS、page cache 和 swap 是不同量：虚拟地址承诺不等于驻留，也不等于当前可回收。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/memory-pressure-swap-oom.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/memory-pressure-swap-oom.svg" class="img-fluid figure-img" style="width:98.0%" alt="页框请求检查核算和空闲块，尝试回收与压缩，失败后进入特定作用域 OOM；侧栏区分 commit、RSS、swap 与回收成本。"></a></p>
+<figcaption>分配失败经 reclaim、writeback/swap、compaction 与作用域 OOM</figcaption>
+</figure>
+</div>
+<p>分配失败时内核先尝试直接/后台 reclaim、写回或 swap，连续高阶分配还可能 compaction。仍失败时 OOM killer 在系统或 memory cgroup 作用域选择牺牲者。选择进程只是恢复策略，不能修复内存泄漏、无界队列或错误容量规划。</p>
+</section>
+<section id="physical-memory-allocation" class="level3">
+<h3 class="anchored" data-anchor-id="physical-memory-allocation"><strong>物理内存分配</strong></h3>
+<section id="buddy-allocation" class="level4">
+<h4 class="anchored" data-anchor-id="buddy-allocation"><strong>伙伴分配器</strong></h4>
+<p>Buddy allocator 按 <span class="math inline">\(2^k\)</span> 个连续页框管理 free list。大块可反复二分满足较小请求，释放时与同阶且对齐的伙伴合并。块起点 <code>start</code> 的伙伴为</p>
+<p><span class="math display">\[buddy(start,k)=start\operatorname{XOR}2^k.\]</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/buddy-split-merge-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/buddy-split-merge-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="8 页 order-3 块拆分满足 2 页请求，释放后与同阶对齐伙伴逐级合并。"></a></p>
+<figcaption>伙伴系统的大块拆分与对齐伙伴合并</figcaption>
+</figure>
+</div>
+<pre class="text"><code>allocate_pages(order, constraints) -&gt; 对齐内存块或失败
+free_pages(block, order)</code></pre>
+<pre class="text"><code>分配(requested_pages)：
+    target = ceil(log2(requested_pages))
+    order = 第一个满足 order &gt;= target 且空闲链表非空的阶
+    如果不存在这样的 order：
+        失败
+    block = remove_one(free_list[order])
+    当 order &gt; target：
+        order = order - 1
+        left, right = split(block)
+        insert(right, free_list[order])
+        block = left
+    返回 block, target
+
+释放(block, order)：
+    当 order &lt; MAX_ORDER：
+        buddy = block.start XOR (1 &lt;&lt; order)
+        如果 buddy 并非恰好以该阶空闲：
+            退出循环
+        remove(buddy, free_list[order])
+        block = lower_address(block, buddy)
+        order = order + 1
+    insert(block, free_list[order])</code></pre>
+<p>伙伴系统快速提供页级连续块，但向上取整会产生内部碎片；长期运行后，高阶连续块可能短缺，即使总空闲页不少。</p>
+</section>
+<section id="slab-and-object-caches" class="level4">
+<h4 class="anchored" data-anchor-id="slab-and-object-caches"><strong>Slab 与对象缓存</strong></h4>
+<p>内核频繁分配 inode、dentry、task 等固定类型对象。Slab/SLUB 缓存从页分配器取得块并切成对象，保留构造状态、对齐和 per-CPU fast path，减少通用分配与锁成本。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/slab-object-cache.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/slab-object-cache.svg" class="img-fluid figure-img" style="width:98.0%" alt="类型专用缓存含 per-CPU 快速路径，full/partial/empty slab 中排列固定大小对象槽。"></a></p>
+<figcaption>页分配器向类型专用对象缓存提供 slab</figcaption>
+</figure>
+</div>
+<p>缓存也会保留空闲对象而增加内存占用；调试选项可加入 red zone、poisoning 和 quarantine，以成本换取越界或 use-after-free 检测。</p>
+</section>
+</section>
+<section id="huge-pages-numa-and-modern-memory-systems" class="level3">
+<h3 class="anchored" data-anchor-id="huge-pages-numa-and-modern-memory-systems"><strong>大页、NUMA 与现代内存系统</strong></h3>
+<p>Huge page 减少页表项并提高 TLB reach，适合大而连续的热点映射；代价是内部碎片、fault/COW 粒度和连续页框需求。Transparent Huge Pages 可自动 promotion/split，但 compaction 可能带来延迟尖峰。</p>
+<p>NUMA 中 first touch 常决定物理页节点。线程迁移而页面不迁移会增加远程访问；迁移页面本身也消耗带宽。正确调优要联合 CPU affinity、线程工作集与页面放置，而不是只把线程固定在一个核。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hugepage-numa-placement.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/hugepage-numa-placement.svg" class="img-fluid figure-img" style="width:98.0%" alt="基础页可合并为透明大页减少翻译项，两个 NUMA 节点展示本地/远程访问、首次触碰和任务迁移。"></a></p>
+<figcaption>大页 promotion 与 NUMA 放置解决不同内存成本</figcaption>
+</figure>
+</div>
+</section>
+<section id="observing-memory-behavior-in-linux" class="level3">
+<h3 class="anchored" data-anchor-id="observing-memory-behavior-in-linux"><strong>在 Linux 中观察内存行为</strong></h3>
+<p>单个指标不足以诊断。<code>/proc/&lt;pid&gt;/smaps</code> 区分匿名、文件、共享、dirty 与 huge page；<code>/proc/meminfo</code> 和 <code>vmstat</code> 查看系统状态；PSI 显示任务因内存压力停顿的时间；<code>numastat</code> 查看放置；<code>perf</code> 可观察 fault、TLB 和 cache 事件。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-memory-observability.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/linux-memory-observability.svg" class="img-fluid figure-img" style="width:98.0%" alt="从延迟或内存症状出发，收集 smaps、meminfo、vmstat、PSI、NUMA 和 perf，关联时间序列后检验假设。"></a></p>
+<figcaption>Linux 内存诊断结合进程、系统、压力与放置证据</figcaption>
+</figure>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">${1</span><span class="op">:-</span><span class="va">$$}</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 进程总量：PSS 按比例分摊共享页，RSS 则对每个映射完整计数。</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Rss|Pss|Private_|Shared_|Anonymous|AnonHugePages|Swap):'</span> <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/smaps_rollup"</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看系统内存构成与提交量。</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(MemTotal|MemAvailable|Cached|AnonPages|Slab|PageTables|SwapTotal|SwapFree|CommitLimit|Committed_AS):'</span> <span class="dt">\</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  /proc/meminfo</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 压力指标报告因争用损失的时间，而不只是容量消耗。</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/pressure/memory</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co"># 时间序列：运行队列、空闲内存、分页、块 I/O 与 CPU 活动。</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="fu">vmstat</span> 1 5</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 在已安装 numactl 工具的 NUMA 系统上可选运行。</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="bu">command</span> <span class="at">-v</span> numastat <span class="op">&gt;</span>/dev/null <span class="kw">&amp;&amp;</span> <span class="ex">numastat</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>一次有用的解释应连接时间：应用延迟上升前，RSS/working set 是否增长？随后是否出现 direct reclaim、major fault、swap I/O 或 PSI？NUMA remote 是否同时增加？只截取 OOM 之后的 <code>free</code> 很难还原因果。</p>
+<pre class="text"><code>观察：RSS 与活跃匿名内存上升。
+观察：随后 pgscan/pgsteal 与换入/换出增加。
+观察：memory full PSI 与请求延迟同时上升。
+假设：工作负载的活跃匿名集合超过其内存预算。
+检验：降低并发度或提高受控 cgroup 预算，然后重复实验。</code></pre>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>延迟了什么工作</th>
+<th>优势</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Lazy allocation</td>
+<td>物理页分配与清零</td>
+<td>未使用保留几乎不耗 RAM</td>
+<td>首次访问延迟、承诺不确定</td>
+</tr>
+<tr class="even">
+<td>COW</td>
+<td>fork 后私有复制</td>
+<td>exec-heavy 创建高效</td>
+<td>写 fault、复制与复杂生命周期</td>
+</tr>
+<tr class="odd">
+<td>Page cache/mmap</td>
+<td>文件读入与共享</td>
+<td>I/O 与映射复用缓存页</td>
+<td>持久化语义、截断与回写</td>
+</tr>
+<tr class="even">
+<td>Replacement</td>
+<td>为冷页保留 RAM</td>
+<td>活跃工作集利用有限内存</td>
+<td>错误 victim 导致 thrashing</td>
+</tr>
+<tr class="odd">
+<td>Swap</td>
+<td>匿名页驻留</td>
+<td>缓冲短期压力</td>
+<td>高时延与 I/O 放大</td>
+</tr>
+<tr class="even">
+<td>Buddy</td>
+<td>连续页框块</td>
+<td>分裂/合并快速</td>
+<td>高阶碎片与向上取整</td>
+</tr>
+<tr class="odd">
+<td>Slab</td>
+<td>内核对象构造</td>
+<td>类型化缓存和 per-CPU 快路</td>
+<td>缓存保留与调试复杂度</td>
+</tr>
+<tr class="even">
+<td>Huge page</td>
+<td>翻译项数量</td>
+<td>更大 TLB reach</td>
+<td>粒度、compaction 与碎片</td>
+</tr>
+</tbody>
+</table>
+<p>按需分页的本质是把“映射契约”和“当前物理实现”分离。Fault handler 必须在并发变化中重建合法实现；reclaim 必须在局部性、回写成本和隔离之间选择；OOM 则是在所有正常策略失败后的作用域恢复。理解这些路径，才能把 RSS、fault、swap 与真实性能联系起来。</p>
+<p><a href="08-io-devices-and-event-driven-execution.html">下一章：I/O 设备与事件驱动执行</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Synchronization, Concurrent Correctness, and Liveness</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="05-synchronization-correctness-and-liveness_files/libs/clipboard/clipboard.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/quarto.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/popper.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="05-synchronization-correctness-and-liveness_files/libs/quarto-html/anchor.min.js"></script>
+<link href="05-synchronization-correctness-and-liveness_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="05-synchronization-correctness-and-liveness_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="05-synchronization-correctness-and-liveness_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#synchronization-concurrent-correctness-and-liveness" id="toc-synchronization-concurrent-correctness-and-liveness" class="nav-link active" data-scroll-target="#synchronization-concurrent-correctness-and-liveness"><strong>Synchronization, Concurrent Correctness, and Liveness</strong></a>
+  <ul>
+  <li><a href="#why-concurrent-programs-are-difficult" id="toc-why-concurrent-programs-are-difficult" class="nav-link" data-scroll-target="#why-concurrent-programs-are-difficult"><strong>Why Concurrent Programs Are Difficult</strong></a>
+  <ul>
+  <li><a href="#interleavings-and-nondeterminism" id="toc-interleavings-and-nondeterminism" class="nav-link" data-scroll-target="#interleavings-and-nondeterminism"><strong>Interleavings and Nondeterminism</strong></a></li>
+  <li><a href="#safety-and-liveness-properties" id="toc-safety-and-liveness-properties" class="nav-link" data-scroll-target="#safety-and-liveness-properties"><strong>Safety and Liveness Properties</strong></a></li>
+  </ul></li>
+  <li><a href="#race-conditions-and-critical-sections" id="toc-race-conditions-and-critical-sections" class="nav-link" data-scroll-target="#race-conditions-and-critical-sections"><strong>Race Conditions and Critical Sections</strong></a>
+  <ul>
+  <li><a href="#atomicity-visibility-and-ordering" id="toc-atomicity-visibility-and-ordering" class="nav-link" data-scroll-target="#atomicity-visibility-and-ordering"><strong>Atomicity, Visibility, and Ordering</strong></a></li>
+  <li><a href="#the-memory-model" id="toc-the-memory-model" class="nav-link" data-scroll-target="#the-memory-model"><strong>The Memory Model</strong></a></li>
+  </ul></li>
+  <li><a href="#hardware-support-for-synchronization" id="toc-hardware-support-for-synchronization" class="nav-link" data-scroll-target="#hardware-support-for-synchronization"><strong>Hardware Support for Synchronization</strong></a>
+  <ul>
+  <li><a href="#disabling-interrupts-and-its-limits" id="toc-disabling-interrupts-and-its-limits" class="nav-link" data-scroll-target="#disabling-interrupts-and-its-limits"><strong>Disabling Interrupts and Its Limits</strong></a></li>
+  <li><a href="#test-and-set-compare-and-swap-and-fetch-and-add" id="toc-test-and-set-compare-and-swap-and-fetch-and-add" class="nav-link" data-scroll-target="#test-and-set-compare-and-swap-and-fetch-and-add"><strong>Test-and-Set, Compare-and-Swap, and Fetch-and-Add</strong></a></li>
+  <li><a href="#memory-barriers" id="toc-memory-barriers" class="nav-link" data-scroll-target="#memory-barriers"><strong>Memory Barriers</strong></a></li>
+  </ul></li>
+  <li><a href="#mutual-exclusion-locks" id="toc-mutual-exclusion-locks" class="nav-link" data-scroll-target="#mutual-exclusion-locks"><strong>Mutual-Exclusion Locks</strong></a>
+  <ul>
+  <li><a href="#spinlocks-and-mutexes" id="toc-spinlocks-and-mutexes" class="nav-link" data-scroll-target="#spinlocks-and-mutexes"><strong>Spinlocks and Mutexes</strong></a></li>
+  <li><a href="#lock-granularity-and-contention" id="toc-lock-granularity-and-contention" class="nav-link" data-scroll-target="#lock-granularity-and-contention"><strong>Lock Granularity and Contention</strong></a></li>
+  </ul></li>
+  <li><a href="#semaphores-condition-variables-and-monitors" id="toc-semaphores-condition-variables-and-monitors" class="nav-link" data-scroll-target="#semaphores-condition-variables-and-monitors"><strong>Semaphores, Condition Variables, and Monitors</strong></a></li>
+  <li><a href="#barriers-and-read-write-coordination" id="toc-barriers-and-read-write-coordination" class="nav-link" data-scroll-target="#barriers-and-read-write-coordination"><strong>Barriers and Read-Write Coordination</strong></a></li>
+  <li><a href="#classical-synchronization-problems" id="toc-classical-synchronization-problems" class="nav-link" data-scroll-target="#classical-synchronization-problems"><strong>Classical Synchronization Problems</strong></a>
+  <ul>
+  <li><a href="#producer-consumer" id="toc-producer-consumer" class="nav-link" data-scroll-target="#producer-consumer"><strong>Producer-Consumer</strong></a></li>
+  <li><a href="#readers-writers" id="toc-readers-writers" class="nav-link" data-scroll-target="#readers-writers"><strong>Readers-Writers</strong></a></li>
+  <li><a href="#dining-philosophers" id="toc-dining-philosophers" class="nav-link" data-scroll-target="#dining-philosophers"><strong>Dining Philosophers</strong></a></li>
+  </ul></li>
+  <li><a href="#deadlock" id="toc-deadlock" class="nav-link" data-scroll-target="#deadlock"><strong>Deadlock</strong></a>
+  <ul>
+  <li><a href="#necessary-conditions-and-resource-allocation-graphs" id="toc-necessary-conditions-and-resource-allocation-graphs" class="nav-link" data-scroll-target="#necessary-conditions-and-resource-allocation-graphs"><strong>Necessary Conditions and Resource-Allocation Graphs</strong></a></li>
+  <li><a href="#prevention-avoidance-detection-and-recovery" id="toc-prevention-avoidance-detection-and-recovery" class="nav-link" data-scroll-target="#prevention-avoidance-detection-and-recovery"><strong>Prevention, Avoidance, Detection, and Recovery</strong></a></li>
+  </ul></li>
+  <li><a href="#starvation-livelock-and-priority-inversion" id="toc-starvation-livelock-and-priority-inversion" class="nav-link" data-scroll-target="#starvation-livelock-and-priority-inversion"><strong>Starvation, Livelock, and Priority Inversion</strong></a></li>
+  <li><a href="#lock-free-techniques-and-read-copy-update" id="toc-lock-free-techniques-and-read-copy-update" class="nav-link" data-scroll-target="#lock-free-techniques-and-read-copy-update"><strong>Lock-Free Techniques and Read-Copy-Update</strong></a></li>
+  <li><a href="#diagnosing-and-testing-concurrent-code" id="toc-diagnosing-and-testing-concurrent-code" class="nav-link" data-scroll-target="#diagnosing-and-testing-concurrent-code"><strong>Diagnosing and Testing Concurrent Code</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Synchronization, Concurrent Correctness, and Liveness</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/05-synchronization-correctness-and-liveness.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="synchronization-concurrent-correctness-and-liveness" class="level2">
+<h2 class="anchored" data-anchor-id="synchronization-concurrent-correctness-and-liveness"><strong>Synchronization, Concurrent Correctness, and Liveness</strong></h2>
+<p>The scheduler from the previous chapter may stop a thread at almost any legal preemption point, and several processors may execute shared-memory instructions at the same time. <strong>Synchronization</strong> is the set of protocols and mechanisms that makes selected relationships among those executions explicit. It protects state invariants, communicates when a condition may have changed, and constrains memory visibility and ordering.</p>
+<p>Synchronization is not synonymous with adding a mutex around every access. A correct design first identifies the shared object, the invariant that makes its states meaningful, the operations that must appear indivisible, and the progress expected from competing threads. It then chooses an appropriate mechanism: exclusive ownership, atomic operations, condition synchronization, phase coordination, versioned reads, or isolation that avoids shared memory entirely.</p>
+<p>The recurring shell pipeline already contains synchronization:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>cat</code> and <code>grep</code> normally live in separate address spaces, so they cannot accidentally race on ordinary heap variables. The kernel pipe is their shared bounded channel. A write may block while the pipe is full; a read may block while it is empty; closing the final write end makes end-of-file observable. If the same pipeline were implemented as threads around an in-process ring buffer, the application would need to preserve those state and wakeup rules itself.</p>
+<section id="why-concurrent-programs-are-difficult" class="level3">
+<h3 class="anchored" data-anchor-id="why-concurrent-programs-are-difficult"><strong>Why Concurrent Programs Are Difficult</strong></h3>
+<p>A sequential function can often be understood as a path from input state to output state. A concurrent component must be correct for every execution permitted by the language, synchronization protocol, operating system, compiler, and hardware memory model. Bugs hide in rare orderings, disappear when logging changes timing, and may occur only on a different processor architecture or CPU count.</p>
+<p>The source code is not the execution schedule. A single expression may compile into several loads, arithmetic instructions, and stores. The compiler may reorder operations when the language allows it. Hardware may execute and propagate independent memory operations out of source order. Cache coherence keeps processors from permanently disagreeing about one cache line, but it does not make a multi-step protocol atomic or impose every cross-location ordering the programmer imagined.</p>
+<section id="interleavings-and-nondeterminism" class="level4">
+<h4 class="anchored" data-anchor-id="interleavings-and-nondeterminism"><strong>Interleavings and Nondeterminism</strong></h4>
+<p>An <strong>interleaving</strong> is one ordering of operations from several threads that preserves each thread’s own required order. If thread A has <span class="math inline">\(m\)</span> indivisible steps and thread B has <span class="math inline">\(n\)</span>, even without loops there can be</p>
+<p><span class="math display">\[
+\binom{m+n}{m}=\frac{(m+n)!}{m!n!}
+\]</span></p>
+<p>relative interleavings. Two three-step operations already permit 20 schedules. More threads, branches, interrupts, weak ordering, and retries make exhaustive testing rapidly infeasible.</p>
+<p>Consider two threads executing <code>counter++</code> from <code>counter = 0</code>. At the source level the operation looks singular, but a simplified implementation is:</p>
+<pre class="text"><code>register = load(counter)
+register = register + 1
+store(counter, register)</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lost-update-interleaving-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/lost-update-interleaving-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="Animated instruction timeline showing two counter increments interleaving and producing one instead of two."></a></p>
+<figcaption>Two threads load the same counter value and both store one, losing one update.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter, following the uncontrolled-scheduling example in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-intro.pdf">Operating Systems: Three Easy Pieces, Concurrency</a>.</em></p>
+<p>Every instruction in the diagram succeeds. The failure is in the composition: both threads make a decision from the same stale snapshot. Other schedules happen to produce <code>2</code>, which is why repeated success does not establish correctness.</p>
+<p>Concurrency is <strong>nondeterministic</strong> because the program admits more than one legal execution; it need not involve a random-number generator. Timing depends on preemption, interrupts, cache misses, page faults, I/O completion, and other load. Adding <code>printf</code>, a debugger, or a sleep changes those events and can hide the failing schedule. Correctness must come from an ordering protocol, not a timing expectation such as “thread A will probably finish first.”</p>
+</section>
+<section id="safety-and-liveness-properties" class="level4">
+<h4 class="anchored" data-anchor-id="safety-and-liveness-properties"><strong>Safety and Liveness Properties</strong></h4>
+<p>Concurrent correctness has two complementary dimensions:</p>
+<ul>
+<li>A <strong>safety property</strong> says that something bad never happens. Examples include “at most one thread owns this mutex,” “the queue count remains between zero and capacity,” and “a reader never dereferences freed storage.”</li>
+<li>A <strong>liveness property</strong> says that something good eventually happens under stated assumptions. Examples include “a released mutex is eventually acquired by a waiter” and “every enqueued request eventually completes.”</li>
+</ul>
+<p>Safety is usually expressed through an <strong>invariant</strong>, a predicate that holds initially and remains true across every atomic state transition. For a bounded queue, a representation invariant might be:</p>
+<p><span class="math display">\[
+0 \le \text{count} \le \text{capacity},
+\]</span></p>
+<p>with <code>head</code>, <code>tail</code>, and occupied slots agreeing with <code>count</code>. A lock is useful only because all operations that can temporarily violate this invariant follow the same locking rule.</p>
+<p>Liveness needs environmental assumptions. A thread cannot guarantee progress if the scheduler never runs it, hardware fails, or a lock owner never returns. Common strengths include:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Informal guarantee</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>deadlock freedom</td>
+<td>the system as a whole does not stop because of a wait cycle</td>
+</tr>
+<tr class="even">
+<td>starvation freedom</td>
+<td>every continuously eligible participant eventually succeeds</td>
+</tr>
+<tr class="odd">
+<td>bounded waiting</td>
+<td>a participant is overtaken at most a bounded number of times</td>
+</tr>
+<tr class="even">
+<td>lock freedom</td>
+<td>some operation completes despite stalled participants</td>
+</tr>
+<tr class="odd">
+<td>wait freedom</td>
+<td>every operation completes within a bounded number of its own steps</td>
+</tr>
+</tbody>
+</table>
+<p>These are not interchangeable. A spinlock can preserve mutual exclusion while starving one waiter. A system can be deadlock-free while one unlucky request never completes. A timeout can return control without restoring the higher-level operation’s liveness.</p>
+<p>For concurrent objects, <strong>linearizability</strong> is a useful safety criterion. Each completed operation should appear to take effect at one instant between invocation and response, while respecting real-time order between non-overlapping calls. That conceptual instant is the <strong>linearization point</strong>. For an atomic increment it may be the hardware read-modify-write; for a mutex-protected queue insertion it is a state update inside the critical section. Linearizability does not by itself guarantee fairness or termination.</p>
+</section>
+</section>
+<section id="race-conditions-and-critical-sections" class="level3">
+<h3 class="anchored" data-anchor-id="race-conditions-and-critical-sections"><strong>Race Conditions and Critical Sections</strong></h3>
+<p>A <strong>race condition</strong> exists when program correctness depends on the relative timing of concurrent events. A <strong>data race</strong> has a narrower language-level meaning: conflicting accesses to the same memory location occur concurrently, at least one is a write, and the accesses lack the required synchronization. In C, a data race on a non-atomic object produces undefined behavior. A high-level race condition can still exist without a data race, for example when two atomic “check then act” steps are individually safe but not combined into one transaction.</p>
+<p>A <strong>critical section</strong> is code that accesses shared state under a protocol that prevents forbidden interleavings. Mutual exclusion typically aims for:</p>
+<ol type="1">
+<li>at most one owner is in the critical section;</li>
+<li>a thread outside the critical section cannot prevent all others forever;</li>
+<li>waiting behavior satisfies the intended fairness or bound;</li>
+<li>entry and exit also provide the required memory visibility.</li>
+</ol>
+<p>The following program is intentionally incorrect:</p>
+<details>
+<summary>
+<strong>C: an intentional pthread data race</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span> ITERATIONS <span class="op">=</span> <span class="dv">1000000</span> <span class="op">};</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> counter <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> <span class="op">*</span>increment<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>unused<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">(</span><span class="dt">void</span><span class="op">)</span>unused<span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">long</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> ITERATIONS<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        counter<span class="op">++;</span>  <span class="co">// Data race: read-modify-write is not synchronized.</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NULL<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    pthread_t first<span class="op">;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    pthread_t second<span class="op">;</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pthread_create<span class="op">(&amp;</span>first<span class="op">,</span> NULL<span class="op">,</span> increment<span class="op">,</span> NULL<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"first pthread_create failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pthread_create<span class="op">(&amp;</span>second<span class="op">,</span> NULL<span class="op">,</span> increment<span class="op">,</span> NULL<span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"second pthread_create failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> first_join <span class="op">=</span> pthread_join<span class="op">(</span>first<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> second_join <span class="op">=</span> pthread_join<span class="op">(</span>second<span class="op">,</span> NULL<span class="op">);</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>first_join <span class="op">!=</span> <span class="dv">0</span> <span class="op">||</span> second_join <span class="op">!=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"pthread_join failed</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"counter = </span><span class="sc">%ld</span><span class="st">; expected = </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> counter<span class="op">,</span> <span class="dv">2</span> <span class="op">*</span> ITERATIONS<span class="op">);</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Because the C program has undefined behavior, no particular wrong result is promised. Observing <code>2000000</code> does not make it correct, and observing a smaller number is only one possible symptom.</p>
+</details>
+<p>The first repair question is not “which line needs a lock?” but “what operation and invariant must be atomic?” If the counter represents an independent statistic, an atomic fetch-add may be sufficient. If changing it must agree with a queue, balance, or ownership table, one mutex may need to protect the entire multi-field transition.</p>
+<section id="atomicity-visibility-and-ordering" class="level4">
+<h4 class="anchored" data-anchor-id="atomicity-visibility-and-ordering"><strong>Atomicity, Visibility, and Ordering</strong></h4>
+<p>Three requirements are often confused:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Requirement</th>
+<th>Question</th>
+<th>Typical mechanism</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>atomicity</td>
+<td>can another observer see an intermediate update?</td>
+<td>mutex, atomic read-modify-write, transaction</td>
+</tr>
+<tr class="even">
+<td>visibility</td>
+<td>when does another thread observe the update?</td>
+<td>lock handoff, release/acquire, condition protocol</td>
+</tr>
+<tr class="odd">
+<td>ordering</td>
+<td>which operations must be observed before which others?</td>
+<td>language memory order, barriers, synchronization operations</td>
+</tr>
+</tbody>
+</table>
+<p>An aligned machine-word store may be indivisible yet still be insufficient. Publishing a pointer atomically before the pointed-to object is initialized creates an ordering bug. Protecting only the pointer with a mutex while readers access object fields without the same protocol creates a visibility and lifetime bug. Correctness is a property of the entire communication path.</p>
+<p>A mutex-based counter makes the compound operation atomic and creates a synchronization edge between unlock and a later successful lock:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> pthread_mutex_t counter_lock <span class="op">=</span> PTHREAD_MUTEX_INITIALIZER<span class="op">;</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">long</span> counter<span class="op">;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> increment_counter<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>counter_lock<span class="op">);</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    counter<span class="op">++;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>counter_lock<span class="op">);</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The lock should be documented as protecting <code>counter</code> and every invariant coupled to it. Accessing the same state elsewhere without the lock invalidates the proof. A naming convention such as <code>counter_lock</code> helps, but executable assertions and encapsulation are stronger than comments alone.</p>
+<p><code>volatile</code> is not a replacement. In C it constrains certain compiler treatment of individual accesses, especially for memory-mapped I/O and signal-related cases. It does not make <code>counter++</code> atomic, establish inter-thread happens-before, or provide mutual exclusion.</p>
+</section>
+<section id="the-memory-model" class="level4">
+<h4 class="anchored" data-anchor-id="the-memory-model"><strong>The Memory Model</strong></h4>
+<p>A programming-language <strong>memory model</strong> defines which values concurrent reads may observe and which reorderings an implementation may expose. Portable reasoning must use that model rather than assumptions learned from one processor. The C model provides atomic types, memory orders, and a <strong>happens-before</strong> relation.</p>
+<p>Within one thread, required evaluation order contributes <strong>sequenced-before</strong> edges. A release operation on an atomic object can <strong>synchronize-with</strong> an acquire operation that reads from the corresponding release sequence. Happens-before is the transitive closure of these and related edges. If one ordinary access happens-before another conflicting access, their order is defined; conflicting ordinary accesses without such ordering form a data race.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/happens-before-release-acquire.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/happens-before-release-acquire.svg" class="img-fluid figure-img" style="width:96.0%" alt="Two-thread diagram showing sequenced-before, synchronizes-with, and transitive happens-before edges."></a></p>
+<figcaption>A release store publishes preceding payload writes to a consumer whose acquire load observes the flag.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the ISO C memory-model rationale <a href="https://www.open-std.org/jtc1/sc22/wg14/www/docs/n1479.htm">WG14 N1479</a> and the POSIX memory-synchronization rules in <a href="https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html">The Open Group Base Specifications</a>.</em></p>
+<details>
+<summary>
+<strong>C11: safely publishing initialized data with release and acquire</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> payload <span class="op">{</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> value<span class="op">;</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> message<span class="op">[</span><span class="dv">32</span><span class="op">];</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="kw">struct</span> payload shared_payload<span class="op">;</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> atomic_bool ready <span class="op">=</span> ATOMIC_VAR_INIT<span class="op">(</span><span class="kw">false</span><span class="op">);</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> producer<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">// These ordinary writes are private until publication.</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    shared_payload<span class="op">.</span>value <span class="op">=</span> <span class="dv">42</span><span class="op">;</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    snprintf<span class="op">(</span>shared_payload<span class="op">.</span>message<span class="op">,</span> <span class="kw">sizeof</span> shared_payload<span class="op">.</span>message<span class="op">,</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>             <span class="st">"initialized"</span><span class="op">);</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Publish all preceding writes to a matching acquire reader.</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    atomic_store_explicit<span class="op">(&amp;</span>ready<span class="op">,</span> <span class="kw">true</span><span class="op">,</span> memory_order_release<span class="op">);</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> try_consume<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>atomic_load_explicit<span class="op">(&amp;</span>ready<span class="op">,</span> memory_order_acquire<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Safe because the acquire observed the release publication.</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"</span><span class="sc">%d</span><span class="st"> </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> shared_payload<span class="op">.</span>value<span class="op">,</span> shared_payload<span class="op">.</span>message<span class="op">);</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This protocol assumes one initialization publication and that no writer modifies the payload concurrently afterward. A reusable channel needs a state machine, ownership transfer, or another synchronization protocol.</p>
+</details>
+<p>The common C memory orders serve different contracts:</p>
+<ul>
+<li><code>memory_order_relaxed</code> provides atomic modification order for that atomic object but no publication order for unrelated data;</li>
+<li><code>memory_order_acquire</code> prevents later operations from moving before a successful acquiring observation;</li>
+<li><code>memory_order_release</code> prevents earlier operations from moving after publication;</li>
+<li><code>memory_order_acq_rel</code> combines both sides for a read-modify-write;</li>
+<li><code>memory_order_seq_cst</code> adds a single total order among sequentially consistent atomic operations, making many protocols easier to reason about at a possible performance cost.</li>
+</ul>
+<p>Use the weakest order only after writing the proof. For most application code, mutexes and standard concurrent containers encode a safer contract. Memory-order cleverness that nobody can review is a correctness liability.</p>
+</section>
+</section>
+<section id="hardware-support-for-synchronization" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-support-for-synchronization"><strong>Hardware Support for Synchronization</strong></h3>
+<p>Software synchronization ultimately needs a mechanism that cannot be interrupted by another processor observing a half-completed state transition. Architectures provide atomic read-modify-write instructions, cache-coherence protocols, and ordering instructions. Operating systems combine these with queues and scheduler support to avoid wasting CPUs during long waits.</p>
+<section id="disabling-interrupts-and-its-limits" class="level4">
+<h4 class="anchored" data-anchor-id="disabling-interrupts-and-its-limits"><strong>Disabling Interrupts and Its Limits</strong></h4>
+<p>On a uniprocessor kernel, disabling local interrupts can prevent interrupt handlers from interleaving with a short critical region on that CPU. It is not a general user-space lock and it does not stop another CPU. On a multiprocessor, CPU 1 continues accessing shared memory while CPU 0 has interrupts disabled.</p>
+<p>Interrupt masking has strict limits:</p>
+<ul>
+<li>only privileged kernel code may control it directly;</li>
+<li>it protects against specific local execution contexts, not arbitrary remote CPUs;</li>
+<li>a long disabled interval increases interrupt and scheduling latency;</li>
+<li>nesting must restore the prior interrupt state, not blindly enable interrupts;</li>
+<li>non-maskable interrupts and machine-specific contexts may still exist;</li>
+<li>code must not sleep while relying on local interrupt disablement.</li>
+</ul>
+<p>Linux distinguishes CPU-local protection, sleeping locks, and spinning locks. The exact semantics can change under <code>PREEMPT_RT</code>, which is why kernel code uses documented primitives such as <code>local_lock</code>, <code>spin_lock_irqsave</code>, and mutexes instead of inventing ad hoc interrupt protocols. The official <a href="https://docs.kernel.org/locking/locktypes.html">Linux lock-type rules</a> define which categories may nest and which contexts may sleep.</p>
+</section>
+<section id="test-and-set-compare-and-swap-and-fetch-and-add" class="level4">
+<h4 class="anchored" data-anchor-id="test-and-set-compare-and-swap-and-fetch-and-add"><strong>Test-and-Set, Compare-and-Swap, and Fetch-and-Add</strong></h4>
+<p>An atomic read-modify-write (RMW) reads a location, computes a result, and conditionally or unconditionally writes it as one indivisible modification relative to competing atomic operations.</p>
+<ul>
+<li><strong>Test-and-set</strong> or exchange writes a locked value and returns the old value. It can build a minimal spinlock.</li>
+<li><strong>Compare-and-swap</strong> (CAS) writes <code>desired</code> only if the location still equals <code>expected</code>. Failure tells an optimistic algorithm that another thread intervened.</li>
+<li><strong>Fetch-and-add</strong> adds a value and returns the prior value. It naturally allocates unique sequence numbers and tickets.</li>
+<li><strong>Load-linked/store-conditional</strong> is an alternative architecture interface: the store succeeds only if the reservation has not been invalidated.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/atomic-rmw-and-ticket-lock.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/atomic-rmw-and-ticket-lock.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three atomic read-modify-write operations and the acquire, wait, critical-section, and release stages of a ticket lock."></a></p>
+<figcaption>Atomic exchange, compare-and-swap, and fetch-and-add semantics, followed by a FIFO ticket-lock protocol.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the atomic-operation semantics in the <a href="https://docs.kernel.org/core-api/wrappers/atomic_t.html">Linux atomic types documentation</a> and the lock construction discussion in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-locks.pdf">OSTEP Locks</a>.</em></p>
+<p>A minimal C11 spinlock illustrates the role of acquire and release:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="kw">typedef</span> <span class="kw">struct</span> <span class="op">{</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    atomic_flag held<span class="op">;</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="op">}</span> spinlock_t<span class="op">;</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#define SPINLOCK_INIT </span><span class="op">{</span><span class="pp"> ATOMIC_FLAG_INIT </span><span class="op">}</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> spin_lock<span class="op">(</span>spinlock_t <span class="op">*</span>lock<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>atomic_flag_test_and_set_explicit<span class="op">(&amp;</span>lock<span class="op">-&gt;</span>held<span class="op">,</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>                                              memory_order_acquire<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">// In production, use an architecture pause hint and a bounded policy.</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> spin_unlock<span class="op">(</span>spinlock_t <span class="op">*</span>lock<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    atomic_flag_clear_explicit<span class="op">(&amp;</span>lock<span class="op">-&gt;</span>held<span class="op">,</span> memory_order_release<span class="op">);</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This is educational, not a complete production lock. It has no queue, timeout, owner validation, adaptive waiting, priority handling, or fairness guarantee. Under contention every waiter competes for one cache line. Real libraries and kernels use tuned implementations.</p>
+<p>CAS also has an <strong>ABA problem</strong>: a location can change from value A to B and back to A, causing CAS to succeed even though the surrounding object changed. Tagged versions can detect some ABA cases, but safe memory reclamation remains essential when values are pointers.</p>
+</section>
+<section id="memory-barriers" class="level4">
+<h4 class="anchored" data-anchor-id="memory-barriers"><strong>Memory Barriers</strong></h4>
+<p>Compilers and processors reorder independent operations to improve performance. A <strong>compiler barrier</strong> limits compiler motion but need not emit a CPU fence. A <strong>CPU memory barrier</strong> constrains how memory operations become observable to other agents. A full barrier orders more operation classes than an acquire or release barrier, but stronger is not automatically better: barriers cost performance and still require a correct pairing protocol.</p>
+<p>The preferred reasoning unit is a synchronization operation:</p>
+<pre class="text"><code>writer: ordinary initialization -&gt; RELEASE publication
+reader: ACQUIRE observation -&gt; ordinary use</code></pre>
+<p>Both sides matter. A barrier on the writer alone does not force an unsynchronized reader to observe the intended order. Locks normally provide acquire semantics on successful lock and release semantics on unlock. Condition-variable waits synchronize through their mutex release and reacquisition. Use those documented guarantees instead of adding unexplained fences around racy data.</p>
+<p>Kernel code sometimes needs explicit architecture-aware barriers for lock-free structures, device memory, interrupts, or DMA. The <a href="https://docs.kernel.org/core-api/wrappers/memory-barriers.html">Linux kernel memory-barrier guide</a> distinguishes compiler, SMP, device, acquire, and release effects and warns that a barrier is a partial-ordering tool rather than a remote flush command.</p>
+</section>
+</section>
+<section id="mutual-exclusion-locks" class="level3">
+<h3 class="anchored" data-anchor-id="mutual-exclusion-locks"><strong>Mutual-Exclusion Locks</strong></h3>
+<p>A mutual-exclusion lock gives one owner permission to execute a protected transition. The lock does not protect memory by proximity. Every access that relies on the invariant must follow the same protocol, and the protected object must not escape to code that ignores it.</p>
+<p>Good lock documentation answers:</p>
+<ul>
+<li>which fields and invariants the lock protects;</li>
+<li>whether the lock may sleep and in which contexts it may be acquired;</li>
+<li>whether callbacks, allocation, I/O, or other locks are allowed while held;</li>
+<li>the global order relative to other locks;</li>
+<li>who owns and must release it;</li>
+<li>what happens if the owner exits or an operation times out.</li>
+</ul>
+<p>POSIX mutexes have owner semantics: the successful locking thread is responsible for unlocking. Mutex types add behavior for recursion, error checking, robustness after owner death, priority inheritance, or priority ceilings. Those attributes are part of the design, not interchangeable performance flags.</p>
+<section id="spinlocks-and-mutexes" class="level4">
+<h4 class="anchored" data-anchor-id="spinlocks-and-mutexes"><strong>Spinlocks and Mutexes</strong></h4>
+<p>A <strong>spinlock</strong> keeps a waiter executing while it repeatedly checks lock state. A <strong>mutex</strong> can block a contending thread and let the scheduler run other work. The choice compares expected wait with the cost and legality of sleeping.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 27%">
+<col style="width: 36%">
+<col style="width: 36%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th style="text-align: right;">Spin is plausible</th>
+<th style="text-align: right;">Sleep is preferable</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>critical section is extremely short</td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">maybe</td>
+</tr>
+<tr class="even">
+<td>lock owner is currently running on another CPU</td>
+<td style="text-align: right;">yes</td>
+<td style="text-align: right;">maybe</td>
+</tr>
+<tr class="odd">
+<td>wait may include I/O or an unbounded operation</td>
+<td style="text-align: right;">no</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="even">
+<td>caller is an interrupt or non-sleeping kernel context</td>
+<td style="text-align: right;">often required</td>
+<td style="text-align: right;">illegal</td>
+</tr>
+<tr class="odd">
+<td>CPU is oversubscribed or single-core</td>
+<td style="text-align: right;">usually wasteful</td>
+<td style="text-align: right;">yes</td>
+</tr>
+<tr class="even">
+<td>priority-sensitive workload</td>
+<td style="text-align: right;">needs specialized design</td>
+<td style="text-align: right;">PI mutex may help</td>
+</tr>
+</tbody>
+</table>
+<p>Linux user-space mutex implementations commonly use atomics for the uncontended path and futex operations when a thread must sleep. A futex wait is an atomic <strong>compare-and-block</strong> operation: the kernel sleeps the caller only if the futex word still has the expected value, closing the race between checking lock state and entering the wait queue.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/spin-mutex-futex-path.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/spin-mutex-futex-path.svg" class="img-fluid figure-img" style="width:98.0%" alt="Flowchart dividing user-space atomic mutex operations from kernel futex wait and wake paths."></a></p>
+<figcaption>An adaptive mutex first tries an atomic user-space fast path, then may spin briefly or enter futex wait; unlock wakes a waiter only when needed.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux <a href="https://man7.org/linux/man-pages/man2/futex.2.html"><code>futex(2)</code></a> and <a href="https://man7.org/linux/man-pages/man7/futex.7.html"><code>futex(7)</code></a> interfaces. Exact lock-word states are library-specific.</em></p>
+<p>Waking a futex waiter does not immediately transfer the CPU or mutex. It makes a thread eligible; the scheduler decides when it runs, and it normally retries acquisition. This distinction prevents assumptions that <code>signal</code>, <code>post</code>, or <code>unlock</code> hands execution directly to one known waiter.</p>
+<p>Kernel terminology requires care under <code>PREEMPT_RT</code>. On a conventional kernel, <code>spinlock_t</code> is a spinning, preemption-disabling lock. Under <code>PREEMPT_RT</code>, many <code>spinlock_t</code> instances map to priority-inheritance-aware sleeping locks, while <code>raw_spinlock_t</code> remains a true spinlock for low-level contexts. Code must follow the primitive’s documented context rules instead of reasoning from its name alone.</p>
+</section>
+<section id="lock-granularity-and-contention" class="level4">
+<h4 class="anchored" data-anchor-id="lock-granularity-and-contention"><strong>Lock Granularity and Contention</strong></h4>
+<p>A coarse lock protects a large object or subsystem with a simple invariant. It is easier to review and usually has fewer lock-order edges, but unrelated operations serialize. Fine-grained locks increase potential parallelism while increasing metadata, cache traffic, ordering complexity, and the chance of accessing fields under the wrong lock.</p>
+<p><strong>Contention</strong> is not merely the number of threads. It depends on arrival rate, hold time, write frequency, cache-line placement, and scheduling. A useful first approximation is that reducing time inside a highly contended critical section often matters more than making lock acquisition a few instructions faster.</p>
+<p>Practical transformations include:</p>
+<ul>
+<li>move slow computation outside the critical section while preserving a valid snapshot;</li>
+<li>shard a table and lock each bucket or partition independently;</li>
+<li>use per-CPU counters and aggregate when exact instantaneous totals are unnecessary;</li>
+<li>separate read-mostly metadata from frequently written state;</li>
+<li>batch updates to reduce handoffs;</li>
+<li>avoid calling unknown callbacks while holding an internal lock;</li>
+<li>avoid blocking I/O, page faults, and allocation with unsafe flags while holding a spinlock.</li>
+</ul>
+<p>Fine-grained locking requires a written order. If an operation needs two account locks, sort by a stable account ID and always acquire in that order. Comparing unrelated C pointers with <code>&lt;</code> is not a portable ordering rule; use an explicit key.</p>
+<p>False sharing can make independent locks contend in hardware when they occupy one cache line. Conversely, padding every object wastes cache capacity. Measure lock wait time, hold time, handoffs, and cache misses before redesigning. A profiler showing high CPU usage in a spin loop demands a different repair from a trace showing threads asleep behind a long mutex owner.</p>
+</section>
+</section>
+<section id="semaphores-condition-variables-and-monitors" class="level3">
+<h3 class="anchored" data-anchor-id="semaphores-condition-variables-and-monitors"><strong>Semaphores, Condition Variables, and Monitors</strong></h3>
+<p>A <strong>counting semaphore</strong> stores a nonnegative number of available permits. <code>wait</code> decrements when a permit exists or blocks otherwise; <code>post</code> increments and may wake a waiter. A binary semaphore can have values zero or one, but it is not automatically a mutex: semaphores generally lack ownership, so a different thread may post, and priority-inheritance behavior may differ.</p>
+<p>Semaphores are useful for resource counts, admission limits, and event handoff. They can encode producer-consumer capacity with <code>empty</code> and <code>full</code> counts, but a separate mutex is still needed for multi-field buffer state. Errors such as one extra <code>post</code> silently alter the permit invariant.</p>
+<p>A <strong>condition variable</strong> has different semantics. It lets a thread wait until shared state protected by a mutex may satisfy a predicate. It does not remember arbitrary application state, and <code>signal</code> is not the predicate. The canonical rule is:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>pthread_mutex_lock<span class="op">(&amp;</span>mutex<span class="op">);</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="op">(!</span>predicate<span class="op">())</span> <span class="op">{</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    pthread_cond_wait<span class="op">(&amp;</span>condition<span class="op">,</span> <span class="op">&amp;</span>mutex<span class="op">);</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>use_state_that_satisfies_predicate<span class="op">();</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>pthread_mutex_unlock<span class="op">(&amp;</span>mutex<span class="op">);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><code>pthread_cond_wait</code> atomically releases the mutex and begins waiting, then reacquires the mutex before returning. The atomic transition avoids a <strong>lost wakeup</strong> between checking the predicate and sleeping. The loop is still required because wakeups may be spurious, several waiters may race for one state change, or another thread may consume the condition before this waiter reacquires the mutex.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/condition-variable-protocol-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/condition-variable-protocol-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="Animated two-thread flowchart showing predicate check, atomic mutex release and wait, state change, signal, reacquisition, and recheck."></a></p>
+<figcaption>Consumer wait and producer signal protocol around one mutex-protected predicate.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the POSIX condition-variable memory synchronization rules in <a href="https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap04.html">The Open Group Base Specifications</a> and <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/threads-cv.pdf">OSTEP Condition Variables</a>.</em></p>
+<p>Modify the predicate while holding the associated mutex. Signaling while the lock is held often makes the protocol easier to review; unlocking afterward lets a woken waiter eventually acquire and inspect the new state. <code>signal</code> wakes at least an appropriate waiter according to the interface, whereas <code>broadcast</code> makes all waiters eligible and is needed when a transition can satisfy different predicates or when closing a shared object. Broadcasting on every update can create a thundering herd.</p>
+<p>A <strong>monitor</strong> packages shared state, operations, mutual exclusion, and condition variables behind one abstraction. The key benefit is ownership of the invariant: callers cannot update fields without passing through monitor methods. Most POSIX condition-variable reasoning follows Mesa-style semantics, where a signal makes a waiter runnable but does not transfer the lock immediately; therefore the waiter must recheck.</p>
+</section>
+<section id="barriers-and-read-write-coordination" class="level3">
+<h3 class="anchored" data-anchor-id="barriers-and-read-write-coordination"><strong>Barriers and Read-Write Coordination</strong></h3>
+<p>A <strong>barrier</strong> divides execution into phases. Each participating thread reports arrival and waits until the configured number has arrived; then the generation opens and all can enter the next phase. A reusable barrier needs both an arrival count and a generation number so a fast thread returning for phase 2 cannot be mistaken for a late arrival in phase 1.</p>
+<p>A thread that exits, throws, or blocks forever before arrival can strand every peer. The participant count and cancellation protocol must therefore match the task lifecycle. Barriers suit bulk-synchronous algorithms; they are a poor fit when tasks progress independently or have highly skewed work.</p>
+<p>A <strong>read-write lock</strong> admits multiple readers or one exclusive writer. It helps when read critical sections are substantial, reads dominate, and the protected data truly supports concurrent reads. It can be slower than a mutex for short sections because reader acquisition updates shared accounting and can generate cache traffic.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/barrier-and-rwlock.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/barrier-and-rwlock.svg" class="img-fluid figure-img" style="width:98.0%" alt="Two-panel diagram of a reusable phase barrier and readers-writer lock admission policies."></a></p>
+<figcaption>A generation barrier holds early arrivals before phase two, while a readers-writer lock alternates shared and exclusive admission modes.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter from POSIX barrier and read-write-lock semantics.</em></p>
+<p>Reader-writer fairness is a policy choice. Reader preference maximizes read admission but can starve a writer under continuous arrivals. Writer preference bounds writer delay but can create reader latency spikes. Phase-fair approaches alternate cohorts with additional bookkeeping. The API name alone does not reveal the policy, so portability-sensitive code should not assume one.</p>
+<p>Sequence counters provide another read-mostly pattern: a writer increments a sequence around an update, while a reader retries if it observed an odd or changed sequence. Readers do not block writers, but the read operation must be repeatable and protected objects cannot be freed during a retry. A sequence counter is not a general replacement for a read-write lock.</p>
+</section>
+<section id="classical-synchronization-problems" class="level3">
+<h3 class="anchored" data-anchor-id="classical-synchronization-problems"><strong>Classical Synchronization Problems</strong></h3>
+<p>Classical problems are compact protocol tests. Their value is not memorizing one semaphore arrangement; it is learning to identify predicates, ownership, wait edges, fairness, and shutdown behavior that reappear in queues, caches, filesystems, databases, and device drivers.</p>
+<section id="producer-consumer" class="level4">
+<h4 class="anchored" data-anchor-id="producer-consumer"><strong>Producer-Consumer</strong></h4>
+<p>In a bounded producer-consumer system, producers require <code>count &lt; capacity</code>, consumers require <code>count &gt; 0</code>, and both update the same buffer representation. Mutual exclusion protects <code>head</code>, <code>tail</code>, <code>count</code>, and slots. Two condition variables distinguish why a thread waits: <code>not_full</code> for producers and <code>not_empty</code> for consumers.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bounded-buffer-producer-consumer.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/bounded-buffer-producer-consumer.svg" class="img-fluid figure-img" style="width:98.0%" alt="Producer and consumer protocol around a bounded ring buffer with not-full and not-empty predicates."></a></p>
+<figcaption>Bounded ring buffer with producer and consumer predicates, mutex-protected representation, and condition-variable wakeups.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram created for this chapter. The pipe analogy follows the blocking and close semantics of POSIX pipes.</em></p>
+<details>
+<summary>
+<strong>C: a bounded pthread queue with close semantics</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;pthread.h&gt;</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdbool.h&gt;</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stddef.h&gt;</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">enum</span> <span class="op">{</span> QUEUE_CAPACITY <span class="op">=</span> <span class="dv">8</span> <span class="op">};</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> queue <span class="op">{</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> items<span class="op">[</span>QUEUE_CAPACITY<span class="op">];</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> head<span class="op">;</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> tail<span class="op">;</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> count<span class="op">;</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">bool</span> closed<span class="op">;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_t mutex<span class="op">;</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    pthread_cond_t not_empty<span class="op">;</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    pthread_cond_t not_full<span class="op">;</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="pp">#define QUEUE_INITIALIZER </span><span class="op">{</span><span class="pp">                         </span><span class="op">\</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">head </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">tail </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">count </span><span class="op">=</span><span class="pp"> </span><span class="dv">0</span><span class="op">,</span><span class="pp"> </span><span class="op">.</span><span class="pp">closed </span><span class="op">=</span><span class="pp"> </span><span class="kw">false</span><span class="op">,</span><span class="pp"> </span><span class="op">\</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">mutex </span><span class="op">=</span><span class="pp"> PTHREAD_MUTEX_INITIALIZER</span><span class="op">,</span><span class="pp">             </span><span class="op">\</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">not_empty </span><span class="op">=</span><span class="pp"> PTHREAD_COND_INITIALIZER</span><span class="op">,</span><span class="pp">           </span><span class="op">\</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="pp">    </span><span class="op">.</span><span class="pp">not_full </span><span class="op">=</span><span class="pp"> PTHREAD_COND_INITIALIZER             </span><span class="op">\</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co">// Returns 0, or EPIPE if the queue has been closed.</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> queue_put<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">,</span> <span class="dt">int</span> value<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> QUEUE_CAPACITY <span class="op">&amp;&amp;</span> <span class="op">!</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>        pthread_cond_wait<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">,</span> <span class="op">&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EPIPE<span class="op">;</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>items<span class="op">[</span>queue<span class="op">-&gt;</span>tail<span class="op">]</span> <span class="op">=</span> value<span class="op">;</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>tail <span class="op">=</span> <span class="op">(</span>queue<span class="op">-&gt;</span>tail <span class="op">+</span> <span class="dv">1</span><span class="op">)</span> <span class="op">%</span> QUEUE_CAPACITY<span class="op">;</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>count<span class="op">++;</span></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    pthread_cond_signal<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">);</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="co">// Returns false only when the closed queue has become empty.</span></span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="dt">bool</span> queue_get<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">,</span> <span class="dt">int</span> <span class="op">*</span>value<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> <span class="dv">0</span> <span class="op">&amp;&amp;</span> <span class="op">!</span>queue<span class="op">-&gt;</span>closed<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>        pthread_cond_wait<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">,</span> <span class="op">&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>        pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="kw">false</span><span class="op">;</span></span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>value <span class="op">=</span> queue<span class="op">-&gt;</span>items<span class="op">[</span>queue<span class="op">-&gt;</span>head<span class="op">];</span></span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>head <span class="op">=</span> <span class="op">(</span>queue<span class="op">-&gt;</span>head <span class="op">+</span> <span class="dv">1</span><span class="op">)</span> <span class="op">%</span> QUEUE_CAPACITY<span class="op">;</span></span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>count<span class="op">--;</span></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>    pthread_cond_signal<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">);</span></span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> queue_close<span class="op">(</span><span class="kw">struct</span> queue <span class="op">*</span>queue<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a>    queue<span class="op">-&gt;</span>closed <span class="op">=</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Every waiter must re-evaluate either data availability or closure.</span></span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>    pthread_cond_broadcast<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_empty<span class="op">);</span></span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>    pthread_cond_broadcast<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>not_full<span class="op">);</span></span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>    pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Production code should check every pthread return value, define cancellation behavior, destroy primitives only after all users have stopped, and document whether already-buffered items remain readable after close. Those lifecycle rules are part of concurrent correctness.</p>
+</details>
+<p>The shell pipeline follows the same shape but lets the kernel own it. <code>cat</code> is a producer, <code>grep</code> is a consumer, pipe capacity supplies backpressure, and closing file descriptors communicates end-of-stream. Process isolation reduces accidental shared-memory races, but the pipe implementation inside the kernel still needs correct synchronization.</p>
+</section>
+<section id="readers-writers" class="level4">
+<h4 class="anchored" data-anchor-id="readers-writers"><strong>Readers-Writers</strong></h4>
+<p>The readers-writers problem asks how to admit operations when reads can coexist but writes require exclusivity. The invariant is not simply “many readers are safe.” Readers must be side-effect free with respect to protected state, object lifetime must remain valid, and no hidden cache or statistics write may violate the assumption.</p>
+<p>A POSIX interface makes the access mode visible:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_rdlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="dt">const</span> <span class="kw">struct</span> record <span class="op">*</span>record <span class="op">=</span> lookup_without_mutation<span class="op">(</span>key<span class="op">);</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>copy_record_for_caller<span class="op">(</span>record<span class="op">);</span>  <span class="co">// Do not return an unprotected pointer.</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_unlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_wrlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>insert_or_replace_record<span class="op">(</span>key<span class="op">,</span> value<span class="op">);</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>pthread_rwlock_unlock<span class="op">(&amp;</span>table_lock<span class="op">);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Three policies are commonly compared:</p>
+<ul>
+<li>reader preference admits arriving readers while readers are active, maximizing read concurrency but risking writer starvation;</li>
+<li>writer preference blocks new readers once a writer waits, bounding writer delay but extending reader queues;</li>
+<li>fair or phased admission orders cohorts, trading throughput for predictability.</li>
+</ul>
+<p>The returned-pointer comment is crucial. Unlocking before a caller finishes using a record allows a writer to delete or replace it. Copying, reference counting, immutable versions, or RCU can solve the lifetime problem; a read lock held only during lookup cannot.</p>
+</section>
+<section id="dining-philosophers" class="level4">
+<h4 class="anchored" data-anchor-id="dining-philosophers"><strong>Dining Philosophers</strong></h4>
+<p>The dining philosophers problem represents threads that each need two neighboring resources before entering a critical action. If every philosopher acquires the left fork and then waits for the right, all can hold one resource while waiting in a cycle.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dining-philosophers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/dining-philosophers.svg" class="img-fluid figure-img" style="width:44.0%" alt="Circular arrangement of five philosophers and five shared forks."></a></p>
+<figcaption>Five dining philosophers share one fork with each neighbor.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: DnetSvg and Allen3, <a href="https://commons.wikimedia.org/wiki/File:Dining_philosophers.svg">Wikimedia Commons</a>, released to the public domain. The original SVG is stored locally.</em></p>
+<p>Several repairs break different assumptions:</p>
+<ul>
+<li>impose a total order on forks and always acquire the lower-numbered fork first, breaking circular wait;</li>
+<li>use a waiter or semaphore with at most four permits, preventing all five from holding one fork simultaneously;</li>
+<li>make one philosopher acquire in the opposite order, also breaking the symmetric cycle;</li>
+<li>use try-lock, release partial holdings on failure, and retry with randomized or queued backoff;</li>
+<li>allocate both resources atomically through a monitor.</li>
+</ul>
+<p>Deadlock freedom is not the whole result. A try-lock loop can livelock if every philosopher moves in synchrony. An unfair waiter can starve one participant. A global waiter is easy to prove but reduces concurrency because disjoint pairs might otherwise eat simultaneously. The preferred solution depends on the required progress guarantee and contention pattern.</p>
+</section>
+</section>
+<section id="deadlock" class="level3">
+<h3 class="anchored" data-anchor-id="deadlock"><strong>Deadlock</strong></h3>
+<p>A <strong>deadlock</strong> is a state in which a set of participants cannot progress because each waits for an event that only another blocked participant in the set can cause. The threads may consume no CPU, so low utilization can be a symptom. Deadlock differs from a slow lock holder: in the latter case an enabled action still exists that can release the resource.</p>
+<section id="necessary-conditions-and-resource-allocation-graphs" class="level4">
+<h4 class="anchored" data-anchor-id="necessary-conditions-and-resource-allocation-graphs"><strong>Necessary Conditions and Resource-Allocation Graphs</strong></h4>
+<p>The Coffman conditions are jointly necessary for classic reusable-resource deadlock:</p>
+<ol type="1">
+<li><strong>mutual exclusion:</strong> at least one resource cannot be shared concurrently;</li>
+<li><strong>hold and wait:</strong> a participant holds one resource while requesting another;</li>
+<li><strong>no preemption:</strong> resources are released voluntarily rather than forcibly taken;</li>
+<li><strong>circular wait:</strong> a directed cycle exists in which each participant waits for the next.</li>
+</ol>
+<p>A <strong>resource-allocation graph</strong> has process nodes and resource nodes. A process-to-resource edge is a request; a resource-instance-to-process edge is an assignment.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/resource-allocation-graph.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/resource-allocation-graph.svg" class="img-fluid figure-img" style="width:58.0%" alt="Graph showing processes, resource instances, request edges, and assignment edges."></a></p>
+<figcaption>A resource-allocation graph containing process requests and resource assignments.</figcaption>
+</figure>
+</div>
+<p><em>Figure source: Martin Thoma, <a href="https://commons.wikimedia.org/wiki/File:Resource-allocation-graph.svg">Wikimedia Commons</a>, licensed under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. The original SVG is stored locally without modification.</em></p>
+<p>With one instance of each resource type, a cycle is necessary and sufficient for deadlock. With multiple instances, a cycle is necessary but may not be sufficient because another free instance or completing process may break the wait. A <strong>wait-for graph</strong> removes resource nodes and draws <code>A -&gt; B</code> when A waits for a resource held by B; cycles then reveal candidate deadlocks under the modeled assumptions.</p>
+<p>The smallest lock-order inversion is:</p>
+<pre class="text"><code>Thread A: lock(X) -&gt; lock(Y)
+Thread B: lock(Y) -&gt; lock(X)</code></pre>
+<p>If A owns X and B owns Y before their second acquisitions, neither can continue. The failure may occur once in a million runs, but the dependency cycle exists from the two code paths alone. Linux <code>lockdep</code> records observed lock-class orderings and detects such cycles without requiring the complete deadlocking schedule to occur.</p>
+</section>
+<section id="prevention-avoidance-detection-and-recovery" class="level4">
+<h4 class="anchored" data-anchor-id="prevention-avoidance-detection-and-recovery"><strong>Prevention, Avoidance, Detection, and Recovery</strong></h4>
+<p><strong>Prevention</strong> designs away at least one necessary condition:</p>
+<ul>
+<li>make resources shareable where semantics allow immutable or versioned access;</li>
+<li>request all required resources at once, reducing hold-and-wait but lowering utilization;</li>
+<li>release acquired resources when a later try-lock fails, introducing retry and possible livelock;</li>
+<li>impose a global resource order, breaking circular wait;</li>
+<li>use preemptible or revocable resources when rollback is safe.</li>
+</ul>
+<p>Lock ordering is the most common software technique. Assign every lock class or object a stable rank and permit acquisition only in increasing order. Dynamic sets should be sorted before locking. The rule must include callbacks and error paths; acquiring an unranked lock from inside a ranked critical section reintroduces an unknown edge.</p>
+<p><strong>Avoidance</strong> examines each request and grants it only if the resulting state remains <strong>safe</strong>, meaning some order still exists in which every participant can obtain its declared maximum and finish. The Banker’s algorithm models available resources, current allocations, and maximum claims. It is valuable conceptually but uncommon for ordinary mutexes because programs rarely declare trustworthy maximum future lock needs and requests arrive at instruction-level frequency.</p>
+<p>An unsafe state is not yet deadlocked. It has lost the guarantee that every future legal demand can be satisfied. A deadlocked state has no completion sequence for the involved waiters.</p>
+<p><strong>Detection</strong> allows waits and periodically searches a wait-for graph or resource state. It works when the system can observe ownership and waiting accurately. Distributed systems make detection harder because graph information is delayed and no observer has an instantaneous global state.</p>
+<p><strong>Recovery</strong> may terminate a victim, roll back a transaction, revoke a resource, restart a component, or rely on a timeout. Recovery must preserve external consistency. Killing a thread while it holds an ordinary in-process mutex can leave data corrupted and waiters blocked. Robust mutexes can report owner death, but the next owner must repair protected state and explicitly mark it consistent.</p>
+<p>Database schemes such as wait-die and wound-wait use transaction ages to prevent cycles and abort work safely because transactions provide rollback. That assumption does not transfer automatically to arbitrary kernel or application critical sections.</p>
+</section>
+</section>
+<section id="starvation-livelock-and-priority-inversion" class="level3">
+<h3 class="anchored" data-anchor-id="starvation-livelock-and-priority-inversion"><strong>Starvation, Livelock, and Priority Inversion</strong></h3>
+<p>These progress failures look similar from a user’s perspective but require different repairs:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Failure</th>
+<th>What threads are doing</th>
+<th>Typical cause</th>
+<th>Typical repair</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>deadlock</td>
+<td>blocked in a dependency cycle</td>
+<td>inconsistent resource order</td>
+<td>break a Coffman condition or recover</td>
+</tr>
+<tr class="even">
+<td>starvation</td>
+<td>system progresses but one participant does not</td>
+<td>unfair admission or strict priority</td>
+<td>FIFO queue, aging, bounded handoff</td>
+</tr>
+<tr class="odd">
+<td>livelock</td>
+<td>participants execute but repeatedly undo or retry</td>
+<td>symmetric conflict response</td>
+<td>backoff, asymmetry, arbitration</td>
+</tr>
+<tr class="even">
+<td>priority inversion</td>
+<td>urgent thread waits indirectly behind lower priority</td>
+<td>low-priority resource owner is preempted</td>
+<td>priority inheritance or ceiling</td>
+</tr>
+</tbody>
+</table>
+<p>Priority inversion involves at least three roles. Low-priority L owns a mutex; high-priority H blocks on it; medium-priority M does not need the mutex but repeatedly preempts L. H is then delayed by M even though H outranks M.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/priority-inversion-inheritance.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/priority-inversion-inheritance.svg" class="img-fluid figure-img" style="width:98.0%" alt="Two scheduling timelines compare priority inversion before and after priority inheritance."></a></p>
+<figcaption>Without inheritance, medium-priority work delays the low-priority lock owner and therefore the high-priority waiter; inheritance temporarily boosts the owner.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://man7.org/linux/man-pages/man2/futex.2.html">priority-inheritance futex</a> and <a href="https://docs.kernel.org/locking/rt-mutex-design.html">RT-mutex</a> semantics.</em></p>
+<p><strong>Priority inheritance</strong> temporarily propagates the highest waiting priority to the owner, potentially through a chain, so it can run and release the resource. <strong>Priority ceiling</strong> assigns each resource a ceiling related to its possible users and can bound blocking under a stricter protocol. Neither removes deadlock or long critical sections. Inheritance also requires ownership, which is one reason a generic counting semaphore cannot provide the same semantics cleanly.</p>
+<p>Starvation and livelock should be measured with per-request wait distributions and retry counts. Aggregate throughput can remain high while one tenant receives no service. Fair queueing, ticket locks, aging, randomized backoff, and admission limits are policy tools; each trades some throughput or simplicity for a stronger progress claim.</p>
+</section>
+<section id="lock-free-techniques-and-read-copy-update" class="level3">
+<h3 class="anchored" data-anchor-id="lock-free-techniques-and-read-copy-update"><strong>Lock-Free Techniques and Read-Copy-Update</strong></h3>
+<p>Nonblocking algorithms replace ownership waits with atomic state transitions and retries. The terms describe progress guarantees, not whether source code contains the word <code>lock</code>:</p>
+<ul>
+<li><strong>obstruction-free:</strong> an operation finishes if it eventually runs without interference;</li>
+<li><strong>lock-free:</strong> in a finite number of system-wide steps, some operation finishes;</li>
+<li><strong>wait-free:</strong> every operation finishes within a bounded number of its own steps.</li>
+</ul>
+<p>A CAS loop that increments a counter is typically lock-free but not wait-free because one thread can repeatedly lose:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdatomic.h&gt;</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> increment_with_cas<span class="op">(</span>atomic_long <span class="op">*</span>counter<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> observed <span class="op">=</span> atomic_load_explicit<span class="op">(</span>counter<span class="op">,</span> memory_order_relaxed<span class="op">);</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="op">(!</span>atomic_compare_exchange_weak_explicit<span class="op">(</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        counter<span class="op">,</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">&amp;</span>observed<span class="op">,</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        observed <span class="op">+</span> <span class="dv">1</span><span class="op">,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        memory_order_relaxed<span class="op">,</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        memory_order_relaxed<span class="op">))</span> <span class="op">{</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">// On failure, observed is replaced with the value that defeated us.</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For an independent counter, <code>atomic_fetch_add_explicit</code> is simpler. The C implementation may use an internal lock for an atomic type that is not lock-free; <code>atomic_is_lock_free</code> reports the implementation property. Algorithmic lock freedom also depends on object lifetime and every helper it calls.</p>
+<p>The hardest part of a lock-free pointer structure is often <strong>memory reclamation</strong>. Removing a node from a list does not prove that another thread has stopped reading it. Freeing immediately creates use-after-free; never freeing leaks memory. Hazard pointers, epoch-based reclamation, reference counting, and RCU establish when old objects can be reclaimed. ABA tags alone do not solve dangling readers.</p>
+<p><strong>Read-Copy-Update</strong> (RCU) targets read-mostly structures. An updater creates or modifies a replacement, atomically publishes a new pointer, waits for a <strong>grace period</strong> during which all pre-existing read-side critical sections finish, and only then reclaims the old version.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rcu-grace-period.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/rcu-grace-period.svg" class="img-fluid figure-img" style="width:98.0%" alt="RCU timeline with old and new readers, publication, grace period, and deferred reclamation."></a></p>
+<figcaption>Readers that began before publication may use the old object; after a grace period the updater can reclaim it safely.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the official Linux <a href="https://docs.kernel.org/RCU/whatisRCU.html">RCU concepts</a> and <a href="https://docs.kernel.org/RCU/index.html">RCU Handbook</a>.</em></p>
+<p>A conceptual kernel pattern is:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">/* Reader */</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>rcu_read_lock<span class="op">();</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>item <span class="op">=</span> rcu_dereference<span class="op">(</span>current_item<span class="op">);</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>use_immutable_fields<span class="op">(</span>item<span class="op">);</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>rcu_read_unlock<span class="op">();</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co">/* Writer, with separate serialization among writers */</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>new_item <span class="op">=</span> copy_and_modify<span class="op">(</span>old_item<span class="op">);</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>rcu_assign_pointer<span class="op">(</span>current_item<span class="op">,</span> new_item<span class="op">);</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>synchronize_rcu<span class="op">();</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>free<span class="op">(</span>old_item<span class="op">);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Readers may see the old or new version, but each must see a valid version throughout its protected lifetime. RCU does not make in-place mutation safe, serialize competing writers, or permit pointers to escape beyond the read-side lifetime. Linux has several RCU flavors with different quiescent-state and blocking rules; code must use the flavor appropriate to its context.</p>
+<p>RCU is powerful when reads dominate, stale snapshots are acceptable, and updates can afford copying and deferred reclamation. Mutexes remain clearer for balanced read-write workloads, multi-field transactions, and code whose readers need to block or retain references independently.</p>
+</section>
+<section id="diagnosing-and-testing-concurrent-code" class="level3">
+<h3 class="anchored" data-anchor-id="diagnosing-and-testing-concurrent-code"><strong>Diagnosing and Testing Concurrent Code</strong></h3>
+<p>Concurrency testing explores executions; it does not prove that all executions are safe. Effective practice combines an explicit synchronization contract, compiler and runtime instrumentation, schedule variation, traces, and regression tests.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/concurrency-diagnostics-workflow.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/concurrency-diagnostics-workflow.svg" class="img-fluid figure-img" style="width:98.0%" alt="Cyclic workflow for diagnosing concurrent correctness and progress failures."></a></p>
+<figcaption>Workflow from invariants and executable checks through race detectors, schedule exploration, trace minimization, repair, and regression.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on LLVM <a href="https://clang.llvm.org/docs/ThreadSanitizer.html">ThreadSanitizer</a> and Linux <a href="https://docs.kernel.org/locking/lockdep-design.html">lockdep</a> workflows.</em></p>
+<p>ThreadSanitizer instruments memory accesses and synchronization to report data races:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">clang</span> <span class="at">-O1</span> <span class="at">-g</span> <span class="at">-fsanitize</span><span class="op">=</span>thread <span class="at">-fno-omit-frame-pointer</span> <span class="dt">\</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  race.c <span class="at">-pthread</span> <span class="at">-o</span> race-tsan</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./race-tsan</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile as much of the program as possible with the sanitizer. Uninstrumented libraries, custom assembly, and unsupported synchronization can cause missed reports or false positives. A clean run means no race occurred in explored executions under the detector; it is not a proof that no race exists.</p>
+<p>Useful testing dimensions include:</p>
+<ul>
+<li>one CPU versus many CPUs, because preemption races and true parallel races differ;</li>
+<li>low and high contention, varying thread counts and queue capacity;</li>
+<li>randomized yields or delays around synchronization boundaries;</li>
+<li>repeated startup, shutdown, cancellation, timeout, and error paths;</li>
+<li>allocation failure and owner termination where recovery is supported;</li>
+<li>long runs under sanitizers plus shorter performance runs without instrumentation;</li>
+<li>architectures with weaker ordering than the developer’s primary machine.</li>
+</ul>
+<p>For Linux kernel code, <code>lockdep</code> builds lock-class dependency graphs and reports illegal ordering and interrupt-context combinations; KCSAN samples accesses to find races; lock torture and RCU torture stress specific primitives. Each tool targets a property. A race detector does not verify a business invariant, and a lock-order checker does not establish bounded waiting.</p>
+<p>When a program hangs, collect all thread stacks and identify waits and owners. Draw a wait-for graph rather than guessing from the last log line. Record monotonic event IDs, object identities, lock names, predicate values, and generation numbers. Logging inside a critical section changes timing, so preserve enough evidence to reconstruct order without assuming logs are neutral.</p>
+<p>Assertions should encode the invariant while the required lock is held:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>pthread_mutex_lock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>assert<span class="op">(</span>queue<span class="op">-&gt;</span>count <span class="op">&lt;=</span> QUEUE_CAPACITY<span class="op">);</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>assert<span class="op">(</span>queue_representation_is_consistent<span class="op">(</span>queue<span class="op">));</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>pthread_mutex_unlock<span class="op">(&amp;</span>queue<span class="op">-&gt;</span>mutex<span class="op">);</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For small protocols, model checking or exhaustive state exploration can examine schedules that stress testing rarely reaches. The model must still match implementation semantics, especially atomicity and memory ordering. The best debugging artifact is a minimized execution that names the two conflicting events and the missing synchronization edge.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Ownership</th>
+<th>Waiting behavior</th>
+<th>Best fit</th>
+<th>Frequent mistake</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>mutex</td>
+<td>one owner</td>
+<td>normally blocks under contention</td>
+<td>multi-field invariants and ordinary critical sections</td>
+<td>inconsistent coverage or blocking while held</td>
+</tr>
+<tr class="even">
+<td>spinlock</td>
+<td>one owner</td>
+<td>consumes CPU while waiting</td>
+<td>extremely short non-sleeping kernel paths</td>
+<td>spinning on an oversubscribed CPU</td>
+</tr>
+<tr class="odd">
+<td>semaphore</td>
+<td>permit count, usually no owner</td>
+<td>blocks when no permit</td>
+<td>capacity and resource admission</td>
+<td>treating permits as protected-state ownership</td>
+</tr>
+<tr class="even">
+<td>condition variable</td>
+<td>paired with mutex and predicate</td>
+<td>atomic unlock-sleep-relock</td>
+<td>waiting for state transitions</td>
+<td>using <code>if</code>, or treating signal as stored state</td>
+</tr>
+<tr class="odd">
+<td>barrier</td>
+<td>fixed participant generation</td>
+<td>waits for phase cohort</td>
+<td>bulk-synchronous phases</td>
+<td>participant exits before arrival</td>
+</tr>
+<tr class="even">
+<td>read-write lock</td>
+<td>shared readers or one writer</td>
+<td>policy-dependent</td>
+<td>substantial read-mostly critical sections</td>
+<td>assuming readers are free or writer-fair</td>
+</tr>
+<tr class="odd">
+<td>C atomic RMW</td>
+<td>no blocking owner</td>
+<td>retry or direct operation</td>
+<td>independent counters and carefully proven lock-free state</td>
+<td>confusing atomicity with publication ordering</td>
+</tr>
+<tr class="even">
+<td>sequence counter</td>
+<td>one serialized writer, retrying readers</td>
+<td>readers retry</td>
+<td>small read-mostly snapshots</td>
+<td>pointers or expensive non-repeatable reads</td>
+</tr>
+<tr class="odd">
+<td>RCU</td>
+<td>read-side lifetime plus updater protocol</td>
+<td>cheap reads, deferred reclamation</td>
+<td>read-mostly versioned structures</td>
+<td>freeing before grace period or mutating in place</td>
+</tr>
+</tbody>
+</table>
+<p>A robust design process is:</p>
+<ol type="1">
+<li>state the shared object’s invariant and lifetime;</li>
+<li>mark every operation that can temporarily violate it;</li>
+<li>define the atomic transition or linearization point;</li>
+<li>define visibility with lock handoff or explicit happens-before edges;</li>
+<li>write waiting as predicates over protected state;</li>
+<li>document lock order, ownership, context, and error paths;</li>
+<li>state the progress guarantee and scheduler assumptions;</li>
+<li>test with instrumentation and adversarial schedules;</li>
+<li>measure contention before replacing a clear lock with a complex nonblocking design.</li>
+</ol>
+<p>Several misconceptions can now be rejected. <code>volatile</code> is not thread synchronization. Atomic access to a flag does not automatically publish unrelated data. A condition signal does not mean its predicate remains true. Deadlock freedom does not imply starvation freedom. Lock-free does not mean every thread finishes promptly, and RCU does not mean old memory can be freed immediately.</p>
+<p>The central idea is a protocol, not a primitive. Correct synchronization defines which states are legal, which transitions are indivisible, how one thread’s work becomes visible to another, and why every required participant can eventually progress. Locks, atomics, condition variables, semaphores, barriers, and RCU are tools for expressing that proof.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

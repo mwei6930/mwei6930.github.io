@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机组成与体系结构：I/O、中断、DMA 与存储</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="10-io-interrupts-dma-storage_files/libs/clipboard/clipboard.min.js"></script>
+<script src="10-io-interrupts-dma-storage_files/libs/quarto-html/quarto.js"></script>
+<script src="10-io-interrupts-dma-storage_files/libs/quarto-html/popper.min.js"></script>
+<script src="10-io-interrupts-dma-storage_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="10-io-interrupts-dma-storage_files/libs/quarto-html/anchor.min.js"></script>
+<link href="10-io-interrupts-dma-storage_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="10-io-interrupts-dma-storage_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="10-io-interrupts-dma-storage_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="10-io-interrupts-dma-storage_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="10-io-interrupts-dma-storage_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="10-io-interrupts-dma-storage_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="10-io-interrupts-dma-storage_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="10-io-interrupts-dma-storage_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="/ipynb/blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#io-interrupts-dma-and-storage" id="toc-io-interrupts-dma-and-storage" class="nav-link active" data-scroll-target="#io-interrupts-dma-and-storage"><strong>I/O、中断、DMA 与存储</strong></a>
+  <ul>
+  <li><a href="#the-role-of-io-in-a-computer-system" id="toc-the-role-of-io-in-a-computer-system" class="nav-link" data-scroll-target="#the-role-of-io-in-a-computer-system"><strong>I/O 在计算机系统中的作用</strong></a></li>
+  <li><a href="#device-controllers-and-system-interconnects" id="toc-device-controllers-and-system-interconnects" class="nav-link" data-scroll-target="#device-controllers-and-system-interconnects"><strong>设备控制器与系统互连</strong></a></li>
+  <li><a href="#programmed-io-and-memory-mapped-io" id="toc-programmed-io-and-memory-mapped-io" class="nav-link" data-scroll-target="#programmed-io-and-memory-mapped-io"><strong>程序控制 I/O 与内存映射 I/O</strong></a></li>
+  <li><a href="#polling-and-interrupt-driven-io" id="toc-polling-and-interrupt-driven-io" class="nav-link" data-scroll-target="#polling-and-interrupt-driven-io"><strong>轮询与中断驱动 I/O</strong></a></li>
+  <li><a href="#exceptions-and-interrupt-handling" id="toc-exceptions-and-interrupt-handling" class="nav-link" data-scroll-target="#exceptions-and-interrupt-handling"><strong>异常与中断处理</strong></a></li>
+  <li><a href="#direct-memory-access" id="toc-direct-memory-access" class="nav-link" data-scroll-target="#direct-memory-access"><strong>直接内存访问</strong></a></li>
+  <li><a href="#persistent-storage" id="toc-persistent-storage" class="nav-link" data-scroll-target="#persistent-storage"><strong>持久存储</strong></a>
+  <ul>
+  <li><a href="#hard-disk-drives" id="toc-hard-disk-drives" class="nav-link" data-scroll-target="#hard-disk-drives"><strong>硬盘驱动器</strong></a></li>
+  <li><a href="#solid-state-drives" id="toc-solid-state-drives" class="nav-link" data-scroll-target="#solid-state-drives"><strong>固态硬盘</strong></a></li>
+  <li><a href="#storage-performance" id="toc-storage-performance" class="nav-link" data-scroll-target="#storage-performance"><strong>存储性能</strong></a></li>
+  </ul></li>
+  <li><a href="#raid-and-storage-reliability" id="toc-raid-and-storage-reliability" class="nav-link" data-scroll-target="#raid-and-storage-reliability"><strong>RAID 与存储可靠性</strong></a></li>
+  <li><a href="#tracing-an-end-to-end-io-request" id="toc-tracing-an-end-to-end-io-request" class="nav-link" data-scroll-target="#tracing-an-end-to-end-io-request"><strong>跟踪端到端 I/O 请求</strong></a></li>
+  <li><a href="#choosing-an-io-transfer-mechanism" id="toc-choosing-an-io-transfer-mechanism" class="nav-link" data-scroll-target="#choosing-an-io-transfer-mechanism"><strong>选择 I/O 传输机制</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机组成与体系结构：I/O、中断、DMA 与存储</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Organization/10-io-interrupts-dma-storage.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="/ipynb/zh-CN/Computer-Science/Computer-Organization/Computer-Organization.html">返回计算机组成与体系结构总览</a></p>
+<section id="io-interrupts-dma-and-storage" class="level2">
+<h2 class="anchored" data-anchor-id="io-interrupts-dma-and-storage"><strong>I/O、中断、DMA 与存储</strong></h2>
+<p>第 09 章结束于一个需要从外部取得数据的存储型缺页异常。本章继续越过处理器—内存边界跟踪这份数据：请求会经过软件、控制器寄存器与队列、系统互连和设备专用引擎，最后通过完成路径让等待中的计算继续运行。</p>
+<p>全章应始终区分三条路径：</p>
+<ul>
+<li><strong>控制路径</strong>告诉设备要执行什么操作；</li>
+<li><strong>数据路径</strong>在设备和内存之间传输有效载荷；</li>
+<li><strong>完成路径</strong>报告成功、失败或部分进度。</li>
+</ul>
+<p>现代存储请求可能用 MMIO 提交控制，用 DMA 搬运数据，再用 MSI-X 中断或轮询接收完成通知。这些机制相互协作，而不是只能三选一。</p>
+<section id="the-role-of-io-in-a-computer-system" class="level3">
+<h3 class="anchored" data-anchor-id="the-role-of-io-in-a-computer-system"><strong>I/O 在计算机系统中的作用</strong></h3>
+<p>处理器依照严格顺序对寄存器和内存执行指令，而外设运行在完全不同的时间尺度上。键盘只偶尔产生事件，显示器持续消费数据流，网卡在独立时钟域接收分组，存储设备可能在内部纠错后乱序完成命令。I/O 系统负责协调这些差异。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-system-boundary.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="CPU 核心和内存通过系统互连与控制器通信，控制器隐藏了存储、网络、显示与输入设备的物理细节。"><img src="assets/io-system-boundary.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="CPU 核心和内存通过系统互连与控制器通信，控制器隐藏了存储、网络、显示与输入设备的物理细节。"></a></p>
+</figure>
+</div>
+<figcaption>CPU 核心和内存通过系统互连与控制器通信，控制器隐藏了存储、网络、显示与输入设备的物理细节。</figcaption>
+</figure>
+</div>
+</div>
+<p>一种有效抽象是在主机与物理设备之间放置<strong>设备控制器</strong>。主机看到寄存器、队列、缓冲区、命令和完成事件；控制器把它们转换为设备专用时序、协议和错误处理。<strong>设备驱动程序</strong>是理解该控制器接口的特权软件，它向应用提供更安全的操作系统抽象。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>需要协调的差异</th>
+<th>处理器—内存一侧</th>
+<th>设备一侧</th>
+<th>体系结构响应</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>时序</td>
+<td>指令尺度、同步状态</td>
+<td>异步外部事件</td>
+<td>状态位、轮询、中断、队列</td>
+</tr>
+<tr class="even">
+<td>速度</td>
+<td>纳秒级执行与缓存</td>
+<td>微秒到秒</td>
+<td>缓冲、批处理、重叠</td>
+</tr>
+<tr class="odd">
+<td>粒度</td>
+<td>字节、字、缓存块</td>
+<td>分组、扇区、页面、帧</td>
+<td>控制器与协议描述符</td>
+</tr>
+<tr class="even">
+<td>表示方式</td>
+<td>load/store 地址</td>
+<td>设备专用命令与信号</td>
+<td>寄存器、命令集、驱动</td>
+</tr>
+<tr class="odd">
+<td>故障</td>
+<td>精确体系结构异常</td>
+<td>重试、介质错误、断连</td>
+<td>状态码、超时、恢复</td>
+</tr>
+<tr class="even">
+<td>信任</td>
+<td>受保护的进程地址空间</td>
+<td>独立总线主设备</td>
+<td>IOMMU、权限、验证</td>
+</tr>
+</tbody>
+</table>
+<p>操作系统还要在进程间复用设备、调度请求、执行权限，并把异步完成转换为阻塞或非阻塞 API。硬件提供机制，软件决定策略。</p>
+</section>
+<section id="device-controllers-and-system-interconnects" class="level3">
+<h3 class="anchored" data-anchor-id="device-controllers-and-system-interconnects"><strong>设备控制器与系统互连</strong></h3>
+<p>设备控制器具有两个界面。面向主机的一侧提供配置空间、MMIO 寄存器、命令/完成队列和中断能力；内部则包含状态机或固件、协议引擎、缓冲区、纠错与设备专用调度。两者分离，使实现发生显著变化时仍能维持稳定编程接口。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/device-controller-interconnect.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="驱动通过互连访问控制器；控制器把主机可见的寄存器和队列，与内部缓冲、控制逻辑和设备协议引擎分隔开。"><img src="assets/device-controller-interconnect.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="驱动通过互连访问控制器；控制器把主机可见的寄存器和队列，与内部缓冲、控制逻辑和设备协议引擎分隔开。"></a></p>
+</figure>
+</div>
+<figcaption>驱动通过互连访问控制器；控制器把主机可见的寄存器和队列，与内部缓冲、控制逻辑和设备协议引擎分隔开。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>系统互连</strong>传输地址、数据和控制事务。片上外设总线可以连接定时器和 UART，PCI Express 则连接高吞吐端点。重要属性包括带宽、仲裁、顺序、错误报告、地址路由、热插拔，以及设备能否作为总线主设备主动发起内存事务。</p>
+<p>简单控制器一次可能只通过控制和数据寄存器接收一条命令；高性能控制器则提供驻留内存的环形队列，使多个请求同时未完成。队列把提交与执行解耦：主机推进生产者位置，控制器按自己的速度消费条目，完成记录再指出哪些命令已经结束。</p>
+<details>
+<summary>
+Python 模型：具有命令与状态队列的控制器
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DeviceController:</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.commands <span class="op">=</span> deque()</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.completed <span class="op">=</span> deque()</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.busy <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> submit(<span class="va">self</span>, command):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 真实驱动会发布描述符并写入 doorbell。</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.commands.append(command)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> tick(<span class="va">self</span>):</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 控制器独立于 CPU 指令流推进。</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.commands:</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.busy <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>            command <span class="op">=</span> <span class="va">self</span>.commands.popleft()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.completed.append({<span class="st">"id"</span>: command[<span class="st">"id"</span>], <span class="st">"status"</span>: <span class="st">"success"</span>})</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.busy <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> read_completion(<span class="va">self</span>):</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.completed.popleft() <span class="cf">if</span> <span class="va">self</span>.completed <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>controller <span class="op">=</span> DeviceController()</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>controller.submit({<span class="st">"id"</span>: <span class="dv">17</span>, <span class="st">"operation"</span>: <span class="st">"read"</span>, <span class="st">"lba"</span>: <span class="dv">4096</span>})</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> controller.read_completion() <span class="kw">is</span> <span class="va">None</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>controller.tick()</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> controller.read_completion() <span class="op">==</span> {<span class="st">"id"</span>: <span class="dv">17</span>, <span class="st">"status"</span>: <span class="st">"success"</span>}</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"controller returned command 17"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>控制器状态是并发状态。驱动必须处理超时、过期完成、设备复位、队列回绕，以及完成顺序不同于提交顺序的命令。</p>
+</section>
+<section id="programmed-io-and-memory-mapped-io" class="level3">
+<h3 class="anchored" data-anchor-id="programmed-io-and-memory-mapped-io"><strong>程序控制 I/O 与内存映射 I/O</strong></h3>
+<p>两个相互独立的问题经常被混淆：</p>
+<ul>
+<li><strong>内存映射 I/O（Memory-Mapped I/O, MMIO）</strong>回答“如何寻址设备寄存器”。保留的物理地址范围被路由到设备，普通 load/store 指令即可访问控制、状态、数据或 doorbell 寄存器。</li>
+<li><strong>程序控制 I/O（Programmed I/O, PIO）</strong>回答“谁来搬运每个有效载荷单元”。CPU 通过设备数据寄存器或 FIFO 显式读写每个字节或字。</li>
+</ul>
+<p>因此，驱动完全可以使用 MMIO 配置 DMA 传输；反之，具有独立 I/O 端口地址空间的体系结构也可用专用端口指令执行 PIO。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/mmio-programmed-io.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="地址译码器把 RAM 范围路由到内存，把 MMIO 范围路由到设备控制、状态、数据和 doorbell 寄存器；PIO 则让 CPU 搬运每一个数据单元。"><img src="assets/mmio-programmed-io.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="地址译码器把 RAM 范围路由到内存，把 MMIO 范围路由到设备控制、状态、数据和 doorbell 寄存器；PIO 则让 CPU 搬运每一个数据单元。"></a></p>
+</figure>
+</div>
+<figcaption>地址译码器把 RAM 范围路由到内存，把 MMIO 范围路由到设备控制、状态、数据和 doorbell 寄存器；PIO 则让 CPU 搬运每一个数据单元。</figcaption>
+</figure>
+</div>
+</div>
+<p>设备寄存器不是普通变量。读取可能清除中断待处理位，写入可能开始不可逆操作，posted write 可能在到达设备前被缓冲，连续读取也可能观察到变化中的硬件状态。因此，驱动使用体系结构专用 MMIO 访问函数，阻止编译器删除或重排访问，并在协议要求处加入内存屏障。MMIO 页面通常使用适合设备的缓存属性，而不是普通写回缓存。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>优势</th>
+<th>局限</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MMIO 寄存器访问</td>
+<td>复用 load/store 的地址转换与保护</td>
+<td>副作用和顺序不同于 RAM</td>
+<td>控制、状态、队列 doorbell</td>
+</tr>
+<tr class="even">
+<td>独立 I/O 端口</td>
+<td>设备空间与内存空间分离</td>
+<td>需要专用指令，可移植性有限</td>
+<td>传统 x86 外设</td>
+</tr>
+<tr class="odd">
+<td>程序控制数据传输</td>
+<td>少量字节的设置成本低</td>
+<td>每个数据单元都消耗 CPU 操作</td>
+<td>UART 字节、小 FIFO、早期启动</td>
+</tr>
+<tr class="even">
+<td>DMA 数据传输</td>
+<td>无需 CPU 逐字复制大块数据</td>
+<td>需要映射和同步设置</td>
+<td>存储、网络、音频、显示</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：具有寄存器副作用的 MMIO 读写
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>CONTROL, STATUS, DATA <span class="op">=</span> <span class="bn">0x00</span>, <span class="bn">0x04</span>, <span class="bn">0x08</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>READY, INTERRUPT_PENDING <span class="op">=</span> <span class="bn">0b01</span>, <span class="bn">0b10</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MMIODevice:</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.status <span class="op">=</span> READY</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fifo <span class="op">=</span> []</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> write32(<span class="va">self</span>, offset, value):</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> offset <span class="op">==</span> CONTROL <span class="kw">and</span> value <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.status <span class="op">&amp;=</span> <span class="op">~</span>READY  <span class="co"># 命令开始</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> offset <span class="op">==</span> DATA:</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.fifo.append(value <span class="op">&amp;</span> <span class="bn">0xFF</span>)  <span class="co"># CPU 搬运一个字节</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"unsupported write"</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> read32(<span class="va">self</span>, offset):</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> offset <span class="op">!=</span> STATUS:</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"unsupported read"</span>)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> <span class="va">self</span>.status</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 模拟一次“读取即确认”的中断位。</span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.status <span class="op">&amp;=</span> <span class="op">~</span>INTERRUPT_PENDING</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> complete(<span class="va">self</span>):</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.status <span class="op">|=</span> READY <span class="op">|</span> INTERRUPT_PENDING</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> MMIODevice()</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> byte <span class="kw">in</span> <span class="st">b"IO"</span>:</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    device.write32(DATA, byte)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>device.write32(CONTROL, <span class="dv">1</span>)</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>device.complete()</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>first_status <span class="op">=</span> device.read32(STATUS)</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>second_status <span class="op">=</span> device.read32(STATUS)</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> first_status <span class="op">&amp;</span> INTERRUPT_PENDING</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> second_status <span class="op">&amp;</span> INTERRUPT_PENDING</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">bytes</span>(device.fifo) <span class="op">==</span> <span class="st">b"IO"</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">bin</span>(first_status), <span class="bu">bytes</span>(device.fifo))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="polling-and-interrupt-driven-io" class="level3">
+<h3 class="anchored" data-anchor-id="polling-and-interrupt-driven-io"><strong>轮询与中断驱动 I/O</strong></h3>
+<p><strong>轮询（polling）</strong>反复检查设备或队列状态，直到出现工作。它简单且能以可控延迟发现完成事件，但每次无结果检查都会消耗执行带宽、互连流量，甚至缓存容量。<strong>中断驱动 I/O</strong>让 CPU 执行其他任务或进入低功耗等待，设备在需要服务时发出信号；代价是中断传递、特权级进入、处理程序和返回开销。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/polling-vs-interrupt.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="轮询周期性检查状态，在下一检查点发现完成；中断驱动方式可高效等待，但需要支付进入、处理和返回成本。"><img src="assets/polling-vs-interrupt.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="轮询周期性检查状态，在下一检查点发现完成；中断驱动方式可高效等待，但需要支付进入、处理和返回成本。"></a></p>
+</figure>
+</div>
+<figcaption>轮询周期性检查状态，在下一检查点发现完成；中断驱动方式可高效等待，但需要支付进入、处理和返回成本。</figcaption>
+</figure>
+</div>
+</div>
+<p>若每隔 <span class="math inline">\(\Delta\)</span> 秒轮询一次，且完成时刻在间隔内均匀分布，则平均检测延迟近似为</p>
+<p><span class="math display">\[
+E[T_{detect,poll}]\approx\frac{\Delta}{2},
+\]</span></p>
+<p>最坏延迟略小于 <span class="math inline">\(\Delta\)</span>。缩短轮询间隔会降低检测延迟，但每秒检查次数会增至约 <span class="math inline">\(1/\Delta\)</span>。</p>
+<p>在时间区间 <span class="math inline">\(T\)</span> 内，CPU 成本可粗略比较为</p>
+<p><span class="math display">\[
+C_{poll}\approx\frac{T}{\Delta}c_p,\qquad C_{interrupt}\approx N_ec_i,
+\]</span></p>
+<p>其中 <span class="math inline">\(c_p\)</span> 是每次轮询成本，<span class="math inline">\(N_e\)</span> 是完成事件数量，<span class="math inline">\(c_i\)</span> 是每个事件的中断进入、处理和返回成本。该模型省略批处理和缓存影响，但能说明趋势：稀疏事件适合中断；持续非空的高频队列则可能适合轮询。</p>
+<p>实际系统经常混合二者。中断合并一次报告多个完成；自适应方案先由中断唤醒，在队列繁忙时连续轮询，流量稀疏后再恢复中断。目标不是坚持某一种机制，而是在避免为每个微小事件支付昂贵转换的同时，不让核心空耗在空队列上。</p>
+<details>
+<summary>
+Python 示例：估算轮询次数与检测延迟
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> polling_summary(completion_times, interval):</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    detected_at <span class="op">=</span> [math.ceil(t <span class="op">/</span> interval) <span class="op">*</span> interval <span class="cf">for</span> t <span class="kw">in</span> completion_times]</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    delays <span class="op">=</span> [detected <span class="op">-</span> actual <span class="cf">for</span> detected, actual <span class="kw">in</span> <span class="bu">zip</span>(detected_at, completion_times)]</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 持续轮询到最后一次检测到完成为止。</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    checks <span class="op">=</span> <span class="bu">int</span>(<span class="bu">max</span>(detected_at) <span class="op">/</span> interval)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> checks, <span class="bu">sum</span>(delays) <span class="op">/</span> <span class="bu">len</span>(delays), delays</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>events <span class="op">=</span> [<span class="fl">2.2</span>, <span class="fl">5.7</span>, <span class="fl">9.1</span>]</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>checks, average_delay, delays <span class="op">=</span> polling_summary(events, interval<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>interrupt_entries <span class="op">=</span> <span class="bu">len</span>(events)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> checks <span class="op">==</span> <span class="dv">10</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [<span class="bu">round</span>(delay, <span class="dv">1</span>) <span class="cf">for</span> delay <span class="kw">in</span> delays] <span class="op">==</span> [<span class="fl">0.8</span>, <span class="fl">0.3</span>, <span class="fl">0.9</span>]</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> interrupt_entries <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"poll checks=</span><span class="sc">{</span>checks<span class="sc">}</span><span class="ss">, average detection delay=</span><span class="sc">{</span>average_delay<span class="sc">:.2f}</span><span class="ss">"</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"interrupt entries=</span><span class="sc">{</span>interrupt_entries<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="exceptions-and-interrupt-handling" class="level3">
+<h3 class="anchored" data-anchor-id="exceptions-and-interrupt-handling"><strong>异常与中断处理</strong></h3>
+<p><strong>异常（exception）</strong>由当前指令同步触发，例如非法操作码、系统调用或缺页；<strong>中断（interrupt）</strong>则由当前指令流之外的状态异步产生，例如定时器到期或设备完成。不同 ISA 的术语可能不同，但时序区别始终成立：异常由当前指令解释，中断由外部待处理状态解释。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/exception-interrupt-entry.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="同步异常与异步中断最终都进入体系结构状态保存、向量选择、特权处理、确认与返回流程。"><img src="assets/exception-interrupt-entry.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="同步异常与异步中断最终都进入体系结构状态保存、向量选择、特权处理、确认与返回流程。"></a></p>
+</figure>
+</div>
+<figcaption>同步异常与异步中断最终都进入体系结构状态保存、向量选择、特权处理、确认与返回流程。</figcaption>
+</figure>
+</div>
+</div>
+<p>典型进入过程会记录原因、异常 PC 和状态，改变特权级，屏蔽选定中断，再跳转到处理向量。软件保存自己将修改的额外寄存器，识别来源，完成紧急服务并确认事件，最后使用异常返回指令恢复原状态。精确异常保证所有更老指令看似已完成，所有更年轻指令看似尚未改变体系结构状态。</p>
+<p>中断控制器汇集多个来源，根据使能与优先级选择，并把事件路由到某个处理器上下文。电平触发源会保持有效，直到条件被消除；边沿触发源记录一次状态转换。消息信号中断把中断编码为特殊内存写事务，天然适合 PCIe 等分组化互连。</p>
+<p>处理程序通常只应执行时间关键工作：确认来源、捕获完成状态并安排延后处理。过长处理会提高其他来源的中断延迟并干扰被打断工作负载。对于 claim/complete 控制器，claim 返回待处理来源，complete 则通知控制器可以再次转发该来源的事件。</p>
+<details>
+<summary>
+Python 模型：中断控制器中的优先级、claim 与 complete
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InterruptController:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, priorities):</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.priorities <span class="op">=</span> priorities</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pending <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.in_service <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> raise_interrupt(<span class="va">self</span>, source):</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pending.add(source)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> claim(<span class="va">self</span>, enabled):</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        candidates <span class="op">=</span> <span class="va">self</span>.pending <span class="op">&amp;</span> <span class="bu">set</span>(enabled)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> candidates:</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>        source <span class="op">=</span> <span class="bu">max</span>(candidates, key<span class="op">=</span><span class="kw">lambda</span> item: (<span class="va">self</span>.priorities[item], <span class="op">-</span>item))</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pending.remove(source)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.in_service.add(source)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> source</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> complete(<span class="va">self</span>, source):</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> source <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.in_service:</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"source was not claimed"</span>)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.in_service.remove(source)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>controller <span class="op">=</span> InterruptController({<span class="dv">1</span>: <span class="dv">2</span>, <span class="dv">2</span>: <span class="dv">7</span>, <span class="dv">3</span>: <span class="dv">4</span>})</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> source <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]:</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    controller.raise_interrupt(source)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> controller.claim(enabled<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]) <span class="op">==</span> <span class="dv">2</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>controller.complete(<span class="dv">2</span>)</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> controller.claim(enabled<span class="op">=</span>[<span class="dv">1</span>, <span class="dv">3</span>]) <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"highest enabled priority is serviced first"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="direct-memory-access" class="level3">
+<h3 class="anchored" data-anchor-id="direct-memory-access"><strong>直接内存访问</strong></h3>
+<p><strong>直接内存访问（Direct Memory Access, DMA）</strong>允许控制器主动发起内存事务，因此 CPU 不必为有效载荷中的每个字执行一次 load 和 store。CPU 仍需准备传输：分配或固定缓冲区、取得设备可见地址、建立描述符、按要求顺序发布、通知控制器，以及处理完成和错误。DMA 消除的是重复复制，而不是全部软件参与。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dma-descriptor-transfer.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="CPU 映射缓冲区、写描述符、执行内存屏障并写 doorbell；DMA 引擎取得描述符，通过互连和 IOMMU 传输数据，最后记录完成。"><img src="assets/dma-descriptor-transfer.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="CPU 映射缓冲区、写描述符、执行内存屏障并写 doorbell；DMA 引擎取得描述符，通过互连和 IOMMU 传输数据，最后记录完成。"></a></p>
+</figure>
+</div>
+<figcaption>CPU 映射缓冲区、写描述符、执行内存屏障并写 doorbell；DMA 引擎取得描述符，通过互连和 IOMMU 传输数据，最后记录完成。</figcaption>
+</figure>
+</div>
+</div>
+<p>描述符通常包含设备地址、内存地址、长度、方向、命令标识和标志。<strong>分散/聚集 DMA（scatter/gather DMA）</strong>把多个不连续内存区域串成一次逻辑传输，避免 CPU 预先复制到物理连续缓冲区。</p>
+<p>IOMMU 转换设备可见的 I/O 虚拟地址，并限制设备允许访问的物理页面。它既是寻址服务，也是安全边界：有缺陷或恶意的设备不能覆盖任意内核内存。缓冲区生命周期必须持续到 DMA 完成，设备仍在使用时也不能删除页面映射。</p>
+<p>顺序至关重要。描述符存储必须先于宣布它的 MMIO doorbell 对设备可见。在非一致系统中，设备读内存前软件可能需要清理 CPU 缓存，设备写内存后再使缓存失效；即使系统具有一致性，也可能需要内存屏障来排列有效载荷、描述符与完成记录。</p>
+<p>对 <span class="math inline">\(N\)</span> 个有效载荷字，CPU 工作量可粗略建模为</p>
+<p><span class="math display">\[
+C_{PIO}=Nc_w,\qquad C_{DMA}=c_s+Kc_d+c_c.
+\]</span></p>
+<p><span class="math inline">\(c_w\)</span> 是每个 PIO 字的 CPU 成本，<span class="math inline">\(c_s\)</span> 是 DMA 固定设置成本，<span class="math inline">\(K\)</span> 是描述符数量，<span class="math inline">\(c_d\)</span> 是建立每个描述符的成本，<span class="math inline">\(c_c\)</span> 是完成处理成本。只有节省的逐字工作超过设置和同步开销时，DMA 才占优；极小传输仍可能更适合 PIO。</p>
+<details>
+<summary>
+Python 模型：分散/聚集 DMA 复制两个源片段
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Descriptor:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    source_offset: <span class="bu">int</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    destination_offset: <span class="bu">int</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    length: <span class="bu">int</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> execute_dma(source, destination, descriptors):</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    completed <span class="op">=</span> []</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> index, descriptor <span class="kw">in</span> <span class="bu">enumerate</span>(descriptors):</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        start <span class="op">=</span> descriptor.source_offset</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        end <span class="op">=</span> start <span class="op">+</span> descriptor.length</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        target <span class="op">=</span> descriptor.destination_offset</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        destination[target:target <span class="op">+</span> descriptor.length] <span class="op">=</span> source[start:end]</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        completed.append(index)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> completed</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> <span class="bu">bytearray</span>(<span class="st">b"0123456789ABCDEF"</span>)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>destination <span class="op">=</span> <span class="bu">bytearray</span>(<span class="st">b"."</span> <span class="op">*</span> <span class="dv">16</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>ring <span class="op">=</span> [Descriptor(<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">4</span>), Descriptor(<span class="dv">8</span>, <span class="dv">4</span>, <span class="dv">8</span>)]</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>completed <span class="op">=</span> execute_dma(source, destination, ring)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> completed <span class="op">==</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> destination <span class="op">==</span> <span class="bu">bytearray</span>(<span class="st">b"012389ABCDEF...."</span>)</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(destination.decode())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="persistent-storage" class="level3">
+<h3 class="anchored" data-anchor-id="persistent-storage"><strong>持久存储</strong></h3>
+<p>持久存储在处理器复位或普通电源丢失后仍保留选定数据。主机通常看到逻辑块接口，而不是裸磁畴或单个闪存单元；文件系统和数据库再在逻辑块之上构建命名、分配、元数据、顺序和恢复。</p>
+<p>CPU 完成一次 store 并不等同于数据已经持久化。数据可能暂存在 CPU 缓存、页面缓存、控制器缓冲区或易失性驱动器缓存中。持久性协议必须定义早先写入何时稳定，并正确使用 flush、强制单元访问、屏障、日志或写时复制元数据。掉电保护可以让某些控制器缓存实际上具备持久性，但软件必须遵守设备公布的契约。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>层级</th>
+<th>常见暴露单元</th>
+<th>可能介入的易失状态</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>应用/文件系统</td>
+<td>文件与逻辑偏移</td>
+<td>语言缓冲、页面缓存、元数据缓存</td>
+</tr>
+<tr class="even">
+<td>块层/驱动</td>
+<td>逻辑块请求</td>
+<td>请求队列与合并</td>
+</tr>
+<tr class="odd">
+<td>设备控制器</td>
+<td>命令与逻辑块地址</td>
+<td>命令/数据缓存、映射元数据</td>
+</tr>
+<tr class="even">
+<td>HDD/SSD 介质</td>
+<td>扇区或 NAND 页/擦除块</td>
+<td>设备专用内部流水线</td>
+</tr>
+</tbody>
+</table>
+<p>下面比较隐藏在相似块接口背后的两种截然不同的介质实现。</p>
+<section id="hard-disk-drives" class="level4">
+<h4 class="anchored" data-anchor-id="hard-disk-drives"><strong>硬盘驱动器</strong></h4>
+<p><strong>硬盘驱动器（Hard Disk Drive, HDD）</strong>在旋转盘片上磁性存储数据。执行访问时，执行器先把读写磁头径向移动到目标磁道，盘片旋转使目标扇区来到磁头下方，电子电路再传输并解码数据。小型随机请求的时间主要消耗在机械运动上，所以即使接口只暴露逻辑块地址，物理局部性仍很重要。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hdd-access-components.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="硬盘磁头先寻道，再等待盘片旋转到目标扇区，最后传输字节；延迟模型分别表示这些组成部分。"><img src="assets/hdd-access-components.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="硬盘磁头先寻道，再等待盘片旋转到目标扇区，最后传输字节；延迟模型分别表示这些组成部分。"></a></p>
+</figure>
+</div>
+<figcaption>硬盘磁头先寻道，再等待盘片旋转到目标扇区，最后传输字节；延迟模型分别表示这些组成部分。</figcaption>
+</figure>
+</div>
+</div>
+<p>访问时间可分解为</p>
+<p><span class="math display">\[
+T_{access}=T_{queue}+T_{ctrl}+T_{seek}+T_{rot}+T_{xfer}.
+\]</span></p>
+<p><span class="math inline">\(T_{queue}\)</span> 是等待其他请求的时间，<span class="math inline">\(T_{ctrl}\)</span> 是命令与控制器处理，<span class="math inline">\(T_{seek}\)</span> 是磁头寻道，<span class="math inline">\(T_{rot}\)</span> 是等待目标扇区旋转到磁头下方，<span class="math inline">\(T_{xfer}\)</span> 是传输数据。这些量并非常数，会随当前磁头位置、请求顺序、块大小和驱动行为变化。</p>
+<p>转速为每分钟 <span class="math inline">\(r\)</span> 转时，一整转耗时 <span class="math inline">\(60/r\)</span> 秒。若目标角位置均匀随机，平均旋转延迟是半圈：</p>
+<p><span class="math display">\[
+E[T_{rot}]=\frac{30}{r}\text{ 秒}=\frac{30{,}000}{r}\text{ 毫秒}.
+\]</span></p>
+<p>7,200 RPM 时约为 4.17 ms，且尚未计入寻道和传输。顺序请求可摊薄定位成本并高效流式传输，随机小 I/O 则反复支付定位开销。请求调度器可以重排独立操作来减少寻道距离，但仍要权衡吞吐量、公平性和延迟期限。</p>
+<details>
+<summary>
+Python 示例：估算 HDD 访问时间的组成
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hdd_access_ms(rpm, seek_ms, transfer_bytes, media_mib_per_s, queue_ms<span class="op">=</span><span class="dv">0</span>, controller_ms<span class="op">=</span><span class="fl">0.1</span>):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    average_rotation_ms <span class="op">=</span> <span class="dv">30_000</span> <span class="op">/</span> rpm</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    transfer_ms <span class="op">=</span> transfer_bytes <span class="op">/</span> (media_mib_per_s <span class="op">*</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span>) <span class="op">*</span> <span class="dv">1000</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> queue_ms <span class="op">+</span> controller_ms <span class="op">+</span> seek_ms <span class="op">+</span> average_rotation_ms <span class="op">+</span> transfer_ms</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"rotation_ms"</span>: average_rotation_ms,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"transfer_ms"</span>: transfer_ms,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"total_ms"</span>: total,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>estimate <span class="op">=</span> hdd_access_ms(</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    rpm<span class="op">=</span><span class="dv">7200</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    seek_ms<span class="op">=</span><span class="fl">8.0</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    transfer_bytes<span class="op">=</span><span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    media_mib_per_s<span class="op">=</span><span class="dv">200</span>,</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(estimate[<span class="st">"rotation_ms"</span>], <span class="dv">2</span>) <span class="op">==</span> <span class="fl">4.17</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> estimate[<span class="st">"transfer_ms"</span>] <span class="op">&lt;</span> <span class="fl">0.1</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> estimate[<span class="st">"total_ms"</span>] <span class="op">&gt;</span> <span class="dv">12</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({key: <span class="bu">round</span>(value, <span class="dv">3</span>) <span class="cf">for</span> key, value <span class="kw">in</span> estimate.items()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="solid-state-drives" class="level4">
+<h4 class="anchored" data-anchor-id="solid-state-drives"><strong>固态硬盘</strong></h4>
+<p><strong>固态硬盘（Solid-State Drive, SSD）</strong>使用非易失闪存保存数据，不含移动磁头和盘片。消除机械定位显著降低随机访问延迟，但 NAND 闪存具有另一种不对称性：数据按页读取和编程，却必须以大得多的擦除块为单位清除后才能复用；已编程页面不能直接原地覆盖。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ssd-ftl-nand.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="SSD 控制器通过 FTL 转换主机逻辑块地址，把更新写入空闲 NAND 页，使旧页失效，再通过垃圾回收重新获得擦除块。"><img src="assets/ssd-ftl-nand.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="SSD 控制器通过 FTL 转换主机逻辑块地址，把更新写入空闲 NAND 页，使旧页失效，再通过垃圾回收重新获得擦除块。"></a></p>
+</figure>
+</div>
+<figcaption>SSD 控制器通过 FTL 转换主机逻辑块地址，把更新写入空闲 NAND 页，使旧页失效，再通过垃圾回收重新获得擦除块。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>闪存转换层（Flash Translation Layer, FTL）</strong>把主机逻辑块地址映射到当前物理闪存页。更新写入新页，映射随之改变，旧页变为无效。垃圾回收会复制一个部分失效块中的剩余有效页，再擦除整块供以后复用。额外内部流量形成<strong>写放大（write amplification）</strong>：</p>
+<p><span class="math display">\[
+WA=\frac{B_{NAND,written}}{B_{host,written}},
+\]</span></p>
+<p>其中 <span class="math inline">\(B_{NAND,written}\)</span> 是包括复制数据在内的 NAND 内部总写入量，<span class="math inline">\(B_{host,written}\)</span> 是主机请求写入量。<span class="math inline">\(WA=1\)</span> 最理想，大于 1 会消耗带宽和编程/擦除寿命。</p>
+<p>磨损均衡把擦除分散到不同块，避免少数块过早失效。预留空间为重映射与垃圾回收提供空闲页；纠错码、重试、坏块管理、多 NAND 通道、控制器 DRAM 或主机内存缓冲也都会影响可见性能。TRIM/回收命令通知 SSD 某些逻辑块已无有效主机数据，使对应物理页可在无需复制时回收。</p>
+<details>
+<summary>
+Python 模型：玩具 FTL 中的异地更新
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ToyFTL:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, physical_pages):</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pages <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> physical_pages</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.valid <span class="op">=</span> [<span class="va">False</span>] <span class="op">*</span> physical_pages</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.mapping <span class="op">=</span> {}</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> write(<span class="va">self</span>, lba, value):</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># NAND 更新被写入空闲物理页。</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span>:</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>            new_page <span class="op">=</span> <span class="bu">next</span>(i <span class="cf">for</span> i, page <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="va">self</span>.pages) <span class="cf">if</span> page <span class="kw">is</span> <span class="va">None</span>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">except</span> <span class="pp">StopIteration</span> <span class="im">as</span> error:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">RuntimeError</span>(<span class="st">"garbage collection required"</span>) <span class="im">from</span> error</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> lba <span class="kw">in</span> <span class="va">self</span>.mapping:</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.valid[<span class="va">self</span>.mapping[lba]] <span class="op">=</span> <span class="va">False</span>  <span class="co"># 旧版本变为无效</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pages[new_page] <span class="op">=</span> (lba, value)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.valid[new_page] <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.mapping[lba] <span class="op">=</span> new_page</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> new_page</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> read(<span class="va">self</span>, lba):</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        page <span class="op">=</span> <span class="va">self</span>.mapping[lba]</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.pages[page][<span class="dv">1</span>]</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>ftl <span class="op">=</span> ToyFTL(physical_pages<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>old_page <span class="op">=</span> ftl.write(<span class="dv">42</span>, <span class="st">"old"</span>)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>ftl.write(<span class="dv">7</span>, <span class="st">"other"</span>)</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>new_page <span class="op">=</span> ftl.write(<span class="dv">42</span>, <span class="st">"new"</span>)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> old_page <span class="op">!=</span> new_page</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> ftl.valid[old_page]</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> ftl.valid[new_page]</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> ftl.read(<span class="dv">42</span>) <span class="op">==</span> <span class="st">"new"</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"LBA 42 moved from physical page </span><span class="sc">{</span>old_page<span class="sc">}</span><span class="ss"> to </span><span class="sc">{</span>new_page<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>与 HDD 相比，SSD 消除了寻道和旋转延迟，并可利用多个内部通道；但其延迟仍会受排队、垃圾回收、温度降频、错误重试、缓存状态与历史写入影响。</p>
+</section>
+<section id="storage-performance" class="level4">
+<h4 class="anchored" data-anchor-id="storage-performance"><strong>存储性能</strong></h4>
+<p>存储性能无法用一个数字概括。<strong>延迟</strong>表示单个请求从提交到完成的时间，<strong>IOPS</strong>是每秒完成的操作数，<strong>带宽</strong>是每秒完成的字节数，<strong>队列深度</strong>是未完成请求数，<strong>尾延迟</strong>则呈现平均值掩盖的慢百分位。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/storage-performance-queue.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="多个未完成请求进入设备调度器；图中区分延迟、IOPS、带宽、队列深度、尾延迟与 Little 定律。"><img src="assets/storage-performance-queue.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="多个未完成请求进入设备调度器；图中区分延迟、IOPS、带宽、队列深度、尾延迟与 Little 定律。"></a></p>
+</figure>
+</div>
+<figcaption>多个未完成请求进入设备调度器；图中区分延迟、IOPS、带宽、队列深度、尾延迟与 Little 定律。</figcaption>
+</figure>
+</div>
+</div>
+<p>若平均请求大小为 <span class="math inline">\(S\)</span> 字节，完成速率为每秒 <span class="math inline">\(\lambda\)</span> 次操作，则</p>
+<p><span class="math display">\[
+Bandwidth=\lambda S.
+\]</span></p>
+<p>这里 <span class="math inline">\(\lambda\)</span> 就是 IOPS，<span class="math inline">\(S\)</span> 是每次操作的平均字节数。因此，同样的 IOPS 对 4 KiB 随机读和 1 MiB 顺序读意味着完全不同的带宽。</p>
+<p>Little 定律把稳态平均并发数 <span class="math inline">\(N\)</span>、完成速率 <span class="math inline">\(\lambda\)</span> 与平均响应时间 <span class="math inline">\(W\)</span> 联系起来：</p>
+<p><span class="math display">\[
+N=\lambda W.
+\]</span></p>
+<p><span class="math inline">\(N\)</span> 是平均在途请求数，<span class="math inline">\(\lambda\)</span> 是单位时间完成数，<span class="math inline">\(W\)</span> 使用相同时间单位。重排可得 <span class="math inline">\(\lambda=N/W\)</span>，在设备具有足够并行服务能力时可作为理想上限估计。提高队列深度只在内部并行尚未占满时增加吞吐量；饱和后，新请求主要用于等待，吞吐量趋平而延迟继续增长。</p>
+<p>测量必须说明工作负载形态：读写比例、随机或顺序地址、请求大小、队列深度、持续时间、预热、缓存策略、持久性要求、数据可压缩性和报告的百分位。把缓存命中的顺序基准与要求持久化的随机写直接比较没有意义。</p>
+<details>
+<summary>
+Python 示例：联系队列深度、延迟、IOPS 与带宽
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ideal_storage_rate(queue_depth, average_latency_ms, request_bytes, device_iops_limit<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    latency_seconds <span class="op">=</span> average_latency_ms <span class="op">/</span> <span class="dv">1000</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    little_law_iops <span class="op">=</span> queue_depth <span class="op">/</span> latency_seconds</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    iops <span class="op">=</span> <span class="bu">min</span>(little_law_iops, device_iops_limit) <span class="cf">if</span> device_iops_limit <span class="cf">else</span> little_law_iops</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    bandwidth_mib_s <span class="op">=</span> iops <span class="op">*</span> request_bytes <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> iops, bandwidth_mib_s</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>iops, bandwidth <span class="op">=</span> ideal_storage_rate(</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    queue_depth<span class="op">=</span><span class="dv">32</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    average_latency_ms<span class="op">=</span><span class="fl">0.2</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    request_bytes<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    device_iops_limit<span class="op">=</span><span class="dv">120_000</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> iops <span class="op">==</span> <span class="dv">120_000</span>  <span class="co"># 设备在无约束 160k 估计之前饱和</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(bandwidth, <span class="dv">2</span>) <span class="op">==</span> <span class="fl">468.75</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>iops<span class="sc">:,.0f}</span><span class="ss"> IOPS, </span><span class="sc">{</span>bandwidth<span class="sc">:.2f}</span><span class="ss"> MiB/s"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="raid-and-storage-reliability" class="level3">
+<h3 class="anchored" data-anchor-id="raid-and-storage-reliability"><strong>RAID 与存储可靠性</strong></h3>
+<p><strong>RAID</strong> 把多个驱动器组合成一个逻辑存储系统，以改变容量、性能和对特定驱动器故障的容忍能力。条带化分散数据块，镜像保存副本，奇偶校验保存足以重建缺失数据的信息。具体布局决定可用容量以及能承受的故障数量与组合。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/raid-layout-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="四驱动器示例比较 RAID 0 条带、RAID 1 镜像对、RAID 5 分布式奇偶校验和 RAID 10 镜像条带。"><img src="assets/raid-layout-comparison.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="四驱动器示例比较 RAID 0 条带、RAID 1 镜像对、RAID 5 分布式奇偶校验和 RAID 10 镜像条带。"></a></p>
+</figure>
+</div>
+<figcaption>四驱动器示例比较 RAID 0 条带、RAID 1 镜像对、RAID 5 分布式奇偶校验和 RAID 10 镜像条带。</figcaption>
+</figure>
+</div>
+</div>
+<p>对于 <span class="math inline">\(N\)</span> 块相同容量 <span class="math inline">\(S\)</span> 的驱动器，常见可用容量近似为</p>
+<p><span class="math display">\[
+C_{RAID0}=NS,\quad C_{RAID5}=(N-1)S,\quad C_{RAID6}=(N-2)S,\quad C_{RAID10}=\frac{N}{2}S.
+\]</span></p>
+<p><span class="math inline">\(N\)</span> 是驱动器数量，<span class="math inline">\(S\)</span> 是参与驱动器中最小容量。RAID 10 假设偶数块驱动器组成镜像对；RAID 1 容量取决于镜像分组，简单双盘镜像只暴露 <span class="math inline">\(S\)</span>。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 17%">
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 17%">
+<col style="width: 17%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>级别</th>
+<th style="text-align: right;">最少驱动器</th>
+<th style="text-align: right;">可用容量</th>
+<th>故障容忍</th>
+<th>重要写行为</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>RAID 0</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;"><span class="math inline">\(NS\)</span></td>
+<td>无</td>
+<td>并行写数据，无冗余</td>
+</tr>
+<tr class="even">
+<td>RAID 1</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">每个镜像组一个副本</td>
+<td>每组仍保留副本时可容忍一个或多个</td>
+<td>更新每个镜像</td>
+</tr>
+<tr class="odd">
+<td>RAID 5</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;"><span class="math inline">\((N-1)S\)</span></td>
+<td>一块</td>
+<td>小写可能需要读—改—写数据和奇偶校验</td>
+</tr>
+<tr class="even">
+<td>RAID 6</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;"><span class="math inline">\((N-2)S\)</span></td>
+<td>两块</td>
+<td>两组校验增加写入工作</td>
+</tr>
+<tr class="odd">
+<td>RAID 10</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;"><span class="math inline">\(NS/2\)</span></td>
+<td>取决于具体故障组合</td>
+<td>在镜像对之间条带化</td>
+</tr>
+</tbody>
+</table>
+<p>RAID 5 的奇偶校验可按字节写成 <span class="math inline">\(P=D_0\oplus D_1\oplus D_2\)</span>。若 <span class="math inline">\(D_1\)</span> 丢失，由于 XOR 是自身的逆运算，可用 <span class="math inline">\(D_1=P\oplus D_0\oplus D_2\)</span> 重建。分布式奇偶校验避免永久占用一块校验盘，但降级读取和重建会消耗存活驱动器带宽。大型阵列还面临漫长重建窗口和潜在介质错误，因此真实可靠性还需要校验和、巡检、热备盘、监控与备份。</p>
+<details>
+<summary>
+Python 示例：用 XOR 重建一个丢失的 RAID-5 数据块
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> xor_blocks(<span class="op">*</span>blocks):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>({<span class="bu">len</span>(block) <span class="cf">for</span> block <span class="kw">in</span> blocks}) <span class="op">!=</span> <span class="dv">1</span>:</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"all blocks must have equal length"</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">bytes</span>(a <span class="op">^</span> b <span class="op">^</span> c <span class="cf">for</span> a, b, c <span class="kw">in</span> <span class="bu">zip</span>(<span class="op">*</span>blocks)) <span class="cf">if</span> <span class="bu">len</span>(blocks) <span class="op">==</span> <span class="dv">3</span> <span class="cf">else</span> <span class="bu">bytes</span>(</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">__import__</span>(<span class="st">"functools"</span>).<span class="bu">reduce</span>(<span class="kw">lambda</span> x, y: x <span class="op">^</span> y, values)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> values <span class="kw">in</span> <span class="bu">zip</span>(<span class="op">*</span>blocks)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>data0 <span class="op">=</span> <span class="bu">bytes</span>([<span class="bn">0x10</span>, <span class="bn">0x22</span>, <span class="bn">0x34</span>, <span class="bn">0x48</span>])</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>data1 <span class="op">=</span> <span class="bu">bytes</span>([<span class="bn">0xAB</span>, <span class="bn">0xCD</span>, <span class="bn">0xEF</span>, <span class="bn">0x01</span>])</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>data2 <span class="op">=</span> <span class="bu">bytes</span>([<span class="bn">0x55</span>, <span class="bn">0x66</span>, <span class="bn">0x77</span>, <span class="bn">0x88</span>])</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>parity <span class="op">=</span> xor_blocks(data0, data1, data2)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>recovered_data1 <span class="op">=</span> xor_blocks(parity, data0, data2)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> recovered_data1 <span class="op">==</span> data1</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"recovered:"</span>, recovered_data1.<span class="bu">hex</span>())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>RAID 不是备份。它无法单独恢复误删文件、已复制到所有成员的应用数据损坏、被盗硬件或站点级灾难。冗余提高的是对明确组件故障的可用性，备份与恢复才保护历史数据。</p>
+</section>
+<section id="tracing-an-end-to-end-io-request" class="level3">
+<h3 class="anchored" data-anchor-id="tracing-an-end-to-end-io-request"><strong>跟踪端到端 I/O 请求</strong></h3>
+<p>考虑从 NVMe SSD 读取 16 KiB，且所需文件数据不在页面缓存中。这个流程展示了本章机制如何组合；若页面缓存命中，请求将在内存中结束，完全跳过设备路径。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/end-to-end-nvme-read.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="应用读取经过文件系统、块层、NVMe 提交队列、MMIO doorbell、控制器、NAND、DMA 目标、完成队列以及中断或轮询，最后任务恢复。"><img src="assets/end-to-end-nvme-read.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="应用读取经过文件系统、块层、NVMe 提交队列、MMIO doorbell、控制器、NAND、DMA 目标、完成队列以及中断或轮询，最后任务恢复。"></a></p>
+</figure>
+</div>
+<figcaption>应用读取经过文件系统、块层、NVMe 提交队列、MMIO doorbell、控制器、NAND、DMA 目标、完成队列以及中断或轮询，最后任务恢复。</figcaption>
+</figure>
+</div>
+</div>
+<ol type="1">
+<li>应用以虚拟目标缓冲区和文件偏移调用 <code>read()</code>。</li>
+<li>文件系统检查页面缓存，并把文件块转换为块请求。</li>
+<li>块层可能合并、拆分和调度请求，再交给 NVMe 驱动。</li>
+<li>驱动固定或映射目标页面用于 DMA，填写提交队列项（SQE），并按所需内存顺序发布。</li>
+<li>MMIO doorbell 写通知控制器提交队列尾部已经推进。</li>
+<li>控制器用 DMA 取得命令、验证命令，并通过 FTL 映射逻辑块地址。</li>
+<li>NAND 通道读取所需页面，控制器 ECC 修复可恢复错误。</li>
+<li>控制器用 DMA 把有效载荷写入已映射主机内存页。</li>
+<li>数据可见性得到保证后，控制器写入完成队列项并发出 MSI-X，或等待主机轮询。</li>
+<li>驱动消费完成项、处理错误、解除 DMA 映射并唤醒任务；文件系统返回请求字节。</li>
+</ol>
+<p>命令与 doorbell 构成控制路径，DMA 写构成数据路径，完成队列与中断/轮询构成完成路径。这解释了为什么中断本身不携带 16 KiB 数据，也解释了为什么没有描述符和命令标识时，DMA 无法告诉软件应该完成哪个应用请求。</p>
+<p>第 09 章的存储型缺页会在步骤 2 附近接入：虚拟内存子系统分配页框，请求文件系统或交换子系统读入缺失页，并只在 I/O 路径填满该页框后重启故障指令。</p>
+<details>
+<summary>
+Python 模型：建立带时间戳的控制、数据与完成轨迹
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>phases <span class="op">=</span> [</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"syscall_and_cache_lookup"</span>, <span class="st">"control"</span>, <span class="dv">4</span>),</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"block_and_driver_setup"</span>, <span class="st">"control"</span>, <span class="dv">8</span>),</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"publish_sqe_and_doorbell"</span>, <span class="st">"control"</span>, <span class="dv">2</span>),</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"controller_and_flash_read"</span>, <span class="st">"device"</span>, <span class="dv">70</span>),</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"dma_payload_to_memory"</span>, <span class="st">"data"</span>, <span class="dv">6</span>),</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"post_cqe_and_interrupt"</span>, <span class="st">"completion"</span>, <span class="dv">5</span>),</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"driver_wakeup_and_return"</span>, <span class="st">"completion"</span>, <span class="dv">5</span>),</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_trace(items):</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    now_us <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    trace <span class="op">=</span> []</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, path, duration_us <span class="kw">in</span> items:</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        trace.append({<span class="st">"start_us"</span>: now_us, <span class="st">"end_us"</span>: now_us <span class="op">+</span> duration_us, <span class="st">"path"</span>: path, <span class="st">"name"</span>: name})</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>        now_us <span class="op">+=</span> duration_us</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> trace</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>trace <span class="op">=</span> build_trace(phases)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> trace[<span class="op">-</span><span class="dv">1</span>][<span class="st">"end_us"</span>] <span class="op">==</span> <span class="dv">100</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [item[<span class="st">"path"</span>] <span class="cf">for</span> item <span class="kw">in</span> trace].count(<span class="st">"data"</span>) <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> trace[<span class="dv">4</span>][<span class="st">"name"</span>] <span class="op">==</span> <span class="st">"dma_payload_to_memory"</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> item <span class="kw">in</span> trace:</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>item[<span class="st">'start_us'</span>]<span class="sc">:&gt;3}</span><span class="ss">-</span><span class="sc">{</span>item[<span class="st">'end_us'</span>]<span class="sc">:&gt;3}</span><span class="ss"> us  </span><span class="sc">{</span>item[<span class="st">'path'</span>]<span class="sc">:&lt;10}</span><span class="ss"> </span><span class="sc">{</span>item[<span class="st">'name'</span>]<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="choosing-an-io-transfer-mechanism" class="level3">
+<h3 class="anchored" data-anchor-id="choosing-an-io-transfer-mechanism"><strong>选择 I/O 传输机制</strong></h3>
+<p>合理设计应分别选择控制、有效载荷搬运和完成机制。寄存器大小的命令通常使用 MMIO，大块数据通常使用 DMA；稀疏完成适合中断，持续繁忙队列则可能适合轮询或自适应组合。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/io-mechanism-selection.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="决策流程为少量控制选择 MMIO/PIO，为大块数据选择 DMA，为稀疏完成选择中断，为高频完成选择轮询或批处理。"><img src="assets/io-mechanism-selection.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="决策流程为少量控制选择 MMIO/PIO，为大块数据选择 DMA，为稀疏完成选择中断，为高频完成选择轮询或批处理。"></a></p>
+</figure>
+</div>
+<figcaption>决策流程为少量控制选择 MMIO/PIO，为大块数据选择 DMA，为稀疏完成选择中断，为高频完成选择轮询或批处理。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>工作负载</th>
+<th>控制</th>
+<th>有效载荷</th>
+<th>完成</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>配置定时器</td>
+<td>MMIO 寄存器</td>
+<td>无/极少</td>
+<td>轮询一次或中断</td>
+<td>设置成本占主导</td>
+</tr>
+<tr class="even">
+<td>键盘事件</td>
+<td>MMIO 状态</td>
+<td>读取小 FIFO</td>
+<td>中断</td>
+<td>事件稀疏且不可预测</td>
+</tr>
+<tr class="odd">
+<td>高速网络接收</td>
+<td>MMIO doorbell</td>
+<td>DMA 描述符环</td>
+<td>中断后批量轮询</td>
+<td>大量小分组摊薄转换成本</td>
+</tr>
+<tr class="even">
+<td>NVMe 块 I/O</td>
+<td>MMIO doorbell</td>
+<td>DMA 到映射页</td>
+<td>轮询 CQ 或 MSI-X</td>
+<td>队列暴露并行性</td>
+</tr>
+<tr class="odd">
+<td>音频播放</td>
+<td>MMIO 控制</td>
+<td>循环 DMA 缓冲区</td>
+<td>周期中断</td>
+<td>有截止期的连续数据流</td>
+</tr>
+<tr class="even">
+<td>早期启动 UART</td>
+<td>MMIO/端口 I/O</td>
+<td>程序控制字节传输</td>
+<td>轮询</td>
+<td>完整中断初始化前重视简单性</td>
+</tr>
+</tbody>
+</table>
+<p>选择还必须考虑故障行为。轮询需要超时而不能无限循环；中断处理程序要容忍共享或过期事件；DMA 要限制地址、保证缓冲区生命周期、定义取消规则与复位恢复。只有把完成项与正确命令关联后，相关内存才能交还给其他所有者。</p>
+<details>
+<summary>
+Python 示例：独立选择控制、有效载荷与完成机制
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> choose_io_strategy(payload_bytes, events_per_second, latency_critical<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    control <span class="op">=</span> <span class="st">"MMIO registers/doorbell"</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    payload <span class="op">=</span> <span class="st">"programmed I/O"</span> <span class="cf">if</span> payload_bytes <span class="op">&lt;=</span> <span class="dv">16</span> <span class="cf">else</span> <span class="st">"DMA"</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> events_per_second <span class="op">&lt;</span> <span class="dv">1_000</span>:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>        completion <span class="op">=</span> <span class="st">"interrupt"</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> events_per_second <span class="op">&gt;</span> <span class="dv">100_000</span> <span class="kw">or</span> latency_critical:</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        completion <span class="op">=</span> <span class="st">"polling or adaptive polling"</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>        completion <span class="op">=</span> <span class="st">"interrupt coalescing"</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> control, payload, completion</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> choose_io_strategy(<span class="dv">1</span>, <span class="dv">20</span>) <span class="op">==</span> (</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"MMIO registers/doorbell"</span>, <span class="st">"programmed I/O"</span>, <span class="st">"interrupt"</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> choose_io_strategy(<span class="dv">16</span> <span class="op">*</span> <span class="dv">1024</span>, <span class="dv">200_000</span>)[<span class="dv">1</span>:] <span class="op">==</span> (</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DMA"</span>, <span class="st">"polling or adaptive polling"</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(choose_io_strategy(<span class="dv">4096</span>, <span class="dv">10_000</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>玩具策略中的数值阈值仅用于说明，而不是硬件规则。真实选择取决于实测设置成本、事件速率、功耗预算、缓存行为、设备排队和延迟目标。</p>
+<p><strong>本章总结。</strong> I/O 把同步的处理器—内存模型连接到时序、粒度、可靠性与协议各不相同的设备。控制器暴露寄存器和队列，同时隐藏设备专用执行。MMIO 决定如何寻址寄存器，PIO 决定 CPU 是否逐单元搬运数据。轮询用 CPU 注意力换取直接检测，中断则用进入开销换取高效等待。异常与当前指令同步，设备中断异步发生，并通常经过优先级控制器或消息信号路径。DMA 允许控制器在设备与映射内存间搬运大块数据，但仍需要描述符设置、顺序、生命周期、IOMMU 保护和完成处理。HDD 支付寻道与旋转成本；SSD 则面对 FTL 映射、异地写、垃圾回收、磨损均衡与通道并行。存储性能必须区分延迟、IOPS、带宽、队列深度和尾部；RAID 改变放置和指定故障容忍，但不能替代备份。第 11 章将进入多核执行，其中每核队列、中断路由、共享内存同步与缓存一致性共同决定 I/O 如何随处理器数量扩展。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","descPosition":"bottom","openEffect":"zoom","selector":".lightbox"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

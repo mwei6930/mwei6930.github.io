@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机组成与体系结构：虚拟内存与地址转换</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="09-virtual-memory-and-translation_files/libs/clipboard/clipboard.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/quarto.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/popper.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="09-virtual-memory-and-translation_files/libs/quarto-html/anchor.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="09-virtual-memory-and-translation_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="/ipynb/blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#virtual-memory-and-address-translation" id="toc-virtual-memory-and-address-translation" class="nav-link active" data-scroll-target="#virtual-memory-and-address-translation"><strong>虚拟内存与地址转换</strong></a>
+  <ul>
+  <li><a href="#why-virtual-memory-exists" id="toc-why-virtual-memory-exists" class="nav-link" data-scroll-target="#why-virtual-memory-exists"><strong>为什么需要虚拟内存</strong></a></li>
+  <li><a href="#virtual-and-physical-address-spaces" id="toc-virtual-and-physical-address-spaces" class="nav-link" data-scroll-target="#virtual-and-physical-address-spaces"><strong>虚拟地址空间与物理地址空间</strong></a></li>
+  <li><a href="#pages-frames-and-address-translation" id="toc-pages-frames-and-address-translation" class="nav-link" data-scroll-target="#pages-frames-and-address-translation"><strong>页面、页框与地址转换</strong></a></li>
+  <li><a href="#page-tables" id="toc-page-tables" class="nav-link" data-scroll-target="#page-tables"><strong>页表</strong></a>
+  <ul>
+  <li><a href="#single-level-page-tables" id="toc-single-level-page-tables" class="nav-link" data-scroll-target="#single-level-page-tables"><strong>单级页表</strong></a></li>
+  <li><a href="#multi-level-page-tables" id="toc-multi-level-page-tables" class="nav-link" data-scroll-target="#multi-level-page-tables"><strong>多级页表</strong></a></li>
+  <li><a href="#page-table-entries" id="toc-page-table-entries" class="nav-link" data-scroll-target="#page-table-entries"><strong>页表项</strong></a></li>
+  </ul></li>
+  <li><a href="#translation-lookaside-buffers" id="toc-translation-lookaside-buffers" class="nav-link" data-scroll-target="#translation-lookaside-buffers"><strong>转换后备缓冲区</strong></a></li>
+  <li><a href="#page-faults-and-demand-paging" id="toc-page-faults-and-demand-paging" class="nav-link" data-scroll-target="#page-faults-and-demand-paging"><strong>缺页异常与需求分页</strong></a></li>
+  <li><a href="#protection-privilege-and-sharing" id="toc-protection-privilege-and-sharing" class="nav-link" data-scroll-target="#protection-privilege-and-sharing"><strong>保护、特权与共享</strong></a></li>
+  <li><a href="#the-complete-tlb-cache-memory-access-path" id="toc-the-complete-tlb-cache-memory-access-path" class="nav-link" data-scroll-target="#the-complete-tlb-cache-memory-access-path"><strong>完整的 TLB—缓存—内存访问路径</strong></a></li>
+  <li><a href="#translation-performance-and-memory-overheads" id="toc-translation-performance-and-memory-overheads" class="nav-link" data-scroll-target="#translation-performance-and-memory-overheads"><strong>转换性能与内存开销</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机组成与体系结构：虚拟内存与地址转换</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Organization/09-virtual-memory-and-translation.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="/ipynb/zh-CN/Computer-Science/Computer-Organization/Computer-Organization.html">返回计算机组成与体系结构总览</a></p>
+<section id="virtual-memory-and-address-translation" class="level2">
+<h2 class="anchored" data-anchor-id="virtual-memory-and-address-translation"><strong>虚拟内存与地址转换</strong></h2>
+<p>第 08 章从物理地址出发，跟踪了它在缓存层次中的查找过程。真实程序通常不会直接产生物理地址：取指、load 或 store 首先生成<strong>虚拟地址</strong>，由内存管理单元（Memory-Management Unit, MMU）完成转换并检查访问权限，随后缓存与主存系统才可以服务该请求。</p>
+<p>因此，虚拟内存不只是“RAM 不够时借用磁盘”的技术，而是处理器和操作系统共同实现的一项体系结构契约。硬件负责快速转换与权限检查；操作系统负责创建页表、决定哪些映射存在，并处理异常情况。本章重点就在这条软硬件边界上。</p>
+<section id="why-virtual-memory-exists" class="level3">
+<h3 class="anchored" data-anchor-id="why-virtual-memory-exists"><strong>为什么需要虚拟内存</strong></h3>
+<p>若没有虚拟内存，程序必须知道自己的字节实际位于哪些物理位置。装入多个程序时需要寻找互不重叠的物理区间；移动程序会使已保存的指针全部失效；一个程序还可能意外命名另一个程序的数据。物理碎片和不断变化的内存需求都会泄漏到普通应用逻辑中。</p>
+<p>虚拟内存插入了一层间接映射。进程看到的是稳定且大体连续的地址空间，而页表可把其页面放到任意可用物理页框。这种间接性支持四个密切相关的目标：</p>
+<ul>
+<li><strong>隔离：</strong> 私有映射阻止一个进程访问另一个进程的页框。</li>
+<li><strong>重定位：</strong> 即使物理放置改变，虚拟地址也保持不变。</li>
+<li><strong>按需分配：</strong> 未使用或暂时不活跃的虚拟页无需立即占用 RAM。</li>
+<li><strong>受控共享：</strong> 不同进程可按指定权限映射到同一物理页框。</li>
+</ul>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-memory-benefits.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="两个进程看到简单的虚拟地址空间，而代码、数据和共享页面可映射到分散的物理页框。"><img src="assets/virtual-memory-benefits.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="两个进程看到简单的虚拟地址空间，而代码、数据和共享页面可映射到分散的物理页框。"></a></p>
+</figure>
+</div>
+<figcaption>两个进程看到简单的虚拟地址空间，而代码、数据和共享页面可映射到分散的物理页框。</figcaption>
+</figure>
+</div>
+</div>
+<p>很大的虚拟地址空间并不代表可用内存无限。页面活跃时仍需要物理存储，页表、RAM、后备存储与操作系统策略也都存在实际限制。虚拟内存的价值在于以页面为单位管理分配和保护，而不是把固定物理地址暴露给程序。</p>
+<details>
+<summary>
+Python 模型：同一虚拟地址可表示不同的物理字节
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 每个进程拥有独立的虚拟页映射。</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>page_tables <span class="op">=</span> {</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A"</span>: {<span class="bn">0x1</span>: <span class="dv">12</span>, <span class="bn">0x2</span>: <span class="dv">27</span>},</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"B"</span>: {<span class="bn">0x1</span>: <span class="dv">52</span>, <span class="bn">0x2</span>: <span class="dv">27</span>},  <span class="co"># VPN 0x2 有意共享 PFN 27</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> translate(process, virtual_address):</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(virtual_address, PAGE_SIZE)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> vpn <span class="kw">not</span> <span class="kw">in</span> page_tables[process]:</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"virtual page is not mapped"</span>)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    pfn <span class="op">=</span> page_tables[process][vpn]</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pfn <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>same_va <span class="op">=</span> <span class="bn">0x1008</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> translate(<span class="st">"A"</span>, same_va) <span class="op">!=</span> translate(<span class="st">"B"</span>, same_va)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>shared_va <span class="op">=</span> <span class="bn">0x2008</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> translate(<span class="st">"A"</span>, shared_va) <span class="op">==</span> translate(<span class="st">"B"</span>, shared_va)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(translate(<span class="st">"A"</span>, same_va)), <span class="bu">hex</span>(translate(<span class="st">"B"</span>, same_va)))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="virtual-and-physical-address-spaces" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-and-physical-address-spaces"><strong>虚拟地址空间与物理地址空间</strong></h3>
+<p><strong>虚拟地址空间</strong>是在某一个转换上下文中解释的一组地址。对用户进程而言，这个上下文通常由页表根与 ASID 或 PCID 等地址空间标识符共同确定。<strong>物理地址空间</strong>则是缓存层次、互连和内存控制器能够接受的地址集合。二者可以具有不同位宽和完全不同的布局。</p>
+<p>单独的虚拟地址数值并不是全局唯一的内存位置。进程 A 和进程 B 都可以使用虚拟地址 <code>0x12345ABC</code>，但各自页表可能把它映射到不同页框；反过来，两个无关的虚拟地址也可有意映射到同一物理页框，以实现共享库、共享内存或内存映射文件。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-physical-spaces.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="两个地址空间中的相同虚拟页可映射到不同页框，而另外两个虚拟页也可以共享同一个物理页框。"><img src="assets/virtual-physical-spaces.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="两个地址空间中的相同虚拟页可映射到不同页框，而另外两个虚拟页也可以共享同一个物理页框。"></a></p>
+</figure>
+</div>
+<figcaption>两个地址空间中的相同虚拟页可映射到不同页框，而另外两个虚拟页也可以共享同一个物理页框。</figcaption>
+</figure>
+</div>
+</div>
+<p>上下文切换会改变当前转换上下文。简单处理器可能在页表根改变时清空进程专属 TLB 项；支持 ASID 标记的 TLB 则可同时保留多个进程的转换，并使用 <code>(ASID, VPN)</code> 而不是仅用 VPN 区分它们，从而在保持隔离的同时减少不必要的重新填充。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>虚拟地址空间</th>
+<th>物理地址空间</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>由谁解释</td>
+<td>进程与 MMU 转换上下文</td>
+<td>缓存层次、互连和内存控制器</td>
+</tr>
+<tr class="even">
+<td>布局</td>
+<td>私有、稀疏，由页表决定</td>
+<td>有限且实际安装或体系结构可寻址的存储</td>
+</tr>
+<tr class="odd">
+<td>两个进程中的相同数值</td>
+<td>可以指向不同数据</td>
+<td>指向同一个物理位置</td>
+</tr>
+<tr class="even">
+<td>空洞</td>
+<td>未映射范围很常见</td>
+<td>未实现或保留范围由平台决定</td>
+</tr>
+<tr class="odd">
+<td>共享</td>
+<td>多个虚拟映射可别名到同一页框</td>
+<td>一个页框保存共享字节</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="pages-frames-and-address-translation" class="level3">
+<h3 class="anchored" data-anchor-id="pages-frames-and-address-translation"><strong>页面、页框与地址转换</strong></h3>
+<p>分页把虚拟空间划分为固定大小的<strong>页面（page）</strong>，把物理内存划分为同样大小的<strong>页框（frame）</strong>，二者都按页面大小对齐。转换用物理页号或页框号（PPN/PFN）替换虚拟页号（VPN），而页面内的字节偏移保持不变。</p>
+<p>对页面大小 <span class="math inline">\(P\)</span> 和虚拟地址 <span class="math inline">\(VA\)</span>，</p>
+<p><span class="math display">\[
+VPN=\left\lfloor\frac{VA}{P}\right\rfloor,\qquad offset=VA\bmod P.
+\]</span></p>
+<p>若页表把该 VPN 映射到物理页号 <span class="math inline">\(PPN\)</span>，则</p>
+<p><span class="math display">\[
+PA=PPN\times P+offset.
+\]</span></p>
+<p>其中，<span class="math inline">\(VA\)</span> 是虚拟字节地址，<span class="math inline">\(PA\)</span> 是物理字节地址，<span class="math inline">\(P\)</span> 是每个页面/页框的字节数，<code>offset</code> 在转换前后指向相同的页内位置。正是页面对齐使这个偏移可以直接复用。</p>
+<p>当 <span class="math inline">\(P=2^p\)</span> 时，地址最低的 <span class="math inline">\(p\)</span> 位就是偏移。4 KiB 页面有 <span class="math inline">\(4096=2^{12}\)</span> 字节，所以 32 位虚拟地址可拆成 20 位 VPN 与 12 位页内偏移。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-frame-address-translation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="虚拟地址 0x12345ABC 被拆成 VPN 0x12345 与偏移 0xABC；把 VPN 映射到 PPN 0x2BEEF 后得到物理地址 0x2BEEFABC。"><img src="assets/page-frame-address-translation.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="虚拟地址 0x12345ABC 被拆成 VPN 0x12345 与偏移 0xABC；把 VPN 映射到 PPN 0x2BEEF 后得到物理地址 0x2BEEFABC。"></a></p>
+</figure>
+</div>
+<figcaption>虚拟地址 0x12345ABC 被拆成 VPN 0x12345 与偏移 0xABC；把 VPN 映射到 PPN 0x2BEEF 后得到物理地址 0x2BEEFABC。</figcaption>
+</figure>
+</div>
+</div>
+<p>在这个例子中，<code>0x12345ABC</code> 得到 VPN <code>0x12345</code> 和偏移 <code>0xABC</code>，映射 <code>0x12345 -&gt; 0x2BEEF</code> 形成物理地址 <code>0x2BEEFABC</code>。硬件并不是对页号和偏移做普通加法；由于页框和页面均对齐，字段拼接即可得到同一结果。</p>
+<details>
+<summary>
+Python 示例：拆分虚拟地址并构造物理地址
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> split_address(address, page_size):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># divmod 同时返回页号和字节偏移。</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">divmod</span>(address, page_size)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_physical_address(ppn, offset, page_size):</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="dv">0</span> <span class="op">&lt;=</span> offset <span class="op">&lt;</span> page_size:</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"offset must remain inside one page"</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ppn <span class="op">*</span> page_size <span class="op">+</span> offset</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>virtual_address <span class="op">=</span> <span class="bn">0x12345ABC</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>page_size <span class="op">=</span> <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>vpn, offset <span class="op">=</span> split_address(virtual_address, page_size)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>physical_address <span class="op">=</span> make_physical_address(<span class="bn">0x2BEEF</span>, offset, page_size)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> vpn <span class="op">==</span> <span class="bn">0x12345</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> offset <span class="op">==</span> <span class="bn">0xABC</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> physical_address <span class="op">==</span> <span class="bn">0x2BEEFABC</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(vpn), <span class="bu">hex</span>(offset), <span class="bu">hex</span>(physical_address))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>页面大小也存在权衡。大页面可提高 TLB 覆盖范围、减少页表项数量，但可能浪费分配末页中的未使用字节，缺页时搬运更多数据，并要求更大的连续对齐物理区域。因此，许多体系结构同时支持普通页面和一种或多种大页面。</p>
+</section>
+<section id="page-tables" class="level3">
+<h3 class="anchored" data-anchor-id="page-tables"><strong>页表</strong></h3>
+<p><strong>页表（page table）</strong>是驻留在内存中的数据结构，用来描述一个虚拟地址空间。特权寄存器保存其根地址；每个索引项可能指向下一层页表、提供最终物理页号，或表示当前映射无法使用。</p>
+<p>页表遍历本身属于存储系统操作：页表项位于内存中，其读取也会经过缓存。四级遍历不一定产生四次 DRAM 访问，因为页表遍历缓存或普通数据缓存可能保存上层页表项；但它仍是一串相互依赖的查找，这正是处理器使用 TLB 缓存已完成转换的原因。</p>
+<section id="single-level-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="single-level-page-tables"><strong>单级页表</strong></h4>
+<p>单级页表把整个 VPN 作为一个数组索引。若虚拟地址有 <span class="math inline">\(v\)</span> 位、页内偏移有 <span class="math inline">\(p\)</span> 位，则页表需要</p>
+<p><span class="math display">\[
+N_{PTE}=2^{v-p}
+\]</span></p>
+<p>个表项。每项占 <span class="math inline">\(E\)</span> 字节时，内存成本为</p>
+<p><span class="math display">\[
+M_{flat}=2^{v-p}\times E.
+\]</span></p>
+<p><span class="math inline">\(N_{PTE}\)</span> 是可能虚拟页的数量，<span class="math inline">\(v-p\)</span> 是 VPN 位数，<span class="math inline">\(E\)</span> 是 PTE 大小，<span class="math inline">\(M_{flat}\)</span> 是平坦页表预留的内存。对于 32 位虚拟地址、4 KiB 页面和 4 字节 PTE，结果为 <span class="math inline">\(2^{20}\times4=4\)</span> MiB/进程，即使该进程只映射了少量页面。</p>
+<details>
+<summary>
+Python 示例：计算平坦页表的存储开销
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> flat_page_table_bytes(virtual_bits, page_size, pte_bytes):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2 的幂页面会把 log2(page_size) 位留给偏移。</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    offset_bits <span class="op">=</span> page_size.bit_length() <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> page_size <span class="op">!=</span> <span class="dv">1</span> <span class="op">&lt;&lt;</span> offset_bits:</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"page size must be a power of two"</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    vpn_bits <span class="op">=</span> virtual_bits <span class="op">-</span> offset_bits</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="dv">1</span> <span class="op">&lt;&lt;</span> vpn_bits) <span class="op">*</span> pte_bytes</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>size <span class="op">=</span> flat_page_table_bytes(<span class="dv">32</span>, <span class="dv">4096</span>, <span class="dv">4</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> size <span class="op">==</span> <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>size <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span><span class="sc">:.0f}</span><span class="ss"> MiB per process"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>平坦页表可直接索引，硬件概念简单，但其固定成本与巨大、稀疏的地址空间并不匹配。</p>
+</section>
+<section id="multi-level-page-tables" class="level4">
+<h4 class="anchored" data-anchor-id="multi-level-page-tables"><strong>多级页表</strong></h4>
+<p>多级页表把 VPN 拆成多个索引。只有某个虚拟子区域中确实存在映射时，上层表项才指向下层表；因此，大段空洞可由一个无效的上层项表示，而无需保留成千上万个无效叶项。</p>
+<p>同样在 32 位示例中，两级设计可以把地址拆为 <code>10 位 L1 索引 | 10 位 L2 索引 | 12 位偏移</code>。每项 4 字节时，每张表包含 <span class="math inline">\(2^{10}=1024\)</span> 项，大小恰好为 4 KiB，因此每张表本身占一个页面。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/single-vs-multilevel-page-tables.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="平坦页表固定预留 4 MiB；两级页表只分配一个根页，以及有实际虚拟映射的叶表页。"><img src="assets/single-vs-multilevel-page-tables.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="平坦页表固定预留 4 MiB；两级页表只分配一个根页，以及有实际虚拟映射的叶表页。"></a></p>
+</figure>
+</div>
+<figcaption>平坦页表固定预留 4 MiB；两级页表只分配一个根页，以及有实际虚拟映射的叶表页。</figcaption>
+</figure>
+</div>
+</div>
+<p>对于 <code>VA = 0x12345ABC</code>，上层索引是 72，下层索引是 837，偏移为 <code>0xABC</code>。硬件先读取 <code>root[72]</code> 找到对应叶表，再读取 <code>leaf[837]</code> 获得最终 PPN 与权限。</p>
+<details>
+<summary>
+Python 模型：遍历两级页表
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>INDEX_MASK <span class="op">=</span> <span class="bn">0x3FF</span>  <span class="co"># 十个 1 位可选择 1024 个表项之一</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 这个小例子只分配了一张下级页表。</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>root <span class="op">=</span> {</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="dv">72</span>: {<span class="dv">837</span>: {<span class="st">"ppn"</span>: <span class="bn">0x2BEEF</span>, <span class="st">"read"</span>: <span class="va">True</span>, <span class="st">"write"</span>: <span class="va">True</span>}},</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> walk_two_levels(virtual_address):</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    l1_index <span class="op">=</span> (virtual_address <span class="op">&gt;&gt;</span> <span class="dv">22</span>) <span class="op">&amp;</span> INDEX_MASK</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    l2_index <span class="op">=</span> (virtual_address <span class="op">&gt;&gt;</span> <span class="dv">12</span>) <span class="op">&amp;</span> INDEX_MASK</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    offset <span class="op">=</span> virtual_address <span class="op">&amp;</span> <span class="bn">0xFFF</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    leaf_table <span class="op">=</span> root.get(l1_index)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> leaf_table <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"no lower-level table for this virtual region"</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    pte <span class="op">=</span> leaf_table.get(l2_index)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> pte <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"virtual page is not mapped"</span>)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pte[<span class="st">"ppn"</span>] <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset, (l1_index, l2_index)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>pa, indices <span class="op">=</span> walk_two_levels(<span class="bn">0x12345ABC</span>)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> indices <span class="op">==</span> (<span class="dv">72</span>, <span class="dv">837</span>)</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> pa <span class="op">==</span> <span class="bn">0x2BEEFABC</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(indices, <span class="bu">hex</span>(pa))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>权衡很明确：层次结构在虚拟空间稀疏时节省内存，但 TLB 未命中可能需要多次相互依赖的 PTE 读取。若大型对齐映射适用，大页叶项可在较高层终止遍历，同时减少页表深度与 TLB 压力。</p>
+</section>
+<section id="page-table-entries" class="level4">
+<h4 class="anchored" data-anchor-id="page-table-entries"><strong>页表项</strong></h4>
+<p><strong>页表项（Page-Table Entry, PTE）</strong>不只保存页框号。它还记录表项是否可用、哪些特权级可使用、允许哪些操作，以及页面是否被访问或修改。不同体系结构中的位名和位置不尽相同，因此应理解字段职责，而不应假设一种通用二进制布局。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/generic-pte-fields.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="通用 PTE 把物理页号与有效、特权、读、写、执行、访问、脏以及软件自定义状态组合在一起。"><img src="assets/generic-pte-fields.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="通用 PTE 把物理页号与有效、特权、读、写、执行、访问、脏以及软件自定义状态组合在一起。"></a></p>
+</figure>
+</div>
+<figcaption>通用 PTE 把物理页号与有效、特权、读、写、执行、访问、脏以及软件自定义状态组合在一起。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>概念字段</th>
+<th>用途</th>
+<th>典型后果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>有效/在内存</td>
+<td>当前表项能否完成转换</td>
+<td>清除时可能触发缺页，或表示未使用的子树</td>
+</tr>
+<tr class="even">
+<td>PPN/PFN</td>
+<td>标识映射页框或下一层页表</td>
+<td>叶映射中与偏移拼接</td>
+</tr>
+<tr class="odd">
+<td>用户/监督者</td>
+<td>限制当前特权模式</td>
+<td>用户访问仅监督者页面会产生异常</td>
+</tr>
+<tr class="even">
+<td>读/写/执行</td>
+<td>限制请求操作</td>
+<td>支持只读代码、不可执行数据和保护页</td>
+</tr>
+<tr class="odd">
+<td>已访问/引用</td>
+<td>记录近期使用</td>
+<td>帮助软件选择替换候选</td>
+</tr>
+<tr class="even">
+<td>脏/已修改</td>
+<td>记录成功写入</td>
+<td>告诉软件淘汰页面时是否需要写回</td>
+</tr>
+<tr class="odd">
+<td>软件状态</td>
+<td>保存操作系统自定义元数据</td>
+<td>可标识写时复制、交换位置或记账状态</td>
+</tr>
+</tbody>
+</table>
+<p>非叶 PTE 指向另一张页表页，叶 PTE 描述已映射页面。权限不仅要在页表遍历时检查，也必须在 TLB 命中时检查，因此 TLB 项会把保护信息与 PPN 一起缓存。</p>
+<details>
+<summary>
+Python 模型：执行 PTE 权限检查
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PTE:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    ppn: <span class="bu">int</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    present: <span class="bu">bool</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    user: <span class="bu">bool</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    read: <span class="bu">bool</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    write: <span class="bu">bool</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    execute: <span class="bu">bool</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    accessed: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    dirty: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> authorize(pte, mode, operation):</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> pte.present:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"page-fault:not-present"</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> mode <span class="op">==</span> <span class="st">"user"</span> <span class="kw">and</span> <span class="kw">not</span> pte.user:</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"page-fault:privilege"</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    allowed <span class="op">=</span> {<span class="st">"read"</span>: pte.read, <span class="st">"write"</span>: pte.write, <span class="st">"execute"</span>: pte.execute}</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> allowed[operation]:</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"page-fault:</span><span class="sc">{</span>operation<span class="sc">}</span><span class="ss">-denied"</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 成功访问会更新使用状态。</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    pte.accessed <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> operation <span class="op">==</span> <span class="st">"write"</span>:</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>        pte.dirty <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"allowed"</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>data_page <span class="op">=</span> PTE(<span class="bn">0x2BEEF</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">True</span>, <span class="va">False</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> authorize(data_page, <span class="st">"user"</span>, <span class="st">"write"</span>) <span class="op">==</span> <span class="st">"allowed"</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> data_page.accessed <span class="kw">and</span> data_page.dirty</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> authorize(data_page, <span class="st">"user"</span>, <span class="st">"execute"</span>) <span class="op">==</span> <span class="st">"page-fault:execute-denied"</span></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(data_page)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="translation-lookaside-buffers" class="level3">
+<h3 class="anchored" data-anchor-id="translation-lookaside-buffers"><strong>转换后备缓冲区</strong></h3>
+<p><strong>转换后备缓冲区（Translation Lookaside Buffer, TLB）</strong>是一种小型相联缓存，保存最近使用的页地址转换。其键在概念上是 <code>(ASID, VPN)</code>，值包含 PPN、权限与状态信息。TLB 缓存的是页面映射到哪里，<strong>并不</strong>缓存请求的指令字节或数据字节。</p>
+<p>TLB 命中时，MMU 无需遍历页表即可取得 PPN；TLB 未命中时，由硬件或特权软件处理程序查找页表。若找到有效叶 PTE，就填充 TLB 并继续原访问；只有映射缺失、无效或权限不允许时才产生缺页异常。因此，<code>TLB miss</code> 与 <code>page fault</code> 不是同义词。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tlb-address-resolution-wikimedia.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="简化的虚拟到物理转换流程先查 TLB，TLB 未命中时查询页表，图中只有页面不驻留时才访问后备存储。"><img src="assets/tlb-address-resolution-wikimedia.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="简化的虚拟到物理转换流程先查 TLB，TLB 未命中时查询页表，图中只有页面不驻留时才访问后备存储。"></a></p>
+</figure>
+</div>
+<figcaption>简化的虚拟到物理转换流程先查 TLB，TLB 未命中时查询页表，图中只有页面不驻留时才访问后备存储。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:TLB.svg">Arilou, Wikimedia Commons</a>，采用 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 许可。原图用“page table miss”表示简化的页面不驻留路径；真实缺页还包括权限失败、延迟分配和写时复制。</em></p>
+<p>TLB 能同时表示的虚拟内存范围称为 <strong>TLB 覆盖范围（TLB reach）</strong>：</p>
+<p><span class="math display">\[
+R_{TLB}=N_{entries}\times P.
+\]</span></p>
+<p>若各表项映射不同页面，<span class="math inline">\(R_{TLB}\)</span> 是可覆盖字节数，<span class="math inline">\(N_{entries}\)</span> 是缓存转换数量，<span class="math inline">\(P\)</span> 是页面大小。64 项 TLB 配合 4 KiB 页面可覆盖 256 KiB；同样 64 项若映射 2 MiB 大页，则可覆盖 128 MiB。大页面提高覆盖范围，但仍具有前述分配和碎片权衡。</p>
+<p>处理器通常在流水线附近分别设置指令 TLB 和数据 TLB，有些还提供更大的共享二级 TLB。替换、相联度、ASID 容量、页面大小支持以及独立的读写执行权限都会影响行为。</p>
+<details>
+<summary>
+Python 模型：支持 ASID 的 LRU TLB
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> OrderedDict</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TLB:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, entries):</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.entries <span class="op">=</span> entries</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines <span class="op">=</span> OrderedDict()</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> lookup(<span class="va">self</span>, asid, vpn):</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (asid, vpn)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> key <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.lines:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> <span class="va">self</span>.lines.pop(key)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines[key] <span class="op">=</span> value  <span class="co"># 标记为最近使用</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> value</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> insert(<span class="va">self</span>, asid, vpn, ppn):</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (asid, vpn)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines.pop(key, <span class="va">None</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lines[key] <span class="op">=</span> ppn</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(<span class="va">self</span>.lines) <span class="op">&gt;</span> <span class="va">self</span>.entries:</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.lines.popitem(last<span class="op">=</span><span class="va">False</span>)  <span class="co"># 淘汰最久未使用项</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>tlb <span class="op">=</span> TLB(entries<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>tlb.insert(asid<span class="op">=</span><span class="dv">7</span>, vpn<span class="op">=</span><span class="bn">0x12345</span>, ppn<span class="op">=</span><span class="bn">0x2BEEF</span>)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>tlb.insert(asid<span class="op">=</span><span class="dv">12</span>, vpn<span class="op">=</span><span class="bn">0x12345</span>, ppn<span class="op">=</span><span class="bn">0x01020</span>)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> tlb.lookup(<span class="dv">7</span>, <span class="bn">0x12345</span>) <span class="op">==</span> <span class="bn">0x2BEEF</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> tlb.lookup(<span class="dv">12</span>, <span class="bn">0x12345</span>) <span class="op">==</span> <span class="bn">0x01020</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(tlb.lines)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="page-faults-and-demand-paging" class="level3">
+<h3 class="anchored" data-anchor-id="page-faults-and-demand-paging"><strong>缺页异常与需求分页</strong></h3>
+<p><strong>缺页异常（page fault）</strong>是一种精确异常：当前地址转换或保护状态无法完成内存访问时，处理器记录足够的体系结构状态并把控制权交给操作系统。操作系统检查原因，修复映射或报告错误；若成功修复，故障指令会重新执行，从程序视角看就像该指令只是花了很长时间。</p>
+<p>需求分页会有意让某些有效虚拟区域开始时处于不驻留状态。第一次访问触发缺页后，操作系统获取页框、准备内容、更新 PTE 与相关 TLB 状态，再重启指令。准备页面可能需要读取文件或交换区，也可能只是为新的匿名页填零，或为写时复制创建副本。因此，并不是每次缺页都会进行存储 I/O。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-fault-handling-flow.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="缺页异常陷入操作系统；系统拒绝非法访问，或准备页框、更新转换状态并重新执行指令。"><img src="assets/page-fault-handling-flow.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="缺页异常陷入操作系统；系统拒绝非法访问，或准备页框、更新转换状态并重新执行指令。"></a></p>
+</figure>
+</div>
+<figcaption>缺页异常陷入操作系统；系统拒绝非法访问，或准备页框、更新转换状态并重新执行指令。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>故障情形</th>
+<th>映射含义</th>
+<th>典型处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>匿名内存延迟分配</td>
+<td>虚拟区域有效，但尚无页框</td>
+<td>分配页框并填零</td>
+</tr>
+<tr class="even">
+<td>文件支持的需求页</td>
+<td>文件映射有效，页面不驻留</td>
+<td>读取所需文件页</td>
+</tr>
+<tr class="odd">
+<td>已换出页面</td>
+<td>原内容保存在 RAM 之外</td>
+<td>从交换区或存储设备读回</td>
+</tr>
+<tr class="even">
+<td>写时复制 store</td>
+<td>共享只读映射被标记为 COW</td>
+<td>复制页框并安装私有可写 PTE</td>
+</tr>
+<tr class="odd">
+<td>保护违规</td>
+<td>操作与 R/W/X 或特权位冲突</td>
+<td>拒绝访问或向进程发信号</td>
+</tr>
+<tr class="even">
+<td>未映射地址</td>
+<td>不属于任何有效虚拟区域</td>
+<td>拒绝访问，常表现为段错误</td>
+</tr>
+</tbody>
+</table>
+<p>若没有空闲页框，还需要选择替换页面。脏页面在页框复用前必须保存其当前内容；干净的文件支持页可直接丢弃，因为之后能够再次读取。这些操作系统策略建立在体系结构提供的访问位与脏位之上。</p>
+<details>
+<summary>
+Python 模型：分类并处理简化的缺页情形
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>regions <span class="op">=</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x10</span>: {<span class="st">"kind"</span>: <span class="st">"anonymous"</span>, <span class="st">"write"</span>: <span class="va">True</span>, <span class="st">"present"</span>: <span class="va">False</span>},</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x20</span>: {<span class="st">"kind"</span>: <span class="st">"file"</span>, <span class="st">"write"</span>: <span class="va">False</span>, <span class="st">"present"</span>: <span class="va">False</span>},</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x30</span>: {<span class="st">"kind"</span>: <span class="st">"cow"</span>, <span class="st">"write"</span>: <span class="va">False</span>, <span class="st">"present"</span>: <span class="va">True</span>},</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>next_free_ppn <span class="op">=</span> <span class="bu">iter</span>([<span class="dv">100</span>, <span class="dv">101</span>, <span class="dv">102</span>])</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> handle_access(vpn, operation):</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    region <span class="op">=</span> regions.get(vpn)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> region <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"fatal:unmapped"</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> operation <span class="op">==</span> <span class="st">"write"</span> <span class="kw">and</span> <span class="kw">not</span> region[<span class="st">"write"</span>]:</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> region[<span class="st">"kind"</span>] <span class="op">!=</span> <span class="st">"cow"</span>:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="st">"fatal:write-protection"</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 写时复制建立私有可写页面。</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        region.update(kind<span class="op">=</span><span class="st">"anonymous"</span>, write<span class="op">=</span><span class="va">True</span>, ppn<span class="op">=</span><span class="bu">next</span>(next_free_ppn))</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"resolved:copy-on-write"</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> region[<span class="st">"present"</span>]:</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        region.update(present<span class="op">=</span><span class="va">True</span>, ppn<span class="op">=</span><span class="bu">next</span>(next_free_ppn))</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"resolved:fill-</span><span class="sc">{</span>region[<span class="st">'kind'</span>]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"hit:resident"</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x10</span>, <span class="st">"write"</span>) <span class="op">==</span> <span class="st">"resolved:fill-anonymous"</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x20</span>, <span class="st">"read"</span>) <span class="op">==</span> <span class="st">"resolved:fill-file"</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x30</span>, <span class="st">"write"</span>) <span class="op">==</span> <span class="st">"resolved:copy-on-write"</span></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> handle_access(<span class="bn">0x99</span>, <span class="st">"read"</span>) <span class="op">==</span> <span class="st">"fatal:unmapped"</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(regions)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="protection-privilege-and-sharing" class="level3">
+<h3 class="anchored" data-anchor-id="protection-privilege-and-sharing"><strong>保护、特权与共享</strong></h3>
+<p>每次取指、load 与 store 都必须经过 MMU，因此地址转换也是执行保护检查的自然位置。一个页面可以只读、不可执行、仅监督者模式可访问，或作为保护区域完全不可访问；这些规则必须在请求获准影响体系结构状态前完成检查。</p>
+<p>页面粒度也让共享具有选择性。两个进程可在不同虚拟地址映射同一个只读可执行页框，同时保持可写数据私有；若程序有意同步，共享内存页也可在双方进程中均为可写。写时复制则先把同一页框以只读方式映射到多个进程，第一次写入者触发异常并获得私有副本。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/protection-sharing-mappings.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="两个进程共享代码与写时复制页面，各自保留私有可写数据，并且都被阻止访问仅监督者内存。"><img src="assets/protection-sharing-mappings.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="两个进程共享代码与写时复制页面，各自保留私有可写数据，并且都被阻止访问仅监督者内存。"></a></p>
+</figure>
+</div>
+<figcaption>两个进程共享代码与写时复制页面，各自保留私有可写数据，并且都被阻止访问仅监督者内存。</figcaption>
+</figure>
+</div>
+</div>
+<p>同一个物理页框可在不同虚拟映射中具有不同权限。权限属于“映射关系”，而不是 RAM 单元本身。这使共享库能在用户态可执行，内核别名具有不同特权，或同一文件在一个进程中只读、在另一个进程中采用私有写时复制。</p>
+<p>安全性要求所有转换缓存与页表修改保持一致。撤销访问或重新映射页面后，特权软件必须使所有受影响处理器中的旧 TLB 项失效；否则，过期转换可能在 PTE 已改变后继续授权访问。</p>
+<details>
+<summary>
+Python 模型：第一次 store 使一个共享页框发生写时复制
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>frames <span class="op">=</span> {<span class="dv">27</span>: <span class="bu">bytearray</span>(<span class="st">b"shared page"</span>)}</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>mappings <span class="op">=</span> {</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A"</span>: {<span class="st">"pfn"</span>: <span class="dv">27</span>, <span class="st">"writable"</span>: <span class="va">False</span>, <span class="st">"cow"</span>: <span class="va">True</span>},</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"B"</span>: {<span class="st">"pfn"</span>: <span class="dv">27</span>, <span class="st">"writable"</span>: <span class="va">False</span>, <span class="st">"cow"</span>: <span class="va">True</span>},</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> write_first_byte(process, value):</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    mapping <span class="op">=</span> mappings[process]</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> mapping[<span class="st">"writable"</span>]:</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> mapping[<span class="st">"cow"</span>]:</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">PermissionError</span>(<span class="st">"read-only mapping"</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 故障处理程序先分配并复制，再授予写权限。</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        new_pfn <span class="op">=</span> <span class="bu">max</span>(frames) <span class="op">+</span> <span class="dv">1</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        frames[new_pfn] <span class="op">=</span> <span class="bu">bytearray</span>(frames[mapping[<span class="st">"pfn"</span>]])</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        mapping.update(pfn<span class="op">=</span>new_pfn, writable<span class="op">=</span><span class="va">True</span>, cow<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    frames[mapping[<span class="st">"pfn"</span>]][<span class="dv">0</span>] <span class="op">=</span> value</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>write_first_byte(<span class="st">"A"</span>, <span class="bu">ord</span>(<span class="st">"S"</span>))</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> mappings[<span class="st">"A"</span>][<span class="st">"pfn"</span>] <span class="op">!=</span> mappings[<span class="st">"B"</span>][<span class="st">"pfn"</span>]</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frames[mappings[<span class="st">"A"</span>][<span class="st">"pfn"</span>]] <span class="op">==</span> <span class="bu">bytearray</span>(<span class="st">b"Shared page"</span>)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frames[mappings[<span class="st">"B"</span>][<span class="st">"pfn"</span>]] <span class="op">==</span> <span class="bu">bytearray</span>(<span class="st">b"shared page"</span>)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(mappings)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="the-complete-tlb-cache-memory-access-path" class="level3">
+<h3 class="anchored" data-anchor-id="the-complete-tlb-cache-memory-access-path"><strong>完整的 TLB—缓存—内存访问路径</strong></h3>
+<p>完整访问路径把本章的地址转换机制与第 08 章的缓存层次连接起来。对于典型的物理标记缓存，概念流程如下：</p>
+<ol type="1">
+<li>指令产生虚拟地址和操作类型。</li>
+<li>从虚拟地址中分离页内偏移与 VPN。</li>
+<li>TLB 查询 <code>(ASID, VPN)</code> 并检查权限。</li>
+<li>TLB 未命中时，MMU 遍历页表；有效叶项填充 TLB，不可用映射则产生缺页异常。</li>
+<li>PPN 与保持不变的页内偏移组成物理地址。</li>
+<li>缓存检查物理数据块；缓存未命中继续前往更低级缓存，必要时访问 DRAM。</li>
+</ol>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/complete-translation-cache-path.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="虚拟地址首先查找 TLB，转换未命中时遍历页表，随后构成物理地址并查询缓存层次。"><img src="assets/complete-translation-cache-path.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="虚拟地址首先查找 TLB，转换未命中时遍历页表，随后构成物理地址并查询缓存层次。"></a></p>
+</figure>
+</div>
+<figcaption>虚拟地址首先查找 TLB，转换未命中时遍历页表，随后构成物理地址并查询缓存层次。</figcaption>
+</figure>
+</div>
+</div>
+<p>这些步骤会产生相互独立的结果。TLB 未命中后，页表遍历可以给出有效物理地址，而目标块恰好在缓存中；TLB 命中后，目标数据块也可能不在缓存。缺页则会在请求的数据访问完成前停止它，尽管页表遍历本身可能已经产生了缓存流量。</p>
+<p>现代 L1 常使用<strong>虚拟索引、物理标记（Virtually Indexed, Physically Tagged, VIPT）</strong>组织，让一部分地址转换与缓存索引并行。由于转换不改变页内偏移，只要索引位全部取自偏移，TLB 返回 PPN 前就可以选择集合。常用设计条件为</p>
+<p><span class="math display">\[
+S\times B\le P,
+\]</span></p>
+<p>其中 <span class="math inline">\(S\)</span> 是集合数，<span class="math inline">\(B\)</span> 是缓存块大小，<span class="math inline">\(P\)</span> 是页面大小。<span class="math inline">\(S\times B\)</span> 等于每一路的缓存容量；它不超过一页时，所有集合索引位都位于不变的页内偏移中，于是缓存读取集合的同时，物理标记可从 TLB 到达。更激进的设计需要额外处理虚拟别名。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>转换结果</th>
+<th>缓存结果</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>TLB 命中</td>
+<td>缓存命中</td>
+<td>常见快速路径：转换与数据均已缓存</td>
+</tr>
+<tr class="even">
+<td>TLB 未命中，有效 PTE</td>
+<td>缓存命中</td>
+<td>需要重建转换，但数据块已驻留</td>
+</tr>
+<tr class="odd">
+<td>TLB 命中</td>
+<td>缓存未命中</td>
+<td>转换可用，数据需从下层缓存或 DRAM 取得</td>
+</tr>
+<tr class="even">
+<td>缺页异常</td>
+<td>请求的数据查找未完成</td>
+<td>软件必须先修复或拒绝该映射</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：区分 TLB、缓存与缺页结果
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TranslationCachePath:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, page_table, page_size<span class="op">=</span><span class="dv">4096</span>, block_size<span class="op">=</span><span class="dv">64</span>):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.page_table <span class="op">=</span> page_table</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.page_size <span class="op">=</span> page_size</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.block_size <span class="op">=</span> block_size</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tlb <span class="op">=</span> {}</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cache_blocks <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> access(<span class="va">self</span>, virtual_address):</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(virtual_address, <span class="va">self</span>.page_size)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        tlb_hit <span class="op">=</span> vpn <span class="kw">in</span> <span class="va">self</span>.tlb</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> tlb_hit:</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>            ppn <span class="op">=</span> <span class="va">self</span>.tlb[vpn]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            ppn <span class="op">=</span> <span class="va">self</span>.page_table.get(vpn)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> ppn <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> {<span class="st">"page_fault"</span>: <span class="va">True</span>, <span class="st">"tlb_hit"</span>: <span class="va">False</span>, <span class="st">"cache_hit"</span>: <span class="va">None</span>}</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.tlb[vpn] <span class="op">=</span> ppn  <span class="co"># 成功页表遍历会填充 TLB</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        physical_address <span class="op">=</span> ppn <span class="op">*</span> <span class="va">self</span>.page_size <span class="op">+</span> offset</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        block <span class="op">=</span> physical_address <span class="op">//</span> <span class="va">self</span>.block_size</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        cache_hit <span class="op">=</span> block <span class="kw">in</span> <span class="va">self</span>.cache_blocks</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.cache_blocks.add(block)  <span class="co"># 对每次未命中模拟一次填充</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>            <span class="st">"page_fault"</span>: <span class="va">False</span>,</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">"tlb_hit"</span>: tlb_hit,</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">"cache_hit"</span>: cache_hit,</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>            <span class="st">"physical_address"</span>: physical_address,</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>system <span class="op">=</span> TranslationCachePath({<span class="bn">0x12345</span>: <span class="bn">0x2BEEF</span>, <span class="bn">0x22222</span>: <span class="bn">0x2BEEF</span>})</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> [</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x12345000</span>),  <span class="co"># TLB 未命中，缓存未命中</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x12345004</span>),  <span class="co"># TLB 命中，同一缓存块命中</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x22222000</span>),  <span class="co"># TLB 未命中，别名物理块命中</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x22222080</span>),  <span class="co"># TLB 命中，不同缓存块未命中</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    system.access(<span class="bn">0x33333000</span>),  <span class="co"># 无映射：缺页异常</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [(r[<span class="st">"page_fault"</span>], r[<span class="st">"tlb_hit"</span>], r[<span class="st">"cache_hit"</span>]) <span class="cf">for</span> r <span class="kw">in</span> results] <span class="op">==</span> [</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">False</span>, <span class="va">False</span>),</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">True</span>, <span class="va">True</span>),</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">False</span>, <span class="va">True</span>),</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    (<span class="va">False</span>, <span class="va">True</span>, <span class="va">False</span>),</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>    (<span class="va">True</span>, <span class="va">False</span>, <span class="va">None</span>),</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(results)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="translation-performance-and-memory-overheads" class="level3">
+<h3 class="anchored" data-anchor-id="translation-performance-and-memory-overheads"><strong>转换性能与内存开销</strong></h3>
+<p>地址转换从三个尺度影响性能：页表占用内存，TLB 未命中增加普通访问延迟，缺页则较少发生却可能带来极大延迟。把三个尺度分开分析，可以避免误导性的平均值。</p>
+<p>对于不发生缺页的访问，一个简化平均模型是</p>
+<p><span class="math display">\[
+EAT_{normal}=hT_{hit}+(1-h)T_{miss}.
+\]</span></p>
+<p><span class="math inline">\(EAT_{normal}\)</span> 是普通驻留访问的有效时间，<span class="math inline">\(h\)</span> 是 TLB 命中率，<span class="math inline">\(T_{hit}\)</span> 是完整 TLB 命中路径，<span class="math inline">\(T_{miss}\)</span> 包括页表遍历、TLB 填充和请求缓存访问。该公式刻意保持抽象，因为每次 PTE 读取可能命中不同缓存层级，处理器也可能重叠部分遍历。</p>
+<p>加入缺页概率 <span class="math inline">\(p\)</span> 后可另写为</p>
+<p><span class="math display">\[
+EAT=(1-p)T_{normal}+pT_{fault}.
+\]</span></p>
+<p><span class="math inline">\(T_{normal}\)</span> 是驻留路径，<span class="math inline">\(T_{fault}\)</span> 则包含陷阱处理以及解决故障所需的一切工作。若 <span class="math inline">\(T_{normal}=100\)</span> ns，而一次需要存储设备的缺页耗时 8 ms，要使平均值低于 200 ns，必须近似满足</p>
+<p><span class="math display">\[
+p\le\frac{200-100}{8{,}000{,}000-100}\approx1.25\times10^{-5}.
+\]</span></p>
+<p>也就是说，大约每 80,000 次内存访问最多发生一次这种故障。具体数值随系统而异，但数量级差距说明持续换页足以支配整个执行时间。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/translation-performance-overheads.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="转换性能同时取决于 TLB 覆盖范围、命中与未命中路径的加权时间，以及极少发生但代价巨大的缺页路径。"><img src="assets/translation-performance-overheads.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="转换性能同时取决于 TLB 覆盖范围、命中与未命中路径的加权时间，以及极少发生但代价巨大的缺页路径。"></a></p>
+</figure>
+</div>
+<figcaption>转换性能同时取决于 TLB 覆盖范围、命中与未命中路径的加权时间，以及极少发生但代价巨大的缺页路径。</figcaption>
+</figure>
+</div>
+</div>
+<p>页表内存也必须计入成本。平坦页表为所有可能 VPN 付费；多级页表只为根和已经分配的下层页付费。大页面减少叶项数量、提高 TLB 覆盖范围，却可能增加内部碎片，并使连续分配更困难。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>主要收益</th>
+<th>主要成本或限制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>更大或更高相联的 TLB</td>
+<td>减少替换与冲突未命中</td>
+<td>面积、能量和查找复杂度增加</td>
+</tr>
+<tr class="even">
+<td>ASID/PCID 标记</td>
+<td>上下文切换后仍可保留转换</td>
+<td>标识符数量有限，失效处理更复杂</td>
+</tr>
+<tr class="odd">
+<td>页表遍历缓存</td>
+<td>避免反复读取上层 PTE</td>
+<td>不像 TLB 那样缓存所有叶转换</td>
+</tr>
+<tr class="even">
+<td>多级页表</td>
+<td>只为已使用区域分配元数据</td>
+<td>未缓存遍历需要更多依赖读取</td>
+</tr>
+<tr class="odd">
+<td>大页面</td>
+<td>增加 TLB 覆盖并缩短遍历</td>
+<td>碎片、对齐以及升降级成本</td>
+</tr>
+<tr class="even">
+<td>需求分页</td>
+<td>不装入从未使用的页面</td>
+<td>首次使用触发异常，可能需要慢速 I/O</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 示例：比较 TLB 覆盖范围与缺页敏感度
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tlb_reach(entries, page_bytes):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> entries <span class="op">*</span> page_bytes</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> effective_access_time(normal_ns, fault_ns, fault_probability):</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="dv">1</span> <span class="op">-</span> fault_probability) <span class="op">*</span> normal_ns <span class="op">+</span> fault_probability <span class="op">*</span> fault_ns</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>small_page_reach <span class="op">=</span> tlb_reach(<span class="dv">64</span>, <span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>huge_page_reach <span class="op">=</span> tlb_reach(<span class="dv">64</span>, <span class="dv">2</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> small_page_reach <span class="op">==</span> <span class="dv">256</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> huge_page_reach <span class="op">==</span> <span class="dv">128</span> <span class="op">*</span> <span class="dv">1024</span> <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>normal_ns <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>fault_ns <span class="op">=</span> <span class="dv">8_000_000</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>target_ns <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>max_fault_probability <span class="op">=</span> (target_ns <span class="op">-</span> normal_ns) <span class="op">/</span> (fault_ns <span class="op">-</span> normal_ns)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> effective_access_time(normal_ns, fault_ns, max_fault_probability) <span class="op">==</span> target_ns</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"4 KiB reach: </span><span class="sc">{</span>small_page_reach <span class="op">/</span> <span class="dv">1024</span><span class="sc">:.0f}</span><span class="ss"> KiB"</span>)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"2 MiB reach: </span><span class="sc">{</span>huge_page_reach <span class="op">/</span> <span class="dv">1024</span><span class="op">**</span><span class="dv">2</span><span class="sc">:.0f}</span><span class="ss"> MiB"</span>)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"maximum storage-backed fault probability: </span><span class="sc">{</span>max_fault_probability<span class="sc">:.3e}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>本章总结。</strong> 虚拟内存为每个进程提供受保护的地址空间，其中页面可重定位、按需分配并有意共享。MMU 把虚拟地址拆为 VPN 与页内偏移，通过页表或 TLB 缓存项转换 VPN，执行特权与 R/W/X 权限检查，再把 PPN 与不变偏移组成物理地址。平坦页表可以直接索引但固定占用空间；多级页表利用地址空间的稀疏性，代价是相互依赖的遍历。TLB 未命中请求重新查找“转换”，缓存未命中请求“数据块”，缺页则因当前映射无法完成访问而把控制交给软件。性能取决于页表内存、TLB 覆盖、遍历延迟，以及数量级更大的存储型缺页成本。第 10 章将继续讨论设备搬运数据所需的 I/O、中断、DMA 与存储机制，它们也会最终服务某些缺页路径。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","openEffect":"zoom","loop":false,"selector":".lightbox","descPosition":"bottom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

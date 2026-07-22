@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>操作系统：CPU 调度与分派</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="04-cpu-scheduling-and-dispatch_files/libs/clipboard/clipboard.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/quarto.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/popper.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/anchor.min.js"></script>
+<link href="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="04-cpu-scheduling-and-dispatch_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="04-cpu-scheduling-and-dispatch_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#cpu-scheduling-and-dispatch" id="toc-cpu-scheduling-and-dispatch" class="nav-link active" data-scroll-target="#cpu-scheduling-and-dispatch"><strong>CPU 调度与分派</strong></a>
+  <ul>
+  <li><a href="#the-cpu-scheduling-problem" id="toc-the-cpu-scheduling-problem" class="nav-link" data-scroll-target="#the-cpu-scheduling-problem"><strong>CPU 调度问题</strong></a>
+  <ul>
+  <li><a href="#policy-versus-dispatch-mechanism" id="toc-policy-versus-dispatch-mechanism" class="nav-link" data-scroll-target="#policy-versus-dispatch-mechanism"><strong>策略与分派机制</strong></a></li>
+  <li><a href="#workload-models-and-scheduling-assumptions" id="toc-workload-models-and-scheduling-assumptions" class="nav-link" data-scroll-target="#workload-models-and-scheduling-assumptions"><strong>工作负载模型与调度假设</strong></a></li>
+  </ul></li>
+  <li><a href="#scheduling-goals-and-metrics" id="toc-scheduling-goals-and-metrics" class="nav-link" data-scroll-target="#scheduling-goals-and-metrics"><strong>调度目标与指标</strong></a>
+  <ul>
+  <li><a href="#turnaround-response-waiting-and-throughput" id="toc-turnaround-response-waiting-and-throughput" class="nav-link" data-scroll-target="#turnaround-response-waiting-and-throughput"><strong>周转、响应、等待与吞吐量</strong></a></li>
+  <li><a href="#fairness-predictability-and-deadline-satisfaction" id="toc-fairness-predictability-and-deadline-satisfaction" class="nav-link" data-scroll-target="#fairness-predictability-and-deadline-satisfaction"><strong>公平性、可预测性与截止期限</strong></a></li>
+  </ul></li>
+  <li><a href="#non-preemptive-scheduling" id="toc-non-preemptive-scheduling" class="nav-link" data-scroll-target="#non-preemptive-scheduling"><strong>非抢占式调度</strong></a>
+  <ul>
+  <li><a href="#first-come-first-served" id="toc-first-come-first-served" class="nav-link" data-scroll-target="#first-come-first-served"><strong>先来先服务</strong></a></li>
+  <li><a href="#shortest-job-first" id="toc-shortest-job-first" class="nav-link" data-scroll-target="#shortest-job-first"><strong>最短作业优先</strong></a></li>
+  </ul></li>
+  <li><a href="#preemptive-scheduling" id="toc-preemptive-scheduling" class="nav-link" data-scroll-target="#preemptive-scheduling"><strong>抢占式调度</strong></a>
+  <ul>
+  <li><a href="#shortest-remaining-time-first" id="toc-shortest-remaining-time-first" class="nav-link" data-scroll-target="#shortest-remaining-time-first"><strong>最短剩余时间优先</strong></a></li>
+  <li><a href="#round-robin" id="toc-round-robin" class="nav-link" data-scroll-target="#round-robin"><strong>轮转调度</strong></a></li>
+  <li><a href="#priority-scheduling-and-aging" id="toc-priority-scheduling-and-aging" class="nav-link" data-scroll-target="#priority-scheduling-and-aging"><strong>优先级调度与老化</strong></a></li>
+  </ul></li>
+  <li><a href="#multilevel-feedback-queue-scheduling" id="toc-multilevel-feedback-queue-scheduling" class="nav-link" data-scroll-target="#multilevel-feedback-queue-scheduling"><strong>多级反馈队列调度</strong></a></li>
+  <li><a href="#proportional-share-scheduling" id="toc-proportional-share-scheduling" class="nav-link" data-scroll-target="#proportional-share-scheduling"><strong>按比例共享调度</strong></a>
+  <ul>
+  <li><a href="#lottery-and-stride-scheduling" id="toc-lottery-and-stride-scheduling" class="nav-link" data-scroll-target="#lottery-and-stride-scheduling"><strong>彩票调度与步长调度</strong></a></li>
+  </ul></li>
+  <li><a href="#preemption-timer-interrupts-and-dispatch" id="toc-preemption-timer-interrupts-and-dispatch" class="nav-link" data-scroll-target="#preemption-timer-interrupts-and-dispatch"><strong>抢占、定时器中断与分派</strong></a></li>
+  <li><a href="#multiprocessor-scheduling" id="toc-multiprocessor-scheduling" class="nav-link" data-scroll-target="#multiprocessor-scheduling"><strong>多处理器调度</strong></a>
+  <ul>
+  <li><a href="#affinity-load-balancing-and-cache-locality" id="toc-affinity-load-balancing-and-cache-locality" class="nav-link" data-scroll-target="#affinity-load-balancing-and-cache-locality"><strong>亲和性、负载均衡与缓存局部性</strong></a></li>
+  <li><a href="#numa-and-heterogeneous-cores" id="toc-numa-and-heterogeneous-cores" class="nav-link" data-scroll-target="#numa-and-heterogeneous-cores"><strong>NUMA 与异构核心</strong></a></li>
+  </ul></li>
+  <li><a href="#real-time-scheduling" id="toc-real-time-scheduling" class="nav-link" data-scroll-target="#real-time-scheduling"><strong>实时调度</strong></a>
+  <ul>
+  <li><a href="#rate-monotonic-and-earliest-deadline-first" id="toc-rate-monotonic-and-earliest-deadline-first" class="nav-link" data-scroll-target="#rate-monotonic-and-earliest-deadline-first"><strong>速率单调与最早截止期限优先</strong></a></li>
+  </ul></li>
+  <li><a href="#linux-scheduling-from-cfs-to-eevdf" id="toc-linux-scheduling-from-cfs-to-eevdf" class="nav-link" data-scroll-target="#linux-scheduling-from-cfs-to-eevdf"><strong>Linux 调度：从 CFS 到 EEVDF</strong></a></li>
+  <li><a href="#simulating-and-comparing-scheduling-policies" id="toc-simulating-and-comparing-scheduling-policies" class="nav-link" data-scroll-target="#simulating-and-comparing-scheduling-policies"><strong>模拟并比较调度策略</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">操作系统：CPU 调度与分派</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Operating-Systems/04-cpu-scheduling-and-dispatch.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/Operating-Systems.html">返回操作系统总览</a>
+</p>
+<section id="cpu-scheduling-and-dispatch" class="level2">
+<h2 class="anchored" data-anchor-id="cpu-scheduling-and-dispatch"><strong>CPU 调度与分派</strong></h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>管道中的 <code>cat</code>、<code>grep</code>、shell 以及系统中其他线程都可能同时可运行，但一个 CPU 核在某一时刻只能执行一个硬件线程。<strong>调度器（scheduler）</strong>决定谁应获得 CPU，<strong>分派器（dispatcher）</strong>则把这个决策落实为真正的执行状态切换。</p>
+<p>调度不存在脱离目标的“最好算法”。批处理关心吞吐和周转时间，交互程序关心首次响应，服务器关心尾延迟与隔离，实时控制还要求可证明的截止期限。本章用统一工作负载比较经典策略，再把结果连接到多核、NUMA、实时和 Linux CFS/EEVDF。</p>
+<section id="the-cpu-scheduling-problem" class="level3">
+<h3 class="anchored" data-anchor-id="the-cpu-scheduling-problem"><strong>CPU 调度问题</strong></h3>
+<p>调度对象通常是线程，而不是整个多线程进程。线程进入就绪队列、被选中运行，随后可能因 I/O 或锁阻塞、时间片到期被抢占、主动让出或退出。调度器需要在新到达、唤醒、定时器中断和 CPU 空闲等事件上重新评估选择。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/scheduler-policy-dispatch-loop.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/scheduler-policy-dispatch-loop.svg" class="img-fluid figure-img" style="width:94.0%" alt="区分调度策略与分派机制，并展示 CPU 的阻塞、抢占和退出路径。"></a></p>
+<figcaption>可运行线程进入队列，调度策略选择线程，分派器使其执行</figcaption>
+</figure>
+</div>
+<section id="policy-versus-dispatch-mechanism" class="level4">
+<h4 class="anchored" data-anchor-id="policy-versus-dispatch-mechanism"><strong>策略与分派机制</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>操作</th>
+<th>含义</th>
+<th>与策略相关的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>enqueue(thread)</code></td>
+<td>让线程具备运行资格</td>
+<td>放在哪个队列、排在什么位置？</td>
+</tr>
+<tr class="even">
+<td><code>dequeue(thread)</code></td>
+<td>移除阻塞、退出或迁移线程</td>
+<td>已获得的部分服务如何保留？</td>
+</tr>
+<tr class="odd">
+<td><code>pick_next()</code></td>
+<td>选择一个合格线程</td>
+<td>按到达、剩余时间、优先级还是 deadline？</td>
+</tr>
+<tr class="even">
+<td><code>account(thread, delta)</code></td>
+<td>核算已用 CPU</td>
+<td>真实时间、加权虚拟时间、预算还是 quantum？</td>
+</tr>
+<tr class="odd">
+<td><code>should_preempt(current, new)</code></td>
+<td>比较当前与新事件</td>
+<td>紧迫性是否值得支付切换成本？</td>
+</tr>
+</tbody>
+</table>
+<pre class="text"><code>发生调度事件(event)时：
+    update_accounting(current, event.time)
+    update_runnable_set(event)
+
+    next = policy.pick_next(runnable_set)
+    如果 next != current：
+        dispatcher.switch(current, next)
+    否则：
+        return_to(current)</code></pre>
+<p>策略给出排序和公平规则，机制负责定时器、寄存器保存、运行队列、地址空间切换与受保护返回。好的分析必须把算法改善的等待时间与实际抢占、缓存和迁移成本一起计算。</p>
+</section>
+<section id="workload-models-and-scheduling-assumptions" class="level4">
+<h4 class="anchored" data-anchor-id="workload-models-and-scheduling-assumptions"><strong>工作负载模型与调度假设</strong></h4>
+<p>贯穿示例包含四个作业：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>作业</th>
+<th style="text-align: right;">到达时间 <span class="math inline">\(r_i\)</span></th>
+<th style="text-align: right;">CPU burst <span class="math inline">\(p_i\)</span></th>
+<th>角色</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">8</td>
+<td>长 CPU 工作</td>
+</tr>
+<tr class="even">
+<td>B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">4</td>
+<td>中等请求</td>
+</tr>
+<tr class="odd">
+<td>C</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">2</td>
+<td>短请求</td>
+</tr>
+<tr class="even">
+<td>D</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">1</td>
+<td>极短交互工作</td>
+</tr>
+</tbody>
+</table>
+<p>教科书模型常假设单处理器、精确已知 burst、零切换成本、作业独立且负载平稳。现实中这些条件分别引入多核放置、在线决策与预测误差、切换开销、锁与流水线依赖以及阶段变化。算法结论只能在声明的模型内成立。</p>
+</section>
+</section>
+<section id="scheduling-goals-and-metrics" class="level3">
+<h3 class="anchored" data-anchor-id="scheduling-goals-and-metrics"><strong>调度目标与指标</strong></h3>
+<section id="turnaround-response-waiting-and-throughput" class="level4">
+<h4 class="anchored" data-anchor-id="turnaround-response-waiting-and-throughput"><strong>周转、响应、等待与吞吐量</strong></h4>
+<p>令作业 <span class="math inline">\(i\)</span> 的到达时间、首次运行时间和完成时间分别为 <span class="math inline">\(r_i\)</span>、<span class="math inline">\(S_i\)</span> 与 <span class="math inline">\(C_i\)</span>：</p>
+<p><span class="math display">\[
+\begin{aligned}
+\text{turnaround}_i &amp;= C_i-r_i,\\
+\text{response}_i &amp;= S_i-r_i,\\
+\text{waiting}_i &amp;= \text{处于可运行但未执行状态的总时间}.
+\end{aligned}
+\]</span></p>
+<p>若简化模型中作业到达后只会“运行或在就绪队列等待”，则</p>
+<p><span class="math display">\[\text{waiting}_i=(C_i-r_i)-p_i.\]</span></p>
+<p>真实线程阻塞在 I/O 或同步上的时间属于周转时间，却不属于就绪队列等待，因此测量工具必须区分状态。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/scheduling-metrics-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/scheduling-metrics-timeline.svg" class="img-fluid figure-img" style="width:92.0%" alt="一个被抢占作业的时间线，展示调度指标的计算方法。"></a></p>
+<figcaption>到达、首次运行、抢占、完成、响应、周转、等待与 CPU 服务时间线</figcaption>
+</figure>
+</div>
+<p><strong>吞吐量</strong>是单位时间完成的作业数，<strong>CPU 利用率</strong>是观察区间内 CPU 执行有效调度工作的比例。持续过载也可让 CPU 100% 忙碌，却使队列与尾延迟无限增长，因此高利用率不是良好服务的充分证据。</p>
+<p>归一化周转或 slowdown 为</p>
+<p><span class="math display">\[\text{slowdown}_i=\frac{C_i-r_i}{p_i},\]</span></p>
+<p>它能区分同样十单位周转对一单位与九单位作业的不同影响。平均值还应配合中位数、p95/p99 和饥饿上界，否则更好的平均响应可能掩盖更差的长尾。</p>
+</section>
+<section id="fairness-predictability-and-deadline-satisfaction" class="level4">
+<h4 class="anchored" data-anchor-id="fairness-predictability-and-deadline-satisfaction"><strong>公平性、可预测性与截止期限</strong></h4>
+<p>公平没有唯一含义。加权公平可把可运行集合 <span class="math inline">\(R\)</span> 中线程 <span class="math inline">\(i\)</span> 的目标份额定义为</p>
+<p><span class="math display">\[s_i=\frac{w_i}{\sum_{j\in R}w_j}.\]</span></p>
+<p>公平主体也可能是用户或容器，应先在组之间分配，再在组内线程间分配，否则创建更多线程就能放大份额。观察到的分配 <span class="math inline">\(x_1,\ldots,x_n\)</span> 可用 Jain 指数概括：</p>
+<p><span class="math display">\[J(x_1,\ldots,x_n)=\frac{(\sum_i x_i)^2}{n\sum_i x_i^2}.\]</span></p>
+<p>它位于 <span class="math inline">\(1/n\)</span> 与 <span class="math inline">\(1\)</span> 之间，但接近 1 只表示分配相似，不能证明预期权重或 SLA 被满足。</p>
+<p>可预测性关注响应方差、抖动和合格线程最长延迟。Deadline 评估则关心 <span class="math inline">\(C_i\le d_i\)</span>、miss ratio、最大 lateness <span class="math inline">\(\max(C_i-d_i)\)</span> 和 tardiness <span class="math inline">\(\max(0,C_i-d_i)\)</span>。短作业优先、频繁轮转、严格优先级、缓存亲和、吞吐最大化和硬 deadline 之间都有明确冲突。</p>
+</section>
+</section>
+<section id="non-preemptive-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="non-preemptive-scheduling"><strong>非抢占式调度</strong></h3>
+<p>非抢占调度让被选中的作业一直运行到阻塞、退出或主动让出。它减少决策与切换，保留一个 burst 内的局部性，但新到达的紧急工作不能替换当前作业。</p>
+<section id="first-come-first-served" class="level4">
+<h4 class="anchored" data-anchor-id="first-come-first-served"><strong>先来先服务</strong></h4>
+<p><strong>FCFS/FIFO</strong> 按到达顺序运行，无需预测 burst，可用队列实现 <span class="math inline">\(O(1)\)</span> 入队和出队：</p>
+<pre class="text"><code>入队(job)：
+    ready.push_back(job)
+
+选择下一个任务：
+    返回 ready.pop_front()</code></pre>
+<pre class="text"><code>时间  0--------8----12--14-15
+CPU   |   A    | B  | C |D|</code></pre>
+<p>示例等待时间为 <code>A=0, B=7, C=10, D=10</code>，平均 <code>6.75</code>。短作业被长 A 阻挡形成<strong>护航效应（convoy effect）</strong>。FCFS 简单、顺序透明，适合作业大小相近、抢占昂贵或作为更大策略中的队列纪律；但只有当所有先到 burst 都有限时才能避免饥饿。</p>
+</section>
+<section id="shortest-job-first" class="level4">
+<h4 class="anchored" data-anchor-id="shortest-job-first"><strong>最短作业优先</strong></h4>
+<p><strong>SJF</strong> 在当前就绪作业中选择预测 burst 最短者，并非抢占运行。所有作业同时可用且时长已知时，短到长排序可最小化平均等待；交换相邻的 <span class="math inline">\(a&gt;b\)</span> 为 <span class="math inline">\(b,a\)</span> 会减少后者等待 <span class="math inline">\(a-b\)</span>，而不影响更早作业。</p>
+<pre class="text"><code>选择下一个任务(ready)：
+    返回 (predicted_burst, arrival_time, id) 最小的任务</code></pre>
+<pre class="text"><code>时间  0--------8-9--11----15
+CPU   |   A    |D| C | B  |</code></pre>
+<p>因为时间 0 只有 A，SJF 不能挽回非抢占决策；A 完成后顺序为 D、C、B，平均等待降至 <code>5.25</code>。现实中下一 burst 未知，经典指数平滑预测为</p>
+<p><span class="math display">\[\tau_{n+1}=\alpha t_n+(1-\alpha)\tau_n,\qquad 0\le\alpha\le1.\]</span></p>
+<p>较大 <span class="math inline">\(\alpha\)</span> 反应快但噪声大，较小值稳定却难以跟上阶段变化。预测错误和持续短作业都可能让长作业饥饿，需要 aging 或最低服务保证。</p>
+</section>
+</section>
+<section id="preemptive-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="preemptive-scheduling"><strong>抢占式调度</strong></h3>
+<p>抢占允许系统在作业阻塞或完成前停止它，以响应短任务、quantum 到期、优先级或 deadline。收益必须与内核入口、核算、队列、寄存器、缓存和 TLB 成本一起权衡。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/classic-scheduling-comparison-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/classic-scheduling-comparison-animated.svg" class="img-fluid figure-img" style="width:100.0%" alt="四条对齐甘特图用移动时间游标比较经典调度算法。"></a></p>
+<figcaption>同一到达和 burst 下 FCFS、SJF、SRTF 与 Round Robin 对比</figcaption>
+</figure>
+</div>
+<section id="shortest-remaining-time-first" class="level4">
+<h4 class="anchored" data-anchor-id="shortest-remaining-time-first"><strong>最短剩余时间优先</strong></h4>
+<p><strong>SRTF</strong> 是 SJF 的抢占版本：每次到达或完成事件后运行剩余服务最短的作业，新作业若短于当前剩余量就立即抢占。</p>
+<pre class="text"><code>任务到达(job)时：
+    ready.insert(job, key=remaining_time)
+    如果 job.remaining &lt; current.remaining：
+        preempt(current)
+
+选择下一个任务：
+    返回 ready.remove_min()</code></pre>
+<p>示例中 A 运行一单位后被 B 抢占，C 又在时间 2 抢占 B，随后 C、D、B、A 完成，平均等待为 <code>2.50</code>。在已知服务时间的理想单核模型中，SRTF 最小化平均 flow time；但它可能饿死长作业，对预测误差敏感，并因估计接近而频繁切换。实际变体常引入最小粒度或抢占阈值。</p>
+</section>
+<section id="round-robin" class="level4">
+<h4 class="anchored" data-anchor-id="round-robin"><strong>轮转调度</strong></h4>
+<p><strong>Round Robin（RR）</strong>让每个可运行同行最多执行时间片 <span class="math inline">\(q\)</span>；提前阻塞或结束就立即离开，耗完整 quantum 的线程被放到队尾。</p>
+<pre class="text"><code>ready.push_back(new_job)
+
+当 ready 非空时：
+    job = ready.pop_front()
+    运行 job，持续 min(q, job.remaining)
+    将此时间片内到达的任务入队
+    如果 job 仍有工作：
+        ready.push_back(job)</code></pre>
+<pre class="text"><code>A 0-2，B 2-4，C 4-6，A 6-8，
+D 8-9，B 9-11，A 11-13，A 13-15</code></pre>
+<p>当 <span class="math inline">\(q=2\)</span> 时，示例平均等待 <code>4.75</code>，不如 SRTF，但平均首次响应 <code>1.75</code>，远好于 FCFS 的 <code>6.75</code>。时间片边界上的到达与重新入队先后必须写入策略规范。</p>
+<p>当 <span class="math inline">\(q\to\infty\)</span>，RR 接近 FCFS；较小 <span class="math inline">\(q\)</span> 缩短轮转等待，但若切换成本为 <span class="math inline">\(s\)</span>，极端情况下有效执行比例约为 <span class="math inline">\(q/(q+s)\)</span>，还会破坏缓存局部性。RR 只定义线程间轮转，不自动提供用户/容器组公平。</p>
+</section>
+<section id="priority-scheduling-and-aging" class="level4">
+<h4 class="anchored" data-anchor-id="priority-scheduling-and-aging"><strong>优先级调度与老化</strong></h4>
+<p>优先级可以静态设置，也可由 deadline、反馈、资源所有者或组策略产生。严格优先级会让高优先级线程唤醒后立即抢占，但连续高优先级到达可导致低优先级<strong>饥饿</strong>。</p>
+<p><strong>老化（aging）</strong>随等待时间改善有效优先级。若数值越小优先级越高，一种示意规则是</p>
+<p><span class="math display">\[q_i^{\text{effective}}(t)=\max(q_{\min},q_i-\lfloor W_i(t)/A\rfloor),\]</span></p>
+<p>其中 <span class="math inline">\(W_i(t)\)</span> 为累计就绪等待，<span class="math inline">\(A\)</span> 为老化间隔。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/priority-aging-mlfq.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/priority-aging-mlfq.svg" class="img-fluid figure-img" style="width:96.0%" alt="等待中的低优先级作业逐渐提高优先级，以及带降级和周期提升的三层 MLFQ。"></a></p>
+<figcaption>老化与多级反馈队列示意</figcaption>
+</figure>
+</div>
+<p>老化解决等待者得不到 CPU 的饥饿，却不解决<strong>优先级反转</strong>：高优先级线程等待低优先级线程持有的锁，需要 priority inheritance 或 ceiling protocol。</p>
+</section>
+</section>
+<section id="multilevel-feedback-queue-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="multilevel-feedback-queue-scheduling"><strong>多级反馈队列调度</strong></h3>
+<p><strong>MLFQ</strong> 在不知道 burst 长度时，用历史 CPU 消耗近似短作业优先。短运行后频繁阻塞的交互任务留在高层，反复耗尽配额的 CPU 任务逐步降到量子更长的低层。</p>
+<pre class="text"><code>1. 新任务进入最高优先级队列 Q0。
+2. 始终从最高的非空队列中选择任务。
+3. 同一队列内部使用时间片轮转。
+4. 将 CPU 使用量计入该层级的配额。
+5. 任务用完配额后降级，即使期间曾主动让出 CPU。
+6. 定期把所有可运行任务提升回 Q0。</code></pre>
+<p>设计稳健性取决于两点：核算必须跨越主动 yield，防止任务在时间片结束前让出以“作弊”；还需周期性全局 boost 或等价 aging，防止低层在高层持续到达时饥饿。队列数量、quantum 增长、I/O 唤醒待遇和组权重都属于具体策略，不存在唯一 MLFQ。</p>
+</section>
+<section id="proportional-share-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="proportional-share-scheduling"><strong>按比例共享调度</strong></h3>
+<p>按比例共享关注长期服务份额。权重 <code>60:30:10</code> 表示三者持续可运行时目标为 60%、30%、10%。权重通常只在竞争时分配空闲容量，quota 才是上限；层次调度应先在用户或 cgroup 之间分配，再在组内分配。</p>
+<section id="lottery-and-stride-scheduling" class="level4">
+<h4 class="anchored" data-anchor-id="lottery-and-stride-scheduling"><strong>彩票调度与步长调度</strong></h4>
+<p>彩票调度把权利表示为 tickets，每轮均匀抽取，客户端 <span class="math inline">\(i\)</span> 获胜概率为</p>
+<p><span class="math display">\[P(i)=\frac{t_i}{\sum_j t_j}.\]</span></p>
+<pre class="text"><code>winner = random_integer(1, total_tickets)
+对 runnable_clients 中的每个 client：
+    winner -= client.tickets
+    如果 winner &lt;= 0：
+        运行 client 一个时间片
+        退出循环</code></pre>
+<p>它灵活但保证是统计性的，短窗口可能明显偏离目标。步长调度用确定性虚拟进度替代随机性，选择常数 <span class="math inline">\(K\)</span>，令</p>
+<p><span class="math display">\[\text{stride}_i=\frac{K}{t_i},\]</span></p>
+<p>每次运行 <code>pass</code> 最小者，再增加自身 stride：</p>
+<pre class="text"><code>client = remove_min_by_pass()
+运行 client 一个时间片
+client.pass += client.stride
+insert_by_pass(client)</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lottery-stride.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/lottery-stride.svg" class="img-fluid figure-img" style="width:96.0%" alt="左侧票区间与右侧确定性 stride/pass 对比，二者目标长期份额相同。"></a></p>
+<figcaption>彩票按随机票号选择，步长反复选最小 pass</figcaption>
+</figure>
+</div>
+<p>步长短期方差较小，但动态加入、权重变化、溢出和 pass 归一化必须处理。两者都不是 deadline 调度器：正确长期份额并不能保证下一次何时获得 CPU。</p>
+</section>
+</section>
+<section id="preemption-timer-interrupts-and-dispatch" class="level3">
+<h3 class="anchored" data-anchor-id="preemption-timer-interrupts-and-dispatch"><strong>抢占、定时器中断与分派</strong></h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/timer-preemption-dispatch.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/timer-preemption-dispatch.svg" class="img-fluid figure-img" style="width:96.0%" alt="定时器中断后更新核算，决定继续当前线程或分派另一个线程，再返回用户执行。"></a></p>
+<figcaption>从定时器中断、内核核算、调度决策到可选上下文切换</figcaption>
+</figure>
+</div>
+<p>定时器使内核即使面对不合作用户程序也能重新取得控制权。入口保存 trap frame，内核核算已用时间、处理计时器和唤醒，再判断是否需要重新调度。若继续当前线程，只发生内核往返；若切换，才保存线程上下文、改变运行队列和必要的内存上下文。</p>
+<p><strong>dispatch latency</strong> 是工作具备运行资格到真正开始执行的延迟，包含中断关闭区、不可抢占内核区、当前高优先级工作、调度和切换。实时保证要求这些干扰都有上界，只有平均时间很小远远不够。</p>
+</section>
+<section id="multiprocessor-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="multiprocessor-scheduling"><strong>多处理器调度</strong></h3>
+<p>多核系统还要决定任务放在哪个 CPU。一个全局队列容易平衡但争用集中；每 CPU 队列可扩展并保留局部性，却需要周期负载均衡和空闲 CPU 拉取工作。</p>
+<section id="affinity-load-balancing-and-cache-locality" class="level4">
+<h4 class="anchored" data-anchor-id="affinity-load-balancing-and-cache-locality"><strong>亲和性、负载均衡与缓存局部性</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multicore-scheduling-topology.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/multicore-scheduling-topology.svg" class="img-fluid figure-img" style="width:98.0%" alt="两个 NUMA 节点含每 CPU 队列、缓存、本地内存、任务迁移路径和一个高容量核心。"></a></p>
+<figcaption>两个 NUMA 节点中的每 CPU 队列及迁移权衡</figcaption>
+</figure>
+</div>
+<p>保持线程在最近 CPU 上运行可复用私有缓存和 TLB；迁移可修复负载不均，却要重新升温缓存，并可能远程访问原 NUMA 内存。调度器应在等待时间收益超过迁移成本时才移动任务。</p>
+<details>
+<summary>
+<strong>Linux：检查并限制 CPU 亲和性</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 显示当前 shell 可以运行的 CPU。</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">taskset</span> <span class="at">-pc</span> <span class="va">$$</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 只在逻辑 CPU 0 和 2 上启动 CPU 密集型命令。</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="ex">taskset</span> <span class="at">--cpu-list</span> 0,2 ./worker</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 显示各线程、最近运行的 CPU、调度类别、nice 值与状态。</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eLo</span> pid,tid,psr,cls,rtprio,ni,stat,comm <span class="at">--sort</span><span class="op">=</span>pid,tid</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+<strong>C：把当前 Linux 线程固定到一个 CPU</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sched.h&gt;</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    cpu_set_t allowed<span class="op">;</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    CPU_ZERO<span class="op">(&amp;</span>allowed<span class="op">);</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    CPU_SET<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="op">&amp;</span>allowed<span class="op">);</span>  <span class="co">// The calling thread may run only on CPU 0.</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sched_setaffinity<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>allowed<span class="op">),</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"sched_setaffinity: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    CPU_ZERO<span class="op">(&amp;</span>allowed<span class="op">);</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>sched_getaffinity<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="kw">sizeof</span><span class="op">(</span>allowed<span class="op">),</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"sched_getaffinity: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> strerror<span class="op">(</span>errno<span class="op">));</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"CPU 0 allowed: </span><span class="sc">%s\n</span><span class="st">"</span><span class="op">,</span> CPU_ISSET<span class="op">(</span><span class="dv">0</span><span class="op">,</span> <span class="op">&amp;</span>allowed<span class="op">)</span> <span class="op">?</span> <span class="st">"yes"</span> <span class="op">:</span> <span class="st">"no"</span><span class="op">);</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>亲和性是约束或提示，并非免费优化。固定线程可能提高重复性，也可能把工作困在繁忙核心、过载共享缓存或冲突于容器策略，必须同时测量迁移、缓存未命中与延迟。</p>
+</section>
+<section id="numa-and-heterogeneous-cores" class="level4">
+<h4 class="anchored" data-anchor-id="numa-and-heterogeneous-cores"><strong>NUMA 与异构核心</strong></h4>
+<p>NUMA 中内存访问成本取决于 CPU 与物理页所在节点。只迁移线程会把本地访问变成远程访问，迁移页面也有成本。异构处理器还具有不同计算容量与能耗；大核可能更快完成延迟敏感任务，小核更适合后台工作，但温度、频率、利用率、亲和性与唤醒电源域成本都会改变答案。</p>
+<p>稳定原则是：按容量归一化负载，而非只数线程；在失衡或紧迫性超过成本前保留缓存和 NUMA 局部性；显式尊重管理约束，调度策略无法修复一个不允许任何在线 CPU 的 affinity mask。</p>
+</section>
+</section>
+<section id="real-time-scheduling" class="level3">
+<h3 class="anchored" data-anchor-id="real-time-scheduling"><strong>实时调度</strong></h3>
+<p>实时系统的正确性同时取决于结果和完成时间。“实时”不等于平均很快。硬实时 deadline 在所声明故障与负载模型下不能错过；firm deadline 的迟到结果无价值；软实时可容忍少量迟到但质量下降。</p>
+<p>周期或 sporadic task 常由执行预算 <span class="math inline">\(C_i\)</span>、相对 deadline <span class="math inline">\(D_i\)</span> 和 period/最小到达间隔 <span class="math inline">\(T_i\)</span> 描述。可信分析需要 WCET、阻塞和中断上界、CPU 模型及 admission test，平均执行时间不能证明硬保证。</p>
+<section id="rate-monotonic-and-earliest-deadline-first" class="level4">
+<h4 class="anchored" data-anchor-id="rate-monotonic-and-earliest-deadline-first"><strong>速率单调与最早截止期限优先</strong></h4>
+<p><strong>RMS</strong> 按 period 分配固定优先级，周期越短优先级越高。在经典单核、独立、可抢占、<span class="math inline">\(D_i=T_i\)</span> 且开销可忽略的模型中，利用率</p>
+<p><span class="math display">\[U=\sum_{i=1}^{n}\frac{C_i}{T_i}\]</span></p>
+<p>满足</p>
+<p><span class="math display">\[U\le n(2^{1/n}-1)\]</span></p>
+<p>即可保证可调度。上界随 <span class="math inline">\(n\)</span> 增大趋近 <span class="math inline">\(\ln2\approx0.693\)</span>，它是充分而非必要条件，超过不代表一定失败。</p>
+<p><strong>EDF</strong> 动态选择绝对 deadline 最早的就绪作业；在相同理想单核且隐式 deadline 模型中，任何 <span class="math inline">\(U\le1\)</span> 的任务集都可调度。更强利用率结果不消除 admission、过载策略、deadline 队列和有界内核延迟成本。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rms-edf-timeline.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/rms-edf-timeline.svg" class="img-fluid figure-img" style="width:98.0%" alt="两条甘特图比较 rate-monotonic 与 earliest-deadline-first。"></a></p>
+<figcaption>高利用率任务集中 RMS 错过 deadline，而 EDF 完成同一作业</figcaption>
+</figure>
+</div>
+<p>示例 <code>T1: C=2,D=T=5</code>、<code>T2: C=4,D=T=7</code>，<span class="math inline">\(U\approx0.971\)</span>。RMS 在时间 5 总让 T1 抢占，导致 T2 在 deadline 7 仍差一个单位；EDF 看到 T2 的 deadline 7 早于新 T1 的 10，因此先完成 T2。若 deadline 不等于 period、共享锁、存在不可抢占区或使用多核，就必须加入阻塞、抖动、迁移与多处理器干扰分析。</p>
+</section>
+</section>
+<section id="linux-scheduling-from-cfs-to-eevdf" class="level3">
+<h3 class="anchored" data-anchor-id="linux-scheduling-from-cfs-to-eevdf"><strong>Linux 调度：从 CFS 到 EEVDF</strong></h3>
+<p>Linux 提供不同类：普通 <code>SCHED_OTHER/BATCH/IDLE</code>、实时 <code>SCHED_FIFO/RR</code> 和显式 runtime/deadline/period 的 <code>SCHED_DEADLINE</code>。实时类可让普通工作完全得不到 CPU，因此实验必须设置资源边界和恢复路径。</p>
+<p><strong>CFS</strong> 的心智模型是模拟连续按权重分享 CPU 的理想处理器。任务积累 <strong>virtual runtime</strong>；权重更大时，同样真实执行使 vruntime 增长更慢。选择 vruntime 最小者，就是服务最落后于加权权益的任务。</p>
+<p>Linux 从 6.6 起逐步让 fair class 转向 <strong>EEVDF</strong>。它分离两个问题：lag 衡量应得服务与实际服务之差，只有 lag 非负的任务具备资格；再从合格任务中选择 virtual deadline 最早者，使较短请求 slice 可以表达延迟敏感性，而不丢弃比例公平。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cfs-eevdf-concepts.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/cfs-eevdf-concepts.svg" class="img-fluid figure-img" style="width:98.0%" alt="概念比较 CFS virtual runtime，以及 EEVDF 先按 lag 过滤、再选最早 virtual deadline。"></a></p>
+<figcaption>CFS 的最小 vruntime 与 EEVDF 的资格和虚拟 deadline</figcaption>
+</figure>
+</div>
+<p><code>nice</code> 与 cgroup <code>cpu.weight</code> 都是竞争下的相对权重，并非绝对预留；<code>cpu.max</code> 一类带宽控制才可施加 quota。其他组空闲时，有权重的组通常可以使用更多空闲 CPU。</p>
+<details>
+<summary>
+<strong>Linux：检查调度策略与实际执行</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 查看逐线程调度类别、实时优先级、nice 值、最近 CPU 与状态。</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">ps</span> <span class="at">-eLo</span> pid,tid,cls,rtprio,ni,pri,psr,stat,comm <span class="at">--sort</span><span class="op">=</span>pid,tid</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 读取当前 shell 的调度策略与优先级。</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="ex">chrt</span> <span class="at">-p</span> <span class="va">$$</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="co"># 检查为指定进程导出的调度器统计。</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/<span class="va">$$</span>/sched</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 在 perf 可用时记录并显示一段简短调度时间线。</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf sched record <span class="at">--</span> sleep 2</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> perf sched timehist</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="simulating-and-comparing-scheduling-policies" class="level3">
+<h3 class="anchored" data-anchor-id="simulating-and-comparing-scheduling-policies"><strong>模拟并比较调度策略</strong></h3>
+<p>离散事件模拟比手工甘特图更容易统一处理到达、抢占、完成和时间片边界，也能让 tie-breaking 成为显式规则。下面的 Python 实现对相同工作负载计算 FCFS、SJF、SRTF 与 RR。</p>
+<details>
+<summary>
+<strong>Python：离散事件比较 FCFS、SJF、SRTF 与 Round Robin</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> statistics <span class="im">import</span> mean</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Job:</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    arrival: <span class="bu">int</span></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    burst: <span class="bu">int</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>JOBS <span class="op">=</span> [</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"A"</span>, arrival<span class="op">=</span><span class="dv">0</span>, burst<span class="op">=</span><span class="dv">8</span>),</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"B"</span>, arrival<span class="op">=</span><span class="dv">1</span>, burst<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"C"</span>, arrival<span class="op">=</span><span class="dv">2</span>, burst<span class="op">=</span><span class="dv">2</span>),</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    Job(<span class="st">"D"</span>, arrival<span class="op">=</span><span class="dv">4</span>, burst<span class="op">=</span><span class="dv">1</span>),</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> append_segment(timeline, name, start, end):</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""追加一个区间，并合并同一任务的相邻运行段。"""</span></span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> timeline <span class="kw">and</span> timeline[<span class="op">-</span><span class="dv">1</span>][<span class="dv">0</span>] <span class="op">==</span> name <span class="kw">and</span> timeline[<span class="op">-</span><span class="dv">1</span>][<span class="dv">2</span>] <span class="op">==</span> start:</span>
+<span id="cb16-24"><a href="#cb16-24" aria-hidden="true" tabindex="-1"></a>        old_name, old_start, _ <span class="op">=</span> timeline[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb16-25"><a href="#cb16-25" aria-hidden="true" tabindex="-1"></a>        timeline[<span class="op">-</span><span class="dv">1</span>] <span class="op">=</span> (old_name, old_start, end)</span>
+<span id="cb16-26"><a href="#cb16-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb16-27"><a href="#cb16-27" aria-hidden="true" tabindex="-1"></a>        timeline.append((name, start, end))</span>
+<span id="cb16-28"><a href="#cb16-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-29"><a href="#cb16-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-30"><a href="#cb16-30" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_non_preemptive(jobs, policy):</span>
+<span id="cb16-31"><a href="#cb16-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""运行 FCFS 或 SJF；任务一旦被选中便占用 CPU 直至完成。"""</span></span>
+<span id="cb16-32"><a href="#cb16-32" aria-hidden="true" tabindex="-1"></a>    pending <span class="op">=</span> <span class="bu">list</span>(jobs)</span>
+<span id="cb16-33"><a href="#cb16-33" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-34"><a href="#cb16-34" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> pending)</span>
+<span id="cb16-35"><a href="#cb16-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-36"><a href="#cb16-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> pending:</span>
+<span id="cb16-37"><a href="#cb16-37" aria-hidden="true" tabindex="-1"></a>        ready <span class="op">=</span> [job <span class="cf">for</span> job <span class="kw">in</span> pending <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now]</span>
+<span id="cb16-38"><a href="#cb16-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-39"><a href="#cb16-39" aria-hidden="true" tabindex="-1"></a>            <span class="co"># 没有可运行任务：把模拟时间推进到下一次到达。</span></span>
+<span id="cb16-40"><a href="#cb16-40" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> pending)</span>
+<span id="cb16-41"><a href="#cb16-41" aria-hidden="true" tabindex="-1"></a>            ready <span class="op">=</span> [job <span class="cf">for</span> job <span class="kw">in</span> pending <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now]</span>
+<span id="cb16-42"><a href="#cb16-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-43"><a href="#cb16-43" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FCFS"</span>:</span>
+<span id="cb16-44"><a href="#cb16-44" aria-hidden="true" tabindex="-1"></a>            job <span class="op">=</span> <span class="bu">min</span>(ready, key<span class="op">=</span><span class="kw">lambda</span> item: (item.arrival, item.name))</span>
+<span id="cb16-45"><a href="#cb16-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"SJF"</span>:</span>
+<span id="cb16-46"><a href="#cb16-46" aria-hidden="true" tabindex="-1"></a>            job <span class="op">=</span> <span class="bu">min</span>(ready, key<span class="op">=</span><span class="kw">lambda</span> item: (item.burst, item.arrival, item.name))</span>
+<span id="cb16-47"><a href="#cb16-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb16-48"><a href="#cb16-48" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"unknown non-preemptive policy: </span><span class="sc">{</span>policy<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb16-49"><a href="#cb16-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-50"><a href="#cb16-50" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> job.burst)</span>
+<span id="cb16-51"><a href="#cb16-51" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> job.burst</span>
+<span id="cb16-52"><a href="#cb16-52" aria-hidden="true" tabindex="-1"></a>        pending.remove(job)</span>
+<span id="cb16-53"><a href="#cb16-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-54"><a href="#cb16-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-55"><a href="#cb16-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-56"><a href="#cb16-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-57"><a href="#cb16-57" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_srtf(jobs):</span>
+<span id="cb16-58"><a href="#cb16-58" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""在每个整数时间单位重新选择剩余时间最短的任务。"""</span></span>
+<span id="cb16-59"><a href="#cb16-59" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> {job.name: job.burst <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-60"><a href="#cb16-60" aria-hidden="true" tabindex="-1"></a>    by_name <span class="op">=</span> {job.name: job <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-61"><a href="#cb16-61" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-62"><a href="#cb16-62" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> <span class="bu">min</span>(job.arrival <span class="cf">for</span> job <span class="kw">in</span> jobs)</span>
+<span id="cb16-63"><a href="#cb16-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-64"><a href="#cb16-64" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">any</span>(value <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">for</span> value <span class="kw">in</span> remaining.values()):</span>
+<span id="cb16-65"><a href="#cb16-65" aria-hidden="true" tabindex="-1"></a>        ready <span class="op">=</span> [</span>
+<span id="cb16-66"><a href="#cb16-66" aria-hidden="true" tabindex="-1"></a>            job <span class="cf">for</span> job <span class="kw">in</span> jobs</span>
+<span id="cb16-67"><a href="#cb16-67" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> job.arrival <span class="op">&lt;=</span> now <span class="kw">and</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb16-68"><a href="#cb16-68" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb16-69"><a href="#cb16-69" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-70"><a href="#cb16-70" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb16-71"><a href="#cb16-71" aria-hidden="true" tabindex="-1"></a>                job.arrival <span class="cf">for</span> job <span class="kw">in</span> jobs</span>
+<span id="cb16-72"><a href="#cb16-72" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span> <span class="kw">and</span> job.arrival <span class="op">&gt;</span> now</span>
+<span id="cb16-73"><a href="#cb16-73" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb16-74"><a href="#cb16-74" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb16-75"><a href="#cb16-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-76"><a href="#cb16-76" aria-hidden="true" tabindex="-1"></a>        job <span class="op">=</span> <span class="bu">min</span>(</span>
+<span id="cb16-77"><a href="#cb16-77" aria-hidden="true" tabindex="-1"></a>            ready,</span>
+<span id="cb16-78"><a href="#cb16-78" aria-hidden="true" tabindex="-1"></a>            key<span class="op">=</span><span class="kw">lambda</span> item: (remaining[item.name], item.arrival, item.name),</span>
+<span id="cb16-79"><a href="#cb16-79" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb16-80"><a href="#cb16-80" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb16-81"><a href="#cb16-81" aria-hidden="true" tabindex="-1"></a>        remaining[job.name] <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb16-82"><a href="#cb16-82" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb16-83"><a href="#cb16-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-84"><a href="#cb16-84" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-85"><a href="#cb16-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-87"><a href="#cb16-87" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_round_robin(jobs, quantum):</span>
+<span id="cb16-88"><a href="#cb16-88" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""先加入时间片期间到达的任务，再把时间片耗尽的任务重新入队。"""</span></span>
+<span id="cb16-89"><a href="#cb16-89" aria-hidden="true" tabindex="-1"></a>    pending <span class="op">=</span> deque(<span class="bu">sorted</span>(jobs, key<span class="op">=</span><span class="kw">lambda</span> item: (item.arrival, item.name)))</span>
+<span id="cb16-90"><a href="#cb16-90" aria-hidden="true" tabindex="-1"></a>    ready <span class="op">=</span> deque()</span>
+<span id="cb16-91"><a href="#cb16-91" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> {job.name: job.burst <span class="cf">for</span> job <span class="kw">in</span> jobs}</span>
+<span id="cb16-92"><a href="#cb16-92" aria-hidden="true" tabindex="-1"></a>    timeline <span class="op">=</span> []</span>
+<span id="cb16-93"><a href="#cb16-93" aria-hidden="true" tabindex="-1"></a>    now <span class="op">=</span> pending[<span class="dv">0</span>].arrival</span>
+<span id="cb16-94"><a href="#cb16-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-95"><a href="#cb16-95" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> pending <span class="kw">or</span> ready:</span>
+<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> pending <span class="kw">and</span> pending[<span class="dv">0</span>].arrival <span class="op">&lt;=</span> now:</span>
+<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a>            ready.append(pending.popleft())</span>
+<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-99"><a href="#cb16-99" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> ready:</span>
+<span id="cb16-100"><a href="#cb16-100" aria-hidden="true" tabindex="-1"></a>            now <span class="op">=</span> pending[<span class="dv">0</span>].arrival</span>
+<span id="cb16-101"><a href="#cb16-101" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb16-102"><a href="#cb16-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-103"><a href="#cb16-103" aria-hidden="true" tabindex="-1"></a>        job <span class="op">=</span> ready.popleft()</span>
+<span id="cb16-104"><a href="#cb16-104" aria-hidden="true" tabindex="-1"></a>        duration <span class="op">=</span> <span class="bu">min</span>(quantum, remaining[job.name])</span>
+<span id="cb16-105"><a href="#cb16-105" aria-hidden="true" tabindex="-1"></a>        append_segment(timeline, job.name, now, now <span class="op">+</span> duration)</span>
+<span id="cb16-106"><a href="#cb16-106" aria-hidden="true" tabindex="-1"></a>        now <span class="op">+=</span> duration</span>
+<span id="cb16-107"><a href="#cb16-107" aria-hidden="true" tabindex="-1"></a>        remaining[job.name] <span class="op">-=</span> duration</span>
+<span id="cb16-108"><a href="#cb16-108" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-109"><a href="#cb16-109" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 边界时刻到达的任务先入队，随后才重新加入刚耗尽时间片的任务。</span></span>
+<span id="cb16-110"><a href="#cb16-110" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> pending <span class="kw">and</span> pending[<span class="dv">0</span>].arrival <span class="op">&lt;=</span> now:</span>
+<span id="cb16-111"><a href="#cb16-111" aria-hidden="true" tabindex="-1"></a>            ready.append(pending.popleft())</span>
+<span id="cb16-112"><a href="#cb16-112" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> remaining[job.name] <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb16-113"><a href="#cb16-113" aria-hidden="true" tabindex="-1"></a>            ready.append(job)</span>
+<span id="cb16-114"><a href="#cb16-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-115"><a href="#cb16-115" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> timeline</span>
+<span id="cb16-116"><a href="#cb16-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-117"><a href="#cb16-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-118"><a href="#cb16-118" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> calculate_metrics(jobs, timeline):</span>
+<span id="cb16-119"><a href="#cb16-119" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""从执行轨迹推导首次开始时间与完成时间。"""</span></span>
+<span id="cb16-120"><a href="#cb16-120" aria-hidden="true" tabindex="-1"></a>    first_start <span class="op">=</span> {}</span>
+<span id="cb16-121"><a href="#cb16-121" aria-hidden="true" tabindex="-1"></a>    completion <span class="op">=</span> {}</span>
+<span id="cb16-122"><a href="#cb16-122" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> name, start, end <span class="kw">in</span> timeline:</span>
+<span id="cb16-123"><a href="#cb16-123" aria-hidden="true" tabindex="-1"></a>        first_start.setdefault(name, start)</span>
+<span id="cb16-124"><a href="#cb16-124" aria-hidden="true" tabindex="-1"></a>        completion[name] <span class="op">=</span> end</span>
+<span id="cb16-125"><a href="#cb16-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-126"><a href="#cb16-126" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> []</span>
+<span id="cb16-127"><a href="#cb16-127" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> job <span class="kw">in</span> jobs:</span>
+<span id="cb16-128"><a href="#cb16-128" aria-hidden="true" tabindex="-1"></a>        turnaround <span class="op">=</span> completion[job.name] <span class="op">-</span> job.arrival</span>
+<span id="cb16-129"><a href="#cb16-129" aria-hidden="true" tabindex="-1"></a>        waiting <span class="op">=</span> turnaround <span class="op">-</span> job.burst</span>
+<span id="cb16-130"><a href="#cb16-130" aria-hidden="true" tabindex="-1"></a>        response <span class="op">=</span> first_start[job.name] <span class="op">-</span> job.arrival</span>
+<span id="cb16-131"><a href="#cb16-131" aria-hidden="true" tabindex="-1"></a>        rows.append((job.name, waiting, response, turnaround))</span>
+<span id="cb16-132"><a href="#cb16-132" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> rows</span>
+<span id="cb16-133"><a href="#cb16-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-134"><a href="#cb16-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-135"><a href="#cb16-135" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> print_report(name, jobs, timeline):</span>
+<span id="cb16-136"><a href="#cb16-136" aria-hidden="true" tabindex="-1"></a>    rows <span class="op">=</span> calculate_metrics(jobs, timeline)</span>
+<span id="cb16-137"><a href="#cb16-137" aria-hidden="true" tabindex="-1"></a>    gantt <span class="op">=</span> <span class="st">" | "</span>.join(<span class="ss">f"</span><span class="sc">{</span>job<span class="sc">}</span><span class="ss"> </span><span class="sc">{</span>start<span class="sc">}</span><span class="ss">-</span><span class="sc">{</span>end<span class="sc">}</span><span class="ss">"</span> <span class="cf">for</span> job, start, end <span class="kw">in</span> timeline)</span>
+<span id="cb16-138"><a href="#cb16-138" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:4}</span><span class="ss">  </span><span class="sc">{</span>gantt<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb16-139"><a href="#cb16-139" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb16-140"><a href="#cb16-140" aria-hidden="true" tabindex="-1"></a>        <span class="st">"      averages: "</span></span>
+<span id="cb16-141"><a href="#cb16-141" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"wait=</span><span class="sc">{</span>mean(row[<span class="dv">1</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">, "</span></span>
+<span id="cb16-142"><a href="#cb16-142" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"response=</span><span class="sc">{</span>mean(row[<span class="dv">2</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">, "</span></span>
+<span id="cb16-143"><a href="#cb16-143" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"turnaround=</span><span class="sc">{</span>mean(row[<span class="dv">3</span>] <span class="cf">for</span> row <span class="kw">in</span> rows)<span class="sc">:.2f}</span><span class="ss">"</span></span>
+<span id="cb16-144"><a href="#cb16-144" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb16-145"><a href="#cb16-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-146"><a href="#cb16-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-147"><a href="#cb16-147" aria-hidden="true" tabindex="-1"></a>experiments <span class="op">=</span> {</span>
+<span id="cb16-148"><a href="#cb16-148" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FCFS"</span>: run_non_preemptive(JOBS, <span class="st">"FCFS"</span>),</span>
+<span id="cb16-149"><a href="#cb16-149" aria-hidden="true" tabindex="-1"></a>    <span class="st">"SJF"</span>: run_non_preemptive(JOBS, <span class="st">"SJF"</span>),</span>
+<span id="cb16-150"><a href="#cb16-150" aria-hidden="true" tabindex="-1"></a>    <span class="st">"SRTF"</span>: run_srtf(JOBS),</span>
+<span id="cb16-151"><a href="#cb16-151" aria-hidden="true" tabindex="-1"></a>    <span class="st">"RR"</span>: run_round_robin(JOBS, quantum<span class="op">=</span><span class="dv">2</span>),</span>
+<span id="cb16-152"><a href="#cb16-152" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb16-153"><a href="#cb16-153" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-154"><a href="#cb16-154" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> policy_name, execution_trace <span class="kw">in</span> experiments.items():</span>
+<span id="cb16-155"><a href="#cb16-155" aria-hidden="true" tabindex="-1"></a>    print_report(policy_name, JOBS, execution_trace)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>典型输出：</p>
+<pre class="text"><code>FCFS  A 0-8 | B 8-12 | C 12-14 | D 14-15
+      平均值：等待=6.75，响应=6.75，周转=10.50
+SJF   A 0-8 | D 8-9 | C 9-11 | B 11-15
+      平均值：等待=5.25，响应=5.25，周转=9.00
+SRTF  A 0-1 | B 1-2 | C 2-4 | D 4-5 | B 5-8 | A 8-15
+      平均值：等待=2.50，响应=0.00，周转=6.25
+RR    A 0-2 | B 2-4 | C 4-6 | A 6-8 | D 8-9 | B 9-11 | A 11-15
+      平均值：等待=4.75，响应=1.75，周转=8.50</code></pre>
+</details>
+<p>模拟结果只有在模型一致时才可比较。应记录到达顺序、同时间事件规则、是否计算切换开销、burst 是否已知、I/O 阻塞和测量窗口。把理想算法排名直接映射到生产内核通常是类别错误。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>策略</th>
+<th>抢占？</th>
+<th>所需信息/状态</th>
+<th>主要优势</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FCFS</td>
+<td>否</td>
+<td>到达顺序</td>
+<td>开销低、顺序透明</td>
+<td>护航效应，短作业响应差</td>
+</tr>
+<tr class="even">
+<td>SJF</td>
+<td>否</td>
+<td>完整 burst 预测</td>
+<td>理想条件下平均等待最小</td>
+<td>预测误差、饥饿、无法中途反应</td>
+</tr>
+<tr class="odd">
+<td>SRTF</td>
+<td>是</td>
+<td>剩余时间预测</td>
+<td>已知大小时平均 flow time 优秀</td>
+<td>长作业饥饿、频繁抢占</td>
+</tr>
+<tr class="even">
+<td>RR</td>
+<td>是</td>
+<td>FIFO 队列与 quantum</td>
+<td>同行轮转有界、首次响应好</td>
+<td>小 quantum 开销，缺少组公平</td>
+</tr>
+<tr class="odd">
+<td>严格优先级</td>
+<td>可选</td>
+<td>可信优先级</td>
+<td>保护明确紧急类别</td>
+<td>饥饿与优先级反转</td>
+</tr>
+<tr class="even">
+<td>MLFQ</td>
+<td>是</td>
+<td>多队列加使用历史</td>
+<td>适应交互与 CPU-bound 阶段</td>
+<td>参数复杂，需防作弊</td>
+</tr>
+<tr class="odd">
+<td>Lottery</td>
+<td>通常是</td>
+<td>tickets 与随机数</td>
+<td>比例份额灵活</td>
+<td>短期方差</td>
+</tr>
+<tr class="even">
+<td>Stride</td>
+<td>通常是</td>
+<td>tickets、stride、pass</td>
+<td>确定性比例份额</td>
+<td>动态成员与归一化复杂</td>
+</tr>
+<tr class="odd">
+<td>RMS</td>
+<td>是</td>
+<td>period 与 WCET</td>
+<td>固定优先级可分析</td>
+<td>充分上界保守、假设严格</td>
+</tr>
+<tr class="even">
+<td>EDF</td>
+<td>是</td>
+<td>deadline 与预算</td>
+<td>理想单核利用率强</td>
+<td>过载和实现需严格控制</td>
+</tr>
+<tr class="odd">
+<td>CFS/EEVDF</td>
+<td>是</td>
+<td>权重、虚拟时间、lag、虚拟 deadline</td>
+<td>实用的加权公平与延迟感知</td>
+<td>仍受层次、放置和实现细节影响</td>
+</tr>
+</tbody>
+</table>
+<p>调度分析应先声明目标和模型，再报告多项指标及分布。平均等待最小不等于响应、公平、尾延迟、能耗或 deadline 最优；多核上还必须把迁移与局部性纳入决策。</p>
+<p><a href="05-synchronization-correctness-and-liveness.html">下一章：同步、并发正确性与活性</a></p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

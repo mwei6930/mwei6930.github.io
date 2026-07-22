@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Virtualization, Containers, and Modern Kernel Design</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/clipboard/clipboard.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/quarto.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/popper.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/anchor.min.js"></script>
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="11-virtualization-containers-and-modern-kernels_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#virtualization-containers-and-modern-kernel-design" id="toc-virtualization-containers-and-modern-kernel-design" class="nav-link active" data-scroll-target="#virtualization-containers-and-modern-kernel-design"><strong>Virtualization, Containers, and Modern Kernel Design</strong></a>
+  <ul>
+  <li><a href="#why-virtualize-a-computer" id="toc-why-virtualize-a-computer" class="nav-link" data-scroll-target="#why-virtualize-a-computer"><strong>Why Virtualize a Computer?</strong></a>
+  <ul>
+  <li><a href="#consolidation-isolation-portability-and-management" id="toc-consolidation-isolation-portability-and-management" class="nav-link" data-scroll-target="#consolidation-isolation-portability-and-management"><strong>Consolidation, Isolation, Portability, and Management</strong></a></li>
+  </ul></li>
+  <li><a href="#hypervisor-architectures" id="toc-hypervisor-architectures" class="nav-link" data-scroll-target="#hypervisor-architectures"><strong>Hypervisor Architectures</strong></a>
+  <ul>
+  <li><a href="#type-1-and-type-2-hypervisors" id="toc-type-1-and-type-2-hypervisors" class="nav-link" data-scroll-target="#type-1-and-type-2-hypervisors"><strong>Type 1 and Type 2 Hypervisors</strong></a></li>
+  <li><a href="#full-virtualization-and-paravirtualization" id="toc-full-virtualization-and-paravirtualization" class="nav-link" data-scroll-target="#full-virtualization-and-paravirtualization"><strong>Full Virtualization and Paravirtualization</strong></a></li>
+  </ul></li>
+  <li><a href="#cpu-virtualization" id="toc-cpu-virtualization" class="nav-link" data-scroll-target="#cpu-virtualization"><strong>CPU Virtualization</strong></a>
+  <ul>
+  <li><a href="#trap-and-emulate-and-hardware-assistance" id="toc-trap-and-emulate-and-hardware-assistance" class="nav-link" data-scroll-target="#trap-and-emulate-and-hardware-assistance"><strong>Trap-and-Emulate and Hardware Assistance</strong></a></li>
+  </ul></li>
+  <li><a href="#memory-virtualization" id="toc-memory-virtualization" class="nav-link" data-scroll-target="#memory-virtualization"><strong>Memory Virtualization</strong></a>
+  <ul>
+  <li><a href="#shadow-page-tables-and-nested-translation" id="toc-shadow-page-tables-and-nested-translation" class="nav-link" data-scroll-target="#shadow-page-tables-and-nested-translation"><strong>Shadow Page Tables and Nested Translation</strong></a></li>
+  </ul></li>
+  <li><a href="#io-virtualization" id="toc-io-virtualization" class="nav-link" data-scroll-target="#io-virtualization"><strong>I/O Virtualization</strong></a>
+  <ul>
+  <li><a href="#emulation-paravirtualized-devices-and-device-passthrough" id="toc-emulation-paravirtualized-devices-and-device-passthrough" class="nav-link" data-scroll-target="#emulation-paravirtualized-devices-and-device-passthrough"><strong>Emulation, Paravirtualized Devices, and Device Passthrough</strong></a></li>
+  </ul></li>
+  <li><a href="#virtual-machine-lifecycle-and-migration" id="toc-virtual-machine-lifecycle-and-migration" class="nav-link" data-scroll-target="#virtual-machine-lifecycle-and-migration"><strong>Virtual-Machine Lifecycle and Migration</strong></a></li>
+  <li><a href="#container-isolation" id="toc-container-isolation" class="nav-link" data-scroll-target="#container-isolation"><strong>Container Isolation</strong></a>
+  <ul>
+  <li><a href="#namespaces-cgroups-capabilities-and-layered-file-systems" id="toc-namespaces-cgroups-capabilities-and-layered-file-systems" class="nav-link" data-scroll-target="#namespaces-cgroups-capabilities-and-layered-file-systems"><strong>Namespaces, cgroups, Capabilities, and Layered File Systems</strong></a></li>
+  </ul></li>
+  <li><a href="#virtual-machines-versus-containers" id="toc-virtual-machines-versus-containers" class="nav-link" data-scroll-target="#virtual-machines-versus-containers"><strong>Virtual Machines Versus Containers</strong></a></li>
+  <li><a href="#comparing-kernel-architectures" id="toc-comparing-kernel-architectures" class="nav-link" data-scroll-target="#comparing-kernel-architectures"><strong>Comparing Kernel Architectures</strong></a>
+  <ul>
+  <li><a href="#monolithic-microkernel-exokernel-and-unikernel-designs" id="toc-monolithic-microkernel-exokernel-and-unikernel-designs" class="nav-link" data-scroll-target="#monolithic-microkernel-exokernel-and-unikernel-designs"><strong>Monolithic, Microkernel, Exokernel, and Unikernel Designs</strong></a></li>
+  </ul></li>
+  <li><a href="#teaching-kernels-and-production-kernels" id="toc-teaching-kernels-and-production-kernels" class="nav-link" data-scroll-target="#teaching-kernels-and-production-kernels"><strong>Teaching Kernels and Production Kernels</strong></a>
+  <ul>
+  <li><a href="#xv6-linux-and-verified-microkernels" id="toc-xv6-linux-and-verified-microkernels" class="nav-link" data-scroll-target="#xv6-linux-and-verified-microkernels"><strong>xv6, Linux, and Verified Microkernels</strong></a></li>
+  </ul></li>
+  <li><a href="#modern-kernel-mechanisms" id="toc-modern-kernel-mechanisms" class="nav-link" data-scroll-target="#modern-kernel-mechanisms"><strong>Modern Kernel Mechanisms</strong></a>
+  <ul>
+  <li><a href="#rcu-ebpf-and-extensible-observability" id="toc-rcu-ebpf-and-extensible-observability" class="nav-link" data-scroll-target="#rcu-ebpf-and-extensible-observability"><strong>RCU, eBPF, and Extensible Observability</strong></a></li>
+  </ul></li>
+  <li><a href="#research-and-evolution-frontiers" id="toc-research-and-evolution-frontiers" class="nav-link" data-scroll-target="#research-and-evolution-frontiers"><strong>Research and Evolution Frontiers</strong></a>
+  <ul>
+  <li><a href="#confidential-computing-library-oses-and-serverless-isolation" id="toc-confidential-computing-library-oses-and-serverless-isolation" class="nav-link" data-scroll-target="#confidential-computing-library-oses-and-serverless-isolation"><strong>Confidential Computing, Library OSes, and Serverless Isolation</strong></a></li>
+  </ul></li>
+  <li><a href="#running-the-pipeline-natively-in-a-container-and-in-a-vm" id="toc-running-the-pipeline-natively-in-a-container-and-in-a-vm" class="nav-link" data-scroll-target="#running-the-pipeline-natively-in-a-container-and-in-a-vm"><strong>Running the Pipeline Natively, in a Container, and in a VM</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Virtualization, Containers, and Modern Kernel Design</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/11-virtualization-containers-and-modern-kernels.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="virtualization-containers-and-modern-kernel-design" class="level2">
+<h2 class="anchored" data-anchor-id="virtualization-containers-and-modern-kernel-design"><strong>Virtualization, Containers, and Modern Kernel Design</strong></h2>
+<p>The previous chapter built protection domains inside one operating system: credentials identify subjects, permissions and capabilities constrain authority, namespaces alter views, cgroups govern resources, and seccomp or LSM policy narrows operations. This chapter asks what happens when the boundary moves <strong>below an entire operating system</strong>, or when those same-kernel mechanisms are composed into a deployable container.</p>
+<p>Three words that are often treated as synonyms describe different abstractions:</p>
+<ul>
+<li><strong>machine virtualization</strong> presents one or more virtual machines, each with virtual CPUs, guest-physical memory and devices on which a guest kernel can run;</li>
+<li><strong>operating-system-level virtualization</strong> gives processes isolated views and resource domains while they share one host kernel;</li>
+<li><strong>emulation</strong> reproduces an interface or instruction set in software and may therefore run code built for different hardware, usually with more translation work.</li>
+</ul>
+<p>The difference is not merely packaging. It determines which kernel handles a syscall, which scheduler ultimately assigns a physical CPU, whose page tables describe an address, which software interprets device commands, how failure propagates, and what belongs to the Trusted Computing Base (TCB).</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtualization-boundaries.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/virtualization-boundaries.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three layered stacks compare native process isolation, containers sharing a host kernel, and virtual machines with separate guest kernels above a hypervisor."></a></p>
+<figcaption>Native processes, containers, and virtual machines place their principal isolation boundaries at different layers.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://docs.kernel.org/virt/kvm/api.html">Linux KVM API</a>, the <a href="https://specs.opencontainers.org/runtime-spec/config-linux/">OCI Linux runtime configuration</a>, and <a href="https://csrc.nist.gov/pubs/sp/800/190/final">NIST SP 800-190</a>.</em></p>
+<p>The running case remains:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Natively, both programs issue syscalls to the host kernel. In a Linux container, they still issue those same syscalls to the host kernel, but the kernel resolves names, identities and resource accounting through container-specific namespace and cgroup state. In a VM, they issue syscalls to a <strong>guest</strong> kernel; that kernel’s privileged instructions, memory mappings and I/O eventually cross a hypervisor-managed virtual-hardware boundary.</p>
+<p>A useful question for the entire chapter is therefore:</p>
+<blockquote class="blockquote">
+<p>Which layer owns the abstraction, which layer enforces the boundary, and which layers must remain correct for the claimed isolation to hold?</p>
+</blockquote>
+<section id="why-virtualize-a-computer" class="level3">
+<h3 class="anchored" data-anchor-id="why-virtualize-a-computer"><strong>Why Virtualize a Computer?</strong></h3>
+<p>To <strong>virtualize</strong> a resource is to insert a control layer that presents each consumer with a useful logical version while multiplexing, translating or constraining access to the physical version. Virtual memory virtualizes an address space for a process. A hypervisor extends this idea to a machine interface: CPU privilege, physical memory, interrupts, timers and devices become per-VM state.</p>
+<p>Virtualization is useful because software often wants contradictory properties. A workload wants to believe that it owns a stable machine, while an operator wants to consolidate many workloads, move them between hosts, meter them independently, recover them from snapshots and limit faults. The virtual-machine monitor (VMM) reconciles those views.</p>
+<p>Virtualization should not be sold as automatic security. A guest is isolated only against the adversary named in the threat model. Device emulators, hypercalls, shared-memory channels, management APIs, firmware, host kernel code and hardware all expose interfaces. Moving a boundary can remove a guest kernel from another tenant’s TCB, while simultaneously adding a VMM and management plane to the infrastructure TCB.</p>
+<section id="consolidation-isolation-portability-and-management" class="level4">
+<h4 class="anchored" data-anchor-id="consolidation-isolation-portability-and-management"><strong>Consolidation, Isolation, Portability, and Management</strong></h4>
+<p><strong>Consolidation</strong> allows workloads with different peak times to share hardware. If each service reserves a physical host for its peak, average utilization may be low. A hypervisor can schedule several vCPUs on fewer physical CPUs, allocate guest memory dynamically and share storage or network devices. Overcommit is a policy, not free capacity: when all guests demand their advertised resources simultaneously, the system must reclaim, throttle, swap, balloon, queue, or fail.</p>
+<p><strong>Isolation</strong> creates separate fault and administration domains. One VM can run a different kernel version or even a different operating system. A crash in a guest kernel normally remains inside that VM because the guest kernel does not own host page tables or physical devices directly. The qualifier matters: a hypervisor escape, unsafe device assignment, firmware defect or vulnerable management service can still cross the boundary.</p>
+<p><strong>Portability</strong> packages machine state behind a stable virtual platform. A VM image can include a bootloader, kernel, userspace and filesystem. A snapshot can capture memory and device state. Live migration can transfer a running VM between compatible hosts. Portability still has contracts: CPU features, virtual machine type, firmware, endianness, page size, device model, storage availability and network identity must remain compatible.</p>
+<p><strong>Management</strong> makes machine lifecycle programmable. Operators can create, pause, inspect, snapshot, clone, meter, migrate and destroy logical machines through an API. This supports testing, disaster recovery, elastic fleets and reproducible environments. It also creates a highly privileged control plane; compromise of the API or image supply chain can be more damaging than compromise of one guest.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Goal</th>
+<th>Mechanism that helps</th>
+<th>Hidden cost or failure mode</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Consolidation</td>
+<td>vCPU scheduling, memory overcommit, shared backends</td>
+<td>Correlated demand, noisy neighbours, host-wide failure</td>
+</tr>
+<tr class="even">
+<td>Isolation</td>
+<td>Hardware privilege, nested paging, IOMMU, narrow VMM</td>
+<td>Escape vulnerabilities, side channels, large device models</td>
+</tr>
+<tr class="odd">
+<td>Portability</td>
+<td>Stable virtual hardware, images, snapshots</td>
+<td>Compatibility matrices, stale secrets, device state</td>
+</tr>
+<tr class="even">
+<td>Recovery</td>
+<td>Checkpoint, replication, migration</td>
+<td>Crash-consistent storage and external dependencies</td>
+</tr>
+<tr class="odd">
+<td>Experimentation</td>
+<td>Disposable VMs and reversible snapshots</td>
+<td>Snapshot trees, hidden state and non-reproducible manual changes</td>
+</tr>
+<tr class="even">
+<td>Fleet management</td>
+<td>Declarative machine configuration and APIs</td>
+<td>Privileged management plane becomes a high-value TCB component</td>
+</tr>
+</tbody>
+</table>
+<p>The overhead must be decomposed rather than summarized as “virtualization is slow.” Compute-heavy guest user code can execute directly on hardware. Costs appear when execution exits to the VMM, translations miss in the TLB, virtual I/O copies or notifies excessively, host and guest schedulers conflict, or resources are overcommitted. A warm, well-configured VM can be close to native for one workload while showing severe tail latency for another.</p>
+<details>
+<summary>
+<strong>Inspect whether a Linux host exposes hardware virtualization</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify the environment first. This may report none, kvm, vmware,</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># microsoft, wsl, docker, podman, and other recognized environments.</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">systemd-detect-virt</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># CPU flags commonly include vmx on Intel or svm on AMD when the</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># processor and firmware expose hardware virtualization support.</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="ex">lscpu</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-E</span> <span class="st">'Virtualization|Hypervisor vendor|Flags'</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="co"># KVM userspace opens /dev/kvm. Its permissions determine who may</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># create VMs; presence alone does not grant the current user access.</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">ls</span> <span class="at">-l</span> /dev/kvm <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="bu">echo</span> <span class="st">'/dev/kvm is not available'</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Loaded modules show the generic KVM core and an architecture backend.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">lsmod</span> <span class="kw">|</span> <span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^kvm(_intel|_amd)?\b'</span> <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Do not interpret a missing flag inside a VM as proof that the physical</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># CPU lacks support: the outer hypervisor may hide nested virtualization.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>This inspection separates four states that are often confused: the physical CPU implements an extension; firmware enables it; the host kernel exposes a virtualization API; and policy permits this process to use that API.</p>
+</section>
+</section>
+<section id="hypervisor-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="hypervisor-architectures"><strong>Hypervisor Architectures</strong></h3>
+<p>A <strong>hypervisor</strong> or <strong>VMM</strong> is the privileged control layer that creates virtual CPUs, establishes guest-memory ownership, delivers virtual interrupts, mediates devices and switches execution between guests and host components. It may be a compact standalone system, a privileged kernel subsystem plus user-space device model, or a hosted application using a general-purpose OS.</p>
+<p>The architecture is easier to understand by following responsibility:</p>
+<ol type="1">
+<li>who schedules vCPUs onto physical CPUs;</li>
+<li>who owns the second-stage page tables;</li>
+<li>who emulates or services devices;</li>
+<li>who performs host resource allocation;</li>
+<li>where management code and drivers execute; and</li>
+<li>which component can read or modify guest state.</li>
+</ol>
+<section id="type-1-and-type-2-hypervisors" class="level4">
+<h4 class="anchored" data-anchor-id="type-1-and-type-2-hypervisors"><strong>Type 1 and Type 2 Hypervisors</strong></h4>
+<p>A <strong>Type 1</strong> hypervisor runs as the primary privileged control layer on the hardware. Guest operating systems execute above it, sometimes alongside a privileged management or driver domain. This structure can keep ordinary host applications outside the lowest control layer, but a large management domain or driver stack may still belong to the practical TCB.</p>
+<p>A <strong>Type 2</strong> hypervisor runs as an application on a host operating system. It relies on the host for files, devices, memory allocation, scheduling and user interaction. This is convenient for desktop development because normal host drivers and services remain available, but guest execution competes through both host and guest scheduling layers.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hypervisor-architectures.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/hypervisor-architectures.svg" class="img-fluid figure-img" style="width:97.0%" alt="Layered comparison of bare-metal Type 1 and hosted Type 2 hypervisors, followed by a note that KVM and QEMU form a hybrid architecture."></a></p>
+<figcaption>Type 1 and Type 2 describe placement, while systems such as KVM distribute VMM responsibilities across kernel and user space.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://docs.kernel.org/virt/kvm/api.html">KVM API</a>, <a href="https://www.qemu.org/docs/master/system/index.html">QEMU system documentation</a>, and the Xen <a href="https://xenbits.xen.org/docs/latest/admin-guide/introduction.html">architecture introduction</a>.</em></p>
+<p>The taxonomy is useful but imperfect. With <strong>KVM</strong>, Linux provides the <code>/dev/kvm</code> interface, vCPU execution, memory-virtualization controls and interrupt support. A user-space VMM such as QEMU creates the VM, maps guest RAM, supplies a virtual machine model and implements many device paths. Linux is simultaneously a host kernel, resource manager, driver platform and part of the hypervisor solution. Calling it only Type 1 or Type 2 hides more than it explains.</p>
+<p>The security consequence is similarly architectural. In a hosted VMM, host kernel drivers can affect every VM. In a split design, a user-space device model may be sandboxed separately, reducing the consequence of a parser defect. In a design with a privileged driver domain, that domain’s authority and communication protocol must be included in the threat model.</p>
+</section>
+<section id="full-virtualization-and-paravirtualization" class="level4">
+<h4 class="anchored" data-anchor-id="full-virtualization-and-paravirtualization"><strong>Full Virtualization and Paravirtualization</strong></h4>
+<p><strong>Full virtualization</strong> presents an interface on which an unmodified guest operating system can run. The VMM preserves the architectural behavior the guest expects: privileged state, interrupts, timers, page tables and devices. “Full” does not mean every physical detail is reproduced. The virtual machine may expose a deliberately selected CPU model and synthetic devices, as long as the guest-visible contract is valid.</p>
+<p><strong>Paravirtualization</strong> changes the guest-to-hypervisor interface so the guest cooperates. Instead of attempting an operation that must be trapped and emulated, a modified guest can issue a <strong>hypercall</strong>. A paravirtualized driver such as virtio uses shared queues designed for virtual I/O rather than pretending to be a legacy physical controller.</p>
+<p>Modern systems are hybrids:</p>
+<ul>
+<li>ordinary guest user instructions execute directly;</li>
+<li>hardware virtualization controls privileged guest execution;</li>
+<li>nested paging translates guest memory without maintaining every mapping in software;</li>
+<li>paravirtualized clock, interrupt and I/O interfaces avoid expensive emulation paths; and</li>
+<li>selected devices may be assigned directly through an IOMMU.</li>
+</ul>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Interface</th>
+<th style="text-align: right;">Guest modification</th>
+<th>Main advantage</th>
+<th>Main cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Fully emulated legacy hardware</td>
+<td style="text-align: right;">None</td>
+<td>Maximum compatibility, including old guests</td>
+<td>Frequent exits and complex device emulation</td>
+</tr>
+<tr class="even">
+<td>Hypercall-based paravirtualization</td>
+<td style="text-align: right;">Kernel awareness required</td>
+<td>Explicit, efficient privileged interface</td>
+<td>Guest dependency on hypervisor ABI</td>
+</tr>
+<tr class="odd">
+<td>Paravirtualized device</td>
+<td style="text-align: right;">Driver required</td>
+<td>Batched shared-memory data path</td>
+<td>Backend and guest driver must agree on protocol</td>
+</tr>
+<tr class="even">
+<td>Hardware-assisted full virtualization</td>
+<td style="text-align: right;">Usually none in core kernel</td>
+<td>Direct execution with controlled exits</td>
+<td>Exit and nested-translation costs remain</td>
+</tr>
+<tr class="odd">
+<td>Device passthrough</td>
+<td style="text-align: right;">Native device driver</td>
+<td>Near-native data path</td>
+<td>Harder isolation, reset, sharing and migration</td>
+</tr>
+</tbody>
+</table>
+<p>The comparison should distinguish <strong>semantic compatibility</strong> from <strong>implementation path</strong>. An unmodified application can run in a guest whose kernel contains virtio drivers. From the application’s perspective the machine remains compatible, while the kernel and VMM cooperate for performance.</p>
+</section>
+</section>
+<section id="cpu-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="cpu-virtualization"><strong>CPU Virtualization</strong></h3>
+<p>CPU virtualization gives each VM one or more <strong>virtual CPUs (vCPUs)</strong> with architectural registers, privilege state, interrupt state, control registers and timers. A vCPU is a schedulable software object. When it is running, a physical CPU executes guest instructions in a hardware-constrained guest mode; when it is not, its state is saved and another host task or vCPU can run.</p>
+<p>This introduces two schedulers. The guest scheduler chooses which guest thread runs on a vCPU. The host scheduler chooses when that vCPU thread runs on a physical CPU. A guest may believe that two vCPUs are executing simultaneously even when the host deschedules one, which can distort spin locks, timekeeping and latency. CPU pinning, topology exposure and paravirtualized yield or clock mechanisms help, but they exchange flexibility for predictability.</p>
+<section id="trap-and-emulate-and-hardware-assistance" class="level4">
+<h4 class="anchored" data-anchor-id="trap-and-emulate-and-hardware-assistance"><strong>Trap-and-Emulate and Hardware Assistance</strong></h4>
+<p>The classical virtualization requirement is that the VMM must regain control whenever a guest attempts an operation that can affect the machine outside its virtual state. In an ideal <strong>trap-and-emulate</strong> path:</p>
+<ol type="1">
+<li>ordinary, non-sensitive guest instructions execute directly;</li>
+<li>a sensitive privileged operation traps before changing forbidden host state;</li>
+<li>the VMM reads the exit reason and guest operands;</li>
+<li>it updates virtual state, injects an exception, performs an allowed host action, or blocks the vCPU; and</li>
+<li>it resumes the guest at the correct architectural point.</li>
+</ol>
+<p>Popek and Goldberg formalized conditions under which a classical instruction set can be efficiently virtualized. Early x86 contained sensitive behaviors that did not always trap cleanly at lower privilege, so VMMs used techniques such as dynamic binary translation. Modern Intel VT-x and AMD-V add explicit guest and hypervisor execution modes, control structures and intercept configuration.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/vm-entry-exit-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/vm-entry-exit-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated VM-entry and VM-exit cycle between guest non-root execution and hypervisor root handling of intercepted events."></a></p>
+<figcaption>Hardware assistance lets ordinary guest instructions run directly and transfers control to the VMM only for configured exits.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html">Intel 64 and IA-32 Software Developer’s Manual</a>, the AMD64 Architecture Programmer’s Manual, and the <a href="https://docs.kernel.org/virt/kvm/api.html">KVM API</a>.</em></p>
+<p>On Intel, a VM control structure records guest state, host state, entry controls, exit controls and the exit reason; AMD provides analogous mechanisms. The terminology “root” and “non-root” is separate from ordinary OS rings. A guest kernel can execute at its expected privilege level <strong>inside non-root mode</strong>, while the hypervisor retains an additional control dimension.</p>
+<p>Common causes of VM exits include configured control-register accesses, certain model-specific registers, I/O port accesses, external interrupts, halt instructions, second-stage translation faults and explicit hypercalls. Not every privileged instruction must exit; hardware can maintain guest-owned copies or virtualized behavior directly.</p>
+<p>The cost of one exit is not merely saving a few registers. It can include pipeline disruption, VMM dispatch, host scheduling, device-model work, cache and TLB effects, and re-entry. Good virtualization paths therefore:</p>
+<ul>
+<li>avoid unnecessary intercepts;</li>
+<li>batch I/O descriptors and completions;</li>
+<li>use posted or virtualized interrupts where available;</li>
+<li>keep frequently used guest state in hardware structures;</li>
+<li>expose stable paravirtual interfaces for operations that otherwise exit often; and</li>
+<li>account separately for average throughput and tail latency.</li>
+</ul>
+<details>
+<summary>
+<strong>Minimal x86 KVM control loop in C</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// A compact teaching VMM for Linux/x86. It creates one vCPU, maps one</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">// page of guest RAM, runs a few real-mode instructions, handles port I/O,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">// and stops on HLT. Production VMMs need robust device, interrupt, memory,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">// migration, firmware, concurrency, and security models.</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;fcntl.h&gt;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;linux/kvm.h&gt;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdint.h&gt;</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;string.h&gt;</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/ioctl.h&gt;</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">void</span> fail<span class="op">(</span><span class="dt">const</span> <span class="dt">char</span> <span class="op">*</span>what<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    perror<span class="op">(</span>what<span class="op">);</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="co">// mov dx, 0x3f8; mov al, 'H'; out dx, al; hlt</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">const</span> <span class="dt">uint8_t</span> guest_code<span class="op">[]</span> <span class="op">=</span> <span class="op">{</span><span class="bn">0xba</span><span class="op">,</span> <span class="bn">0xf8</span><span class="op">,</span> <span class="bn">0x03</span><span class="op">,</span> <span class="bn">0xb0</span><span class="op">,</span> <span class="bn">0x48</span><span class="op">,</span> <span class="bn">0xee</span><span class="op">,</span> <span class="bn">0xf4</span><span class="op">};</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> kvm <span class="op">=</span> open<span class="op">(</span><span class="st">"/dev/kvm"</span><span class="op">,</span> O_RDWR <span class="op">|</span> O_CLOEXEC<span class="op">);</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>kvm <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"open /dev/kvm"</span><span class="op">);</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_GET_API_VERSION<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">!=</span> KVM_API_VERSION<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unexpected KVM API version</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">// A VM file descriptor owns machine-wide state.</span></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> vm <span class="op">=</span> ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_CREATE_VM<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>vm <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_CREATE_VM"</span><span class="op">);</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Userspace allocates RAM; KVM is told which guest-physical range it backs.</span></span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> ram_size <span class="op">=</span> <span class="bn">0x1000</span><span class="op">;</span></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">uint8_t</span> <span class="op">*</span>ram <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> ram_size<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>                        MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ram <span class="op">==</span> MAP_FAILED<span class="op">)</span> fail<span class="op">(</span><span class="st">"mmap guest RAM"</span><span class="op">);</span></span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    memcpy<span class="op">(</span>ram<span class="op">,</span> guest_code<span class="op">,</span> <span class="kw">sizeof</span> guest_code<span class="op">);</span></span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_userspace_memory_region region <span class="op">=</span> <span class="op">{</span></span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>slot <span class="op">=</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>guest_phys_addr <span class="op">=</span> <span class="dv">0</span><span class="op">,</span></span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>memory_size <span class="op">=</span> ram_size<span class="op">,</span></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>        <span class="op">.</span>userspace_addr <span class="op">=</span> <span class="op">(</span><span class="dt">uintptr_t</span><span class="op">)</span>ram<span class="op">,</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>    <span class="op">};</span></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vm<span class="op">,</span> KVM_SET_USER_MEMORY_REGION<span class="op">,</span> <span class="op">&amp;</span>region<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span></span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        fail<span class="op">(</span><span class="st">"KVM_SET_USER_MEMORY_REGION"</span><span class="op">);</span></span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    <span class="co">// A vCPU file descriptor owns architectural CPU state.</span></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> vcpu <span class="op">=</span> ioctl<span class="op">(</span>vm<span class="op">,</span> KVM_CREATE_VCPU<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>vcpu <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_CREATE_VCPU"</span><span class="op">);</span></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> run_size <span class="op">=</span> ioctl<span class="op">(</span>kvm<span class="op">,</span> KVM_GET_VCPU_MMAP_SIZE<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>run_size <span class="op">&lt;</span> <span class="op">(</span><span class="dt">int</span><span class="op">)</span><span class="kw">sizeof</span><span class="op">(</span><span class="kw">struct</span> kvm_run<span class="op">))</span> fail<span class="op">(</span><span class="st">"KVM_GET_VCPU_MMAP_SIZE"</span><span class="op">);</span></span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_run <span class="op">*</span>run <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>run_size<span class="op">,</span></span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>                               PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span> MAP_SHARED<span class="op">,</span> vcpu<span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>run <span class="op">==</span> MAP_FAILED<span class="op">)</span> fail<span class="op">(</span><span class="st">"mmap kvm_run"</span><span class="op">);</span></span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Start in a simple real-mode layout at guest address zero.</span></span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_sregs sregs<span class="op">;</span></span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_GET_SREGS<span class="op">,</span> <span class="op">&amp;</span>sregs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_GET_SREGS"</span><span class="op">);</span></span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>    sregs<span class="op">.</span>cs<span class="op">.</span>base <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a>    sregs<span class="op">.</span>cs<span class="op">.</span>selector <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_SET_SREGS<span class="op">,</span> <span class="op">&amp;</span>sregs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_SET_SREGS"</span><span class="op">);</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> kvm_regs regs <span class="op">=</span> <span class="op">{.</span>rip <span class="op">=</span> <span class="dv">0</span><span class="op">,</span> <span class="op">.</span>rflags <span class="op">=</span> <span class="bn">0x2</span><span class="op">};</span></span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_SET_REGS<span class="op">,</span> <span class="op">&amp;</span>regs<span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> fail<span class="op">(</span><span class="st">"KVM_SET_REGS"</span><span class="op">);</span></span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(;;)</span> <span class="op">{</span></span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>        <span class="co">// KVM_RUN enters guest mode. The ioctl returns on a userspace exit.</span></span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>ioctl<span class="op">(</span>vcpu<span class="op">,</span> KVM_RUN<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">&lt;</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>errno <span class="op">==</span> EINTR<span class="op">)</span> <span class="cf">continue</span><span class="op">;</span></span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a>            fail<span class="op">(</span><span class="st">"KVM_RUN"</span><span class="op">);</span></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>        <span class="cf">switch</span> <span class="op">(</span>run<span class="op">-&gt;</span>exit_reason<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_IO<span class="op">:</span></span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>            <span class="co">// For this demo, accept one-byte output to the serial I/O port.</span></span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>run<span class="op">-&gt;</span>io<span class="op">.</span>direction <span class="op">==</span> KVM_EXIT_IO_OUT <span class="op">&amp;&amp;</span></span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a>                run<span class="op">-&gt;</span>io<span class="op">.</span>port <span class="op">==</span> <span class="bn">0x3f8</span> <span class="op">&amp;&amp;</span> run<span class="op">-&gt;</span>io<span class="op">.</span>size <span class="op">==</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a>                <span class="dt">uint8_t</span> <span class="op">*</span>data <span class="op">=</span> <span class="op">(</span><span class="dt">uint8_t</span> <span class="op">*)</span>run <span class="op">+</span> run<span class="op">-&gt;</span>io<span class="op">.</span>data_offset<span class="op">;</span></span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a>                fwrite<span class="op">(</span>data<span class="op">,</span> <span class="dv">1</span><span class="op">,</span> run<span class="op">-&gt;</span>io<span class="op">.</span>count<span class="op">,</span> stdout<span class="op">);</span></span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a>                fflush<span class="op">(</span>stdout<span class="op">);</span></span>
+<span id="cb3-88"><a href="#cb3-88" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb3-89"><a href="#cb3-89" aria-hidden="true" tabindex="-1"></a>                fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unexpected I/O exit</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-90"><a href="#cb3-90" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-91"><a href="#cb3-91" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb3-92"><a href="#cb3-92" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb3-93"><a href="#cb3-93" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_HLT<span class="op">:</span></span>
+<span id="cb3-94"><a href="#cb3-94" aria-hidden="true" tabindex="-1"></a>            putchar<span class="op">(</span><span class="ch">'</span><span class="sc">\n</span><span class="ch">'</span><span class="op">);</span></span>
+<span id="cb3-95"><a href="#cb3-95" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb3-96"><a href="#cb3-96" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_FAIL_ENTRY<span class="op">:</span></span>
+<span id="cb3-97"><a href="#cb3-97" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"failed VM entry: 0x</span><span class="sc">%llx\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb3-98"><a href="#cb3-98" aria-hidden="true" tabindex="-1"></a>                    <span class="op">(</span><span class="dt">unsigned</span> <span class="dt">long</span> <span class="dt">long</span><span class="op">)</span>run<span class="op">-&gt;</span>fail_entry<span class="op">.</span>hardware_entry_failure_reason<span class="op">);</span></span>
+<span id="cb3-99"><a href="#cb3-99" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-100"><a href="#cb3-100" aria-hidden="true" tabindex="-1"></a>        <span class="cf">case</span> KVM_EXIT_INTERNAL_ERROR<span class="op">:</span></span>
+<span id="cb3-101"><a href="#cb3-101" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"KVM internal error</span><span class="sc">\n</span><span class="st">"</span><span class="op">);</span></span>
+<span id="cb3-102"><a href="#cb3-102" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-103"><a href="#cb3-103" aria-hidden="true" tabindex="-1"></a>        <span class="cf">default</span><span class="op">:</span></span>
+<span id="cb3-104"><a href="#cb3-104" aria-hidden="true" tabindex="-1"></a>            fprintf<span class="op">(</span>stderr<span class="op">,</span> <span class="st">"unhandled KVM exit reason: </span><span class="sc">%u\n</span><span class="st">"</span><span class="op">,</span> run<span class="op">-&gt;</span>exit_reason<span class="op">);</span></span>
+<span id="cb3-105"><a href="#cb3-105" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb3-106"><a href="#cb3-106" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb3-107"><a href="#cb3-107" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb3-108"><a href="#cb3-108" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Compile and run on a Linux x86 host with KVM access:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-O2</span> tiny_kvm.c <span class="at">-o</span> tiny_kvm</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./tiny_kvm</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Expected output: H</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The example makes the control split concrete. KVM executes guest CPU state and reports structured exits through <code>struct kvm_run</code>; userspace decides what virtual machine those exits mean. The code is intentionally too small to boot an OS and should not be treated as a secure VMM.</p>
+</section>
+</section>
+<section id="memory-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="memory-virtualization"><strong>Memory Virtualization</strong></h3>
+<p>A guest operating system believes that it maps <strong>guest virtual addresses (GVA)</strong> to <strong>guest physical addresses (GPA)</strong>. The host must then map those guest-physical frames to <strong>host physical addresses (HPA)</strong>. The actual translation is therefore a composition:</p>
+<p><span class="math display">\[
+\operatorname{HPA}
+= T_{\text{nested}}\!\left(T_{\text{guest}}(\operatorname{GVA})\right).
+\]</span></p>
+<p>The guest owns the first mapping as part of its process abstraction. The hypervisor owns the second mapping because it must prevent one VM from addressing another VM’s or the host’s pages. Effective permissions are the intersection of both stages: a writable guest PTE cannot override a read-only nested mapping.</p>
+<p>Virtualized memory also includes allocation and lifecycle policy. Guest RAM may be backed by anonymous host memory, huge pages, files, shared memory or device memory. The host can overcommit it, deduplicate it under carefully considered security policy, reclaim it through ballooning, pin it for DMA, or track dirty pages for migration. “The VM has 8 GB” is a guest-visible promise whose physical backing can change over time.</p>
+<section id="shadow-page-tables-and-nested-translation" class="level4">
+<h4 class="anchored" data-anchor-id="shadow-page-tables-and-nested-translation"><strong>Shadow Page Tables and Nested Translation</strong></h4>
+<p>With <strong>shadow page tables</strong>, the hypervisor builds hardware-visible mappings that directly translate GVA to HPA. It validates the guest’s intended GVA-to-GPA mapping, combines it with host ownership and writes a shadow entry. The steady-state hardware lookup is simple, but the VMM must notice guest page-table changes, maintain consistency and invalidate stale shadows.</p>
+<p>With <strong>nested paging</strong>, called Extended Page Tables (EPT) by Intel and Nested Page Tables (NPT) by AMD, hardware performs two translation stages. The guest can update its own page tables normally. The hypervisor configures the second-stage root and handles faults when a GPA is absent or violates nested permissions.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/nested-address-translation.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/nested-address-translation.svg" class="img-fluid figure-img" style="width:98.0%" alt="Comparison of shadow GVA-to-HPA mappings and nested GVA-to-GPA-to-HPA translation with TLB and page-walk-cache notes."></a></p>
+<figcaption>Shadow page tables compose mappings in software, while nested paging lets the MMU walk guest and hypervisor-owned tables.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html">Intel SDM EPT description</a>, AMD’s NPT architecture, and the Linux <a href="https://docs.kernel.org/virt/kvm/api.html">KVM memory-region API</a>.</em></p>
+<p>A cold two-dimensional walk can be expensive. For four-level guest tables and four-level nested tables, reading each guest page-table entry requires translating the GPA of the guest page-table page. In a simplified worst case, this can involve up to 24 translation-structure memory references before the final data access. This is <strong>not</strong> paid on every load or store: TLBs, nested TLB entries, page-walk caches and large pages exist precisely to keep the common path short.</p>
+<p>The important performance events are therefore:</p>
+<ul>
+<li>guest TLB miss and nested walk depth;</li>
+<li>host decisions that invalidate nested mappings;</li>
+<li>vCPU migration between physical CPUs and associated translation context;</li>
+<li>guest and host page sizes, including fragmentation tradeoffs;</li>
+<li>NUMA placement of vCPU threads and backing memory;</li>
+<li>dirty-bit collection for migration; and</li>
+<li>memory overcommit, ballooning, host swap and guest swap interacting at once.</li>
+</ul>
+<p>Double paging can create pathologies. If the guest swaps a page into its virtual disk while the host swaps the guest-memory page that contains the relevant cache or buffer, both layers perform replacement without seeing the other’s full objective. Production policy usually avoids uncontrolled host swapping for latency-sensitive VMs and coordinates limits, ballooning and NUMA placement.</p>
+<details>
+<summary>
+<strong>Simulate two-stage translation and permission intersection in Python</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Mapping:</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    frame: <span class="bu">int</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    read: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    write: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    execute: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>PAGE_SIZE <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> translate(gva: <span class="bu">int</span>, access: <span class="bu">str</span>,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>              guest_pt: <span class="bu">dict</span>[<span class="bu">int</span>, Mapping],</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>              nested_pt: <span class="bu">dict</span>[<span class="bu">int</span>, Mapping]) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Translate GVA -&gt; GPA -&gt; HPA and enforce both permission stages."""</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    guest_vpn, offset <span class="op">=</span> <span class="bu">divmod</span>(gva, PAGE_SIZE)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Stage 1 is selected by the guest OS for one of its processes.</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    guest <span class="op">=</span> guest_pt.get(guest_vpn)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> guest <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"guest page fault: no GVA -&gt; GPA mapping"</span>)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># The guest frame number is a guest-physical page number.</span></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    guest_pfn <span class="op">=</span> guest.frame</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Stage 2 is controlled by the hypervisor and enforces VM ownership.</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    nested <span class="op">=</span> nested_pt.get(guest_pfn)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> nested <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">MemoryError</span>(<span class="st">"nested fault: GPA has no host backing"</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Access is allowed only if BOTH stages grant it.</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    permission <span class="op">=</span> {</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"read"</span>: guest.read <span class="kw">and</span> nested.read,</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>        <span class="st">"write"</span>: guest.write <span class="kw">and</span> nested.write,</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>        <span class="st">"execute"</span>: guest.execute <span class="kw">and</span> nested.execute,</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> permission[access]:</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">PermissionError</span>(<span class="ss">f"</span><span class="sc">{</span>access<span class="sc">}</span><span class="ss"> denied by composed permissions"</span>)</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> nested.frame <span class="op">*</span> PAGE_SIZE <span class="op">+</span> offset</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>guest_pt <span class="op">=</span> {</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x4</span>: Mapping(frame<span class="op">=</span><span class="bn">0x20</span>, read<span class="op">=</span><span class="va">True</span>, write<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>nested_pt <span class="op">=</span> {</span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Hypervisor deliberately exposes this page as read-only.</span></span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>    <span class="bn">0x20</span>: Mapping(frame<span class="op">=</span><span class="bn">0x9A</span>, read<span class="op">=</span><span class="va">True</span>, write<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>gva <span class="op">=</span> <span class="bn">0x4</span> <span class="op">*</span> PAGE_SIZE <span class="op">+</span> <span class="dv">123</span></span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">hex</span>(translate(gva, <span class="st">"read"</span>, guest_pt, nested_pt)))  <span class="co"># 0x9a07b</span></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>    translate(gva, <span class="st">"write"</span>, guest_pt, nested_pt)</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">PermissionError</span> <span class="im">as</span> error:</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(error)  <span class="co"># guest write permission cannot override nested read-only</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The simulator omits levels, accessed/dirty bits, huge pages, caches and invalidation, but it preserves the security invariant: the guest controls its virtual abstraction only within host-owned guest-physical memory.</p>
+</section>
+</section>
+<section id="io-virtualization" class="level3">
+<h3 class="anchored" data-anchor-id="io-virtualization"><strong>I/O Virtualization</strong></h3>
+<p>CPU and memory virtualization are not enough to boot a useful guest. A kernel expects timers, interrupt controllers, storage, network interfaces, consoles, entropy sources and often accelerators. A VMM must expose those devices while preserving isolation and acceptable throughput.</p>
+<p>I/O is difficult because devices are concurrent state machines. They perform DMA without the CPU copying each byte, raise interrupts asynchronously, retain internal queues and firmware state, and may not support reset or migration cleanly. A virtual device must preserve ordering, completion, error and reset semantics across guest, VMM, host driver and physical controller.</p>
+<section id="emulation-paravirtualized-devices-and-device-passthrough" class="level4">
+<h4 class="anchored" data-anchor-id="emulation-paravirtualized-devices-and-device-passthrough"><strong>Emulation, Paravirtualized Devices, and Device Passthrough</strong></h4>
+<p><strong>Device emulation</strong> presents a device whose register and descriptor contract an existing guest driver already understands. Guest MMIO or port I/O exits to a device model, which validates the request and performs host operations. This is invaluable for firmware and old guests, but faithfully reproducing legacy devices creates code and attack surface in a high-trust component.</p>
+<p><strong>Paravirtualized I/O</strong> exposes a device designed for virtualization. Virtio, standardized by OASIS, uses shared-memory queues. The guest writes descriptors that identify buffers, publishes descriptor heads in an available ring and optionally notifies the backend. The backend validates and processes them, then publishes completions in a used ring. Batching and notification suppression reduce exits.</p>
+<p><strong>Device passthrough</strong> assigns a physical function or an SR-IOV virtual function to a guest. An IOMMU translates and restricts device DMA so the assigned device cannot address arbitrary host memory; interrupt remapping constrains interrupt delivery. The data path can approach native performance, but device reset, sharing, observability, dirty-page tracking and live migration become harder.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtual-io-strategies.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/virtual-io-strategies.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three virtual I/O stacks compare legacy device emulation, paravirtualized virtqueue transport, and IOMMU-protected device passthrough."></a></p>
+<figcaption>Emulation, virtio-style paravirtualization, and passthrough occupy different points between compatibility and direct hardware access.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html">Virtio 1.2 specification</a>, Linux <a href="https://docs.kernel.org/driver-api/vfio.html">VFIO documentation</a>, and QEMU device-model documentation.</em></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/virtqueue-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/virtqueue-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated virtio request lifecycle from guest driver through descriptor and available rings to backend processing, used ring, and guest completion."></a></p>
+<figcaption>A split virtqueue moves buffer descriptors and indices rather than copying every payload through a register interface.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the OASIS <a href="https://docs.oasis-open.org/virtio/virtio/v1.2/virtio-v1.2.html#x1-430005">Virtio split virtqueue format</a> and Linux <a href="https://docs.kernel.org/driver-api/virtio/virtio.html">virtio implementation documentation</a>.</em></p>
+<p>The ring is a concurrent protocol. The guest must make descriptor contents visible before publishing the available index. The backend must make completion data visible before advancing the used index. Both sides need bounds checks because queue indices, lengths, flags and guest addresses cross a trust boundary. Shared memory improves performance; it does not make inputs trustworthy.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Strategy</th>
+<th>Data/control path</th>
+<th>Compatibility</th>
+<th>Performance potential</th>
+<th>Isolation and operations</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Emulation</td>
+<td>Exit to software device model</td>
+<td>Highest</td>
+<td>Lowest for chatty legacy interfaces</td>
+<td>Easy snapshot model; large parser/state surface</td>
+</tr>
+<tr class="even">
+<td>Virtio / paravirtual</td>
+<td>Shared queues plus notifications</td>
+<td>Needs guest driver</td>
+<td>High with batching and vhost</td>
+<td>Mediated protocol; migratable state must be versioned</td>
+</tr>
+<tr class="odd">
+<td>Passthrough</td>
+<td>Guest driver to assigned function</td>
+<td>Device-specific native driver</td>
+<td>Near native</td>
+<td>IOMMU critical; reset, sharing and migration are difficult</td>
+</tr>
+<tr class="even">
+<td>SR-IOV virtual function</td>
+<td>Hardware-created per-guest function</td>
+<td>Vendor driver</td>
+<td>High</td>
+<td>Better sharing, but hardware/firmware and migration constraints remain</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+<strong>Inspect virtual and assigned devices on a Linux guest or host</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># PCI identity, selected kernel driver, and alternative modules.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="ex">lspci</span> <span class="at">-nnk</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Virtio devices commonly bind to drivers with virtio in the name.</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="fu">find</span> /sys/bus/virtio/devices <span class="at">-maxdepth</span> 2 <span class="at">-type</span> l <span class="at">-name</span> driver <span class="dt">\</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">-exec</span> sh <span class="at">-c</span> <span class="st">'printf "%s -&gt; " "$1"; readlink "$1"'</span> sh {} <span class="dt">\;</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># IOMMU groups are the unit exposed to VFIO. Devices in one group may</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># not be independently isolated by the platform topology.</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> group <span class="kw">in</span> /sys/kernel/iommu_groups/<span class="pp">*</span><span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="bu">[</span> <span class="ot">-d</span> <span class="st">"</span><span class="va">$group</span><span class="st">/devices"</span> <span class="bu">]</span> <span class="kw">||</span> <span class="cf">continue</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'group %s: '</span> <span class="st">"</span><span class="va">${group</span><span class="op">##</span><span class="pp">*</span>/<span class="va">}</span><span class="st">"</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">find</span> <span class="st">"</span><span class="va">$group</span><span class="st">/devices"</span> <span class="at">-mindepth</span> 1 <span class="at">-maxdepth</span> 1 <span class="at">-printf</span> <span class="st">'%f '</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'\n'</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># A driver binding does not prove safe assignment. Verify IOMMU enablement,</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># group composition, reset support, interrupt remapping, firmware, and policy.</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="virtual-machine-lifecycle-and-migration" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-machine-lifecycle-and-migration"><strong>Virtual-Machine Lifecycle and Migration</strong></h3>
+<p>A VM is not only a running CPU. Its lifecycle includes image selection, machine type, firmware, vCPU topology, memory backing, virtual and assigned devices, credentials, network identity, start, pause, snapshot, migration, reset and destruction. Every transition must define which state is quiescent and who owns it.</p>
+<p>A <strong>snapshot</strong> captures enough state to resume from a point in time. A disk-only snapshot taken while applications continue writing may be merely crash-consistent. A memory snapshot must coordinate CPU state, virtual devices, timers and storage ordering. Restoring an old snapshot can also restore expired credentials, reused randomness, old counters or a network identity that conflicts with the live world.</p>
+<p><strong>Live migration</strong> moves a running VM while keeping service interruption small. In pre-copy migration, the source first copies RAM while the VM runs, then repeatedly copies pages dirtied during prior rounds. Finally it pauses the VM, transfers the remaining dirty pages plus CPU and device state, starts the destination and cleans up the source only after acknowledgement.</p>
+<p>If a round starts with <span class="math inline">\(D_k\)</span> dirty bytes, the guest dirties memory at rate <span class="math inline">\(r\)</span> bytes/s, and usable migration bandwidth is <span class="math inline">\(B\)</span> bytes/s, a simplified next-round estimate is:</p>
+<p><span class="math display">\[
+D_{k+1} \approx r\frac{D_k}{B}.
+\]</span></p>
+<p>The ratio <span class="math inline">\(r/B\)</span> explains convergence. If it is well below one, each round shrinks. If the guest dirties memory as fast as the link transfers it, the dirty set may not converge and the operator must tolerate more downtime, throttle dirtying, compress or deduplicate pages, increase bandwidth, or switch strategy.</p>
+<p>In <strong>post-copy</strong>, the destination resumes before all memory arrives. Access to a missing page faults and requests it from the source while background transfer continues. This bounds duplicate transfer and handles non-converging dirty workloads, but page faults increase latency and a failure before all state reaches the destination is more dangerous because authoritative memory is split across hosts.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/live-migration-precopy-postcopy.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/live-migration-precopy-postcopy.svg" class="img-fluid figure-img" style="width:98.0%" alt="Two live-migration timelines compare iterative pre-copy and fault-driven post-copy with their convergence, downtime and failure tradeoffs."></a></p>
+<figcaption>Pre-copy minimizes downtime by iterating dirty pages; post-copy resumes early and fetches missing pages on demand.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the official QEMU <a href="https://www.qemu.org/docs/master/devel/migration/">migration framework</a>, <a href="https://www.qemu.org/docs/master/devel/migration/postcopy.html">post-copy documentation</a>, and <a href="https://www.qemu.org/docs/master/devel/migration/vfio.html">VFIO migration state</a>.</em></p>
+<p>RAM is only the largest obvious state. Correct migration also requires:</p>
+<ul>
+<li>vCPU registers, interrupt and timer state;</li>
+<li>a compatible destination CPU feature model;</li>
+<li>versioned virtual-device state and in-flight requests;</li>
+<li>storage that is shared, replicated or block-migrated consistently;</li>
+<li>network reconnection without duplicate machine identity;</li>
+<li>firmware and machine-type compatibility;</li>
+<li>dirty tracking for DMA-capable devices; and</li>
+<li>an atomic ownership decision so both copies do not run independently.</li>
+</ul>
+<details>
+<summary>
+<strong>Model whether a pre-copy workload converges</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> precopy_rounds(memory_gib: <span class="bu">float</span>, dirty_mib_s: <span class="bu">float</span>,</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>                   bandwidth_mib_s: <span class="bu">float</span>, stop_mib: <span class="bu">float</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>                   max_rounds: <span class="bu">int</span> <span class="op">=</span> <span class="dv">12</span>):</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return each simplified pre-copy round and estimated final downtime."""</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> memory_gib <span class="op">*</span> <span class="dv">1024</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    rounds <span class="op">=</span> []</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> number <span class="kw">in</span> <span class="bu">range</span>(max_rounds):</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        transfer_seconds <span class="op">=</span> remaining <span class="op">/</span> bandwidth_mib_s</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        dirtied_during_round <span class="op">=</span> dirty_mib_s <span class="op">*</span> transfer_seconds</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        rounds.append({</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"round"</span>: number,</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">"sent_mib"</span>: remaining,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"seconds"</span>: transfer_seconds,</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>            <span class="st">"redirtied_mib"</span>: dirtied_during_round,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        })</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        remaining <span class="op">=</span> <span class="bu">min</span>(memory_gib <span class="op">*</span> <span class="dv">1024</span>, dirtied_during_round)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> remaining <span class="op">&lt;=</span> stop_mib:</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># During stop-and-copy the vCPUs are paused while the final set moves.</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    downtime_seconds <span class="op">=</span> remaining <span class="op">/</span> bandwidth_mib_s</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> rounds, remaining, downtime_seconds</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> dirty_rate <span class="kw">in</span> (<span class="dv">50</span>, <span class="dv">300</span>, <span class="dv">900</span>):</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    rounds, final_dirty, downtime <span class="op">=</span> precopy_rounds(</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        memory_gib<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        dirty_mib_s<span class="op">=</span>dirty_rate,</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        bandwidth_mib_s<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        stop_mib<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"dirty=</span><span class="sc">{</span>dirty_rate<span class="sc">:&gt;3}</span><span class="ss"> MiB/s "</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"rounds=</span><span class="sc">{</span><span class="bu">len</span>(rounds)<span class="sc">:&gt;2}</span><span class="ss"> final=</span><span class="sc">{</span>final_dirty<span class="sc">:7.1f}</span><span class="ss"> MiB "</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"downtime~</span><span class="sc">{</span>downtime <span class="op">*</span> <span class="dv">1000</span><span class="sc">:6.1f}</span><span class="ss"> ms"</span></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>This model intentionally ignores compression, zero-page detection, parallel channels, network contention, device state and changing dirty rate. Its purpose is to expose the controlling ratio, not predict a production maintenance window.</p>
+</section>
+<section id="container-isolation" class="level3">
+<h3 class="anchored" data-anchor-id="container-isolation"><strong>Container Isolation</strong></h3>
+<p>A Linux container is a set of ordinary host processes created with a coordinated isolation and resource configuration. It does not normally boot a private kernel and does not need a virtual CPU or emulated interrupt controller. The executable enters the same host kernel through the same syscall ABI as a native process.</p>
+<p>The container abstraction is supplied by the <strong>composition</strong> of mechanisms discussed in the previous chapter:</p>
+<ul>
+<li>namespaces select the process’s views of PIDs, mounts, users, networks, IPC objects, host names, cgroup paths and sometimes clocks;</li>
+<li>cgroup v2 places processes in a resource-accounting and control hierarchy;</li>
+<li>credentials, user-ID mappings and capabilities define kernel-recognized authority;</li>
+<li><code>no_new_privs</code>, seccomp and LSM policy restrict future privilege and operations;</li>
+<li>mount configuration and a root filesystem define visible files and devices; and</li>
+<li>a runtime converts an image and declarative configuration into a process with those properties.</li>
+</ul>
+<p>This chapter does not repeat each mechanism’s syscall semantics. The new idea is that <strong>none of them alone is a container</strong>. A mount namespace without cgroup limits changes a view but does not bound memory. A cgroup without namespaces meters a normal host process. A PID namespace does not hide the network. A capability drop does not select a filesystem. The operational boundary is their intersection.</p>
+<section id="namespaces-cgroups-capabilities-and-layered-file-systems" class="level4">
+<h4 class="anchored" data-anchor-id="namespaces-cgroups-capabilities-and-layered-file-systems"><strong>Namespaces, cgroups, Capabilities, and Layered File Systems</strong></h4>
+<p>The Open Container Initiative (OCI) runtime specification defines a bundle containing a root filesystem and a <code>config.json</code>. On Linux, the configuration can describe the process arguments and environment, namespace types, mounts, user IDs, capabilities, resource limits, seccomp policy and hooks. A low-level runtime such as <code>runc</code> or <code>crun</code> translates that contract into clone/unshare operations, cgroup placement, mount setup, credential changes and finally <code>execve()</code>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/container-isolation-composition.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/container-isolation-composition.svg" class="img-fluid figure-img" style="width:97.0%" alt="Concentric composition of Linux container mechanisms around a workload, with namespaces, cgroups, capabilities, seccomp, LSM, layered root filesystem and OCI runtime configuration above a shared host kernel."></a></p>
+<figcaption>A container boundary is the intersection of namespaced views, resource governance, reduced authority, policy and filesystem configuration around host processes.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://specs.opencontainers.org/runtime-spec/config-linux/">OCI Linux runtime specification</a>, Linux <a href="https://docs.kernel.org/admin-guide/cgroup-v2.html">cgroup v2 documentation</a>, and <a href="https://csrc.nist.gov/pubs/sp/800/190/final">NIST SP 800-190</a>.</em></p>
+<p>The order of setup is security-sensitive. The runtime may need temporary privilege to create namespaces, populate UID/GID mappings, mount a root filesystem and move the process into a cgroup. It must ensure that no less-restricted workload thread runs before restrictions are installed. Descriptor inheritance, writable procfs or sysfs mounts, device nodes and runtime sockets can bypass an otherwise careful namespace layout.</p>
+<p><strong>Layered filesystems</strong> solve a separate packaging problem. Container image layers are immutable filesystem diffs. OverlayFS can combine one or more read-only lower directories with a per-container writable upper directory and present one merged mount:</p>
+<ul>
+<li>lookup uses the upper object when present, otherwise the highest matching lower object;</li>
+<li>reading a lower file can use it directly, so many containers share image data;</li>
+<li>the first write that requires private state performs <strong>copy-up</strong> into the upper layer;</li>
+<li>deletion records a <strong>whiteout</strong> in the upper layer so a lower name remains hidden; and</li>
+<li>a bind-mounted volume can bypass the image’s writable layer and expose separate persistent storage.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/overlayfs-copy-up-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/overlayfs-copy-up-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated OverlayFS copy-up from a read-only lower image layer to a writable upper layer, with merged lookup and whiteout behavior."></a></p>
+<figcaption>OverlayFS reveals immutable lower content until a write copies an object into the container-specific upper layer.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the official Linux <a href="https://docs.kernel.org/filesystems/overlayfs.html">OverlayFS documentation</a>, including copy-up, upper/lower lookup and whiteouts.</em></p>
+<p>An image is therefore not equivalent to a VM disk. It normally contains user-space files and metadata but assumes a compatible host-kernel ABI. It can be content-addressed, cached and shared efficiently, while runtime writes remain separate. Persistence must be explicit: deleting a container usually discards its private upper layer, but does not necessarily delete mounted volumes.</p>
+<p>Rootless containers alter the trust relationship by creating a user namespace in which apparent container root maps to an unprivileged host ID. This reduces host authority if the workload or runtime is compromised. It does not make the kernel untrusted or erase kernel attack surface; the host kernel still parses syscalls from the workload.</p>
+<details>
+<summary>
+<strong>Inspect how a running container is composed</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Start a disposable container with an explicit memory and PID limit.</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Podman is shown because rootless operation is common; equivalent Docker</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co"># inspect commands can expose similar state.</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> run <span class="at">--rm</span> <span class="at">-d</span> <span class="at">--name</span> os-boundary <span class="dt">\</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--memory</span> 256m <span class="at">--pids-limit</span> 64 <span class="dt">\</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">--cap-drop</span> all <span class="at">--security-opt</span> no-new-privileges <span class="dt">\</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  docker.io/library/alpine:latest sleep 600</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Obtain the host PID of the container's initial process.</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">$(</span><span class="ex">podman</span> inspect <span class="at">--format</span> <span class="st">'{{.State.Pid}}'</span> os-boundary<span class="va">)</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'host PID: %s\n'</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Namespace links have different inode numbers from the inspecting shell</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># when the process belongs to a distinct namespace instance.</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'%-12s %-24s %-24s\n'</span> TYPE SELF CONTAINER</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ns <span class="kw">in</span> cgroup ipc mnt net pid user uts<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>  <span class="bu">printf</span> <span class="st">'%-12s %-24s %-24s\n'</span> <span class="dt">\</span></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="va">$ns</span><span class="st">"</span> <span class="st">"</span><span class="va">$(</span><span class="fu">readlink</span> <span class="st">"/proc/self/ns/</span><span class="va">$ns</span><span class="st">"</span><span class="va">)</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">"</span><span class="va">$(</span><span class="fu">readlink</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/ns/</span><span class="va">$ns</span><span class="st">"</span><span class="va">)</span><span class="st">"</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a><span class="co"># The host sees the process's cgroup path and enforced controllers.</span></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cgroup"</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="va">cg_rel</span><span class="op">=</span><span class="va">$(</span><span class="fu">awk</span> <span class="at">-F:</span> <span class="st">'$1 == "0" {print $3}'</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/cgroup"</span><span class="va">)</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="va">cg</span><span class="op">=</span><span class="st">"/sys/fs/cgroup</span><span class="va">$cg_rel</span><span class="st">"</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> file <span class="kw">in</span> memory.max pids.max cpu.weight<span class="kw">;</span> <span class="cf">do</span></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>  <span class="bu">[</span> <span class="ot">-r</span> <span class="st">"</span><span class="va">$cg</span><span class="st">/</span><span class="va">$file</span><span class="st">"</span> <span class="bu">]</span> <span class="kw">&amp;&amp;</span> <span class="bu">printf</span> <span class="st">'%s=%s\n'</span> <span class="st">"</span><span class="va">$file</span><span class="st">"</span> <span class="st">"</span><span class="va">$(</span><span class="fu">cat</span> <span class="st">"</span><span class="va">$cg</span><span class="st">/</span><span class="va">$file</span><span class="st">"</span><span class="va">)</span><span class="st">"</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="cf">done</span></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Credentials and syscall restrictions are properties of the host task.</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Uid|Gid|Cap(Inh|Prm|Eff|Bnd|Amb)|NoNewPrivs|Seccomp):'</span> <span class="dt">\</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>  <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/status"</span></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a><span class="co"># Mount information reveals overlay and bind-mount composition.</span></span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">' - (overlay|ext4|xfs|btrfs) '</span> <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/mountinfo"</span> <span class="kw">|</span> <span class="fu">head</span></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> stop os-boundary</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The commands deliberately inspect host <code>/proc</code> and cgroup state rather than trusting a container’s self-description. On systems using a VM-backed container engine, the observed PID may belong to a helper or VM instead; that difference is itself evidence that the product boundary is not a plain shared-kernel container.</p>
+</section>
+</section>
+<section id="virtual-machines-versus-containers" class="level3">
+<h3 class="anchored" data-anchor-id="virtual-machines-versus-containers"><strong>Virtual Machines Versus Containers</strong></h3>
+<p>The common comparison “VMs are secure but slow; containers are fast but weak” is too coarse to guide engineering. A VM can have a large device model and permissive management plane. A container can run rootless with a tiny syscall surface and strong LSM policy. A microVM can boot from a snapshot quickly. A container image can carry a huge language runtime. The correct unit of comparison is the concrete boundary and lifecycle.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/vm-container-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/vm-container-comparison.svg" class="img-fluid figure-img" style="width:96.0%" alt="Design-space plot comparing Linux containers, sandboxed containers, microVMs and general-purpose VMs by lifecycle state and placement of the isolation boundary."></a></p>
+<figcaption>Containers, sandboxed containers, microVMs and general-purpose VMs occupy a continuum of state, compatibility and boundary placement.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on NIST’s <a href="https://csrc.nist.gov/pubs/sp/800/190/final">container security guide</a>, the <a href="https://www.usenix.org/conference/nsdi20/presentation/agache">Firecracker NSDI paper</a>, and the Linux <a href="https://docs.kernel.org/security/snp-tdx-threat-model.html">confidential-computing threat model</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Dimension</th>
+<th>Shared-kernel container</th>
+<th>Virtual machine</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Kernel</td>
+<td>Host kernel shared by all containers</td>
+<td>Guest kernel per VM, controlled by hypervisor</td>
+</tr>
+<tr class="even">
+<td>Boot path</td>
+<td>Create and execute host processes</td>
+<td>Initialize virtual hardware, firmware/bootloader and guest kernel, or restore snapshot</td>
+</tr>
+<tr class="odd">
+<td>OS flexibility</td>
+<td>Requires compatible host syscall ABI</td>
+<td>Can run a different guest OS and kernel policy</td>
+</tr>
+<tr class="even">
+<td>Image content</td>
+<td>Usually userspace plus metadata and layers</td>
+<td>Usually bootable disk plus kernel/firmware relationship</td>
+</tr>
+<tr class="odd">
+<td>Isolation boundary</td>
+<td>Host process/namespace boundary</td>
+<td>Virtual CPU, memory and device boundary below guest kernel</td>
+</tr>
+<tr class="even">
+<td>Kernel compromise</td>
+<td>Can affect sibling containers and host</td>
+<td>Guest-kernel compromise normally stays inside VM</td>
+</tr>
+<tr class="odd">
+<td>Resource accounting</td>
+<td>Host cgroup and scheduler directly</td>
+<td>Host accounts VM/vCPU; guest accounts internal processes</td>
+</tr>
+<tr class="even">
+<td>Startup and density</td>
+<td>Usually lower state and faster creation</td>
+<td>Usually more state; microVM and snapshot designs narrow the gap</td>
+</tr>
+<tr class="odd">
+<td>Observability</td>
+<td>Host can inspect tasks with namespace-aware tools</td>
+<td>Host sees vCPU/VMM behavior; guest sees internal tasks</td>
+</tr>
+<tr class="even">
+<td>Migration</td>
+<td>Recreate process from image/state; app state often external</td>
+<td>Full machine checkpoint/migration is a first-class design</td>
+</tr>
+<tr class="odd">
+<td>TCB emphasis</td>
+<td>Host kernel, runtime, policy, image and hardware</td>
+<td>Hypervisor/VMM, host components, firmware, hardware and management plane</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Choose a container</strong> when workloads trust the host kernel, need high density and rapid process lifecycle, use a compatible syscall ABI, and can externalize durable state. This is common for services managed as immutable deployments.</p>
+<p><strong>Choose a VM</strong> when tenants should not share a kernel boundary, guest kernels or operating systems differ, machine-level snapshots/migration matter, or legacy software expects a complete boot environment. Stronger boundary placement is especially valuable when untrusted tenants can execute arbitrary kernel-facing code.</p>
+<p><strong>Combine them</strong> when operational packaging and boundary placement solve different problems. A cluster can schedule containers inside tenant VMs. A serverless platform can present a container-like deployment API while placing each workload in a microVM. A sandboxed runtime can intercept syscalls with a user-space kernel before they reach the host. These designs spend extra translation or memory to reduce the host-kernel interface exposed directly to a workload.</p>
+<p>Three caveats prevent false confidence:</p>
+<ol type="1">
+<li><strong>Isolation strength is not the same as confidentiality from the operator.</strong> A normal hypervisor can inspect guest RAM. Confidential computing changes that threat model.</li>
+<li><strong>A smaller image is not automatically a smaller TCB.</strong> Runtime, host kernel, management services and firmware may remain trusted even when the guest filesystem is tiny.</li>
+<li><strong>Startup benchmarks are workload-specific.</strong> Cold image fetch, page faults, language initialization, snapshot restore and network readiness can dominate the nominal container or VM creation time.</li>
+</ol>
+</section>
+<section id="comparing-kernel-architectures" class="level3">
+<h3 class="anchored" data-anchor-id="comparing-kernel-architectures"><strong>Comparing Kernel Architectures</strong></h3>
+<p>Virtualization asks where to place the machine boundary. Kernel architecture asks where to place operating-system services and policy <strong>within or beside that boundary</strong>. These choices affect call paths, fault containment, TCB size, compatibility and the freedom to specialize.</p>
+<p>An architecture should be evaluated with concrete questions:</p>
+<ul>
+<li>Which code executes with hardware privilege?</li>
+<li>Where do device drivers, filesystems and network stacks run?</li>
+<li>Does a service call use an in-kernel function call, protected IPC or a library call?</li>
+<li>Which component chooses resource-management policy?</li>
+<li>Can one faulty driver overwrite another subsystem?</li>
+<li>What interface must remain stable for applications?</li>
+<li>What can be verified or replaced independently?</li>
+</ul>
+<section id="monolithic-microkernel-exokernel-and-unikernel-designs" class="level4">
+<h4 class="anchored" data-anchor-id="monolithic-microkernel-exokernel-and-unikernel-designs"><strong>Monolithic, Microkernel, Exokernel, and Unikernel Designs</strong></h4>
+<p>A <strong>monolithic kernel</strong> places core services such as scheduling, virtual memory, VFS, networking and many drivers in one privileged address space. Internal calls and shared kernel data structures support high performance and flexible cross-subsystem optimization. Loadable modules add deployment modularity but usually run with the same privilege, so they do not create a hardware-enforced fault boundary.</p>
+<p>A <strong>microkernel</strong> keeps a smaller set of mechanisms in privileged mode, commonly address spaces, threads/scheduling, IPC and capability or interrupt primitives. Filesystems, drivers and network services can run in separate user-mode processes. A driver fault can then be contained or restarted, but service requests cross protection domains and require carefully designed IPC, scheduling and memory-transfer paths.</p>
+<p>An <strong>exokernel</strong> goes further in separating protection from management. The kernel securely multiplexes low-level hardware resources and exposes them to untrusted application-level library operating systems. A library OS implements abstractions such as virtual memory policy or filesystems chosen for an application. This enables specialization, but shifts complexity into libraries and requires low-level interfaces that preserve secure sharing, revocation and portability.</p>
+<p>A <strong>unikernel</strong> links one application with selected OS library components into a specialized machine image, often using one address space and one privilege level inside a VM. Removing unneeded services can reduce image size and boot state, but traditional process isolation, dynamic administration and debugging assumptions may disappear. Isolation between unikernel instances normally comes from the VMM rather than an internal user/kernel boundary.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kernel-architecture-spectrum.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/kernel-architecture-spectrum.svg" class="img-fluid figure-img" style="width:98.0%" alt="Four layered kernel-architecture columns compare monolithic in-kernel services, user-space microkernel servers, exokernel plus library OS, and a single-purpose unikernel image."></a></p>
+<figcaption>Monolithic, microkernel, exokernel and unikernel designs place services, policy and protected boundaries differently.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the MIT <a href="https://pdos.csail.mit.edu/6.828/2009/readings/engler95exokernel.pdf">Exokernel paper</a>, the <a href="https://sel4.systems/About/seL4-whitepaper.pdf">seL4 microkernel architecture</a>, Linux kernel documentation, and the <a href="https://unikraft.org/docs/internals/architecture">Unikraft architecture</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Architecture</th>
+<th>Privileged core</th>
+<th>Service path</th>
+<th>Main benefit</th>
+<th>Main engineering pressure</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Monolithic</td>
+<td>Most OS subsystems and drivers</td>
+<td>In-kernel calls/shared state</td>
+<td>Performance, compatibility, integrated optimization</td>
+<td>Large privileged failure domain and complex evolution</td>
+</tr>
+<tr class="even">
+<td>Microkernel</td>
+<td>Minimal scheduling, IPC, address-space and protection mechanisms</td>
+<td>Protected IPC to user services</td>
+<td>Fault isolation, small analyzable kernel</td>
+<td>IPC/scheduling cost and distributed service design</td>
+</tr>
+<tr class="odd">
+<td>Exokernel</td>
+<td>Secure resource multiplexing</td>
+<td>App-selected library OS uses low-level interface</td>
+<td>Application-specific policy and flexibility</td>
+<td>Portability, revocation, sharing and library complexity</td>
+</tr>
+<tr class="even">
+<td>Unikernel</td>
+<td>App plus selected OS libraries in one image</td>
+<td>Mostly direct library calls</td>
+<td>Specialization, small boot surface</td>
+<td>Tooling, updates, compatibility and intra-image isolation</td>
+</tr>
+</tbody>
+</table>
+<p>The boundaries can be hybrid. Linux is usually described as monolithic and modular, yet it can delegate filesystems through FUSE, networking through user-space frameworks, and selected policy through eBPF. A microkernel system may place several servers in one domain for performance. Unikraft deliberately combines modular library components with a single-address-space image. Architectural names identify a dominant organization, not a complete security proof.</p>
+</section>
+</section>
+<section id="teaching-kernels-and-production-kernels" class="level3">
+<h3 class="anchored" data-anchor-id="teaching-kernels-and-production-kernels"><strong>Teaching Kernels and Production Kernels</strong></h3>
+<p>A kernel designed for teaching has a different optimization target from a kernel supporting billions of devices or a kernel serving as a formally verified security foundation. Judging all three by line count or feature count misses their purpose.</p>
+<section id="xv6-linux-and-verified-microkernels" class="level4">
+<h4 class="anchored" data-anchor-id="xv6-linux-and-verified-microkernels"><strong>xv6, Linux, and Verified Microkernels</strong></h4>
+<p><strong>xv6</strong> is a small Unix-like teaching kernel used by MIT. Its value is end-to-end visibility: a student can follow a trap from assembly entry into C, trace process scheduling, inspect page-table creation, and understand pathname lookup and write-ahead logging without crossing millions of lines or many hardware backends. Its missing features are often deliberate simplifications, not defects in its teaching objective.</p>
+<p><strong>Linux</strong> is a production general-purpose kernel. It supports many architectures, filesystems, network protocols, security modules, virtual machines, containers and devices while maintaining long-lived user-space ABIs. Its design reflects performance, backward compatibility, hardware errata, concurrency, hotplug, observability and continuous change. Understanding one Linux path often requires tracing indirection, configuration-dependent implementations and subsystem contracts.</p>
+<p><strong>seL4</strong> is a capability-based microkernel accompanied by machine-checked proofs for specified configurations and properties. The functional-correctness result connects an abstract specification to the C implementation under stated assumptions; further proofs address properties such as integrity and confidentiality. The proof does not automatically verify arbitrary user services, device hardware, application policy or every deployment configuration.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/teaching-production-verified-kernels.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/teaching-production-verified-kernels.svg" class="img-fluid figure-img" style="width:97.0%" alt="Three-column comparison of xv6 teaching simplicity, Linux production breadth, and seL4 capability microkernel verification with explicit proof scope."></a></p>
+<figcaption>xv6, Linux and seL4 optimize respectively for readable mechanisms, broad production engineering and proof-backed kernel assurance.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on MIT’s <a href="https://pdos.csail.mit.edu/6.828/2021/xv6.html">xv6 course and book</a>, the <a href="https://docs.kernel.org/">Linux kernel documentation</a>, and seL4’s <a href="https://sel4.systems/Verification/assumptions.html">proof assumptions</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Question</th>
+<th>xv6</th>
+<th>Linux</th>
+<th>seL4</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Primary goal</td>
+<td>Teach classical OS mechanisms</td>
+<td>General-purpose production platform</td>
+<td>High-assurance minimal kernel foundation</td>
+</tr>
+<tr class="even">
+<td>Scope</td>
+<td>Small Unix-like kernel and selected devices</td>
+<td>Broad architectures, drivers and policies</td>
+<td>Minimal capability microkernel plus separate user services</td>
+</tr>
+<tr class="odd">
+<td>Assurance method</td>
+<td>Readability, labs, reasoning and tests</td>
+<td>Review, testing, sanitizers, fuzzing, static analysis and deployment experience</td>
+<td>Formal specification and machine-checked proofs under assumptions</td>
+</tr>
+<tr class="even">
+<td>Best use while learning</td>
+<td>Trace complete causal paths</td>
+<td>Study real engineering, interfaces and scale</td>
+<td>Learn precise specifications, capabilities and proof boundaries</td>
+</tr>
+<tr class="odd">
+<td>Invalid conclusion</td>
+<td>“All production kernels should be this small”</td>
+<td>“Feature breadth proves correctness”</td>
+<td>“The proof makes the whole deployed system secure”</td>
+</tr>
+</tbody>
+</table>
+<p>The three are complementary. A productive learning path uses xv6 to build a mechanism-level mental model, Linux to discover exceptions and engineering constraints, and seL4 to see how an informal security claim must be reduced to explicit state, invariants and assumptions.</p>
+</section>
+</section>
+<section id="modern-kernel-mechanisms" class="level3">
+<h3 class="anchored" data-anchor-id="modern-kernel-mechanisms"><strong>Modern Kernel Mechanisms</strong></h3>
+<p>Modern kernels must scale across many cores, evolve without replacing established ABIs and expose observability without adding a custom syscall for every question. RCU and eBPF illustrate two different responses: one changes how shared state is updated; the other adds a controlled way to extend selected execution paths.</p>
+<section id="rcu-ebpf-and-extensible-observability" class="level4">
+<h4 class="anchored" data-anchor-id="rcu-ebpf-and-extensible-observability"><strong>RCU, eBPF, and Extensible Observability</strong></h4>
+<p><strong>Read-copy-update (RCU)</strong> is a synchronization family optimized for read-mostly data. Instead of making every reader acquire a contended lock, an updater separates change into phases:</p>
+<ol type="1">
+<li>allocate and fully initialize a new object or new linkage;</li>
+<li>atomically publish the new pointer or unlink the old object;</li>
+<li>wait for an RCU <strong>grace period</strong>, long enough that readers which could have observed the old pointer have left their read-side critical sections; and</li>
+<li>reclaim the old object only after that lifetime guarantee holds.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/rcu-publish-grace-reclaim-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/rcu-publish-grace-reclaim-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="Animated RCU timeline showing publication of a new object, old and new readers, a grace period, and deferred reclamation of old state."></a></p>
+<figcaption>RCU lets pre-existing readers finish on old state before reclaiming it after a grace period.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the official Linux <a href="https://docs.kernel.org/RCU/rcu.html">RCU concepts</a> and <a href="https://docs.kernel.org/RCU/listRCU.html">RCU list guidance</a>. It is distinct from the lock-oriented RCU timeline in the synchronization chapter and focuses on publication and reclamation.</em></p>
+<p>RCU’s advantage comes from moving work away from readers. On supported read-side paths, readers avoid a conventional lock and often avoid writes to shared cache lines. The tradeoff is conceptual: update-side code must publish pointers with the correct ordering, preserve object lifetime, choose an appropriate RCU flavor and distinguish removal from reclamation.</p>
+<p>RCU does <strong>not</strong> automatically make every compound invariant consistent. A reader may need a lock, sequence counter or version scheme when several fields must be observed as one atomic snapshot. Nor does <code>synchronize_rcu()</code> wait for every task in the system; it waits for the relevant pre-existing RCU read-side critical sections under that flavor’s quiescent-state definition.</p>
+<details>
+<summary>
+<strong>RCU-protected replacement pattern in kernel-style C</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Simplified kernel-style pattern. Real code must choose the correct RCU</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co">// flavor, allocation context, list primitives, locking, and error handling.</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">struct</span> config <span class="op">{</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> threshold<span class="op">;</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> rcu_head rcu<span class="op">;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="op">};</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="kw">struct</span> config __rcu <span class="op">*</span>current_config<span class="op">;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> read_threshold<span class="op">(</span><span class="dt">void</span><span class="op">)</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> value<span class="op">;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">// The read-side section guarantees that an object reached through the</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// RCU pointer will not be reclaimed until after rcu_read_unlock().</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    rcu_read_lock<span class="op">();</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>cfg <span class="op">=</span> rcu_dereference<span class="op">(</span>current_config<span class="op">);</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    value <span class="op">=</span> cfg<span class="op">-&gt;</span>threshold<span class="op">;</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    rcu_read_unlock<span class="op">();</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> value<span class="op">;</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> replace_threshold<span class="op">(</span><span class="dt">int</span> new_value<span class="op">)</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="op">{</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>new_cfg <span class="op">=</span> kmalloc<span class="op">(</span><span class="kw">sizeof</span><span class="op">(*</span>new_cfg<span class="op">),</span> GFP_KERNEL<span class="op">);</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(!</span>new_cfg<span class="op">)</span></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="op">-</span>ENOMEM<span class="op">;</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Finish initialization before publishing the pointer.</span></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    new_cfg<span class="op">-&gt;</span>threshold <span class="op">=</span> new_value<span class="op">;</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>    <span class="co">// A separate update lock would be needed if multiple writers can race.</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">struct</span> config <span class="op">*</span>old <span class="op">=</span> rcu_replace_pointer<span class="op">(</span>current_config<span class="op">,</span> new_cfg<span class="op">,</span> <span class="kw">true</span><span class="op">);</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Readers that began before replacement may still use old. Queue its</span></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    <span class="co">// release after a grace period instead of freeing it immediately.</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>old<span class="op">)</span></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        kfree_rcu<span class="op">(</span>old<span class="op">,</span> rcu<span class="op">);</span></span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>eBPF</strong> provides a restricted instruction set and kernel framework for loading programs that execute at defined hooks. Programs can observe tracepoints, function entry/exit, networking events, cgroup operations, perf events and selected security hooks. They exchange state with user space and each other through typed map abstractions, ring buffers and helper functions.</p>
+<p>The critical path is not “upload arbitrary C into the kernel”:</p>
+<ol type="1">
+<li>source is compiled to eBPF bytecode and metadata;</li>
+<li>a privileged or otherwise authorized loader creates maps and requests program loading;</li>
+<li>the kernel verifier explores control-flow states, tracks register and pointer types, checks initialization and bounds, and enforces program-type rules;</li>
+<li>accepted bytecode can be interpreted or JIT-compiled to native instructions;</li>
+<li>the program is attached to a compatible hook; and</li>
+<li>events invoke it with a constrained context and permitted helpers.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ebpf-load-verify-attach.svg" class="lightbox" data-gallery="quarto-lightbox-inline-14"><img src="assets/ebpf-load-verify-attach.svg" class="img-fluid figure-img" style="width:98.0%" alt="eBPF architecture from source and loader through kernel verifier, reject path, JIT or interpreter, hook attachment, event execution, maps and user-space controller."></a></p>
+<figcaption>eBPF programs cross a verifier before JIT or interpretation and attachment to a typed kernel hook.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux’s <a href="https://docs.kernel.org/bpf/">BPF documentation</a>, the <a href="https://docs.kernel.org/bpf/verifier.html">eBPF verifier</a>, and the eBPF project’s <a href="https://ebpf.io/what-is-ebpf/">loader and verification overview</a>.</em></p>
+<p>The verifier proves a defined class of safety properties under its model, such as controlled memory access and bounded execution paths. It does not decide whether a privileged network policy drops the right packets, whether a trace program leaks sensitive metadata, or whether an aggregation is statistically meaningful. Verifier and JIT defects are also kernel-security concerns because accepted programs execute in a privileged context.</p>
+<details>
+<summary>
+<strong>Observe the running pipeline with bpftrace</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run in one terminal with appropriate tracing privilege. Tracepoints are</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># preferred over arbitrary function probes when a stable tracepoint exists.</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="fu">sudo</span> bpftrace <span class="at">-e</span> <span class="st">'</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:syscalls:sys_enter_execve</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="st">/comm == "bash" || comm == "sh"/</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exec caller pid=%d comm=%s file=%s\n", pid, comm,</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="st">         str(args-&gt;filename));</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:sched:sched_process_exec</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exec complete pid=%d comm=%s file=%s\n", pid, comm,</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="st">         str(args-&gt;filename));</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="st">}</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="st">tracepoint:sched:sched_process_exit</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="st">/comm == "cat" || comm == "grep"/</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="st">{</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="st">  printf("exit pid=%d comm=%s\n", pid, comm);</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="st">}'</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="co"># In another terminal, trigger the case study.</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>This probe observes lifecycle events without modifying <code>cat</code>, <code>grep</code> or the shell. Production tracing must bound map growth and event volume, avoid expensive per-event formatting, pin to stable interfaces where possible, protect sensitive data and remove attachments predictably. Observability code is still code on a hot kernel path.</p>
+<p>RCU and eBPF also interact. eBPF maps and attachment structures need scalable concurrency and safe object lifetime; kernel internals commonly use RCU to allow fast lookups while updates replace or detach state. One mechanism provides an update discipline, the other a verified extension framework.</p>
+</section>
+</section>
+<section id="research-and-evolution-frontiers" class="level3">
+<h3 class="anchored" data-anchor-id="research-and-evolution-frontiers"><strong>Research and Evolution Frontiers</strong></h3>
+<p>The abstractions in this chapter continue to evolve because cloud workloads ask for combinations classical systems did not optimize together: mutually distrustful tenants, millisecond-scale startup, machine-level compatibility, operator-independent confidentiality, high accelerator throughput, verifiable isolation and application-specific OS services.</p>
+<p>Research should be evaluated by identifying what it moves outside the TCB and what new assumptions replace it. A smaller VMM may depend more strongly on a host kernel. Encrypted guest memory may rely on a hardware security processor and attestation service. A library OS may remove a full guest kernel but implement a large compatibility surface beside the application.</p>
+<section id="confidential-computing-library-oses-and-serverless-isolation" class="level4">
+<h4 class="anchored" data-anchor-id="confidential-computing-library-oses-and-serverless-isolation"><strong>Confidential Computing, Library OSes, and Serverless Isolation</strong></h4>
+<p><strong>Confidential computing</strong> aims to protect data while it is being processed. In a confidential VM, hardware such as AMD SEV-SNP, Intel TDX or Arm CCA can protect private guest memory and register state from direct host or VMM inspection. A security manager controls transitions and measurements, while <strong>remote attestation</strong> lets an external verifier assess evidence about the initial guest state before provisioning secrets.</p>
+<p>A simplified attestation flow is:</p>
+<ol type="1">
+<li>the platform measures firmware, boot components or an initial guest image into a report;</li>
+<li>hardware signs or authenticates evidence rooted in a platform identity;</li>
+<li>the guest sends evidence plus a freshness challenge to a verifier;</li>
+<li>the verifier checks signature chains, revocation, policy and measurement values; and</li>
+<li>only then does a relying service release a key, credential or workload secret through a secure channel.</li>
+</ol>
+<p>Attestation is evidence about an initial or measured state, not a prediction that code is vulnerability-free. It requires a policy that says which measurements are accepted and a lifecycle for firmware updates, revocation and key release. The untrusted host can still deny CPU, memory, network or storage service. Shared I/O buffers, device emulation, interrupts, time and side channels remain attack surfaces, so a confidential guest must validate host-provided input more defensively than a traditional guest.</p>
+<p><strong>Library operating systems</strong> move application-facing OS abstractions into a user-space library linked with or loaded beside an application. Gramine, for example, implements much of a Linux-facing environment above a narrow Platform Adaptation Layer (PAL). A backend can target a normal host or an enclave. The library OS handles some syscalls internally and funnels others through the PAL, validating responses where the host is outside the trust boundary.</p>
+<p>This design can:</p>
+<ul>
+<li>avoid booting an entire general-purpose guest OS;</li>
+<li>specialize services for one application;</li>
+<li>narrow the interface exposed to an untrusted host;</li>
+<li>run existing binaries in environments such as enclaves; and</li>
+<li>make application and OS-library state one deployment unit.</li>
+</ul>
+<p>The cost is compatibility engineering. Linux applications rely on subtle syscall, <code>/proc</code>, signal, thread, filesystem and timing behavior. Reimplementing the visible ABI correctly and securely can be substantial, and the host interface must resist malicious return values and Iago-style attacks.</p>
+<p><strong>Serverless isolation</strong> needs rapid creation and high density without placing mutually untrusted customer code directly in one kernel boundary. Firecracker addresses this with a specialized VMM built on KVM, a deliberately small virtual device model, a control API and an external jailer. A microVM still has a guest kernel, but the machine model is narrowed for function and container workloads rather than general desktop hardware.</p>
+<p>Snapshots can further reduce cold start by restoring a prepared guest state. Snapshotting changes the security and correctness problem: random-generator state, network connections, clocks, machine identifiers, secrets and per-instance uniqueness may need regeneration or late binding. A fleet must also patch base snapshots and prove which version each restored instance uses.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/modern-isolation-frontiers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-15"><img src="assets/modern-isolation-frontiers.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three architecture stacks compare confidential virtual machines, library operating systems with a narrow PAL, and specialized serverless microVMs."></a></p>
+<figcaption>Confidential VMs, library OSes and serverless microVMs each move a different trust or compatibility boundary.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux’s <a href="https://docs.kernel.org/security/snp-tdx-threat-model.html">confidential-computing threat model</a>, the <a href="https://gramine.readthedocs.io/en/stable/">Gramine architecture and PAL</a>, and the USENIX <a href="https://www.usenix.org/conference/nsdi20/presentation/agache">Firecracker paper</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Frontier</th>
+<th>Boundary change</th>
+<th>Intended benefit</th>
+<th>Residual or new challenge</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Confidential VM</td>
+<td>Host/VMM excluded from private guest state</td>
+<td>Protect data in use from a compromised operator layer</td>
+<td>Availability, side channels, shared I/O, attestation policy</td>
+</tr>
+<tr class="even">
+<td>Library OS</td>
+<td>App-facing OS services move into a library; host ABI narrows</td>
+<td>Specialization and portability to enclaves or unusual hosts</td>
+<td>Linux compatibility and hostile-host validation</td>
+</tr>
+<tr class="odd">
+<td>Unikernel</td>
+<td>App and selected OS components become one image</td>
+<td>Small boot state and application-specific composition</td>
+<td>Debugging, updates, ABI support and internal fault isolation</td>
+</tr>
+<tr class="even">
+<td>MicroVM</td>
+<td>VM device model specialized for cloud workload</td>
+<td>Hardware VM boundary with lower lifecycle overhead</td>
+<td>Guest-kernel memory, snapshot hygiene and fleet orchestration</td>
+</tr>
+<tr class="odd">
+<td>Sandboxed container</td>
+<td>User-space kernel or syscall mediation added before host</td>
+<td>Reduce direct host-kernel interface</td>
+<td>Translation overhead and incomplete semantics</td>
+</tr>
+<tr class="even">
+<td>Verified microkernel</td>
+<td>Small kernel contract tied to machine-checked proof</td>
+<td>High-assurance protection foundation</td>
+<td>User services, policy, devices and proof assumptions remain</td>
+</tr>
+</tbody>
+</table>
+<p>These designs increasingly combine. A container image can be unpacked into a microVM. A library OS can run inside a confidential VM or enclave. A verified microkernel can host a VMM or trusted service. The right question is not which label wins, but which composition yields a supportable interface and defensible TCB for the workload.</p>
+</section>
+</section>
+<section id="running-the-pipeline-natively-in-a-container-and-in-a-vm" class="level3">
+<h3 class="anchored" data-anchor-id="running-the-pipeline-natively-in-a-container-and-in-a-vm"><strong>Running the Pipeline Natively, in a Container, and in a VM</strong></h3>
+<p>The same source-level pipeline reveals how boundary placement changes execution without changing shell syntax:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.txt</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p><strong>Natively</strong>, the shell asks the host kernel to create a pipe, fork or clone children, duplicate descriptors and execute <code>cat</code> and <code>grep</code>. The host VFS opens <code>input.txt</code> and <code>result.txt</code>; the host scheduler runs both processes; the host page cache and filesystem own buffered and durable state.</p>
+<p><strong>In a shared-kernel container</strong>, the syscall sequence is still handled by that host kernel. PID values are interpreted through a PID namespace, path lookup starts from the container mount namespace and root, credentials are interpreted with user-namespace mappings where configured, and resource use is charged to a cgroup. Image layers may supply <code>/bin/cat</code> and <code>/bin/grep</code>; bind mounts or volumes supply input and persistent output.</p>
+<p><strong>In a VM</strong>, the shell enters the guest kernel. The guest allocates its own pipe object, descriptors and process IDs. Guest VFS and page cache state eventually becomes virtual block or network I/O. A virtio driver publishes requests, a VMM or host backend services them, and the host scheduler decides when the vCPU and backend threads run. The guest sees completion as if it came from a device.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pipeline-native-container-vm.svg" class="lightbox" data-gallery="quarto-lightbox-inline-16"><img src="assets/pipeline-native-container-vm.svg" class="img-fluid figure-img" style="width:98.0%" alt="Three detailed stacks trace the cat grep shell pipeline through a host kernel, a container runtime boundary with shared kernel, and a guest kernel plus hypervisor."></a></p>
+<figcaption>The pipeline keeps its Unix process semantics while ownership of scheduling, path lookup, memory and I/O moves across native, container and VM stacks.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux process, namespace, cgroup, KVM and virtio interfaces developed throughout this operating-systems series.</em></p>
+<p>The data path makes the distinction concrete:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Event</th>
+<th>Native</th>
+<th>Container</th>
+<th>VM</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>pipe2()</code></td>
+<td>Host kernel creates pipe</td>
+<td>Same host kernel; task belongs to container domains</td>
+<td>Guest kernel creates guest pipe</td>
+</tr>
+<tr class="even">
+<td><code>execve("cat")</code></td>
+<td>Host VFS resolves host path</td>
+<td>Host VFS resolves container mount/root view</td>
+<td>Guest VFS resolves guest path</td>
+</tr>
+<tr class="odd">
+<td>Read input</td>
+<td>Host page cache/filesystem</td>
+<td>Host filesystem, image layer or mounted volume</td>
+<td>Guest filesystem then virtual storage backend</td>
+</tr>
+<tr class="even">
+<td>Schedule <code>grep</code></td>
+<td>Host scheduler</td>
+<td>Host scheduler with cgroup policy</td>
+<td>Guest scheduler selects task; host scheduler selects vCPU</td>
+</tr>
+<tr class="odd">
+<td>Write output</td>
+<td>Host file and page cache</td>
+<td>Container upper layer or mounted persistent storage</td>
+<td>Guest page cache/filesystem then virtual device and host backing</td>
+</tr>
+<tr class="even">
+<td>Observe PID</td>
+<td>Host namespace PID</td>
+<td>Different inside and outside PID views</td>
+<td>Guest PID has no direct host task equivalence beyond vCPU/VMM threads</td>
+</tr>
+<tr class="odd">
+<td>Kernel fault</td>
+<td>Can affect host</td>
+<td>Can affect host and sibling containers</td>
+<td>Guest kernel fault normally remains inside VM boundary</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+<strong>Run and compare the pipeline in three environments</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Prepare one deterministic input in a new working directory.</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="va">demo_dir</span><span class="op">=</span><span class="va">$(</span><span class="fu">mktemp</span> <span class="at">-d</span><span class="va">)</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> <span class="st">"</span><span class="va">$demo_dir</span><span class="st">"</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'%s\n'</span> <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">'user code enters through a system call'</span> <span class="dt">\</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>  <span class="st">'the kernel creates and schedules both processes'</span> <span class="dt">\</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">'a container shares the host kernel'</span> <span class="dt">\</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>  <span class="st">'a virtual machine has a guest kernel'</span> <span class="op">&gt;</span> input.txt</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Native: host shell, host processes, host kernel, host filesystem.</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> input.txt <span class="kw">|</span> <span class="fu">grep</span> kernel <span class="op">&gt;</span> result.native.txt</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Observe the process/file-descriptor syscalls without tracing every library call.</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="ex">strace</span> <span class="at">-f</span> <span class="at">-o</span> native.trace <span class="dt">\</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">-e</span> trace=pipe,pipe2,clone,fork,vfork,execve,dup2,close,openat,read,write <span class="dt">\</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.native.traced.txt'</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Container: the commands come from the image, while this directory is</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="co"># mounted as data. The processes still enter the host Linux kernel.</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> run <span class="at">--rm</span> <span class="dt">\</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">--network</span> none <span class="at">--cap-drop</span> all <span class="at">--security-opt</span> no-new-privileges <span class="dt">\</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">--memory</span> 128m <span class="at">--pids-limit</span> 32 <span class="dt">\</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">-v</span> <span class="st">"</span><span class="va">$PWD</span><span class="st">:/work:Z"</span> <span class="at">-w</span> /work <span class="dt">\</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  docker.io/library/alpine:latest <span class="dt">\</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>  sh <span class="at">-c</span> <span class="st">'cat input.txt | grep kernel &gt; result.container.txt'</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. VM: copy input into a prepared Linux VM and run through its guest kernel.</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Set VM_HOST to an SSH target you administer, such as student@192.0.2.10.</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="bu">:</span> <span class="st">"</span><span class="va">${VM_HOST</span><span class="op">:?</span>set VM_HOST to your Linux VM SSH target<span class="va">}</span><span class="st">"</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> input.txt <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">:/tmp/os11-input.txt"</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">"</span> <span class="dt">\</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>  <span class="st">"cat /tmp/os11-input.txt | grep kernel &gt; /tmp/os11-result.txt"</span></span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a><span class="fu">scp</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">:/tmp/os11-result.txt"</span> result.vm.txt</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Semantic output should match even though the execution paths differ.</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="fu">sha256sum</span> result.native.txt result.container.txt result.vm.txt</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a><span class="co"># Host-side observations expose different layers.</span></span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a><span class="bu">printf</span> <span class="st">'native/container host: '</span><span class="kw">;</span> <span class="fu">uname</span> <span class="at">-r</span></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a><span class="ex">podman</span> inspect <span class="at">--format</span> <span class="dt">\</span></span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>  <span class="st">'container pid={{.State.Pid}} image={{.ImageName}}'</span> <span class="dt">\</span></span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>  <span class="at">--latest</span> <span class="dv">2</span><span class="op">&gt;</span>/dev/null <span class="kw">||</span> <span class="fu">true</span></span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a><span class="fu">ssh</span> <span class="st">"</span><span class="va">$VM_HOST</span><span class="st">"</span> <span class="st">'printf "guest kernel: "; uname -r; cat /proc/1/cgroup'</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The hashes test output equivalence, not performance equivalence. A meaningful benchmark would warm or explicitly control caches, separate image transfer from execution, measure CPU and wall time, repeat enough samples, capture tail latency, record host load and inspect both guest and host counters. Tracing itself can perturb short workloads.</p>
+<p>The experiment also highlights persistence. <code>result.native.txt</code> belongs directly to the host filesystem. <code>result.container.txt</code> survives because <code>/work</code> is an explicit bind mount; writing only to the container upper layer would make lifecycle semantics different. <code>result.vm.txt</code> first becomes guest filesystem state and is then copied through SSH; whether the original guest file is durable depends on guest and host storage stacks.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>Virtualization is a continuation of the operating-system idea of controlled abstraction. A process receives a virtual address space; a container receives namespaced OS views and a resource domain; a VM receives a virtual machine. Each level multiplexes physical resources while attempting to preserve an interface and enforce a boundary.</p>
+<p>The mechanisms can now be connected end to end:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Abstraction presented</th>
+<th>Fast path</th>
+<th>Control or fault path</th>
+<th>Central invariant</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CPU virtualization</td>
+<td>vCPU and guest privilege state</td>
+<td>Direct guest instruction execution</td>
+<td>VM exit, emulate/handle, VM entry</td>
+<td>Guest cannot modify host control state directly</td>
+</tr>
+<tr class="even">
+<td>Memory virtualization</td>
+<td>Guest-physical address space</td>
+<td>TLB-cached composed mapping</td>
+<td>Nested fault, mapping update, invalidation</td>
+<td>GPA resolves only to host pages owned by that VM</td>
+</tr>
+<tr class="odd">
+<td>I/O virtualization</td>
+<td>Virtual device contract</td>
+<td>Batched shared queue or assigned device</td>
+<td>Notification, emulation, IOMMU fault, completion</td>
+<td>Guest input is validated and DMA remains confined</td>
+</tr>
+<tr class="even">
+<td>Live migration</td>
+<td>Movable running machine</td>
+<td>Iterative page/device-state transfer</td>
+<td>Pause, final state, ownership switchover</td>
+<td>Exactly one authoritative coherent VM resumes</td>
+</tr>
+<tr class="odd">
+<td>Container isolation</td>
+<td>Namespaced, metered process environment</td>
+<td>Ordinary host syscalls</td>
+<td>Runtime setup and kernel policy checks</td>
+<td>Workload sees and consumes only configured domains</td>
+</tr>
+<tr class="even">
+<td>Overlay filesystem</td>
+<td>Merged image plus writable delta</td>
+<td>Read shared lower object</td>
+<td>Copy-up or whiteout</td>
+<td>Immutable lower state is never silently mutated</td>
+</tr>
+<tr class="odd">
+<td>RCU</td>
+<td>Read-mostly shared object lifetime</td>
+<td>Low-overhead read-side access</td>
+<td>Publish, grace period, deferred reclaim</td>
+<td>Old object outlives every reader that could see it</td>
+</tr>
+<tr class="even">
+<td>eBPF</td>
+<td>Typed programmable kernel hook</td>
+<td>Verified JIT/interpreted event execution</td>
+<td>Load, verify, attach, reject or detach</td>
+<td>Only accepted operations occur within hook constraints</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The main architectural comparisons are:</strong></p>
+<ul>
+<li>Type 1 and Type 2 describe where VMM responsibilities sit, but hybrid designs must be decomposed by actual control path.</li>
+<li>Full virtualization preserves an unmodified guest contract; paravirtualization deliberately changes an internal interface to reduce expensive emulation.</li>
+<li>Shadow page tables compose mappings in software; nested paging moves the two-stage walk into hardware and makes caching decisive.</li>
+<li>Emulation maximizes compatibility, virtio improves mediated throughput, and passthrough trades management flexibility for a more direct device path.</li>
+<li>Containers share a host kernel and compose process-level controls; VMs place a virtual-hardware boundary below a guest kernel.</li>
+<li>Monolithic, microkernel, exokernel and unikernel designs differ primarily in where services and policy execute, how they communicate and what belongs to the protected core.</li>
+<li>xv6, Linux and seL4 should be read for different reasons: mechanism clarity, production engineering and proof-backed assurance.</li>
+<li>RCU and eBPF show how a mature kernel can scale reads and gain controlled extensibility without replacing its application ABI.</li>
+</ul>
+<p><strong>A practical selection process is:</strong></p>
+<ol type="1">
+<li>define the adversary, assets and failure domains;</li>
+<li>identify the lowest layer that must be outside the adversary’s control;</li>
+<li>list the complete TCB, including management and supply-chain components;</li>
+<li>map required OS, device, snapshot, migration and observability contracts;</li>
+<li>measure the workload’s exits, TLB behavior, I/O queues, memory pressure and startup path;</li>
+<li>choose container, sandbox, VM, microVM, library OS or a composition based on those facts;</li>
+<li>design update, attestation, secret, backup and incident-response lifecycles; and</li>
+<li>test boundary failure, not only normal throughput.</li>
+</ol>
+<p>The strongest recurring lesson is that <strong>a boundary is a claim about control, not a product name</strong>. A container boundary depends on one host kernel and its configuration. A VM boundary depends on hypervisor, VMM, virtual devices, host components and hardware. A confidential VM changes which of those components may inspect private state but retains availability and interface risks. A verified kernel narrows uncertainty inside its proof scope but does not verify the surrounding system automatically.</p>
+<p>For the running pipeline, every architecture must still preserve the Unix facts developed across this series: descriptors reference kernel objects, pipe EOF depends on closing all writers, the scheduler determines interleaving, address translation protects memory, VFS resolves names, buffered writes become durable only through a storage contract, and security depends on stable subjects, objects and policy. Virtualization changes <strong>which kernel owns each fact and where the next boundary begins</strong>.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Operating Systems: Demand Paging and Memory Management</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="07-demand-paging-and-memory-management_files/libs/clipboard/clipboard.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/quarto.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/popper.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="07-demand-paging-and-memory-management_files/libs/quarto-html/anchor.min.js"></script>
+<link href="07-demand-paging-and-memory-management_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="07-demand-paging-and-memory-management_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="07-demand-paging-and-memory-management_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#demand-paging-and-memory-management" id="toc-demand-paging-and-memory-management" class="nav-link active" data-scroll-target="#demand-paging-and-memory-management"><strong>Demand Paging and Memory Management</strong></a>
+  <ul>
+  <li><a href="#from-address-translation-to-demand-paging" id="toc-from-address-translation-to-demand-paging" class="nav-link" data-scroll-target="#from-address-translation-to-demand-paging"><strong>From Address Translation to Demand Paging</strong></a></li>
+  <li><a href="#the-page-fault-lifecycle" id="toc-the-page-fault-lifecycle" class="nav-link" data-scroll-target="#the-page-fault-lifecycle"><strong>The Page-Fault Lifecycle</strong></a>
+  <ul>
+  <li><a href="#classifying-faults" id="toc-classifying-faults" class="nav-link" data-scroll-target="#classifying-faults"><strong>Classifying Faults</strong></a></li>
+  <li><a href="#locating-loading-and-installing-a-page" id="toc-locating-loading-and-installing-a-page" class="nav-link" data-scroll-target="#locating-loading-and-installing-a-page"><strong>Locating, Loading, and Installing a Page</strong></a></li>
+  <li><a href="#restarting-the-faulting-instruction" id="toc-restarting-the-faulting-instruction" class="nav-link" data-scroll-target="#restarting-the-faulting-instruction"><strong>Restarting the Faulting Instruction</strong></a></li>
+  </ul></li>
+  <li><a href="#lazy-allocation-and-zero-fill-on-demand" id="toc-lazy-allocation-and-zero-fill-on-demand" class="nav-link" data-scroll-target="#lazy-allocation-and-zero-fill-on-demand"><strong>Lazy Allocation and Zero-Fill-on-Demand</strong></a></li>
+  <li><a href="#copy-on-write" id="toc-copy-on-write" class="nav-link" data-scroll-target="#copy-on-write"><strong>Copy-on-Write</strong></a></li>
+  <li><a href="#memory-mapped-files-and-shared-pages" id="toc-memory-mapped-files-and-shared-pages" class="nav-link" data-scroll-target="#memory-mapped-files-and-shared-pages"><strong>Memory-Mapped Files and Shared Pages</strong></a></li>
+  <li><a href="#page-replacement" id="toc-page-replacement" class="nav-link" data-scroll-target="#page-replacement"><strong>Page Replacement</strong></a>
+  <ul>
+  <li><a href="#optimal-fifo-and-random-replacement" id="toc-optimal-fifo-and-random-replacement" class="nav-link" data-scroll-target="#optimal-fifo-and-random-replacement"><strong>Optimal, FIFO, and Random Replacement</strong></a></li>
+  <li><a href="#lru-and-clock-approximations" id="toc-lru-and-clock-approximations" class="nav-link" data-scroll-target="#lru-and-clock-approximations"><strong>LRU and Clock Approximations</strong></a></li>
+  <li><a href="#local-and-global-replacement" id="toc-local-and-global-replacement" class="nav-link" data-scroll-target="#local-and-global-replacement"><strong>Local and Global Replacement</strong></a></li>
+  </ul></li>
+  <li><a href="#working-sets-thrashing-and-memory-pressure" id="toc-working-sets-thrashing-and-memory-pressure" class="nav-link" data-scroll-target="#working-sets-thrashing-and-memory-pressure"><strong>Working Sets, Thrashing, and Memory Pressure</strong></a></li>
+  <li><a href="#swap-overcommit-and-out-of-memory-handling" id="toc-swap-overcommit-and-out-of-memory-handling" class="nav-link" data-scroll-target="#swap-overcommit-and-out-of-memory-handling"><strong>Swap, Overcommit, and Out-of-Memory Handling</strong></a></li>
+  <li><a href="#physical-memory-allocation" id="toc-physical-memory-allocation" class="nav-link" data-scroll-target="#physical-memory-allocation"><strong>Physical-Memory Allocation</strong></a>
+  <ul>
+  <li><a href="#buddy-allocation" id="toc-buddy-allocation" class="nav-link" data-scroll-target="#buddy-allocation"><strong>Buddy Allocation</strong></a></li>
+  <li><a href="#slab-and-object-caches" id="toc-slab-and-object-caches" class="nav-link" data-scroll-target="#slab-and-object-caches"><strong>Slab and Object Caches</strong></a></li>
+  </ul></li>
+  <li><a href="#huge-pages-numa-and-modern-memory-systems" id="toc-huge-pages-numa-and-modern-memory-systems" class="nav-link" data-scroll-target="#huge-pages-numa-and-modern-memory-systems"><strong>Huge Pages, NUMA, and Modern Memory Systems</strong></a></li>
+  <li><a href="#observing-memory-behavior-in-linux" id="toc-observing-memory-behavior-in-linux" class="nav-link" data-scroll-target="#observing-memory-behavior-in-linux"><strong>Observing Memory Behavior in Linux</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>Comparison and Summary</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Operating Systems: Demand Paging and Memory Management</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="/ipynb/zh-CN/Computer-Science/Operating-Systems/07-demand-paging-and-memory-management.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Operating-Systems.html">Back to Operating Systems guideline</a></p>
+<section id="demand-paging-and-memory-management" class="level2">
+<h2 class="anchored" data-anchor-id="demand-paging-and-memory-management"><strong>Demand Paging and Memory Management</strong></h2>
+<p>The previous chapter explained how a legal virtual address is translated and how the processor raises an exception when no usable translation exists. This chapter begins at the <strong>repairable-fault</strong> branch. The address already belongs to a valid region and the access is allowed in principle; the missing question is how the operating system will supply physical storage, preserve sharing semantics, and keep enough memory available for future requests.</p>
+<p>Demand paging is therefore not one algorithm. It is a coordinated policy system involving region metadata, backing objects, the page cache, anonymous memory, swap, replacement, physical-page allocators, writeback, and resource accounting. A useful mental model is:</p>
+<blockquote class="blockquote">
+<p><strong>Address translation decides what an address means. Memory management decides when its contents exist in RAM, where they come from, and which resident contents may leave.</strong></p>
+</blockquote>
+<p>The chapter follows that decision from a page fault to a restarted instruction, then widens the view to replacement, thrashing, allocation, huge pages, NUMA placement, and Linux observability. Device-controller mechanics and interrupt-driven I/O remain in the next chapter; here, storage I/O appears only as one possible wait inside memory recovery.</p>
+<section id="from-address-translation-to-demand-paging" class="level3">
+<h3 class="anchored" data-anchor-id="from-address-translation-to-demand-paging"><strong>From Address Translation to Demand Paging</strong></h3>
+<p><strong>Demand paging</strong> materializes a page when an access first requires it instead of eagerly placing every logically available page in RAM. It is similar to a library that reserves shelf locations for an entire collection but retrieves a volume from storage only when a reader asks for it. The reservation makes the address meaningful; the later retrieval supplies its current contents.</p>
+<p>This distinction separates several measurements that are often incorrectly treated as synonyms:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Quantity</th>
+<th>What it describes</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Virtual size</td>
+<td>Address ranges that exist in the process’s mapping namespace</td>
+<td>A 4 GiB anonymous mapping can exist before most pages are touched</td>
+</tr>
+<tr class="even">
+<td>Committed memory</td>
+<td>Potential future memory use accepted by the system’s accounting policy</td>
+<td>Private writable mappings may contribute even while nonresident</td>
+</tr>
+<tr class="odd">
+<td>Resident set (RSS)</td>
+<td>Pages from those mappings currently present in RAM</td>
+<td>Only touched code, data, heap, stack, and mapped-file pages</td>
+</tr>
+<tr class="even">
+<td>Proportional set (PSS)</td>
+<td>Resident pages with shared pages divided among their mappers</td>
+<td>A shared library page mapped by four processes contributes roughly one quarter to each PSS</td>
+</tr>
+<tr class="odd">
+<td>Swap usage</td>
+<td>Anonymous contents retained outside RAM in a swap backing store</td>
+<td>A cold private heap page may be nonresident but recoverable</td>
+</tr>
+<tr class="even">
+<td>Page cache</td>
+<td>RAM holding file contents for reads, writes, and mappings</td>
+<td>The same file page can serve <code>read()</code> and <code>mmap()</code> users</td>
+</tr>
+</tbody>
+</table>
+<p>A new mapping may increase virtual size without immediately increasing RSS. A file-backed page fault may increase RSS without reading storage if the requested file offset is already in the page cache. A process can lose an anonymous page from RSS while its data survives in swap. These transitions explain why “the process allocated 1 GiB” is incomplete unless <strong>allocated</strong> is tied to a specific metric.</p>
+<p>Demand paging buys three things:</p>
+<ul>
+<li><strong>lower startup cost</strong> because unused executable and library pages never need to be read;</li>
+<li><strong>better capacity utilization</strong> because untouched reservations do not need private frames;</li>
+<li><strong>dynamic sharing and caching</strong> because a resident file page can satisfy multiple processes.</li>
+</ul>
+<p>It also moves work onto the first access. That access may now trap, allocate memory, contend on metadata, wait for reclaim, wait for storage, and then restart. Good systems use demand paging where saved work and capacity outweigh first-touch latency; latency-sensitive software may deliberately prefault selected ranges.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/demand-paging-fault-lifecycle.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/demand-paging-fault-lifecycle.svg" class="img-fluid figure-img" style="width:98.0%" alt="A legal page fault is validated, assigned a zero, copy-on-write, page-cache, or swap source, supplied with a frame, installed atomically, and restarted; invalid accesses leave through a signal path."></a></p>
+<figcaption>A demand-paging fault is classified, backed, populated, installed, and restarted.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://docs.kernel.org/mm/page_tables.html">Linux page-table overview</a>, <a href="https://docs.kernel.org/admin-guide/mm/concepts.html">Linux memory-management concepts</a>, and the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf">OSTEP demand-paging mechanism chapter</a>.</em></p>
+<p>The figure is intentionally broader than “read a page from disk.” A fault can be resolved by mapping a shared zero page, allocating and clearing RAM, copying an existing frame, attaching an already-cached file page, or reading nonresident data. Only some paths perform storage I/O.</p>
+</section>
+<section id="the-page-fault-lifecycle" class="level3">
+<h3 class="anchored" data-anchor-id="the-page-fault-lifecycle"><strong>The Page-Fault Lifecycle</strong></h3>
+<p>A page fault is a <strong>precise architectural exception</strong>: the processor reports the faulting virtual address and enough cause information for the kernel to reason about the failed access. The exact registers and cause bits differ by architecture, but the recovery questions are portable:</p>
+<ol type="1">
+<li>Does this address still belong to a valid region?</li>
+<li>Does that region allow the attempted read, write, or instruction fetch?</li>
+<li>What logical object and offset should supply the bytes?</li>
+<li>Is the content already resident somewhere?</li>
+<li>If a new frame is needed, can one be allocated or reclaimed?</li>
+<li>Can the PTE be installed without losing a race with another thread?</li>
+<li>What translation state must be refreshed before execution resumes?</li>
+</ol>
+<p>The word <strong>still</strong> matters. Between the processor taking the exception and the handler inspecting process metadata, another thread may call <code>munmap()</code>, change permissions, truncate a mapped file, or fault the same page. Kernel implementations therefore use mapping locks, page or folio locks, reference counts, and retry loops. A classroom flowchart looks linear; a production handler repeatedly revalidates assumptions around operations that may block.</p>
+<section id="classifying-faults" class="level4">
+<h4 class="anchored" data-anchor-id="classifying-faults"><strong>Classifying Faults</strong></h4>
+<p>The first classification separates bugs and denied accesses from valid lazy work. A useful backing-oriented taxonomy is:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Fault class</th>
+<th>Region state</th>
+<th>Missing or protected state</th>
+<th>Normal result</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Invalid address</td>
+<td>No suitable region, bad canonical form, or access beyond an object</td>
+<td>No legal mapping exists</td>
+<td>Signal such as <code>SIGSEGV</code> or <code>SIGBUS</code>, or a controlled kernel error</td>
+</tr>
+<tr class="even">
+<td>Protection violation</td>
+<td>Region/PTE denies the requested mode</td>
+<td>Write to immutable data, execute-disabled page, supervisor page</td>
+<td>Reject unless protection was intentionally used as a software mechanism</td>
+</tr>
+<tr class="odd">
+<td>Anonymous first touch</td>
+<td>Valid anonymous region</td>
+<td>No private contents exist yet</td>
+<td>Map zero page or allocate a cleared frame</td>
+</tr>
+<tr class="even">
+<td>Copy-on-write</td>
+<td>Valid private writable region</td>
+<td>Current PTE is deliberately read-only and shared</td>
+<td>Allocate/copy or upgrade an exclusive page, then make this mapping writable</td>
+</tr>
+<tr class="odd">
+<td>File-backed miss</td>
+<td>Valid mapped-file region</td>
+<td>File offset is not mapped in this process</td>
+<td>Attach page-cache folio; initiate file read only on cache miss</td>
+</tr>
+<tr class="even">
+<td>Swapped anonymous page</td>
+<td>Valid anonymous region</td>
+<td>PTE encodes or leads to a swap identity</td>
+<td>Recover contents from swap cache or swap storage</td>
+</tr>
+<tr class="odd">
+<td>Translation bookkeeping</td>
+<td>Valid resident page</td>
+<td>Accessed/dirty tracking or stale translation requires attention</td>
+<td>Update metadata and resume without reconstructing contents</td>
+</tr>
+</tbody>
+</table>
+<p>Linux and many teaching systems call a fault <strong>minor</strong> when it can be completed without reading the requested page from a storage device, and <strong>major</strong> when storage I/O is required. Minor does not mean free: allocating, zeroing, copying, locking, invalidating translations, and scheduling can still be costly. Conversely, a file-backed fault can be minor because another process or an earlier <code>read()</code> already populated the page cache.</p>
+<p>Two additional distinctions prevent misleading diagnoses:</p>
+<ul>
+<li>a <strong>TLB miss</strong> usually triggers a hardware page-table walk and is not itself a page fault;</li>
+<li>a <strong>page fault</strong> is not automatically evidence of insufficient RAM, because first-touch and COW faults are expected even on an idle machine.</li>
+</ul>
+</section>
+<section id="locating-loading-and-installing-a-page" class="level4">
+<h4 class="anchored" data-anchor-id="locating-loading-and-installing-a-page"><strong>Locating, Loading, and Installing a Page</strong></h4>
+<p>Once the access is legal, the kernel derives a <strong>page identity</strong> from the region. For anonymous first touch, the identity may be “new zero-filled page at this virtual offset.” For a file mapping it is approximately <code>(file object, page-aligned file offset)</code>. For a swapped page it includes a swap entry. For COW it includes the currently shared source page plus the requirement that the writer receive private semantics.</p>
+<p>The recovery path then separates <strong>finding contents</strong> from <strong>finding a frame</strong>:</p>
+<ol type="1">
+<li>Look for the logical page in the appropriate cache or metadata structure.</li>
+<li>If a suitable resident page already exists, acquire a stable reference to it.</li>
+<li>Otherwise request a physical frame under the required node, zone, size, and allocation constraints.</li>
+<li>If the free lists cannot satisfy the request, invoke reclaim and possibly compaction.</li>
+<li>Populate the frame by clearing, copying, or reading its backing source.</li>
+<li>Wait for in-progress population if another thread owns the same page operation.</li>
+<li>Recheck that the region and desired PTE state are still valid.</li>
+<li>Install the PTE with the intended frame number, permissions, and software state.</li>
+<li>Release locks and references in an order that prevents either premature reuse or stale mappings.</li>
+</ol>
+<p>For file pages, the page cache ensures that concurrent faults on the same file offset normally converge on one cached page rather than issue unrelated reads and create incoherent copies. One thread may create and lock the cache entry, another may find it and wait, and both can later map the same completed contents.</p>
+<p>A replacement decision is also content-aware. A clean file page can often be discarded because the file remains its authoritative backing. A dirty file page needs writeback. A dirty anonymous page needs swap or must stay resident. A pinned page may not be reclaimable at all. “Choose any old page” is therefore not a complete allocator slow path.</p>
+<p>The simplified kernel-style pseudocode below emphasizes retries and ownership:</p>
+<pre class="text"><code>handle_fault(task, address, access):
+    repeat:
+        region = lookup_and_lock_region(task.address_space, address)
+        if region is absent or access violates region.policy:
+            return deliver_memory_signal(task, address, access)
+
+        identity, action = classify_backing(region, address, access)
+        page = find_or_begin_population(identity)
+
+        if page says "another thread is populating":
+            release_region_lock()
+            wait_for_page(page)
+            continue
+
+        if action needs a new frame:
+            frame = allocate_frame_with_reclaim(region.constraints)
+            if frame is unavailable:
+                release_region_lock()
+                return allocation_failure_or_oom()
+            populate(frame, action, identity)  // zero, copy, file, or swap
+
+        if region_changed_while_work_could_block():
+            discard_temporary_result_safely()
+            release_region_lock()
+            continue
+
+        install_pte_atomically(address, page_or_frame, permissions(action))
+        release_region_lock()
+        return restart_faulting_instruction</code></pre>
+<p>Real Linux code is considerably more specialized, but this model captures the proof obligations: authorize against current metadata, establish one coherent page, publish the mapping atomically, and clean up every losing or failing path.</p>
+</section>
+<section id="restarting-the-faulting-instruction" class="level4">
+<h4 class="anchored" data-anchor-id="restarting-the-faulting-instruction"><strong>Restarting the Faulting Instruction</strong></h4>
+<p>The handler usually does not emulate the user instruction. It repairs the execution environment and returns through the architecture’s exception-return path. The processor restores the saved program counter and privilege state, retries the original instruction, and translation now succeeds.</p>
+<p>This works because the exception is <strong>precise</strong>: architectural state identifies the instruction that did not complete as if it had completed normally. A complex instruction may perform enough internal work that the architecture and kernel must preserve restart semantics carefully, but user space observes either the defined completed operation or an exception/signal, not a casually half-published memory access.</p>
+<p>Restart also explains why handlers must make progress. If the PTE is installed with the wrong permission, if a stale translation remains usable, or if the region changed, the same instruction can fault again. Repeated faults are not automatically a kernel bug: a signal handler, concurrent mapping change, user-space pager, or changing resource condition can legitimately intervene. The invariant is that each retry revalidates the current address-space contract.</p>
+<p>The latency of a fault can dominate ordinary memory access even when faults are rare. If a normal reference costs <span class="math inline">\(t_m\)</span>, a fault occurs with probability <span class="math inline">\(p\)</span>, and average fault service costs <span class="math inline">\(t_f\)</span>, a deliberately simplified expectation is:</p>
+<p><span class="math display">\[
+E[T] = (1-p)t_m + p(t_f + t_m)
+\]</span></p>
+<p>Here <span class="math inline">\(t_f\)</span> includes exception entry, kernel work, possible scheduling and I/O, while the final <span class="math inline">\(t_m\)</span> is the retried access. With <span class="math inline">\(t_m = 100\)</span> ns and <span class="math inline">\(t_f = 1\)</span> ms, even <span class="math inline">\(p=10^{-5}\)</span> adds roughly <span class="math inline">\(10\)</span> ns per reference on average. The formula is not a queueing model, but it shows why major-fault probability and tail latency matter disproportionately.</p>
+</section>
+</section>
+<section id="lazy-allocation-and-zero-fill-on-demand" class="level3">
+<h3 class="anchored" data-anchor-id="lazy-allocation-and-zero-fill-on-demand"><strong>Lazy Allocation and Zero-Fill-on-Demand</strong></h3>
+<p>An anonymous mapping promises bytes that initially read as zero. Eagerly allocating and clearing every page at <code>mmap()</code> or heap-growth time would waste RAM and CPU for pages that may never be touched. <strong>Lazy allocation</strong> records the region but delays private frame creation until access makes it necessary.</p>
+<p>A common optimization separates the first read from the first write:</p>
+<ul>
+<li>an untouched anonymous page can read through a shared, immutable <strong>zero page</strong>;</li>
+<li>a write cannot modify that global frame, so it raises a write-protection fault;</li>
+<li>the handler allocates a private frame, ensures it is zeroed, installs a writable PTE, and restarts the store.</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lazy-zero-first-touch-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/lazy-zero-first-touch-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="A reserved anonymous virtual range has no private frames, its first read can map an immutable shared zero page, and its first write faults into a private cleared writable frame."></a></p>
+<figcaption>Lazy anonymous memory can share a zero page until the first write.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the Linux <a href="https://docs.kernel.org/admin-guide/mm/nommu-mmap.html">no-MMU/MMU mapping discussion</a>, <a href="https://man7.org/linux/man-pages/man2/madvise.2.html"><code>madvise()</code> semantics</a>, and <a href="https://docs.kernel.org/admin-guide/mm/pagemap.html"><code>/proc/kpageflags</code> zero-page description</a>.</em></p>
+<p>Zeroing is also a security boundary. A physical frame previously used by another process may contain secrets. Before user space can observe that frame, the kernel must clear it or otherwise prove the requested backing object completely overwrites it. Laziness changes <strong>when</strong> clearing happens, not whether isolation is required.</p>
+<p>The following Linux program reserves anonymous memory, uses <code>mincore()</code> to take residency snapshots, touches selected pages, and then gives pages back with <code>MADV_DONTNEED</code>. It is an observation tool, not a portable claim about exact counts: transparent huge pages, pre-faulting, the shared zero page, and concurrent reclaim can change what a particular kernel reports.</p>
+<details>
+<summary>
+<strong>C: observe first touch with mmap, mincore, and madvise</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;errno.h&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="dt">static</span> <span class="dt">size_t</span> resident_pages<span class="op">(</span><span class="dt">void</span> <span class="op">*</span>base<span class="op">,</span> <span class="dt">size_t</span> length<span class="op">,</span> <span class="dt">size_t</span> page_size<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> pages <span class="op">=</span> <span class="op">(</span>length <span class="op">+</span> page_size <span class="op">-</span> <span class="dv">1</span><span class="op">)</span> <span class="op">/</span> page_size<span class="op">;</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>state <span class="op">=</span> calloc<span class="op">(</span>pages<span class="op">,</span> <span class="dv">1</span><span class="op">);</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>state <span class="op">==</span> NULL<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"calloc"</span><span class="op">);</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">// mincore() is a point-in-time residency query, not an ownership query.</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>mincore<span class="op">(</span>base<span class="op">,</span> length<span class="op">,</span> state<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mincore"</span><span class="op">);</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        free<span class="op">(</span>state<span class="op">);</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        exit<span class="op">(</span>EXIT_FAILURE<span class="op">);</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> resident <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> <span class="op">++</span>i<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>        resident <span class="op">+=</span> <span class="op">(</span>state<span class="op">[</span>i<span class="op">]</span> <span class="op">&amp;</span> <span class="dv">1</span><span class="bu">U</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    free<span class="op">(</span>state<span class="op">);</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> resident<span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> page_size <span class="op">=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">;</span></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> pages <span class="op">=</span> <span class="dv">64</span><span class="op">;</span></span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> length <span class="op">=</span> pages <span class="op">*</span> page_size<span class="op">;</span></span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="dt">unsigned</span> <span class="dt">char</span> <span class="op">*</span>region <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> length<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>                                 MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>region <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after mmap:       </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Read one byte from every fourth page. Reads may use a shared zero page.</span></span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a>    <span class="dt">volatile</span> <span class="dt">unsigned</span> <span class="dt">int</span> sum <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> i <span class="op">+=</span> <span class="dv">4</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true" tabindex="-1"></a>        sum <span class="op">+=</span> region<span class="op">[</span>i <span class="op">*</span> page_size<span class="op">];</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after sparse read: </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Writing every fourth page requires writable private contents.</span></span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> <span class="op">(</span><span class="dt">size_t</span> i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> pages<span class="op">;</span> i <span class="op">+=</span> <span class="dv">4</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true" tabindex="-1"></a>        region<span class="op">[</span>i <span class="op">*</span> page_size<span class="op">]</span> <span class="op">=</span> <span class="op">(</span><span class="dt">unsigned</span> <span class="dt">char</span><span class="op">)</span>i<span class="op">;</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after sparse write:</span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true" tabindex="-1"></a>    <span class="co">// For private anonymous memory, DONTNEED discards current contents;</span></span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true" tabindex="-1"></a>    <span class="co">// later accesses once again observe zero-filled pages.</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>madvise<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> MADV_DONTNEED<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"madvise"</span><span class="op">);</span></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"after DONTNEED:    </span><span class="sc">%zu</span><span class="st"> / </span><span class="sc">%zu</span><span class="st"> pages reported resident</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true" tabindex="-1"></a>           resident_pages<span class="op">(</span>region<span class="op">,</span> length<span class="op">,</span> page_size<span class="op">),</span> pages<span class="op">);</span></span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">(</span>region<span class="op">,</span> length<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> sum <span class="op">!=</span> <span class="dv">0</span><span class="op">;</span>  <span class="co">// keeps the reads observable to the compiler</span></span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> first_touch.c <span class="at">-o</span> first_touch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./first_touch</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><code>mincore()</code> reports whether pages are resident at the instant of the call; it does not reveal whether the process owns a private frame, shares the zero page, or will keep that page resident. The <a href="https://man7.org/linux/man-pages/man2/mincore.2.html">Linux <code>mincore(2)</code> manual</a> and <a href="https://man7.org/linux/man-pages/man2/madvise.2.html"><code>madvise(2)</code> manual</a> define those APIs. For footprint attribution, <code>/proc/PID/smaps</code> or <code>smaps_rollup</code> is more informative.</p>
+<p>Lazy allocation is excellent when a program reserves more than it touches. It is less attractive when the first-touch pause falls on a latency-critical path, or when a late allocation failure is harder to handle than an early reservation failure. <code>MADV_POPULATE_READ</code>, <code>MADV_POPULATE_WRITE</code>, <code>MAP_POPULATE</code>, memory locking, and application-level warm-up represent different ways to move or constrain that cost; none should be enabled blindly.</p>
+</section>
+<section id="copy-on-write" class="level3">
+<h3 class="anchored" data-anchor-id="copy-on-write"><strong>Copy-on-Write</strong></h3>
+<p><strong>Copy-on-write (COW)</strong> preserves the appearance of private writable memory while physically sharing pages until a write would make the sharers disagree. The canonical case is <code>fork()</code>: the child begins with the parent’s memory contents, but duplicating every anonymous page before either process runs would be expensive and often pointless because the child may immediately call <code>exec()</code>.</p>
+<p>The kernel can instead:</p>
+<ol type="1">
+<li>let parent and child PTEs point to the same physical page;</li>
+<li>remove write permission from both mappings and mark the relationship as COW in software-visible state;</li>
+<li>maintain references so the frame cannot be reused while either mapping depends on it;</li>
+<li>on a write fault, determine whether the page remains shared;</li>
+<li>allocate a new frame and copy contents when separation is required;</li>
+<li>point only the writer’s PTE at the new frame, make it writable, invalidate stale translation state, and restart the store.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cow-private-write-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/cow-private-write-animated.svg" class="img-fluid figure-img" style="width:98.0%" alt="Parent and child initially point through read-only COW PTEs to one physical frame; a child write faults, copies the data to a new frame, remaps only the child writable, and leaves the parent value unchanged."></a></p>
+<figcaption>A child write converts one shared COW page into two private pages.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://pubs.opengroup.org/onlinepubs/9799919799/functions/fork.html"><code>fork()</code> specification</a>, the Linux <a href="https://man7.org/linux/man-pages/man2/madvise.2.html"><code>madvise()</code> fork controls</a>, and <a href="https://docs.kernel.org/mm/page_tables.html">Linux page-table documentation</a>. It is newly drawn for this chapter rather than reusing the process-lifecycle overview from chapter 02.</em></p>
+<p>If the writer is now the only owner, a sophisticated handler may avoid copying and simply upgrade that mapping to writable. Conversely, COW can amplify cost after a large <code>fork()</code>: writing one byte in each shared page can allocate and copy the entire private working set. Memory limits and accounting must therefore reason about potential COW breakage, not just current sharing.</p>
+<p>This small program demonstrates the semantic guarantee. Parent and child begin from one anonymous value, the child writes <code>99</code>, and the parent still reads <code>41</code>. The output alone cannot prove that the kernel used COW internally, but it shows the behavior COW efficiently implements.</p>
+<details>
+<summary>
+<strong>C: observe private memory semantics across fork</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="pp">#define </span><span class="ot">_GNU_SOURCE</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdio.h&gt;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;stdlib.h&gt;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/mman.h&gt;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;sys/wait.h&gt;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="pp">#include </span><span class="im">&lt;unistd.h&gt;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="dt">int</span> main<span class="op">(</span><span class="dt">void</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">long</span> result <span class="op">=</span> sysconf<span class="op">(</span>_SC_PAGESIZE<span class="op">);</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>result <span class="op">&lt;=</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"cannot determine page size</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">size_t</span> page_size <span class="op">=</span> <span class="op">(</span><span class="dt">size_t</span><span class="op">)</span>result<span class="op">;</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> <span class="op">*</span>value <span class="op">=</span> mmap<span class="op">(</span>NULL<span class="op">,</span> page_size<span class="op">,</span> PROT_READ <span class="op">|</span> PROT_WRITE<span class="op">,</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>                      MAP_PRIVATE <span class="op">|</span> MAP_ANONYMOUS<span class="op">,</span> <span class="op">-</span><span class="dv">1</span><span class="op">,</span> <span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>value <span class="op">==</span> MAP_FAILED<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"mmap"</span><span class="op">);</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>value <span class="op">=</span> <span class="dv">41</span><span class="op">;</span>  <span class="co">// Materialize the page before fork().</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">int</span> ready<span class="op">[</span><span class="dv">2</span><span class="op">];</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pipe<span class="op">(</span>ready<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"pipe"</span><span class="op">);</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        munmap<span class="op">(</span>value<span class="op">,</span> page_size<span class="op">);</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    pid_t pid <span class="op">=</span> fork<span class="op">();</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pid <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"fork"</span><span class="op">);</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>pid <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>value <span class="op">=</span> <span class="dv">99</span><span class="op">;</span>  <span class="co">// Normally triggers COW for the child's mapping.</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>        dprintf<span class="op">(</span>STDOUT_FILENO<span class="op">,</span> <span class="st">"child sees  </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">*</span>value<span class="op">);</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span>write<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">],</span> <span class="st">"x"</span><span class="op">,</span> <span class="dv">1</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>            _exit<span class="op">(</span><span class="dv">2</span><span class="op">);</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>        close<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>        _exit<span class="op">(</span><span class="dv">0</span><span class="op">);</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>ready<span class="op">[</span><span class="dv">1</span><span class="op">]);</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>    <span class="dt">char</span> byte<span class="op">;</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>read<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">],</span> <span class="op">&amp;</span>byte<span class="op">,</span> <span class="dv">1</span><span class="op">)</span> <span class="op">!=</span> <span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>        fputs<span class="op">(</span><span class="st">"child did not signal completion</span><span class="sc">\n</span><span class="st">"</span><span class="op">,</span> stderr<span class="op">);</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>    close<span class="op">(</span>ready<span class="op">[</span><span class="dv">0</span><span class="op">]);</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>    <span class="co">// The child's store changed its private mapping, not this one.</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>    printf<span class="op">(</span><span class="st">"parent sees </span><span class="sc">%d\n</span><span class="st">"</span><span class="op">,</span> <span class="op">*</span>value<span class="op">);</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>waitpid<span class="op">(</span>pid<span class="op">,</span> NULL<span class="op">,</span> <span class="dv">0</span><span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"waitpid"</span><span class="op">);</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="op">(</span>munmap<span class="op">(</span>value<span class="op">,</span> page_size<span class="op">)</span> <span class="op">==</span> <span class="op">-</span><span class="dv">1</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a>        perror<span class="op">(</span><span class="st">"munmap"</span><span class="op">);</span></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> EXIT_FAILURE<span class="op">;</span></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> EXIT_SUCCESS<span class="op">;</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">cc</span> <span class="at">-std</span><span class="op">=</span>c11 <span class="at">-O2</span> <span class="at">-Wall</span> <span class="at">-Wextra</span> <span class="at">-Wpedantic</span> cow.c <span class="at">-o</span> cow</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="ex">./cow</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The expected values are <code>child sees 99</code> and <code>parent sees 41</code>; line order is coordinated by the pipe for readability. <code>fork()</code> remains a concurrent operation, and production code must use async-signal-safe operations between <code>fork()</code> and <code>exec()</code> in a multithreaded child. That process-control rule is separate from COW’s memory semantics.</p>
+</section>
+<section id="memory-mapped-files-and-shared-pages" class="level3">
+<h3 class="anchored" data-anchor-id="memory-mapped-files-and-shared-pages"><strong>Memory-Mapped Files and Shared Pages</strong></h3>
+<p><code>mmap()</code> makes a file object’s offsets directly addressable through virtual memory. The mapping is lazy: establishing it does not prove that all bytes are resident. On first access, the page-fault handler translates the virtual offset into a file offset and consults the <strong>page cache</strong>, which is the normal meeting point for buffered file reads, writes, and mappings in Linux.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/page-cache-mmap-sharing.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/page-cache-mmap-sharing.svg" class="img-fluid figure-img" style="width:98.0%" alt="read and write system calls, shared mappings, and private mappings all consult cached file pages; shared writes dirty the cached page while private writes create an anonymous COW page."></a></p>
+<figcaption>Buffered file I/O and memory mappings converge on the page cache.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the <a href="https://docs.kernel.org/mm/page_cache.html">Linux page-cache documentation</a> and POSIX <a href="https://pubs.opengroup.org/onlinepubs/9799919799/functions/mmap.html"><code>mmap()</code> mapping-type semantics</a>.</em></p>
+<p>The mapping type determines the disposition of writes:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mapping</th>
+<th>Read path</th>
+<th>Write path</th>
+<th>Effect on file</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>MAP_SHARED</code></td>
+<td>Map the cached file page</td>
+<td>Modify shared cached state and mark it dirty</td>
+<td>Changes are eligible for writeback to the underlying object</td>
+</tr>
+<tr class="even">
+<td><code>MAP_PRIVATE</code></td>
+<td>Initially map file contents</td>
+<td>Break away through COW into private anonymous memory</td>
+<td>Private modifications do not update the file object</td>
+</tr>
+<tr class="odd">
+<td>Shared anonymous</td>
+<td>Map a shared memory object such as shmem/tmpfs</td>
+<td>Processes intentionally observe shared modifications</td>
+<td>No ordinary persistent file is required</td>
+</tr>
+</tbody>
+</table>
+<p>“Shared” does not mean unsynchronized. Two threads or processes that write the same mapped bytes still need an application-level protocol such as atomics, process-shared mutexes, or ownership rules. Mapping creates visibility; it does not create a data-structure invariant.</p>
+<p>Likewise, <strong>dirty</strong>, <strong>written back</strong>, and <strong>durable</strong> are different states. A store to <code>MAP_SHARED</code> can update a resident cached page quickly. The kernel may write it to a filesystem later. Filesystem journaling, device caches, ordering barriers, <code>msync()</code>, <code>fsync()</code>, and application protocols determine when durable recovery is promised. Those persistence mechanisms belong to the file-system chapter, but the distinction matters here: residency is not durability.</p>
+<p>Mapped files also carry failure modes that ordinary pointer intuition hides:</p>
+<ul>
+<li>accessing a page beyond the current valid end of a truncated file can raise <code>SIGBUS</code>;</li>
+<li>concurrent file modification and mapping access require a defined synchronization contract;</li>
+<li>a mapping can survive after its file descriptor is closed because the mapping holds its own object reference;</li>
+<li><code>munmap()</code> removes mappings but does not by itself promise durable writeback;</li>
+<li>direct I/O can bypass the ordinary page-cache path and introduces coherence constraints with cached access.</li>
+</ul>
+<p>The central advantage is unification. One cached file page can be read through a system call, mapped by several processes, and discarded under memory pressure because the file remains a reconstructible backing source. The central risk is that a pointer access can now trigger blocking work and file-related signals, so latency and error handling cannot be reasoned about as if every load were already backed by anonymous RAM.</p>
+</section>
+<section id="page-replacement" class="level3">
+<h3 class="anchored" data-anchor-id="page-replacement"><strong>Page Replacement</strong></h3>
+<p>When a fault or kernel allocation needs a frame and no suitable free block is immediately available, the system attempts <strong>reclaim</strong>: convert some currently occupied frames back into allocatable frames. <strong>Page replacement</strong> is the policy problem inside reclaim that asks which eligible resident page should lose its frame.</p>
+<p>The ideal victim is cheap to remove and unlikely to be referenced again soon. Those goals pull in several signals:</p>
+<ul>
+<li><strong>recency and frequency</strong> estimate future reuse from past access;</li>
+<li><strong>backing type</strong> determines whether contents can be discarded, written to a file, or placed in swap;</li>
+<li><strong>dirty state</strong> determines whether writeback is required;</li>
+<li><strong>sharing and reference counts</strong> determine how many mappings benefit from the page;</li>
+<li><strong>reclaimability</strong> excludes pinned, locked, or otherwise unevictable pages;</li>
+<li><strong>scope and accounting</strong> determine which workload is allowed to pay for the new allocation;</li>
+<li><strong>NUMA placement and page size</strong> constrain which frame would actually satisfy the request.</li>
+</ul>
+<p>Thus, a replacement algorithm from a textbook normally receives an abstract set of equal-cost pages. A real reclaimer first builds and filters candidate sets, may initiate asynchronous writeback, and can fail to produce the right contiguous order even after freeing many base pages.</p>
+<p>At an abstract level, an online replacement policy has this interface:</p>
+<pre class="text"><code>on_reference(page):
+    update the policy's history for page
+
+on_miss(requested_page):
+    if a free frame exists:
+        install requested_page
+    else:
+        victim = choose among eligible resident pages
+        preserve victim contents if required
+        remove victim mapping(s)
+        install requested_page</code></pre>
+<p>The policy should be evaluated on a <strong>reference string</strong> with a fixed frame count and initial state. Comparing fault counts from different traces or capacities says little about algorithm quality.</p>
+<section id="optimal-fifo-and-random-replacement" class="level4">
+<h4 class="anchored" data-anchor-id="optimal-fifo-and-random-replacement"><strong>Optimal, FIFO, and Random Replacement</strong></h4>
+<p>The <strong>Optimal</strong> policy, also called OPT or MIN, evicts the page whose next reference lies farthest in the future. If a resident page is never used again, that page is the best victim. OPT minimizes misses for a known reference string, but an online operating system cannot know arbitrary future references. Its value is as a lower bound for simulations and trace-driven studies.</p>
+<p><strong>First-In, First-Out (FIFO)</strong> evicts the page that entered memory earliest. A queue makes selection inexpensive, but residence age is not access recency. A page loaded long ago may be used on every loop iteration and still sit at the queue head. FIFO can also exhibit <strong>Belady’s anomaly</strong>: for some reference strings, adding a frame increases rather than decreases the number of faults.</p>
+<p><strong>Random replacement</strong> selects an eligible victim without maintaining recency order. It is simple and avoids some adversarial interactions with deterministic history, but it can discard a hot page by chance. Experiments must fix or report the pseudo-random seed and should compare distributions over seeds rather than one lucky run.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/replacement-policy-trace.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/replacement-policy-trace.svg" class="img-fluid figure-img" style="width:98.0%" alt="Four panels compare optimal, FIFO, exact LRU, and random replacement for the same thirteen-page reference stream and three-frame capacity, including their state requirements and fault-count behavior."></a></p>
+<figcaption>OPT, FIFO, LRU, and Random define victims from different information.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory comparison based on the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf">OSTEP replacement-policy chapter</a>. Fault counts are for the displayed reference string, three initially empty frames, and the simulator below.</em></p>
+<p>The following Python code is intentionally a <strong>policy simulator</strong>, not an operating-system implementation. Python is appropriate here because the object being implemented is the mathematical trace model. It records every decision and makes random replacement reproducible.</p>
+<details>
+<summary>
+<strong>Python: compare OPT, FIFO, LRU, Random, and Clock on one trace</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> __future__ <span class="im">import</span> annotations</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> inf</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> random <span class="im">import</span> Random</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Iterable</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Step:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    time: <span class="bu">int</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    page: <span class="bu">int</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    hit: <span class="bu">bool</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    victim: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">tuple</span>[<span class="bu">int</span>, ...]</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> simulate_stack_policy(</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    references: Iterable[<span class="bu">int</span>],</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    capacity: <span class="bu">int</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    policy: <span class="bu">str</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    seed: <span class="bu">int</span> <span class="op">=</span> <span class="dv">7</span>,</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="bu">list</span>[Step]:</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Simulate OPT, FIFO, LRU, or deterministic-seed Random."""</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    refs <span class="op">=</span> <span class="bu">list</span>(references)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> capacity <span class="op">&lt;=</span> <span class="dv">0</span>:</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"capacity must be positive"</span>)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> policy <span class="kw">not</span> <span class="kw">in</span> {<span class="st">"OPT"</span>, <span class="st">"FIFO"</span>, <span class="st">"LRU"</span>, <span class="st">"Random"</span>}:</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f"unknown policy: </span><span class="sc">{</span>policy<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">list</span>[<span class="bu">int</span>] <span class="op">=</span> []</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    fifo_order: deque[<span class="bu">int</span>] <span class="op">=</span> deque()</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    last_used: <span class="bu">dict</span>[<span class="bu">int</span>, <span class="bu">int</span>] <span class="op">=</span> {}</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> Random(seed)</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">list</span>[Step] <span class="op">=</span> []</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> time, page <span class="kw">in</span> <span class="bu">enumerate</span>(refs):</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page <span class="kw">in</span> frames:</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>            last_used[page] <span class="op">=</span> time</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>            trace.append(Step(time, page, <span class="va">True</span>, <span class="va">None</span>, <span class="bu">tuple</span>(frames)))</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>        victim <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(frames) <span class="op">==</span> capacity:</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FIFO"</span>:</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> fifo_order.popleft()</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"LRU"</span>:</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> <span class="bu">min</span>(frames, key<span class="op">=</span>last_used.<span class="fu">__getitem__</span>)</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"Random"</span>:</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> rng.choice(frames)</span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:  <span class="co"># OPT: choose the page whose next use is farthest away.</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>                <span class="kw">def</span> next_use(candidate: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> future_time <span class="kw">in</span> <span class="bu">range</span>(time <span class="op">+</span> <span class="dv">1</span>, <span class="bu">len</span>(refs)):</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">if</span> refs[future_time] <span class="op">==</span> candidate:</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>                            <span class="cf">return</span> future_time</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">return</span> inf</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a>                victim <span class="op">=</span> <span class="bu">max</span>(frames, key<span class="op">=</span>next_use)</span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>            frames.remove(victim)</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>            last_used.pop(victim, <span class="va">None</span>)</span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>        frames.append(page)</span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"FIFO"</span>:</span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>            fifo_order.append(page)</span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>        last_used[page] <span class="op">=</span> time</span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a>        trace.append(Step(time, page, <span class="va">False</span>, victim, <span class="bu">tuple</span>(frames)))</span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> trace</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> simulate_clock(references: Iterable[<span class="bu">int</span>], capacity: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Step]:</span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Simulate second-chance Clock with one reference bit per frame."""</span></span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a>    refs <span class="op">=</span> <span class="bu">list</span>(references)</span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>    frames: <span class="bu">list</span>[<span class="bu">int</span> <span class="op">|</span> <span class="va">None</span>] <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> capacity</span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>    referenced <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> capacity</span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>    hand <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a>    trace: <span class="bu">list</span>[Step] <span class="op">=</span> []</span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> time, page <span class="kw">in</span> <span class="bu">enumerate</span>(refs):</span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> page <span class="kw">in</span> frames:</span>
+<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a>            slot <span class="op">=</span> frames.index(page)</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a>            referenced[slot] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a>            visible <span class="op">=</span> <span class="bu">tuple</span>(x <span class="cf">for</span> x <span class="kw">in</span> frames <span class="cf">if</span> x <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>)</span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>            trace.append(Step(time, page, <span class="va">True</span>, <span class="va">None</span>, visible))</span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>            <span class="cf">continue</span></span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Search circularly. Referenced pages receive a second chance.</span></span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> frames[hand] <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="kw">and</span> referenced[hand] <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a>            referenced[hand] <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>            hand <span class="op">=</span> (hand <span class="op">+</span> <span class="dv">1</span>) <span class="op">%</span> capacity</span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>        victim <span class="op">=</span> frames[hand]</span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a>        frames[hand] <span class="op">=</span> page</span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a>        referenced[hand] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>        hand <span class="op">=</span> (hand <span class="op">+</span> <span class="dv">1</span>) <span class="op">%</span> capacity</span>
+<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>        visible <span class="op">=</span> <span class="bu">tuple</span>(x <span class="cf">for</span> x <span class="kw">in</span> frames <span class="cf">if</span> x <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>)</span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a>        trace.append(Step(time, page, <span class="va">False</span>, victim, visible))</span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> trace</span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>references <span class="op">=</span> [<span class="dv">7</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">0</span>, <span class="dv">3</span>, <span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">0</span>, <span class="dv">3</span>, <span class="dv">2</span>]</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name <span class="kw">in</span> [<span class="st">"OPT"</span>, <span class="st">"FIFO"</span>, <span class="st">"LRU"</span>, <span class="st">"Random"</span>]:</span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>    run <span class="op">=</span> simulate_stack_policy(references, <span class="dv">3</span>, name, seed<span class="op">=</span><span class="dv">7</span>)</span>
+<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>    faults <span class="op">=</span> <span class="bu">sum</span>(<span class="kw">not</span> step.hit <span class="cf">for</span> step <span class="kw">in</span> run)</span>
+<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:6s}</span><span class="ss">: faults=</span><span class="sc">{</span>faults<span class="sc">}</span><span class="ss">, hits=</span><span class="sc">{</span><span class="bu">len</span>(run) <span class="op">-</span> faults<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a>clock_run <span class="op">=</span> simulate_clock(references, <span class="dv">3</span>)</span>
+<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a>clock_faults <span class="op">=</span> <span class="bu">sum</span>(<span class="kw">not</span> step.hit <span class="cf">for</span> step <span class="kw">in</span> clock_run)</span>
+<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Clock'</span><span class="sc">:6s}</span><span class="ss">: faults=</span><span class="sc">{</span>clock_faults<span class="sc">}</span><span class="ss">, hits=</span><span class="sc">{</span><span class="bu">len</span>(clock_run) <span class="op">-</span> clock_faults<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Representative output for this exact code is:</p>
+<pre class="text"><code>OPT   : faults=7, hits=6
+FIFO  : faults=10, hits=3
+LRU   : faults=9, hits=4
+Random: faults=11, hits=2
+Clock : faults=9, hits=4</code></pre>
+</details>
+<p>One trace cannot rank policies universally. Change the loop structure, phase lengths, capacity, or random seed and the comparison can change. OPT remains a per-trace lower bound; it is not a deployable winner.</p>
+</section>
+<section id="lru-and-clock-approximations" class="level4">
+<h4 class="anchored" data-anchor-id="lru-and-clock-approximations"><strong>LRU and Clock Approximations</strong></h4>
+<p><strong>Least Recently Used (LRU)</strong> evicts the page whose most recent reference is oldest. It relies on temporal locality: pages used recently are more likely to be used again soon. Exact LRU can be implemented for a small software cache with a hash table plus linked list, but applying an ordered-list update to every hardware memory reference would overwhelm the fast path.</p>
+<p>Hardware commonly supplies an <strong>accessed</strong> or <strong>referenced</strong> bit. Software can periodically clear or sample it, learning whether a page was touched during an interval rather than the exact order of every touch. <strong>Clock</strong>, or second chance, arranges candidate pages in a conceptual circle:</p>
+<pre class="text"><code>choose_clock_victim():
+    loop:
+        page = frame_at(clock_hand)
+        if page is not reclaimable:
+            advance(clock_hand)
+        else if page.referenced == 1:
+            page.referenced = 0
+            advance(clock_hand)       // grant a second chance
+        else:
+            victim = page
+            advance(clock_hand)
+            return victim</code></pre>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/clock-second-chance-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/clock-second-chance-animated.svg" class="img-fluid figure-img" style="width:94.0%" alt="An animated clock hand scans four frames around a circle, clears reference bits of recently accessed pages, and selects the first eligible frame whose reference bit is zero."></a></p>
+<figcaption>Clock clears reference bits while scanning and selects the first eligible zero.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation based on the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf">OSTEP replacement-policy discussion</a> and Linux <a href="https://docs.kernel.org/admin-guide/mm/pagemap.html"><code>/proc/kpageflags</code> referenced/LRU fields</a>.</em></p>
+<p>Clock is not exact LRU. A bit says “referenced at least once since it was cleared,” so two pages with very different access counts can look identical. Scan speed determines the aging interval, and a large cold population can make one allocation scan many entries. Implementations therefore batch work, maintain multiple lists or generations, and incorporate page type and reclaim cost.</p>
+<p>Modern Linux can use <strong>Multi-Gen LRU</strong>, which groups pages into aging generations instead of maintaining a literal global LRU order. It samples access information, advances generations, and reclaims from older generations while considering anonymous and file-backed behavior. The exact kernel policy evolves; the stable lesson is that practical replacement uses <strong>coarse recency classes</strong> and amortized sampling, not a perfect timestamped order for every load. The current <a href="https://docs.kernel.org/admin-guide/mm/multigen_lru.html">Linux Multi-Gen LRU documentation</a> describes its controls and pressure behavior.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 21%">
+<col style="width: 28%">
+<col style="width: 28%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Policy</th>
+<th style="text-align: right;">History kept</th>
+<th style="text-align: right;">Per-reference cost</th>
+<th>Main teaching value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Exact LRU</td>
+<td style="text-align: right;">Total order or timestamp for every page</td>
+<td style="text-align: right;">High at page-table scale</td>
+<td>Defines idealized recency behavior</td>
+</tr>
+<tr class="even">
+<td>Aging counters</td>
+<td style="text-align: right;">Periodic bit samples shifted into counters</td>
+<td style="text-align: right;">Batched periodic work</td>
+<td>Distinguishes several recency levels</td>
+</tr>
+<tr class="odd">
+<td>Clock</td>
+<td style="text-align: right;">One/few bits plus circular position</td>
+<td style="text-align: right;">Bit set in hardware; scan on reclaim</td>
+<td>Shows second-chance approximation clearly</td>
+</tr>
+<tr class="even">
+<td>Generational LRU</td>
+<td style="text-align: right;">Age cohorts and sampled references</td>
+<td style="text-align: right;">Batched aging and list movement</td>
+<td>Scales recency estimation to modern systems</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="local-and-global-replacement" class="level4">
+<h4 class="anchored" data-anchor-id="local-and-global-replacement"><strong>Local and Global Replacement</strong></h4>
+<p>Replacement also needs a <strong>victim scope</strong>. Under local replacement, a process or resource group evicts only from its assigned resident allocation. Under global replacement, a fault may select any eligible page in a shared pool.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/local-global-reclaim.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/local-global-reclaim.svg" class="img-fluid figure-img" style="width:96.0%" alt="Local replacement forces workload A to evict from its own quota while protecting workload B; global replacement lets A select a cold page from B, while a memory cgroup forms a bounded shared pool."></a></p>
+<figcaption>Local and global reclaim trade isolation against flexible use of capacity.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the local/global replacement treatment in <a href="https://pages.cs.wisc.edu/~swift/classes/cs537-fa07/lectures/13-pageReplacement.pdf">University of Wisconsin page-replacement notes</a> and Linux <a href="https://docs.kernel.org/admin-guide/cgroup-v2.html#memory">memory-controller concepts</a>.</em></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Scope</th>
+<th>Strength</th>
+<th>Failure mode</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Strict local</td>
+<td>Strong isolation and predictable maximum footprint</td>
+<td>A process can thrash while another allocation sits idle</td>
+</tr>
+<tr class="even">
+<td>System global</td>
+<td>Capacity flows toward active workloads</td>
+<td>One workload can evict another’s hot pages and create cross-service latency</td>
+</tr>
+<tr class="odd">
+<td>Group-local/global-within-group</td>
+<td>Flexible sharing inside a controlled budget</td>
+<td>Limits and group hierarchy must reflect service ownership</td>
+</tr>
+</tbody>
+</table>
+<p>Linux memory cgroups make the middle position practical: pages are charged to a workload hierarchy, reclaim can occur inside a constrained group, and the whole system still has global pressure behavior. “Which page is cold?” and “whose page may pay?” are separate policy questions.</p>
+</section>
+</section>
+<section id="working-sets-thrashing-and-memory-pressure" class="level3">
+<h3 class="anchored" data-anchor-id="working-sets-thrashing-and-memory-pressure"><strong>Working Sets, Thrashing, and Memory Pressure</strong></h3>
+<p>A process usually references memory in phases: a parser moves through one input, a database changes index levels, and a program enters a different call graph. The <strong>working set</strong> at time <span class="math inline">\(t\)</span> over a recent window of length <span class="math inline">\(\Delta\)</span> is the set of distinct pages referenced in that window:</p>
+<p><span class="math display">\[
+W_i(t, \Delta) = \{p \mid p \text{ was referenced by process } i \text{ during } (t-\Delta, t]\}
+\]</span></p>
+<p>The window is a model parameter, not a hardware constant. If <span class="math inline">\(\Delta\)</span> is too small, it misses useful locality; if too large, it combines obsolete phases. The total active demand can be approximated as:</p>
+<p><span class="math display">\[
+D(t, \Delta) = \sum_i |W_i(t, \Delta)|
+\]</span></p>
+<p>If <span class="math inline">\(D\)</span> persistently exceeds the frames available to those workloads, every policy must leave some actively needed pages nonresident. Pages are evicted, referenced again quickly, reconstructed, and evicted again. This self-reinforcing loss of useful progress is <strong>thrashing</strong>.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/working-set-thrashing-feedback.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/working-set-thrashing-feedback.svg" class="img-fluid figure-img" style="width:98.0%" alt="A recent reference window defines a working set; when summed active working sets exceed usable frames, active pages are evicted, fault again, stall tasks, reduce useful progress, and feed repeated eviction."></a></p>
+<figcaption>When active working sets exceed available frames, reclaim and faults form a feedback loop.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on the working-set and thrashing discussion in <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys-policy.pdf">OSTEP paging policy</a> and Linux <a href="https://docs.kernel.org/accounting/psi.html">PSI documentation</a>.</em></p>
+<p>High memory utilization alone is not thrashing. A healthy system intentionally uses spare RAM as file cache and can reclaim cold pages cheaply. Evidence of thrashing instead combines:</p>
+<ul>
+<li>sustained high fault or refault rate;</li>
+<li>aggressive page scanning and stealing;</li>
+<li>repeated swap-in/swap-out or writeback;</li>
+<li>low application throughput or long latency;</li>
+<li>significant memory stall time, especially system-wide <strong>full</strong> PSI;</li>
+<li>improvement when load is reduced or the memory budget is increased.</li>
+</ul>
+<p><strong>Page-fault frequency (PFF)</strong> is an alternative control idea: measure a workload’s fault rate and grant more frames when it is too high, reclaim frames when it is very low, and reduce concurrency if total demand cannot fit. Working-set size estimates demand directly; PFF observes one consequence. Both are feedback policies and both depend on a sensible time scale.</p>
+<p>The remedies target different causes. Better replacement helps when cold and hot pages are distinguishable near the capacity boundary. It cannot create capacity when every candidate is hot. In that case, the system must lower active concurrency, increase the memory budget, reduce application working sets, compress or tier cold data, or accept degraded performance.</p>
+</section>
+<section id="swap-overcommit-and-out-of-memory-handling" class="level3">
+<h3 class="anchored" data-anchor-id="swap-overcommit-and-out-of-memory-handling"><strong>Swap, Overcommit, and Out-of-Memory Handling</strong></h3>
+<p><strong>Swap</strong> provides a recoverable backing location for anonymous memory that leaves RAM. Clean file-backed pages normally do not need swap because their file already reconstructs them. Anonymous contents have no such ordinary file offset, so the kernel must retain their bytes somewhere or refuse to reclaim them.</p>
+<p>Swap can improve useful RAM allocation when anonymous data is genuinely cold. It cannot make storage behave like DRAM. If the active working set itself is swapped repeatedly, latency and device traffic rise sharply. Compressed-memory layers such as zswap can trade CPU and compressed RAM for fewer storage transfers, but they remain part of the same capacity and pressure trade-off.</p>
+<p><strong>Overcommit</strong> is a separate promise-accounting question. Processes commonly reserve more writable virtual memory than they simultaneously use. Strictly requiring one RAM-or-swap unit for every reservation wastes capacity, but accepting every promise creates the possibility that future first touches cannot all be honored.</p>
+<p>Linux exposes policies through <code>vm.overcommit_memory</code> and related controls. In strict accounting mode, the documented commit limit is approximately:</p>
+<p><span class="math display">\[
+CommitLimit = (RAM - reserved\ hugeTLB)\times\frac{overcommit\ ratio}{100} + swap
+\]</span></p>
+<p><code>Committed_AS</code> estimates accepted commitments; it is not RSS and does not predict which process will touch memory next. The <a href="https://docs.kernel.org/mm/overcommit-accounting.html">Linux overcommit documentation</a> defines which mappings are accounted and the available modes. Configuration is a reliability contract: a scientific batch node, interactive laptop, database host, and latency-critical service may rationally choose different risk levels.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/memory-pressure-swap-oom.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/memory-pressure-swap-oom.svg" class="img-fluid figure-img" style="width:98.0%" alt="A frame request checks accounting and free blocks, tries reclaim and possible compaction, returns on success, or reaches allocation failure and scoped out-of-memory handling; side panels distinguish commit, RSS, swap, and reclaim costs."></a></p>
+<figcaption>Allocation failure escalates through reclaim, writeback or swap, compaction, and scoped OOM handling.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://docs.kernel.org/mm/overcommit-accounting.html">overcommit accounting</a>, <a href="https://docs.kernel.org/mm/oom.html">OOM handling</a>, <a href="https://docs.kernel.org/admin-guide/mm/pagemap.html">page flags</a>, and the <a href="https://pages.cs.wisc.edu/~remzi/OSTEP/vm-beyondphys.pdf">OSTEP demand-paging mechanism</a>.</em></p>
+<p>An allocation under pressure can follow several outcomes: wake background reclaim, perform direct reclaim in the requesting context, initiate writeback, swap anonymous pages, compact movable pages for a contiguous request, fall back to another allowed node/zone, return an allocation failure, throttle, or invoke an OOM policy. The exact path depends on allocation flags, order, cgroup limits, privileges, reclaimability, and kernel configuration.</p>
+<p>The <strong>OOM killer</strong> is not an ordinary replacement algorithm. It is a last-resort recovery mechanism when a relevant scope cannot satisfy memory obligations and reclaim cannot restore progress. Linux may handle OOM inside a memory cgroup or at system scope. Victim scoring attempts to free substantial memory while respecting adjustments and protected tasks, but termination is inherently disruptive. Applications should still check allocation and mapping errors where APIs report them; operators should treat OOM events as evidence to investigate capacity, limits, leaks, burst assumptions, and workload priority.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>What it controls</th>
+<th>What it cannot guarantee</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Demand paging</td>
+<td>when a legal page becomes resident</td>
+<td>that future frames will always be available</td>
+</tr>
+<tr class="even">
+<td>Swap</td>
+<td>where cold anonymous contents can survive outside RAM</td>
+<td>low latency for an active swapped working set</td>
+</tr>
+<tr class="odd">
+<td>Overcommit accounting</td>
+<td>which future-use promises are accepted</td>
+<td>exact physical footprint or future access order</td>
+</tr>
+<tr class="even">
+<td>Reclaim</td>
+<td>which resident frames become reusable</td>
+<td>success for pinned pages or badly fragmented high-order requests</td>
+</tr>
+<tr class="odd">
+<td>OOM policy</td>
+<td>how the system regains progress after failure</td>
+<td>graceful application-level recovery or perfect victim choice</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="physical-memory-allocation" class="level3">
+<h3 class="anchored" data-anchor-id="physical-memory-allocation"><strong>Physical-Memory Allocation</strong></h3>
+<p>Replacement returns pages to free memory; a <strong>physical-memory allocator</strong> organizes those free pages and satisfies constrained requests. User-space <code>malloc()</code> operates inside a process address space and usually obtains larger regions from the kernel. The kernel’s page allocator instead deals in physical page frames, NUMA nodes, zones, contiguity, and contexts that may or may not sleep or reclaim.</p>
+<p>A conceptual page-allocation ADT is:</p>
+<pre class="text"><code>allocate_pages(order, constraints) -&gt; aligned block or failure
+free_pages(block, order)</code></pre>
+<p>An order-<span class="math inline">\(k\)</span> block contains <span class="math inline">\(2^k\)</span> contiguous base pages. Constraints can express an allowed NUMA node set, a zone reachable by a device, whether reclaim or filesystem I/O is permitted, whether zeroing is required, and whether the request may fall back. A machine can have many free pages in total yet fail an order-<span class="math inline">\(k\)</span> request because no suitable contiguous aligned block remains.</p>
+<p>Linux maintains per-node and per-zone state, free-area lists, watermarks, and fallback orders. Background reclaim tries to protect reserves before allocations reach emergency conditions. These details make “free memory” multidimensional: amount, location, order, mobility, and context all matter.</p>
+<section id="buddy-allocation" class="level4">
+<h4 class="anchored" data-anchor-id="buddy-allocation"><strong>Buddy Allocation</strong></h4>
+<p>The <strong>binary buddy allocator</strong> organizes free physical memory in power-of-two blocks. If no block of the requested order exists, it splits a larger block into two equal <strong>buddies</strong>, repeats until reaching the target order, and returns one half. On free, it checks whether the unique aligned buddy of the same order is also free; if so, the pair coalesces and the test repeats at the next order.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/buddy-split-merge-animated.svg" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/buddy-split-merge-animated.svg" class="img-fluid figure-img" style="width:96.0%" alt="An eight-page order-three block splits into order-two and order-one blocks to satisfy a two-page request, then the animated free path merges a block with its same-order aligned buddy."></a></p>
+<figcaption>The buddy allocator splits a large power-of-two block and later merges aligned free buddies.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory animation based on the Linux <a href="https://docs.kernel.org/admin-guide/mm/pagemap.html"><code>/proc/kpageflags</code> BUDDY description</a> and the kernel.org <a href="https://www.kernel.org/doc/gorman/html/understand/understand009.html">physical-page allocation overview</a>. The latter documents an older Linux implementation, so the figure uses only the enduring buddy algorithm, not obsolete structure names.</em></p>
+<p>For a block beginning at page-frame index <code>start</code>, the buddy at order <span class="math inline">\(k\)</span> is found conceptually by toggling the <span class="math inline">\(k\)</span>th block bit:</p>
+<p><span class="math display">\[
+buddy(start,k)=start\ \operatorname{XOR}\ 2^k
+\]</span></p>
+<p>The alignment guaranteed by power-of-two blocks makes that operation possible. Simplified pseudocode is:</p>
+<pre class="text"><code>allocate(requested_pages):
+    target = ceil(log2(requested_pages))
+    order = first order &gt;= target with a nonempty free list
+    if no such order exists:
+        fail
+    block = remove_one(free_list[order])
+    while order &gt; target:
+        order = order - 1
+        left, right = split(block)
+        insert(right, free_list[order])
+        block = left
+    return block, target
+
+free(block, order):
+    while order &lt; MAX_ORDER:
+        buddy = block.start XOR (1 &lt;&lt; order)
+        if buddy is not free at exactly this order:
+            break
+        remove(buddy, free_list[order])
+        block = lower_address(block, buddy)
+        order = order + 1
+    insert(block, free_list[order])</code></pre>
+<p>With constant-time free-list operations, allocation and free perform at most one operation per order, so their structural work is <span class="math inline">\(O(MAX\_ORDER)\)</span> and the configured maximum is small. The trade-off is <strong>internal fragmentation</strong>: a request for five pages consumes an eight-page block. External fragmentation still appears as free memory split across low orders, and compaction may be required for huge pages or other high-order requests.</p>
+</section>
+<section id="slab-and-object-caches" class="level4">
+<h4 class="anchored" data-anchor-id="slab-and-object-caches"><strong>Slab and Object Caches</strong></h4>
+<p>Allocating a full page block for every small kernel object would waste memory and repeatedly initialize the same structures. A <strong>slab-style allocator</strong> layers typed or size-class caches over the page allocator. Each cache obtains one or more pages, divides them into fixed-size object slots, and reuses freed objects.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/slab-object-cache.svg" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/slab-object-cache.svg" class="img-fluid figure-img" style="width:98.0%" alt="The page allocator supplies blocks to a type-specific kernel object cache with a per-CPU fast path; full, partial, and empty slabs contain fixed-size occupied and free object slots."></a></p>
+<figcaption>A slab cache obtains page blocks, divides them into objects, and tracks occupancy.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on current Linux <a href="https://docs.kernel.org/mm/slab.html">slab allocation documentation</a>, <a href="https://docs.kernel.org/admin-guide/mm/pagemap.html"><code>/proc/kpageflags</code> SLAB description</a>, and the kernel.org <a href="https://www.kernel.org/doc/gorman/html/understand/understand011.html">slab overview</a>.</em></p>
+<p>The layers solve different granularity problems:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Layer</th>
+<th>Allocation unit</th>
+<th>Optimizes</th>
+<th>Typical cost</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Buddy/page allocator</td>
+<td>powers-of-two blocks of pages</td>
+<td>physical contiguity and fast coalescing</td>
+<td>power-of-two waste and high-order fragmentation</td>
+</tr>
+<tr class="even">
+<td>Slab/object cache</td>
+<td>fixed-size kernel objects within slabs</td>
+<td>reuse, initialization, alignment, small-object locality</td>
+<td>metadata, partial slabs, cache-specific fragmentation</td>
+</tr>
+<tr class="odd">
+<td>User allocator</td>
+<td>application blocks within process mappings</td>
+<td>language/runtime allocation patterns</td>
+<td>process-local fragmentation and synchronization</td>
+</tr>
+</tbody>
+</table>
+<p>Linux commonly uses the term <strong>SLUB</strong> for its default slab implementation, while “slab allocator” remains the architectural family. Per-CPU freelists make common allocation paths fast and reduce shared-lock traffic; partial-slab lists allow reuse across CPUs or nodes. Debugging and hardening can add red zones, poisoning, randomized freelists, or metadata checks, trading speed and memory for error detection and exploit resistance.</p>
+<p>Object caches are not automatically leak-proof. A reference held forever keeps an object live regardless of allocator quality, while a workload with awkward size classes can leave partially occupied slabs. <code>/proc/slabinfo</code>, <code>slabtop</code>, and kernel memory accounting help distinguish user RSS growth from kernel-object growth.</p>
+</section>
+</section>
+<section id="huge-pages-numa-and-modern-memory-systems" class="level3">
+<h3 class="anchored" data-anchor-id="huge-pages-numa-and-modern-memory-systems"><strong>Huge Pages, NUMA, and Modern Memory Systems</strong></h3>
+<p>Base pages simplify fine-grained allocation and protection, but a large working set can exceed TLB reach and require many page-table entries. <strong>Huge pages</strong> map a larger contiguous range with one translation. The previous chapter covered their translation benefit; here the important question is how they are materialized and placed.</p>
+<p>Linux exposes two broad mechanisms:</p>
+<ul>
+<li><strong>HugeTLB</strong> pages are explicitly reserved and managed through a dedicated interface;</li>
+<li><strong>Transparent Huge Pages (THP)</strong> allow the kernel to allocate, promote, split, and in supported configurations demote page sizes without requiring every application to manage a reserved pool.</li>
+</ul>
+<p>THP can allocate a large page at fault time or let a background mechanism such as <code>khugepaged</code> collapse suitable base pages. Current kernels can support multiple THP sizes depending on architecture and configuration. Promotion is best effort: alignment, sharing, swapped pages, fragmentation, policy, and cgroup limits can prevent it. The <a href="https://docs.kernel.org/admin-guide/mm/transhuge.html">Linux THP documentation</a> explicitly warns that a large page can waste memory when an application touches only a tiny part of a large region.</p>
+<p>On a <strong>Non-Uniform Memory Access (NUMA)</strong> system, every CPU can access all ordinary memory, but latency and bandwidth depend on the memory node. Linux normally attempts local allocation and then follows a zonelist fallback order. The CPU that performs first touch often influences where an anonymous page is initially allocated.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hugepage-numa-placement.svg" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/hugepage-numa-placement.svg" class="img-fluid figure-img" style="width:98.0%" alt="Base pages may collapse into a transparent huge page to reduce translation entries, while two NUMA nodes show fast local memory, a slower remote interconnect, first-touch placement, and the possibility that tasks migrate away from their pages."></a></p>
+<figcaption>Huge-page promotion and NUMA placement solve different parts of memory cost.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory diagram based on Linux <a href="https://docs.kernel.org/admin-guide/mm/transhuge.html">Transparent Hugepage Support</a>, <a href="https://docs.kernel.org/mm/numa.html">NUMA overview</a>, and <a href="https://docs.kernel.org/admin-guide/mm/numa_memory_policy.html">NUMA memory policy</a>. Exact page sizes and available policies are architecture- and kernel-dependent.</em></p>
+<p>Huge pages and NUMA interact. A huge allocation needs a larger suitable contiguous block on one node; compaction or fallback can increase fault latency or place memory remotely. A task can later migrate while its pages remain on the original node. Automatic NUMA balancing, explicit policy through <code>numactl</code>/<code>mbind()</code>, CPU affinity, and page migration can improve locality, but migration itself copies data and changes mappings.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Choice</th>
+<th>Potential gain</th>
+<th>Potential harm</th>
+<th>Measure</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Base pages</td>
+<td>fine-grained faults, reclaim, and COW</td>
+<td>lower TLB reach and more PTEs</td>
+<td>TLB misses, page-table size, fault count</td>
+</tr>
+<tr class="even">
+<td>THP</td>
+<td>fewer translations, larger sequential reach</td>
+<td>larger zero/copy/split cost, wasted memory, compaction stalls</td>
+<td><code>AnonHugePages</code>, THP fault/collapse counters, latency</td>
+</tr>
+<tr class="odd">
+<td>Local NUMA placement</td>
+<td>lower latency and more local bandwidth</td>
+<td>capacity imbalance if one node fills first</td>
+<td><code>numastat</code>, <code>/proc/PID/numa_maps</code>, hardware counters</td>
+</tr>
+<tr class="even">
+<td>Interleaving</td>
+<td>spreads bandwidth and capacity</td>
+<td>some accesses are inevitably remote</td>
+<td>bandwidth distribution and application throughput</td>
+</tr>
+<tr class="odd">
+<td>Migration</td>
+<td>repairs task/page mismatch</td>
+<td>copy cost and mapping disruption</td>
+<td>migration counters and before/after locality</td>
+</tr>
+</tbody>
+</table>
+<p>The right policy follows access shape. A dense, long-lived analytical array may benefit from huge local pages. A sparse region with unpredictable first-touch and frequent COW can lose more from coarse pages than it gains from TLB reach.</p>
+</section>
+<section id="observing-memory-behavior-in-linux" class="level3">
+<h3 class="anchored" data-anchor-id="observing-memory-behavior-in-linux"><strong>Observing Memory Behavior in Linux</strong></h3>
+<p>Memory diagnosis should begin with a symptom and combine four views:</p>
+<ol type="1">
+<li><strong>process footprint</strong>: which mappings are resident, private, shared, anonymous, file-backed, huge, or swapped;</li>
+<li><strong>system composition</strong>: how RAM is divided among anonymous pages, page cache, slab, page tables, and reclaimable state;</li>
+<li><strong>activity and pressure</strong>: whether faults, reclaim, writeback, swap, or stalls are increasing over time;</li>
+<li><strong>placement</strong>: whether pages are local to the CPUs using them and whether page size matches expectations.</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linux-memory-observability.svg" class="lightbox" data-gallery="quarto-lightbox-inline-13"><img src="assets/linux-memory-observability.svg" class="img-fluid figure-img" style="width:98.0%" alt="An observability workflow starts from a latency or memory symptom, gathers process smaps, system meminfo and vmstat, pressure stall information, NUMA and perf views, then correlates a time series before testing a hypothesis."></a></p>
+<figcaption>Linux memory diagnosis triangulates process, system, pressure, and placement evidence.</figcaption>
+</figure>
+</div>
+<p><em>Figure: original explanatory workflow based on Linux <a href="https://www.kernel.org/doc/html/latest/filesystems/proc.html"><code>/proc</code> documentation</a>, <a href="https://docs.kernel.org/accounting/psi.html">PSI documentation</a>, and the <a href="https://man7.org/linux/man-pages/man5/proc_pid_smaps.5.html"><code>proc_pid_smaps(5)</code> manual</a>.</em></p>
+<p>The following read-only commands form a useful first pass on Linux:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="va">pid</span><span class="op">=</span><span class="va">${1</span><span class="op">:-</span><span class="va">$$}</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Process totals. PSS apportions shared pages; RSS counts each mapping fully.</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(Rss|Pss|Private_|Shared_|Anonymous|AnonHugePages|Swap):'</span> <span class="dt">\</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">"/proc/</span><span class="va">$pid</span><span class="st">/smaps_rollup"</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># System composition and commitment.</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="fu">grep</span> <span class="at">-E</span> <span class="st">'^(MemTotal|MemAvailable|Cached|AnonPages|Slab|PageTables|SwapTotal|SwapFree|CommitLimit|Committed_AS):'</span> <span class="dt">\</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>  /proc/meminfo</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Pressure reports time lost to contention, not just capacity consumption.</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span> /proc/pressure/memory</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Time series: run queue, free memory, paging, block I/O, and CPU activity.</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="fu">vmstat</span> 1 5</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Optional on NUMA systems when numactl tools are installed.</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="bu">command</span> <span class="at">-v</span> numastat <span class="op">&gt;</span>/dev/null <span class="kw">&amp;&amp;</span> <span class="ex">numastat</span> <span class="at">-p</span> <span class="st">"</span><span class="va">$pid</span><span class="st">"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Interpretation needs care:</p>
+<ul>
+<li><code>VmSize</code> or mapping <code>Size</code> is not resident memory;</li>
+<li>RSS double-counts a shared page in each mapping, while PSS apportions it;</li>
+<li><code>MemFree</code> excludes useful reclaimable cache, so <code>MemAvailable</code> is usually the better capacity estimate;</li>
+<li>minor faults can be normal first-touch/COW behavior;</li>
+<li>major faults indicate storage was required for the requested page, but one snapshot does not show rate;</li>
+<li><code>si</code>/<code>so</code> in <code>vmstat</code> are activity rates, while total swap occupancy is a state;</li>
+<li>memory PSI <code>some</code> means at least some tasks are stalled, while <code>full</code> indicates all non-idle work is simultaneously stalled and is stronger evidence of lost progress;</li>
+<li><code>/proc/PID/smaps</code> and related files are snapshots and can race with mapping changes.</li>
+</ul>
+<p>A disciplined investigation records a time series around the latency or OOM event, then tests one causal hypothesis. For example:</p>
+<pre class="text"><code>Observation: RSS and active anonymous memory rise.
+Observation: pgscan/pgsteal and swap-in/out rise soon afterward.
+Observation: memory full PSI and request latency rise together.
+Hypothesis: the workload's active anonymous set exceeds its memory budget.
+Test: reduce concurrency or raise the controlled cgroup budget, then repeat.</code></pre>
+<p>This is stronger than concluding “Linux used all RAM.” A page cache near capacity may be healthy; a small RSS with severe remote NUMA traffic may be slow; a high commitment may be harmless until first touch; and a one-time swap value may describe old cold pages rather than current churn.</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>Comparison and Summary</strong></h3>
+<p>The chapter’s mechanisms act at different moments in a page’s lifecycle:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Mechanism</th>
+<th>Trigger or input</th>
+<th>Main decision</th>
+<th>Result</th>
+<th>Principal trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Demand paging</td>
+<td>first access to nonresident legal page</td>
+<td>materialize now or fail</td>
+<td>PTE points to supplied contents</td>
+<td>lower eager work versus first-touch latency</td>
+</tr>
+<tr class="even">
+<td>Zero-fill-on-demand</td>
+<td>first read/write of anonymous page</td>
+<td>share zero page or allocate cleared frame</td>
+<td>secure zero semantics</td>
+<td>saved frames versus write-fault cost</td>
+</tr>
+<tr class="odd">
+<td>Copy-on-write</td>
+<td>write to deliberately shared private page</td>
+<td>copy, or upgrade if exclusive</td>
+<td>writer receives private writable state</td>
+<td>avoids unused copies versus burst copy cost</td>
+</tr>
+<tr class="even">
+<td>Page cache</td>
+<td>file object and offset</td>
+<td>reuse, read, dirty, or write back cached contents</td>
+<td>coherent file-backed resident page</td>
+<td>shared reuse versus reclaim/writeback complexity</td>
+</tr>
+<tr class="odd">
+<td>Replacement</td>
+<td>frame shortage</td>
+<td>choose eligible resident victim</td>
+<td>frame becomes reusable</td>
+<td>preserving locality versus tracking overhead</td>
+</tr>
+<tr class="even">
+<td>Working-set/PFF control</td>
+<td>recent references or fault rate</td>
+<td>adjust residency/concurrency</td>
+<td>less destructive churn</td>
+<td>estimation window and responsiveness</td>
+</tr>
+<tr class="odd">
+<td>Swap</td>
+<td>cold anonymous page under pressure</td>
+<td>retain data outside RAM</td>
+<td>frame freed, contents recoverable</td>
+<td>capacity relief versus high access latency</td>
+</tr>
+<tr class="even">
+<td>Overcommit</td>
+<td>reservation/commit request</td>
+<td>accept potential future use</td>
+<td>promise recorded or request rejected</td>
+<td>utilization versus late failure risk</td>
+</tr>
+<tr class="odd">
+<td>Buddy allocator</td>
+<td>page-block request</td>
+<td>split/merge powers-of-two blocks</td>
+<td>contiguous page block</td>
+<td>speed versus fragmentation</td>
+</tr>
+<tr class="even">
+<td>Slab cache</td>
+<td>small kernel-object request</td>
+<td>reuse a typed/size-class slot</td>
+<td>initialized object</td>
+<td>fast locality versus cache metadata/partial slabs</td>
+</tr>
+<tr class="odd">
+<td>THP</td>
+<td>dense aligned region and policy</td>
+<td>allocate/promote larger page</td>
+<td>greater TLB reach</td>
+<td>translation savings versus coarse fault/reclaim cost</td>
+</tr>
+<tr class="even">
+<td>NUMA policy</td>
+<td>allocation and task placement</td>
+<td>choose memory node or migrate</td>
+<td>local or remote physical placement</td>
+<td>locality versus balance and migration cost</td>
+</tr>
+</tbody>
+</table>
+<p>One legal memory access can now be traced end to end:</p>
+<ol type="1">
+<li>The CPU finds no usable translation and raises a precise fault.</li>
+<li>The kernel revalidates the region and requested permission.</li>
+<li>Region metadata identifies anonymous, COW, file, or swap backing.</li>
+<li>A resident shared page is reused, or a frame is requested.</li>
+<li>Under pressure, reclaim filters candidates and applies replacement policy.</li>
+<li>Dirty file data may need writeback; anonymous contents may need swap.</li>
+<li>The page allocator supplies a suitable block, possibly after reclaim or compaction.</li>
+<li>The handler clears, copies, or loads the page and resolves concurrent fault races.</li>
+<li>It installs the PTE, refreshes stale translation state, and restarts the instruction.</li>
+<li>Later aging, pressure, page size, and NUMA policy determine how long and where the page remains resident.</li>
+</ol>
+<p>Several misconceptions can now be rejected precisely:</p>
+<ul>
+<li>a page fault is not synonymous with disk I/O;</li>
+<li>a minor fault is not necessarily negligible;</li>
+<li>a successful large <code>malloc()</code> does not prove all promised pages are resident or guaranteed under every overcommit policy;</li>
+<li>full RAM is not itself thrashing, because cache is deliberately reclaimable;</li>
+<li>swap occupancy is not the same as active swap churn;</li>
+<li>FIFO residence age is not LRU access recency;</li>
+<li>exact LRU is not the literal policy of a scalable modern kernel;</li>
+<li>reclaiming many base pages does not guarantee a contiguous high-order block;</li>
+<li>huge pages and local NUMA placement are workload-dependent optimizations, not universal wins;</li>
+<li>RSS alone cannot attribute shared memory or explain stall time.</li>
+</ul>
+<p>Address translation gave the process a protected and sparse namespace. Demand paging turns that namespace into a dynamic working set; replacement and allocation keep the physical machine usable; observability tells us whether those policies preserve progress. The next chapter follows the blocking side of this story into device controllers, interrupts, DMA, drivers, and event-driven I/O.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

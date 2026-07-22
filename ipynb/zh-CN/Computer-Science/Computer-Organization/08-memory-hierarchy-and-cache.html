@@ -1,0 +1,1515 @@
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机组成与体系结构：存储层次与缓存</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="08-memory-hierarchy-and-cache_files/libs/clipboard/clipboard.min.js"></script>
+<script src="08-memory-hierarchy-and-cache_files/libs/quarto-html/quarto.js"></script>
+<script src="08-memory-hierarchy-and-cache_files/libs/quarto-html/popper.min.js"></script>
+<script src="08-memory-hierarchy-and-cache_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="08-memory-hierarchy-and-cache_files/libs/quarto-html/anchor.min.js"></script>
+<link href="08-memory-hierarchy-and-cache_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="08-memory-hierarchy-and-cache_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="08-memory-hierarchy-and-cache_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="08-memory-hierarchy-and-cache_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="08-memory-hierarchy-and-cache_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="08-memory-hierarchy-and-cache_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="08-memory-hierarchy-and-cache_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="08-memory-hierarchy-and-cache_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="/ipynb/blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#memory-hierarchy-and-cache" id="toc-memory-hierarchy-and-cache" class="nav-link active" data-scroll-target="#memory-hierarchy-and-cache"><strong>存储层次与缓存</strong></a>
+  <ul>
+  <li><a href="#why-computers-need-a-memory-hierarchy" id="toc-why-computers-need-a-memory-hierarchy" class="nav-link" data-scroll-target="#why-computers-need-a-memory-hierarchy"><strong>为什么计算机需要存储层次</strong></a></li>
+  <li><a href="#temporal-and-spatial-locality" id="toc-temporal-and-spatial-locality" class="nav-link" data-scroll-target="#temporal-and-spatial-locality"><strong>时间局部性与空间局部性</strong></a></li>
+  <li><a href="#cache-blocks-and-address-decomposition" id="toc-cache-blocks-and-address-decomposition" class="nav-link" data-scroll-target="#cache-blocks-and-address-decomposition"><strong>缓存块与地址分解</strong></a>
+  <ul>
+  <li><a href="#tag" id="toc-tag" class="nav-link" data-scroll-target="#tag"><strong>标记</strong></a></li>
+  <li><a href="#index" id="toc-index" class="nav-link" data-scroll-target="#index"><strong>索引</strong></a></li>
+  <li><a href="#block-offset" id="toc-block-offset" class="nav-link" data-scroll-target="#block-offset"><strong>块内偏移</strong></a></li>
+  </ul></li>
+  <li><a href="#cache-mapping" id="toc-cache-mapping" class="nav-link" data-scroll-target="#cache-mapping"><strong>缓存映射</strong></a>
+  <ul>
+  <li><a href="#direct-mapped-cache" id="toc-direct-mapped-cache" class="nav-link" data-scroll-target="#direct-mapped-cache"><strong>直接映射缓存</strong></a></li>
+  <li><a href="#set-associative-cache" id="toc-set-associative-cache" class="nav-link" data-scroll-target="#set-associative-cache"><strong>组相联缓存</strong></a></li>
+  <li><a href="#fully-associative-cache" id="toc-fully-associative-cache" class="nav-link" data-scroll-target="#fully-associative-cache"><strong>全相联缓存</strong></a></li>
+  </ul></li>
+  <li><a href="#replacement-policies" id="toc-replacement-policies" class="nav-link" data-scroll-target="#replacement-policies"><strong>替换策略</strong></a></li>
+  <li><a href="#write-policies" id="toc-write-policies" class="nav-link" data-scroll-target="#write-policies"><strong>写策略</strong></a>
+  <ul>
+  <li><a href="#write-through-and-write-back" id="toc-write-through-and-write-back" class="nav-link" data-scroll-target="#write-through-and-write-back"><strong>写直达与写回</strong></a></li>
+  <li><a href="#write-allocate-and-no-write-allocate" id="toc-write-allocate-and-no-write-allocate" class="nav-link" data-scroll-target="#write-allocate-and-no-write-allocate"><strong>写分配与非写分配</strong></a></li>
+  </ul></li>
+  <li><a href="#cache-misses" id="toc-cache-misses" class="nav-link" data-scroll-target="#cache-misses"><strong>缓存未命中</strong></a>
+  <ul>
+  <li><a href="#compulsory-misses" id="toc-compulsory-misses" class="nav-link" data-scroll-target="#compulsory-misses"><strong>强制未命中</strong></a></li>
+  <li><a href="#capacity-misses" id="toc-capacity-misses" class="nav-link" data-scroll-target="#capacity-misses"><strong>容量未命中</strong></a></li>
+  <li><a href="#conflict-misses" id="toc-conflict-misses" class="nav-link" data-scroll-target="#conflict-misses"><strong>冲突未命中</strong></a></li>
+  </ul></li>
+  <li><a href="#average-memory-access-time" id="toc-average-memory-access-time" class="nav-link" data-scroll-target="#average-memory-access-time"><strong>平均存储访问时间</strong></a></li>
+  <li><a href="#multi-level-caches" id="toc-multi-level-caches" class="nav-link" data-scroll-target="#multi-level-caches"><strong>多级缓存</strong></a></li>
+  <li><a href="#cache-aware-program-behavior" id="toc-cache-aware-program-behavior" class="nav-link" data-scroll-target="#cache-aware-program-behavior"><strong>缓存感知的程序行为</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机组成与体系结构：存储层次与缓存</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Organization/08-memory-hierarchy-and-cache.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="/ipynb/zh-CN/Computer-Science/Computer-Organization/Computer-Organization.html">返回计算机组成与体系结构总览</a></p>
+<section id="memory-hierarchy-and-cache" class="level2">
+<h2 class="anchored" data-anchor-id="memory-hierarchy-and-cache"><strong>存储层次与缓存</strong></h2>
+<p>第 07 章把取指和访存阶段简化为：一条指令或一个数据字通常能在一个周期内到达。这个假设是理想五级流水线成立的基础，但容量很大的主存通常无法满足处理器最短的时钟周期。若每次 IF 请求和每条 load 都直接等待 DRAM，流水线停顿的时间将远多于真正执行指令的时间。</p>
+<p><strong>缓存（cache）</strong>是一种小而快的结构，用来保存部分内存块的副本。它对普通程序语义透明：无论一次 load 命中 L1、命中更低级缓存，还是最终访问 DRAM，都必须返回相同的体系结构值。缓存改变的是“从哪里、何时找到数据”，而不是软件有权观察到的数据内容。</p>
+<p>本章讨论缓存的物理组织及其性能影响。地址转换、页表与 TLB 留到第 09 章介绍；在此之前，示例都使用物理地址，或者等价地假设地址转换已经给出了缓存查找所需的地址。</p>
+<section id="why-computers-need-a-memory-hierarchy" class="level3">
+<h3 class="anchored" data-anchor-id="why-computers-need-a-memory-hierarchy"><strong>为什么计算机需要存储层次</strong></h3>
+<p>存储系统同时面对相互冲突的目标。处理器希望延迟低，使依赖指令尽快继续；带宽高，使多条指令能够同时取得数据；容量大，容纳活跃程序；同时还要求能耗低、单位比特成本低。没有一种存储技术能够把这些属性同时做到最好。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/memory-hierarchy-tradeoffs.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="寄存器和多级缓存把选定数据块保留在 CPU 附近，而容量更大、通常也更慢的层级负责提供空间。未命中请求向下传播，返回的数据块则可填入上层。"><img src="assets/memory-hierarchy-tradeoffs.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="寄存器和多级缓存把选定数据块保留在 CPU 附近，而容量更大、通常也更慢的层级负责提供空间。未命中请求向下传播，返回的数据块则可填入上层。"></a></p>
+</figure>
+</div>
+<figcaption>寄存器和多级缓存把选定数据块保留在 CPU 附近，而容量更大、通常也更慢的层级负责提供空间。未命中请求向下传播，返回的数据块则可填入上层。</figcaption>
+</figure>
+</div>
+<p>存储层次能够工作，是因为上层无需保存全部内存，只需保存近期很可能使用的<strong>工作集（working set）</strong>。寄存器保存当前操作数；分离的 L1 指令缓存和数据缓存分别服务流水线的两类请求；更低级缓存保留更大的近期工作集；DRAM 提供大得多的容量。完整系统中，持久存储位于主存下方，但它不是每次 load 的普通缓存命中路径。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>层级</th>
+<th>首要设计目标</th>
+<th>未命中的典型后果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>寄存器</td>
+<td>立即取得操作数</td>
+<td>指令必须移动或重新计算该值</td>
+</tr>
+<tr class="even">
+<td>L1I / L1D</td>
+<td>最短的常见命中路径与高局部带宽</td>
+<td>请求继续前往下一级缓存</td>
+</tr>
+<tr class="odd">
+<td>L2 / 末级缓存</td>
+<td>减少昂贵的主存流量</td>
+<td>更长的片上查找，或发起 DRAM 请求</td>
+</tr>
+<tr class="even">
+<td>DRAM</td>
+<td>大容量易失性工作空间</td>
+<td>若页面不在内存，可能需要操作系统与存储设备参与</td>
+</tr>
+</tbody>
+</table>
+<p>因此，存储层次优化的是常见情况：大多数访问应在靠近处理器的位置结束，少数未命中才承担更长路径。命中时间很短但命中率很低的缓存仍可能性能很差；容量很大但拖慢处理器时钟的缓存，也可能得不偿失。容量、相联度、块大小、替换策略和写策略会共同决定结果。</p>
+</section>
+<section id="temporal-and-spatial-locality" class="level3">
+<h3 class="anchored" data-anchor-id="temporal-and-spatial-locality"><strong>时间局部性与空间局部性</strong></h3>
+<p><strong>引用局部性（locality of reference）</strong>是程序在短时间内倾向于使用有限范围内指令和数据的经验规律，而不是 ISA 提供的保证。循环、过程调用、栈操作、顺序取指、数组遍历以及对活跃对象的反复访问都会产生局部性。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/temporal-spatial-locality.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="时间局部性是在较短时间内再次使用同一个块；空间局部性则是使用一次传入块中的邻近地址。"><img src="assets/temporal-spatial-locality.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="时间局部性是在较短时间内再次使用同一个块；空间局部性则是使用一次传入块中的邻近地址。"></a></p>
+</figure>
+</div>
+<figcaption>时间局部性是在较短时间内再次使用同一个块；空间局部性则是使用一次传入块中的邻近地址。</figcaption>
+</figure>
+</div>
+<p><strong>时间局部性</strong>表示最近访问过的对象很可能再次被访问。例如，循环会重复执行同一段指令并更新同一个计数器；只要缓存保留这些块，后续访问就能命中。<strong>空间局部性</strong>表示程序很可能访问近期地址附近的位置。一次传入对齐的数据块，会在程序逐个请求之前就带来相邻指令或数组元素。</p>
+<p>缓存真正管理的是块，而不是源代码中的变量。若一个 64 字节块可容纳八个 8 字节整数，顺序遍历只需一次下层传输便能使用八个元素；若步长为 64 字节，则每个元素都落在不同块中，传回块内其余字节都未被利用。一个从不复用、但邻近字节都被使用的块仍体现空间局部性；同一块被反复访问则体现时间局部性。</p>
+<p><strong>复用距离（reuse distance）</strong>是两次访问同一块之间出现过的不同块数量。复用距离较小，意味着规模不大的缓存也可能保留该块；当复用距离超过目标集合可容纳的有效行数，或超过整个缓存的有效工作容量时，块很可能在再次使用前被淘汰。</p>
+<details>
+<summary>
+Python 示例：比较顺序访问与跨步访问的块足迹
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> block_trace(addresses, block_size):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""把字节地址转换为缓存实际观察到的内存块编号。"""</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [address <span class="op">//</span> block_size <span class="cf">for</span> address <span class="kw">in</span> addresses]</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> <span class="bn">0x1000</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>element_size <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>block_size <span class="op">=</span> <span class="dv">64</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 八个相邻的 64 位值都位于同一个 64 字节块中。</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>sequential <span class="op">=</span> [base <span class="op">+</span> i <span class="op">*</span> element_size <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>)]</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 八个彼此相隔一个完整块的值会占用八个不同块。</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>strided <span class="op">=</span> [base <span class="op">+</span> i <span class="op">*</span> block_size <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>)]</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>sequential_blocks <span class="op">=</span> block_trace(sequential, block_size)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>strided_blocks <span class="op">=</span> block_trace(strided, block_size)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(sequential_blocks)) <span class="op">==</span> <span class="dv">1</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(strided_blocks)) <span class="op">==</span> <span class="dv">8</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"sequential blocks:"</span>, sequential_blocks)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"strided blocks:   "</span>, strided_blocks)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>局部性解释了缓存为什么有效，也解释了它何时失效。流式扫描远大于缓存的数据集具有空间局部性，却几乎没有时间复用；在被强制映射到同一集合的地址之间交替访问，即使缓存总体仍有空闲空间，也会因为冲突破坏局部性。</p>
+</section>
+<section id="cache-blocks-and-address-decomposition" class="level3">
+<h3 class="anchored" data-anchor-id="cache-blocks-and-address-decomposition"><strong>缓存块与地址分解</strong></h3>
+<p>缓存将内存区域划分为固定大小的<strong>块（block）</strong>，也称缓存行（cache line）。一个块表示连续且自然对齐的地址范围，其大小通常是 2 的幂。如果块大小为 <span class="math inline">\(B\)</span> 字节，字节地址 <span class="math inline">\(A\)</span> 属于</p>
+<p><span class="math display">\[
+BlockNumber=\left\lfloor\frac{A}{B}\right\rfloor,
+\qquad
+BlockOffset=A\bmod B.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(A\)</span> 是请求的字节地址。</li>
+<li><span class="math inline">\(B\)</span> 是作为一个整体复制和管理的字节数。</li>
+<li><code>BlockNumber</code> 标识对齐的内存区域。</li>
+<li><code>BlockOffset</code> 标识该区域中的目标字节。</li>
+</ul>
+<p>组相联缓存把数据容量划分为若干集合（set）和路（way）。设数据容量为 <span class="math inline">\(C\)</span> 字节、块大小为 <span class="math inline">\(B\)</span>、每组相联度为 <span class="math inline">\(E\)</span> 路，则集合数为</p>
+<p><span class="math display">\[
+S=\frac{C}{B\times E}.
+\]</span></p>
+<p>当各尺寸均为 2 的幂，且地址宽度为 <span class="math inline">\(m\)</span> 位时，</p>
+<p><span class="math display">\[
+b=\log_2 B,\qquad s=\log_2 S,\qquad t=m-s-b,
+\]</span></p>
+<p>其中 <span class="math inline">\(b\)</span>、<span class="math inline">\(s\)</span>、<span class="math inline">\(t\)</span> 分别是块内偏移、集合索引和标记的位数。本章持续使用的例子为 <span class="math inline">\(C=32\)</span> KiB、<span class="math inline">\(B=64\)</span> 字节、<span class="math inline">\(E=4\)</span>、<span class="math inline">\(m=32\)</span>，因此共有 128 个集合，偏移 6 位、索引 7 位、标记 19 位。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-address-lookup.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="在 32 KiB 四路组相联缓存中，地址 0x1234ABCD 选择集合 47。四个标记并行比较，有效且匹配的路产生命中，偏移 13 再从 64 字节块中选择目标字节。"><img src="assets/cache-address-lookup.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="在 32 KiB 四路组相联缓存中，地址 0x1234ABCD 选择集合 47。四个标记并行比较，有效且匹配的路产生命中，偏移 13 再从 64 字节块中选择目标字节。"></a></p>
+</figure>
+</div>
+<figcaption>在 32 KiB 四路组相联缓存中，地址 0x1234ABCD 选择集合 47。四个标记并行比较，有效且匹配的路产生命中，偏移 13 再从 64 字节块中选择目标字节。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+Python 示例：计算缓存几何参数并分解地址
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> log2</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cache_fields(address, address_bits, capacity_bytes, block_bytes, ways):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回 2 的幂缓存的几何参数与 tag/index/offset 数值。"""</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    sets <span class="op">=</span> capacity_bytes <span class="op">//</span> (block_bytes <span class="op">*</span> ways)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    offset_bits <span class="op">=</span> <span class="bu">int</span>(log2(block_bytes))</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    index_bits <span class="op">=</span> <span class="bu">int</span>(log2(sets))</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    tag_bits <span class="op">=</span> address_bits <span class="op">-</span> index_bits <span class="op">-</span> offset_bits</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    offset <span class="op">=</span> address <span class="op">&amp;</span> (block_bytes <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    index <span class="op">=</span> (address <span class="op">&gt;&gt;</span> offset_bits) <span class="op">&amp;</span> (sets <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    tag <span class="op">=</span> address <span class="op">&gt;&gt;</span> (offset_bits <span class="op">+</span> index_bits)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"sets"</span>: sets,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"tag_bits"</span>: tag_bits,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"index_bits"</span>: index_bits,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="st">"offset_bits"</span>: offset_bits,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"tag"</span>: tag,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"index"</span>: index,</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"offset"</span>: offset,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>fields <span class="op">=</span> cache_fields(</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    address<span class="op">=</span><span class="bn">0x1234ABCD</span>,</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    address_bits<span class="op">=</span><span class="dv">32</span>,</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>    capacity_bytes<span class="op">=</span><span class="dv">32</span> <span class="op">*</span> <span class="dv">1024</span>,</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    block_bytes<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    ways<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> fields <span class="op">==</span> {</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    <span class="st">"sets"</span>: <span class="dv">128</span>,</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tag_bits"</span>: <span class="dv">19</span>,</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>    <span class="st">"index_bits"</span>: <span class="dv">7</span>,</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    <span class="st">"offset_bits"</span>: <span class="dv">6</span>,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tag"</span>: <span class="bn">0x91A5</span>,</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>    <span class="st">"index"</span>: <span class="dv">47</span>,</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="st">"offset"</span>: <span class="dv">13</span>,</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(fields)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>产品所标注的缓存容量通常只统计数据字节，不包括标记、有效位、脏位、纠错位与替换元数据。这些附加结构仍会占用面积和能量，因此提高相联度并不是免费的。</p>
+<section id="tag" class="level4">
+<h4 class="anchored" data-anchor-id="tag"><strong>标记</strong></h4>
+<p><strong>标记（tag）</strong>保存当前占据某一路的内存块高位身份。索引只能选中一个集合，而许多不同内存块都可能映射到该集合；标记用来区分其中究竟保存了哪一个块。</p>
+<p>对于第 <span class="math inline">\(w\)</span> 路，一次读命中在概念上表示为</p>
+<p><span class="math display">\[
+Hit_w=Valid_w\land(Tag_w=RequestedTag).
+\]</span></p>
+<ul>
+<li>复位或失效后，<span class="math inline">\(Valid_w\)</span> 为假，表示该行不包含可用数据块。</li>
+<li><span class="math inline">\(Tag_w\)</span> 是与第 <span class="math inline">\(w\)</span> 路数据块一起保存的身份。</li>
+<li><code>RequestedTag</code> 来自请求地址的高位。</li>
+<li>组相联缓存的命中是各路命中信号的 OR；正常情况下最多只有一个有效路匹配。</li>
+</ul>
+<p>有效位不可省略，因为 SRAM 上电后的任意内容可能碰巧等于请求标记。脏位承担的是另一种职责：它表示写回缓存行中是否含有尚未向下传播的修改。脏状态影响淘汰过程，但不决定目标块是否存在。</p>
+<p>地址更宽或块更小时，标记存储通常会增加；路数更多时，也要并行读取和比较更多标记。设计者可能通过分级比较或预测保护命中延迟，但基本的身份检查不变。</p>
+</section>
+<section id="index" class="level4">
+<h4 class="anchored" data-anchor-id="index"><strong>索引</strong></h4>
+<p><strong>索引（index）</strong>精确选择一个缓存集合。在 2 的幂缓存中，它是紧邻块内偏移上方的一段连续位。等价地，</p>
+<p><span class="math display">\[
+SetIndex=BlockNumber\bmod S.
+\]</span></p>
+<p>在本章示例中，<span class="math inline">\(S=128\)</span>，所以索引 47 会选中集合 47 中的四个标记/数据项；请求块只能位于这四路之一。其他集合无需激活，相比把请求标记与全部缓存行比较，这减少了查找工作。</p>
+<p>索引同时带来了放置限制。块编号相差 <span class="math inline">\(S\)</span> 的整数倍时，它们拥有相同索引；若这些块同时活跃，就会争用同一集合的 <span class="math inline">\(E\)</span> 路，即使其他集合仍为空。这种碰撞会造成冲突未命中。</p>
+<p>索引查找类似数组选择，因此速度很快；但选中的集合必须足够早地就绪，使标记比较和数据选择能装入缓存命中关键路径。第 09 章将解释地址转换如何与该时序交互，本章则有意使用已经确定的缓存地址。</p>
+</section>
+<section id="block-offset" class="level4">
+<h4 class="anchored" data-anchor-id="block-offset"><strong>块内偏移</strong></h4>
+<p><strong>块内偏移（block offset）</strong>由最低的 <span class="math inline">\(b=\log_2B\)</span> 个地址位构成，用来选择匹配块中的某个字节或字，并不决定缓存的是哪一个块。块大小为 64 字节时，偏移为 6 位，范围是 0 到 63。</p>
+<p>地址 <code>0x1234ABCD</code> 的偏移为 13，因此它请求的是以下对齐块起始地址后的第 13 个字节：</p>
+<p><span class="math display">\[
+BlockBase=A-(A\bmod B)=\texttt{0x1234ABC0}.
+\]</span></p>
+<p>缓存可以在标记比较时读取整路数据块或一个存储体，再根据偏移和访问大小选择所需字节。若一条 load 跨越块边界，其字节属于不同标记，甚至不同集合，因而可能需要两次缓存行访问。</p>
+<p>块大小本身存在权衡。更大的块可利用更多空间局部性，并在容量固定时减少标记项数量；但它也会延长传输、在未命中时占用更多带宽、减少能独立保留的块数量，并可能取回永远不会使用的字节。</p>
+</section>
+</section>
+<section id="cache-mapping" class="level3">
+<h3 class="anchored" data-anchor-id="cache-mapping"><strong>缓存映射</strong></h3>
+<p><strong>映射（mapping）</strong>规定一个内存块允许放在缓存的哪些位置。具有 <span class="math inline">\(S\)</span> 个集合、每组 <span class="math inline">\(E\)</span> 路的缓存共有 <span class="math inline">\(S\times E\)</span> 条数据行。每个块先映射到一个集合，再选择该集合中的任意一路。因此，直接映射、组相联和全相联是同一连续设计空间中的不同点，而不是互不相关的结构。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-mapping-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="四行直接映射缓存由四个单路集合组成；两路组相联缓存由两个双路集合组成；全相联缓存则是一个四路集合。相联度越高，放置自由度越大。"><img src="assets/cache-mapping-comparison.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="四行直接映射缓存由四个单路集合组成；两路组相联缓存由两个双路集合组成；全相联缓存则是一个四路集合。相联度越高，放置自由度越大。"></a></p>
+</figure>
+</div>
+<figcaption>四行直接映射缓存由四个单路集合组成；两路组相联缓存由两个双路集合组成；全相联缓存则是一个四路集合。相联度越高，放置自由度越大。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>组织方式</th>
+<th style="text-align: right;">集合数</th>
+<th style="text-align: right;">每组路数</th>
+<th style="text-align: right;">选中集合内的标记比较次数</th>
+<th>替换选择</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>直接映射</td>
+<td style="text-align: right;">行数</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td>无选择，必须使用索引行</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(E\)</span> 路组相联</td>
+<td style="text-align: right;">行数 / <span class="math inline">\(E\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(E\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(E\)</span></td>
+<td>在集合内选择一路</td>
+</tr>
+<tr class="odd">
+<td>全相联</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">总行数</td>
+<td style="text-align: right;">每一行</td>
+<td>可选择任意一行</td>
+</tr>
+</tbody>
+</table>
+<p>提高相联度通常能减少放置冲突，但会增加标记比较、路选择逻辑、替换元数据与能耗。最佳选择取决于访问模式以及该级缓存可接受的延迟预算。</p>
+<section id="direct-mapped-cache" class="level4">
+<h4 class="anchored" data-anchor-id="direct-mapped-cache"><strong>直接映射缓存</strong></h4>
+<p><strong>直接映射缓存</strong>每个集合只有一路。内存块 <span class="math inline">\(n\)</span> 必须使用</p>
+<p><span class="math display">\[
+line=n\bmod L,
+\qquad
+tag=\left\lfloor\frac{n}{L}\right\rfloor,
+\]</span></p>
+<p>其中 <span class="math inline">\(L\)</span> 是缓存行数。它只需一次标记比较，不需要替换策略，因此命中路径短而简单。</p>
+<p>严格放置也会导致来回抖动。在四行缓存中，块 0 与块 4 都映射到行 0；访问序列 <code>0, 4, 0, 4</code> 每次都会未命中，因为每次访问都淘汰下一次所需的块，而第 1 到第 3 行始终闲置。</p>
+<details>
+<summary>
+Python 模型：跟踪直接映射缓存
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> direct_mapped_trace(blocks, line_count):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回每次访问的命中/未命中决策以及最终标记状态。"""</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    tags <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> line_count</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    events <span class="op">=</span> []</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> block <span class="kw">in</span> blocks:</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        line <span class="op">=</span> block <span class="op">%</span> line_count</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        tag <span class="op">=</span> block <span class="op">//</span> line_count</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        hit <span class="op">=</span> tags[line] <span class="op">==</span> tag</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        events.append((block, line, tag, <span class="st">"hit"</span> <span class="cf">if</span> hit <span class="cf">else</span> <span class="st">"miss"</span>))</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> hit:</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>            tags[line] <span class="op">=</span> tag</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> events, tags</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>events, tags <span class="op">=</span> direct_mapped_trace([<span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">0</span>, <span class="dv">4</span>], line_count<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> [event[<span class="op">-</span><span class="dv">1</span>] <span class="cf">for</span> event <span class="kw">in</span> events] <span class="op">==</span> [<span class="st">"miss"</span>] <span class="op">*</span> <span class="dv">4</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> tags <span class="op">==</span> [<span class="dv">1</span>, <span class="va">None</span>, <span class="va">None</span>, <span class="va">None</span>]  <span class="co"># 块 4 最终留在行 0</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="op">*</span>events, sep<span class="op">=</span><span class="st">"</span><span class="ch">\n</span><span class="st">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当短命中时间的收益大于冲突成本时，直接映射仍然很有效，尤其适合容量小、延迟关键的结构或放置行为温和的工作负载。</p>
+</section>
+<section id="set-associative-cache" class="level4">
+<h4 class="anchored" data-anchor-id="set-associative-cache"><strong>组相联缓存</strong></h4>
+<p><strong><span class="math inline">\(E\)</span> 路组相联缓存</strong>允许一个块占据其索引集合中的任意 <span class="math inline">\(E\)</span> 路。两路缓存可以让两个发生索引碰撞的块共存，四路缓存则可以保留四个。集合仍由 <span class="math inline">\(BlockNumber\bmod S\)</span> 选择，所以只需搜索该集合中的路。</p>
+<p>命中时通常并行比较所有路的标记，再由多路选择器选出匹配数据。未命中时优先使用无效路；若所有路均有效，则由替换策略选择牺牲者。本章的 32 KiB 缓存共有 128 个集合、每组四路，因此同样拥有七位索引的四个块可以同时驻留。</p>
+<p>组相联是直接映射的短查找路径与全相联的放置自由之间最常见的折中。相联度越高，冲突未命中通常越少，但收益会递减，而比较器、多路选择器和替换网络的成本持续增加。</p>
+</section>
+<section id="fully-associative-cache" class="level4">
+<h4 class="anchored" data-anchor-id="fully-associative-cache"><strong>全相联缓存</strong></h4>
+<p><strong>全相联缓存</strong>只有一个集合，其中包含全部缓存行，因此不存在索引字段，整个块身份都作为标记。任意新块可放入任意行，所以放置限制不会造成冲突未命中；容量未命中和强制未命中仍然存在。</p>
+<p>代价是必须在所有有效标记中进行关联搜索，并在整个结构中选择替换行。因此，全相联更适合小型结构或特殊缓冲区，而不适合大型一级数据阵列。</p>
+<details>
+<summary>
+Python 模型：比较单路、两路与四路放置
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SetAssociativeCache:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""使用块编号而非字节地址的小型 LRU 缓存模型。"""</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, line_count, ways):</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> line_count <span class="op">%</span> ways <span class="op">!=</span> <span class="dv">0</span>:</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"ways must divide line_count"</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.ways <span class="op">=</span> ways</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.sets <span class="op">=</span> [[] <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(line_count <span class="op">//</span> ways)]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> access(<span class="va">self</span>, block):</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        entries <span class="op">=</span> <span class="va">self</span>.sets[block <span class="op">%</span> <span class="bu">len</span>(<span class="va">self</span>.sets)]</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> block <span class="kw">in</span> entries:</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>            entries.remove(block)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            entries.insert(<span class="dv">0</span>, block)  <span class="co"># 最近使用的块放在最前</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">True</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(entries) <span class="op">==</span> <span class="va">self</span>.ways:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            entries.pop()            <span class="co"># 淘汰最久未使用的块</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        entries.insert(<span class="dv">0</span>, block)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>trace <span class="op">=</span> [<span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">0</span>, <span class="dv">4</span>]</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>misses <span class="op">=</span> {}</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ways, label <span class="kw">in</span> [(<span class="dv">1</span>, <span class="st">"direct"</span>), (<span class="dv">2</span>, <span class="st">"two-way"</span>), (<span class="dv">4</span>, <span class="st">"fully"</span>)]:</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    cache <span class="op">=</span> SetAssociativeCache(line_count<span class="op">=</span><span class="dv">4</span>, ways<span class="op">=</span>ways)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    misses[label] <span class="op">=</span> <span class="bu">sum</span>(<span class="kw">not</span> cache.access(block) <span class="cf">for</span> block <span class="kw">in</span> trace)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> misses <span class="op">==</span> {<span class="st">"direct"</span>: <span class="dv">4</span>, <span class="st">"two-way"</span>: <span class="dv">2</span>, <span class="st">"fully"</span>: <span class="dv">2</span>}</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(misses)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>无论采用哪种组织，两块所表示的数据完全相同。相联度只改变它们能否同时驻留，以及查找这些副本需要多少硬件。</p>
+</section>
+</section>
+<section id="replacement-policies" class="level3">
+<h3 class="anchored" data-anchor-id="replacement-policies"><strong>替换策略</strong></h3>
+<p>当一次未命中选中了已经填满的集合时，<strong>替换策略（replacement policy）</strong>决定淘汰哪条有效缓存行。直接映射缓存没有选择，索引行就是唯一牺牲者；相联缓存若存在无效路，会首先使用它，因为填充空闲位置不会丢失任何已缓存数据。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-replacement-policies.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="对于三路集合中的访问序列 A、B、C、A、D，LRU 淘汰 B，FIFO 淘汰 A，而随机策略可以选择任意一路。命中会更新 LRU 的新近程度，但不会改变 FIFO 的插入顺序。"><img src="assets/cache-replacement-policies.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="对于三路集合中的访问序列 A、B、C、A、D，LRU 淘汰 B，FIFO 淘汰 A，而随机策略可以选择任意一路。命中会更新 LRU 的新近程度，但不会改变 FIFO 的插入顺序。"></a></p>
+</figure>
+</div>
+<figcaption>对于三路集合中的访问序列 A、B、C、A、D，LRU 淘汰 B，FIFO 淘汰 A，而随机策略可以选择任意一路。命中会更新 LRU 的新近程度，但不会改变 FIFO 的插入顺序。</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>策略</th>
+<th>使用的状态</th>
+<th>直觉</th>
+<th>局限</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>LRU</td>
+<td>最近使用顺序</td>
+<td>最近使用的块可能很快再次使用</td>
+<td>路数较多时，精确维护成本高</td>
+</tr>
+<tr class="even">
+<td>伪 LRU</td>
+<td>压缩的方向位或状态位</td>
+<td>用较少硬件近似 LRU</td>
+<td>可能选择并非最久未使用的牺牲者</td>
+</tr>
+<tr class="odd">
+<td>FIFO</td>
+<td>插入顺序</td>
+<td>移除最早进入的驻留块</td>
+<td>命中时不考虑复用</td>
+</tr>
+<tr class="even">
+<td>随机</td>
+<td>伪随机路号</td>
+<td>避免顺序元数据和系统性模式</td>
+<td>可能淘汰热点行</td>
+</tr>
+<tr class="odd">
+<td>最优/Belady</td>
+<td>未来访问序列</td>
+<td>淘汰未来最晚才会使用的块</td>
+<td>在线实现不可能，只能用作理论上界</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 示例：在同一集合访问序列上比较 LRU 与 FIFO
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> replacement_trace(accesses, capacity, policy):</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回每次访问后的驻留顺序和被淘汰块。"""</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    resident <span class="op">=</span> deque()</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    events <span class="op">=</span> []</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> block <span class="kw">in</span> accesses:</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        evicted <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        hit <span class="op">=</span> block <span class="kw">in</span> resident</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> hit <span class="kw">and</span> policy <span class="op">==</span> <span class="st">"LRU"</span>:</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>            resident.remove(block)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>            resident.appendleft(block)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> <span class="kw">not</span> hit:</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(resident) <span class="op">==</span> capacity:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>                evicted <span class="op">=</span> resident.pop()</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>            resident.appendleft(block)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>        events.append((block, hit, evicted, <span class="bu">tuple</span>(resident)))</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> events</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>trace <span class="op">=</span> <span class="bu">list</span>(<span class="st">"ABCAD"</span>)</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>lru <span class="op">=</span> replacement_trace(trace, capacity<span class="op">=</span><span class="dv">3</span>, policy<span class="op">=</span><span class="st">"LRU"</span>)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>fifo <span class="op">=</span> replacement_trace(trace, capacity<span class="op">=</span><span class="dv">3</span>, policy<span class="op">=</span><span class="st">"FIFO"</span>)</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> lru[<span class="op">-</span><span class="dv">1</span>][<span class="dv">2</span>] <span class="op">==</span> <span class="st">"B"</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> fifo[<span class="op">-</span><span class="dv">1</span>][<span class="dv">2</span>] <span class="op">==</span> <span class="st">"A"</span></span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"LRU final:"</span>, lru[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"FIFO final:"</span>, fifo[<span class="op">-</span><span class="dv">1</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>替换本质上是一项预测任务：控制器试图保留那些在下一次淘汰机会到来前仍有价值的块。没有任何在线策略能在所有访问模式中占优，所以实现成本和工作负载行为与策略名称同样重要。</p>
+</section>
+<section id="write-policies" class="level3">
+<h3 class="anchored" data-anchor-id="write-policies"><strong>写策略</strong></h3>
+<p>load 只需找到当前数据副本；store 则带来另一项责任：存储层次必须决定现在修改哪个副本、何时把新值送到下层，以及目标块缺失时如何处理。两个相互独立的策略维度分别回答这些问题。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-write-policies.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="写直达与写回决定命中后的更新如何传播；写分配与非写分配决定 store 未命中时是否把数据块装入缓存。"><img src="assets/cache-write-policies.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="写直达与写回决定命中后的更新如何传播；写分配与非写分配决定 store 未命中时是否把数据块装入缓存。"></a></p>
+</figure>
+</div>
+<figcaption>写直达与写回决定命中后的更新如何传播；写分配与非写分配决定 store 未命中时是否把数据块装入缓存。</figcaption>
+</figure>
+</div>
+</div>
+<p>即使 store 只改变一个字节，策略仍按数据块管理。字节使能信号负责更新缓存行中的选定字节；写回缓存必须保留其余字节，并最终把整个块或硬件支持的部分更新传送到下一级。</p>
+<section id="write-through-and-write-back" class="level4">
+<h4 class="anchored" data-anchor-id="write-through-and-write-back"><strong>写直达与写回</strong></h4>
+<p>采用<strong>写直达（write-through）</strong>时，每次 store 命中都会同时更新当前缓存和下一级，因此下层能及时收到修改，缓存行也不会仅因为这次 store 而需要在淘汰时写回。代价是每条 store 都会产生下层流量。写缓冲区可以让流水线与一部分写延迟解耦，但缓冲区一旦填满，仍会迫使流水线停顿。</p>
+<p>采用<strong>写回（write-back）</strong>时，store 命中只更新当前缓存行并设置脏位，下层内存可暂时保留旧值。当脏行被淘汰时，缓存先把它写到下一级，再安装替换块。因此，对同一驻留行的多次 store 可以合并为一次写回传输。</p>
+<p><span class="math display">\[
+EvictionCost=
+\begin{cases}
+WriteBlock+ReadReplacement, &amp; dirty=1,\\
+ReadReplacement, &amp; dirty=0.
+\end{cases}
+\]</span></p>
+<p>这些项表示传输操作，而不是通用的固定周期数；实际延迟取决于下层队列、带宽以及写操作能否与读操作重叠。</p>
+<details>
+<summary>
+Python 模型：比较写直达与写回处理重复 store 的流量
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> repeated_store_traffic(store_count, policy, evict_after<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""统计对同一驻留行重复命中时产生的下层写次数。"""</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    dirty <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    lower_writes <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(store_count):</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"write-through"</span>:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            lower_writes <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> policy <span class="op">==</span> <span class="st">"write-back"</span>:</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>            dirty <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"unknown policy"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> policy <span class="op">==</span> <span class="st">"write-back"</span> <span class="kw">and</span> dirty <span class="kw">and</span> evict_after:</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        lower_writes <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        dirty <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> lower_writes, dirty</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> repeated_store_traffic(<span class="dv">3</span>, <span class="st">"write-through"</span>) <span class="op">==</span> (<span class="dv">3</span>, <span class="va">False</span>)</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> repeated_store_traffic(<span class="dv">3</span>, <span class="st">"write-back"</span>) <span class="op">==</span> (<span class="dv">1</span>, <span class="va">False</span>)</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"three stores: 3 lower writes versus 1 write-back on eviction"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>写回减少了流量，却也让脏行状态成为正确性的一部分。故障、冲刷、一致性请求或缓存块管理操作都不能悄悄丢弃系统中唯一的最新副本。</p>
+</section>
+<section id="write-allocate-and-no-write-allocate" class="level4">
+<h4 class="anchored" data-anchor-id="write-allocate-and-no-write-allocate"><strong>写分配与非写分配</strong></h4>
+<p>store 未命中时，<strong>写分配（write-allocate）</strong>会读取包含目标地址的数据块，将其安装到缓存，再执行 store。它需要支付类似“读以获得所有权”的未命中成本，但之后对同一块或邻近字节的访问很可能命中。当 store 具有局部性时，它自然适合与写回组合。</p>
+<p><strong>非写分配（no-write-allocate）</strong>也称写绕过（write-around），会把 store 直接发送到下一级，而不把缺失块装入当前缓存。对于只写一次的流式输出，这能避免缓存被无复用价值的数据污染；但之后对同一地址的 load 仍会未命中，除非其他机制已经把块带入。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>未命中后的预期行为</th>
+<th>更适合的倾向</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>重复 store 或读取邻近字节</td>
+<td>写分配保留该块</td>
+</tr>
+<tr class="even">
+<td>单次流式输出</td>
+<td>非写分配避免缓存污染</td>
+</tr>
+<tr class="odd">
+<td>写回缓存中的部分字节 store</td>
+<td>先分配，以正确保留未修改字节</td>
+</tr>
+<tr class="even">
+<td>写缓冲带宽充足</td>
+<td>写直达/非写分配更容易承受</td>
+</tr>
+</tbody>
+</table>
+<p>写直达配合非写分配、写回配合写分配是常见组合，但不是体系结构定律。不同缓存层级可以采用不同策略，专门的非临时操作也可请求面向流式数据的行为。</p>
+</section>
+</section>
+<section id="cache-misses" class="level3">
+<h3 class="anchored" data-anchor-id="cache-misses"><strong>缓存未命中</strong></h3>
+<p>当选中集合中存在有效且标记匹配的缓存行时，访问<strong>命中（hit）</strong>；若请求块不在该缓存中，则发生<strong>未命中（miss）</strong>，请求必须继续向下。未命中惩罚可能包括下层查找、写回脏牺牲行、传输新块、安装缓存行，以及重新启动等待中的访问。</p>
+<p>经典的 <strong>3C 模型</strong>通过把目标缓存与若干理想参考缓存比较，将未命中按原因分类。不同类别对应不同原因，也提示不同的改进方法。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-miss-three-c.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="首次引用属于强制未命中；工作集大于同等容量全相联缓存时产生容量未命中；集合放置受限则产生冲突未命中。"><img src="assets/cache-miss-three-c.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="首次引用属于强制未命中；工作集大于同等容量全相联缓存时产生容量未命中；集合放置受限则产生冲突未命中。"></a></p>
+</figure>
+</div>
+<figcaption>首次引用属于强制未命中；工作集大于同等容量全相联缓存时产生容量未命中；集合放置受限则产生冲突未命中。</figcaption>
+</figure>
+</div>
+<p>这个分类是一种分析概念，不是普通缓存硬件为每次访问保存的字段。性能工具或模拟器会记录首次访问，并比较不同组织方式，从而对访问序列分类。</p>
+<section id="compulsory-misses" class="level4">
+<h4 class="anchored" data-anchor-id="compulsory-misses"><strong>强制未命中</strong></h4>
+<p><strong>强制未命中（compulsory miss）</strong>也称冷未命中，是测量期间第一次访问某个块。任何初始为空的缓存都不可能预先包含它。块被取回后，只要放置与替换策略没有过早淘汰它，后续访问就可能命中。</p>
+<p>如果程序很快访问邻近字节，更大的块可使一次强制传输覆盖多个后续请求，从而减少需求未命中次数；代价是更多带宽、更长填充时间与更少的独立缓存行。硬件或软件预取能让传输早于实际需求发生，把可见延迟转化为推测流量，但并未让第一次传输凭空消失。</p>
+<p>强制未命中还取决于测量边界。热缓存可能保留先前执行留下的块，而冷缓存实验会有意从空状态开始；有意义的比较必须说明采用哪一种初始条件。</p>
+</section>
+<section id="capacity-misses" class="level4">
+<h4 class="anchored" data-anchor-id="capacity-misses"><strong>容量未命中</strong></h4>
+<p>当总活跃工作集超过缓存容量时，就产生<strong>容量未命中（capacity miss）</strong>。在行数、块大小和参考替换策略相同的全相联缓存中，它仍然会发生；增加放置自由也无济于事，因为有价值的不同块数量超过了总行数。</p>
+<p>访问序列 <code>A, B, C, D, A</code> 在三行全相联缓存中，最后一次访问 <code>A</code> 就是容量未命中：复用前已有四个不同块进入活跃集合。只增加相联度而不增加缓存行，无法让四个块同时容纳。</p>
+<p>增大数据容量、缩短复用距离，或每次只处理更小工作集，都能减少容量未命中。循环分块是典型的软件方法：先在一块适合缓存的区域上完成更多工作，再移动到下一块区域。</p>
+</section>
+<section id="conflict-misses" class="level4">
+<h4 class="anchored" data-anchor-id="conflict-misses"><strong>冲突未命中</strong></h4>
+<p><strong>冲突未命中（conflict miss）</strong>源于目标缓存的集合放置限制：一个仍有价值的块被迫淘汰，而在总容量相同的全相联缓存中它本可继续保留。直接映射序列 <code>0, 4, 0, 4</code> 主要由冲突导致，因为两个块都坚持使用行 0，而其他行保持空闲。</p>
+<p>更高相联度、牺牲缓存、替代索引方式或改变数据对齐都可以减少冲突。增加总容量有时也会改变索引位，顺带分离碰撞地址，但冲突未命中的定义性原因是放置限制，而不是总行数不足。</p>
+<details>
+<summary>
+Python 模型：使用 3C 方法分类访问序列
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LRUBlockCache:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, line_count, ways):</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.ways <span class="op">=</span> ways</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.sets <span class="op">=</span> [[] <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(line_count <span class="op">//</span> ways)]</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> access(<span class="va">self</span>, block):</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        entries <span class="op">=</span> <span class="va">self</span>.sets[block <span class="op">%</span> <span class="bu">len</span>(<span class="va">self</span>.sets)]</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        hit <span class="op">=</span> block <span class="kw">in</span> entries</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> hit:</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>            entries.remove(block)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">elif</span> <span class="bu">len</span>(entries) <span class="op">==</span> <span class="va">self</span>.ways:</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>            entries.pop()</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        entries.insert(<span class="dv">0</span>, block)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> hit</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> classify_3c(trace, line_count, target_ways):</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""把目标缓存与同容量全相联 LRU 缓存进行比较。"""</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    target <span class="op">=</span> LRUBlockCache(line_count, target_ways)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    fully_associative <span class="op">=</span> LRUBlockCache(line_count, line_count)</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    seen <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    counts <span class="op">=</span> {<span class="st">"compulsory"</span>: <span class="dv">0</span>, <span class="st">"capacity"</span>: <span class="dv">0</span>, <span class="st">"conflict"</span>: <span class="dv">0</span>}</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> block <span class="kw">in</span> trace:</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        target_hit <span class="op">=</span> target.access(block)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>        full_hit <span class="op">=</span> fully_associative.access(block)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> target_hit:</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> block <span class="kw">not</span> <span class="kw">in</span> seen:</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>                counts[<span class="st">"compulsory"</span>] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">elif</span> <span class="kw">not</span> full_hit:</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>                counts[<span class="st">"capacity"</span>] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>                counts[<span class="st">"conflict"</span>] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        seen.add(block)</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> counts</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>trace <span class="op">=</span> [<span class="dv">0</span>, <span class="dv">4</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">0</span>]</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>counts <span class="op">=</span> classify_3c(trace, line_count<span class="op">=</span><span class="dv">4</span>, target_ways<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> counts <span class="op">==</span> {<span class="st">"compulsory"</span>: <span class="dv">5</span>, <span class="st">"capacity"</span>: <span class="dv">2</span>, <span class="st">"conflict"</span>: <span class="dv">1</span>}</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(counts)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>在多核系统中，另一个核心使缓存行失效还会产生一致性未命中，这个第四类原因将在第 11 章讨论。本章的 3C 模型只描述没有一致性失效的单一请求流。</p>
+</section>
+</section>
+<section id="average-memory-access-time" class="level3">
+<h3 class="anchored" data-anchor-id="average-memory-access-time"><strong>平均存储访问时间</strong></h3>
+<p><strong>平均存储访问时间（Average Memory Access Time, AMAT）</strong>把快速命中路径与较慢未命中路径合并为一个期望值。当“未命中惩罚”表示完成缓存命中检查后新增的时间时，</p>
+<p><span class="math display">\[
+AMAT=T_{hit}+r_m\times P_m.
+\]</span></p>
+<ul>
+<li><span class="math inline">\(T_{hit}\)</span> 是每次访问都要支付的时间，包括选择集合、比较标记以及命中后返回数据。</li>
+<li><span class="math inline">\(r_m\)</span> 是未命中率，即在当前缓存未命中的访问比例。</li>
+<li><span class="math inline">\(P_m\)</span> 是确认未命中后额外支付的平均惩罚。</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/amat-access-tree.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="每个请求都要支付命中时间；其中比例等于未命中率的请求，还要额外支付下层惩罚，流水线之后才能使用数据。"><img src="assets/amat-access-tree.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="每个请求都要支付命中时间；其中比例等于未命中率的请求，还要额外支付下层惩罚，流水线之后才能使用数据。"></a></p>
+</figure>
+</div>
+<figcaption>每个请求都要支付命中时间；其中比例等于未命中率的请求，还要额外支付下层惩罚，流水线之后才能使用数据。</figcaption>
+</figure>
+</div>
+<p>若命中时间为 1 ns、未命中率为 5%、额外惩罚为 60 ns，则</p>
+<p><span class="math display">\[
+AMAT=1+0.05\times60=4\text{ ns}.
+\]</span></p>
+<p>即使 95% 的访问只需 1 ns，少量长路径仍为平均值增加了 3 ns。这说明，当未命中惩罚很大时，未命中率的微小变化也可能非常重要。</p>
+<p>另一种约定把 <span class="math inline">\(T_{miss,total}\)</span> 定义为一次未命中的完整时间，其中包含最初的缓存检查：</p>
+<p><span class="math display">\[
+AMAT=(1-r_m)T_{hit}+r_mT_{miss,total}.
+\]</span></p>
+<p>只要定义一致，两种公式完全等价；若把完整未命中时间代入第一个公式，就会重复计算或遗漏一部分工作。</p>
+<details>
+<summary>
+Python 示例：把 AMAT 与流水线 CPI 联系起来
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> amat(hit_time, miss_rate, additional_miss_penalty):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> hit_time <span class="op">+</span> miss_rate <span class="op">*</span> additional_miss_penalty</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> memory_stall_cpi(</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    base_cpi,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    instruction_miss_rate,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    instruction_penalty_cycles,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    data_accesses_per_instruction,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    data_miss_rate,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    data_penalty_cycles,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""假设各类未命中惩罚不重叠的一阶 CPI 模型。"""</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    instruction_stalls <span class="op">=</span> instruction_miss_rate <span class="op">*</span> instruction_penalty_cycles</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    data_stalls <span class="op">=</span> data_accesses_per_instruction <span class="op">*</span> data_miss_rate <span class="op">*</span> data_penalty_cycles</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> base_cpi <span class="op">+</span> instruction_stalls <span class="op">+</span> data_stalls</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> amat(<span class="fl">1.0</span>, <span class="fl">0.05</span>, <span class="fl">60.0</span>) <span class="op">==</span> <span class="fl">4.0</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>cpi <span class="op">=</span> memory_stall_cpi(</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    base_cpi<span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    instruction_miss_rate<span class="op">=</span><span class="fl">0.01</span>,</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    instruction_penalty_cycles<span class="op">=</span><span class="dv">40</span>,</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    data_accesses_per_instruction<span class="op">=</span><span class="fl">0.30</span>,</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    data_miss_rate<span class="op">=</span><span class="fl">0.04</span>,</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    data_penalty_cycles<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(cpi, <span class="dv">2</span>) <span class="op">==</span> <span class="fl">2.00</span></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"AMAT = </span><span class="sc">{</span>amat(<span class="fl">1.0</span>, <span class="fl">0.05</span>, <span class="fl">60.0</span>)<span class="sc">:.2f}</span><span class="ss"> ns; CPI = </span><span class="sc">{</span>cpi<span class="sc">:.2f}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>CPI 公式直接连接到第 07 章：指令缓存未命中会使 IF 断粮，load 未命中则会延迟依赖指令所需的数据。现代处理器可以重叠多个未命中并继续独立工作，因此这个加法模型是一阶估计，而不是周期精确描述。</p>
+</section>
+<section id="multi-level-caches" class="level3">
+<h3 class="anchored" data-anchor-id="multi-level-caches"><strong>多级缓存</strong></h3>
+<p>单个缓存难以同时兼顾短命中时间与低未命中率。<strong>多级缓存层次</strong>使用较小的 L1 保护最短常见路径，再用容量更大的下层缓存拦截未命中，避免它们直接到达 DRAM。L1 通常分为指令和数据缓存，使 IF 与 MEM 能并发访问不同阵列，也消除了第 07 章介绍的结构冲突。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multi-level-cache-path.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="取指检查 L1I，数据访问检查 L1D；未命中继续前往 L2、末级缓存与 DRAM，返回的数据块沿路径填充并送回请求者。"><img src="assets/multi-level-cache-path.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="取指检查 L1I，数据访问检查 L1D；未命中继续前往 L2、末级缓存与 DRAM，返回的数据块沿路径填充并送回请求者。"></a></p>
+</figure>
+</div>
+<figcaption>取指检查 L1I，数据访问检查 L1D；未命中继续前往 L2、末级缓存与 DRAM，返回的数据块沿路径填充并送回请求者。</figcaption>
+</figure>
+</div>
+</div>
+<p>对于两级缓存，若 L2 未命中率采用只在 L1 未命中请求中统计的<strong>局部未命中率</strong>，则</p>
+<p><span class="math display">\[
+AMAT=T_{L1}+MR_{L1}\left(T_{L2}+MR_{L2|L1miss}\times P_{mem}\right).
+\]</span></p>
+<ul>
+<li>每个请求都要支付 <span class="math inline">\(T_{L1}\)</span>。</li>
+<li><span class="math inline">\(MR_{L1}\)</span> 是所有请求中到达 L2 的比例。</li>
+<li><span class="math inline">\(T_{L2}\)</span> 是 L1 未命中后额外的 L2 查找时间。</li>
+<li><span class="math inline">\(MR_{L2|L1miss}\)</span> 是所有 L2 查找中仍然未命中的比例。</li>
+<li><span class="math inline">\(P_{mem}\)</span> 是 L2 未命中后额外的下层存储惩罚。</li>
+</ul>
+<p>所有请求中最终到达主存的全局比例为</p>
+<p><span class="math display">\[
+MR_{L2,global}=MR_{L1}\times MR_{L2|L1miss}.
+\]</span></p>
+<p>混淆局部未命中率和全局未命中率，是 AMAT 计算中非常常见的错误。</p>
+<details>
+<summary>
+Python 示例：递归计算多级 AMAT
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multilevel_amat(l1_time, l1_miss_rate, l2_time, local_l2_miss_rate, memory_penalty):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""每一级下层时间都表示确认上一级未命中后的额外时间。"""</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    l1_miss_service <span class="op">=</span> l2_time <span class="op">+</span> local_l2_miss_rate <span class="op">*</span> memory_penalty</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    average <span class="op">=</span> l1_time <span class="op">+</span> l1_miss_rate <span class="op">*</span> l1_miss_service</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    global_memory_rate <span class="op">=</span> l1_miss_rate <span class="op">*</span> local_l2_miss_rate</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> average, global_memory_rate</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>average, memory_rate <span class="op">=</span> multilevel_amat(</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    l1_time<span class="op">=</span><span class="fl">1.0</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    l1_miss_rate<span class="op">=</span><span class="fl">0.08</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    l2_time<span class="op">=</span><span class="fl">4.0</span>,</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    local_l2_miss_rate<span class="op">=</span><span class="fl">0.15</span>,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    memory_penalty<span class="op">=</span><span class="fl">80.0</span>,</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(average, <span class="dv">2</span>) <span class="op">==</span> <span class="fl">2.28</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">round</span>(memory_rate, <span class="dv">3</span>) <span class="op">==</span> <span class="fl">0.012</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"AMAT=</span><span class="sc">{</span>average<span class="sc">:.2f}</span><span class="ss"> ns, requests reaching memory=</span><span class="sc">{</span>memory_rate<span class="sc">:.1%}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>多个层级还要规定副本之间的关系。包容式层次保证上层块也存在于下层；排他式层次让不同级保存互不重叠的数据，以扩大总容量；非包容非排他设计则不提供简单保证。这些选择会影响淘汰、一致性与可用容量，但不会改变逐级查找的基本依赖关系。</p>
+<p>未命中填充时，可以优先返回请求所需的关键字节，使流水线在整块传完前恢复。非阻塞缓存还能跟踪尚未完成的未命中，并继续服务彼此独立的命中。它们通过重叠工作降低有效惩罚，但不会把未命中变成命中。</p>
+</section>
+<section id="cache-aware-program-behavior" class="level3">
+<h3 class="anchored" data-anchor-id="cache-aware-program-behavior"><strong>缓存感知的程序行为</strong></h3>
+<p>缓存对普通软件通常透明，但软件决定了地址访问序列。两个算术复杂度相同的实现，可能产生截然不同的数据块复用行为。缓存感知编程的目标是改善局部性，而不是依赖某一时刻缓存中恰好保存的内容。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cache-aware-access-patterns.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="对于按行存储的矩阵，逐行遍历连续使用邻近元素，逐列遍历具有较大步长，而分块会让一个较小二维区域在完成复用前保持活跃。"><img src="assets/cache-aware-access-patterns.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" alt="对于按行存储的矩阵，逐行遍历连续使用邻近元素，逐列遍历具有较大步长，而分块会让一个较小二维区域在完成复用前保持活跃。"></a></p>
+</figure>
+</div>
+<figcaption>对于按行存储的矩阵，逐行遍历连续使用邻近元素，逐列遍历具有较大步长，而分块会让一个较小二维区域在完成复用前保持活跃。</figcaption>
+</figure>
+</div>
+</div>
+<p>常见变换包括：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>变换</th>
+<th>对局部性的影响</th>
+<th>重要注意事项</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>按存储顺序遍历</td>
+<td>使用每个块中的相邻元素</td>
+<td>连续维度由语言和数据布局决定</td>
+</tr>
+<tr class="even">
+<td>循环分块</td>
+<td>在小区域内完成工作，缩短复用距离</td>
+<td>分块仍要与其他活跃数据共享缓存容量</td>
+</tr>
+<tr class="odd">
+<td>紧凑存放相关字段</td>
+<td>共同使用的字节落入更少块</td>
+<td>不使用的字段可能浪费带宽</td>
+</tr>
+<tr class="even">
+<td>数组结构（SoA）</td>
+<td>向量化操作只流式读取所需字段</td>
+<td>对需要完整记录的代码可能不利</td>
+</tr>
+<tr class="odd">
+<td>对齐或填充对象</td>
+<td>可消除病态的集合冲突</td>
+<td>额外填充会消耗容量</td>
+</tr>
+<tr class="even">
+<td>预取</td>
+<td>重叠可预测的强制传输</td>
+<td>过早或无用预取浪费容量与带宽</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+Python 模型：统计逐行、逐列和分块遍历的未命中次数
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DirectMappedByteCache:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, capacity_bytes, block_bytes):</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.block_bytes <span class="op">=</span> block_bytes</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tags <span class="op">=</span> [<span class="va">None</span>] <span class="op">*</span> (capacity_bytes <span class="op">//</span> block_bytes)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.misses <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> access(<span class="va">self</span>, address):</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        block <span class="op">=</span> address <span class="op">//</span> <span class="va">self</span>.block_bytes</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        line <span class="op">=</span> block <span class="op">%</span> <span class="bu">len</span>(<span class="va">self</span>.tags)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        tag <span class="op">=</span> block <span class="op">//</span> <span class="bu">len</span>(<span class="va">self</span>.tags)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.tags[line] <span class="op">!=</span> tag:</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.misses <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.tags[line] <span class="op">=</span> tag</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> matrix_addresses(n, order, tile<span class="op">=</span><span class="dv">8</span>, element_bytes<span class="op">=</span><span class="dv">8</span>):</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> address(i, j):</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> (i <span class="op">*</span> n <span class="op">+</span> j) <span class="op">*</span> element_bytes  <span class="co"># 按行存储</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> order <span class="op">==</span> <span class="st">"row"</span>:</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n):</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(n):</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>                <span class="cf">yield</span> address(i, j)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> order <span class="op">==</span> <span class="st">"column"</span>:</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(n):</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n):</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>                <span class="cf">yield</span> address(i, j)</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> order <span class="op">==</span> <span class="st">"tiled-column"</span>:</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 保留按列处理的工作顺序，但一次完成一个小分块。</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> jj <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, n, tile):</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> ii <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, n, tile):</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(jj, <span class="bu">min</span>(jj <span class="op">+</span> tile, n)):</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(ii, <span class="bu">min</span>(ii <span class="op">+</span> tile, n)):</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">yield</span> address(i, j)</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"unknown order"</span>)</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> miss_count(order):</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>    cache <span class="op">=</span> DirectMappedByteCache(capacity_bytes<span class="op">=</span><span class="dv">4</span> <span class="op">*</span> <span class="dv">1024</span>, block_bytes<span class="op">=</span><span class="dv">64</span>)</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> address <span class="kw">in</span> matrix_addresses(<span class="dv">64</span>, order):</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>        cache.access(address)</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> cache.misses</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>misses <span class="op">=</span> {order: miss_count(order) <span class="cf">for</span> order <span class="kw">in</span> [<span class="st">"row"</span>, <span class="st">"column"</span>, <span class="st">"tiled-column"</span>]}</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> misses <span class="op">==</span> {<span class="st">"row"</span>: <span class="dv">512</span>, <span class="st">"column"</span>: <span class="dv">4096</span>, <span class="st">"tiled-column"</span>: <span class="dv">512</span>}</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(misses)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>该模型有意省略相联度、预取、多级缓存与访问重叠，让地址顺序的影响更加清晰。真实测量应使用有代表性的输入规模和硬件性能计数器，而不能假设所有机器具有相同缓存几何结构。</p>
+<p>缓存优化首先必须保持程序正确性和可维护性。测量后再优化热点循环，通常比在没有证据时全局复杂化数据布局更有价值。最持久的思维方式是从数据块、工作集、复用距离和访问顺序出发分析程序。</p>
+<p><strong>本章总结。</strong> 存储层次把小而快的上层与大而慢的下层组合起来，因为没有单一技术可以同时提供最低延迟、最大容量、最高带宽与最低成本。时间局部性奖励保留近期使用的数据块，空间局部性则奖励一次传输邻近字节。缓存把地址分解为标记、集合索引和块内偏移：有效且匹配的标记决定命中，索引限制放置位置，偏移选择块内字节。直接映射最小化查找硬件，组相联平衡冲突和成本，全相联提供最大放置自由。替换策略预测哪个驻留块最不值得保留；写直达与写回决定更新何时向下传播，写分配与非写分配决定 store 未命中时是否装入缓存。3C 模型区分强制、容量和冲突未命中。AMAT 按概率加权命中时间与未命中惩罚，而存储停顿把层次结构直接连接到流水线 CPI。多级缓存保护 L1 命中路径并过滤 DRAM 流量；遍历顺序、分块、布局、对齐和预取则能在不改变数学结果的前提下改善局部性。第 09 章将加入虚拟地址、页表和 TLB，并把地址转换与本章的缓存查找路径连接起来。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","descPosition":"bottom","closeEffect":"zoom","loop":false});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

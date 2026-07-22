@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机组成与体系结构：并行性与多核系统</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="11-parallelism-and-multicore_files/libs/clipboard/clipboard.min.js"></script>
+<script src="11-parallelism-and-multicore_files/libs/quarto-html/quarto.js"></script>
+<script src="11-parallelism-and-multicore_files/libs/quarto-html/popper.min.js"></script>
+<script src="11-parallelism-and-multicore_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="11-parallelism-and-multicore_files/libs/quarto-html/anchor.min.js"></script>
+<link href="11-parallelism-and-multicore_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="11-parallelism-and-multicore_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="11-parallelism-and-multicore_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="11-parallelism-and-multicore_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="11-parallelism-and-multicore_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="11-parallelism-and-multicore_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="11-parallelism-and-multicore_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="11-parallelism-and-multicore_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="assets/computer-organization.css">
+<link rel="stylesheet" href="/ipynb/blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#parallelism-and-multicore-systems" id="toc-parallelism-and-multicore-systems" class="nav-link active" data-scroll-target="#parallelism-and-multicore-systems"><strong>并行性与多核系统</strong></a>
+  <ul>
+  <li><a href="#why-hardware-uses-parallelism" id="toc-why-hardware-uses-parallelism" class="nav-link" data-scroll-target="#why-hardware-uses-parallelism"><strong>硬件为什么使用并行性</strong></a></li>
+  <li><a href="#forms-of-parallelism" id="toc-forms-of-parallelism" class="nav-link" data-scroll-target="#forms-of-parallelism"><strong>并行性的形式</strong></a>
+  <ul>
+  <li><a href="#instruction-level-parallelism" id="toc-instruction-level-parallelism" class="nav-link" data-scroll-target="#instruction-level-parallelism"><strong>指令级并行</strong></a></li>
+  <li><a href="#data-level-parallelism" id="toc-data-level-parallelism" class="nav-link" data-scroll-target="#data-level-parallelism"><strong>数据级并行</strong></a></li>
+  <li><a href="#thread-level-parallelism" id="toc-thread-level-parallelism" class="nav-link" data-scroll-target="#thread-level-parallelism"><strong>线程级并行</strong></a></li>
+  </ul></li>
+  <li><a href="#flynns-taxonomy" id="toc-flynns-taxonomy" class="nav-link" data-scroll-target="#flynns-taxonomy"><strong>Flynn 分类法</strong></a></li>
+  <li><a href="#simd-and-vector-processing" id="toc-simd-and-vector-processing" class="nav-link" data-scroll-target="#simd-and-vector-processing"><strong>SIMD 与向量处理</strong></a></li>
+  <li><a href="#hardware-multithreading-and-multicore-processors" id="toc-hardware-multithreading-and-multicore-processors" class="nav-link" data-scroll-target="#hardware-multithreading-and-multicore-processors"><strong>硬件多线程与多核处理器</strong></a></li>
+  <li><a href="#shared-memory-multiprocessors" id="toc-shared-memory-multiprocessors" class="nav-link" data-scroll-target="#shared-memory-multiprocessors"><strong>共享内存多处理器</strong></a></li>
+  <li><a href="#cache-coherence" id="toc-cache-coherence" class="nav-link" data-scroll-target="#cache-coherence"><strong>缓存一致性</strong></a>
+  <ul>
+  <li><a href="#the-coherence-problem" id="toc-the-coherence-problem" class="nav-link" data-scroll-target="#the-coherence-problem"><strong>一致性问题</strong></a></li>
+  <li><a href="#snooping-and-directory-protocols" id="toc-snooping-and-directory-protocols" class="nav-link" data-scroll-target="#snooping-and-directory-protocols"><strong>监听协议与目录协议</strong></a></li>
+  <li><a href="#mesi-intuition" id="toc-mesi-intuition" class="nav-link" data-scroll-target="#mesi-intuition"><strong>MESI 直觉</strong></a></li>
+  </ul></li>
+  <li><a href="#memory-consistency" id="toc-memory-consistency" class="nav-link" data-scroll-target="#memory-consistency"><strong>内存一致性模型</strong></a></li>
+  <li><a href="#hardware-support-for-synchronization" id="toc-hardware-support-for-synchronization" class="nav-link" data-scroll-target="#hardware-support-for-synchronization"><strong>同步的硬件支持</strong></a></li>
+  <li><a href="#gpus-and-domain-specific-accelerators" id="toc-gpus-and-domain-specific-accelerators" class="nav-link" data-scroll-target="#gpus-and-domain-specific-accelerators"><strong>GPU 与领域专用加速器</strong></a></li>
+  <li><a href="#scalability-and-parallel-speedup" id="toc-scalability-and-parallel-speedup" class="nav-link" data-scroll-target="#scalability-and-parallel-speedup"><strong>可扩展性与并行加速</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机组成与体系结构：并行性与多核系统</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Organization/11-parallelism-and-multicore.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="/ipynb/zh-CN/Computer-Science/Computer-Organization/Computer-Organization.html">返回计算机组成与体系结构总览</a></p>
+<section id="parallelism-and-multicore-systems" class="level2">
+<h2 class="anchored" data-anchor-id="parallelism-and-multicore-systems"><strong>并行性与多核系统</strong></h2>
+<p>第 10 章跟踪了一个 I/O 请求的控制、数据和完成路径，但现代机器很少只处理一条请求或一条指令流。一个核心内部可以重叠多条指令，一条指令可以同时处理多个值，多个硬件线程可以共享一个核心，多个核心或加速器也可并发运行。本章解释这些并行工作从何而来，以及处理单元通信时新增了哪些正确性义务。</p>
+<p><strong>并发（concurrency）</strong>表示多个活动在重叠的时间段内都处于进行状态；<strong>并行（parallelism）</strong>表示其中至少一部分在不同资源上真正同时执行。单核操作系统可通过时间片提供并发，多核处理器则可同时提供并发与物理并行。即使没有真正同时执行，并发仍会产生交错顺序和同步需求，所以二者不能混为一谈。</p>
+<p>本章遵循一条递进路线：先识别独立工作，再把工作映射到执行资源；随后借助一致性、内存模型与同步保证通信正确；最后衡量额外资源是否真正改善性能。</p>
+<section id="why-hardware-uses-parallelism" class="level3">
+<h3 class="anchored" data-anchor-id="why-hardware-uses-parallelism"><strong>硬件为什么使用并行性</strong></h3>
+<p>过去，提高时钟频率和加深流水线能持续加速单条指令流，但这种方法逐渐遇到限制：更高频率增加功耗和热量；当依赖和分支预测失败限制有用工作时，更深推测的收益递减；内存延迟的下降也远慢于算术延迟。因此，硬件开始把更多晶体管用于执行通道、硬件线程上下文、核心和专用引擎，而不再只依赖更快时钟。</p>
+<p>并行性可以面向两个不同目标：</p>
+<ul>
+<li><strong>降低延迟：</strong> 划分关键工作，使一个任务更早完成；</li>
+<li><strong>提高吞吐量：</strong> 单位时间完成更多独立任务，即使单个任务没有明显变快。</li>
+</ul>
+<p>若工作负载在一个处理资源上耗时 <span class="math inline">\(T_1\)</span>，在 <span class="math inline">\(P\)</span> 个资源上耗时 <span class="math inline">\(T_P\)</span>，实测加速比为</p>
+<p><span class="math display">\[
+S(P)=\frac{T_1}{T_P}.
+\]</span></p>
+<p><span class="math inline">\(S(P)=4\)</span> 表示并行执行时间是原来的四分之一，但四个资源并不保证 <span class="math inline">\(S(4)=4\)</span>。串行工作、通信、同步、资源竞争与负载不均都会增大 <span class="math inline">\(T_P\)</span>。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>目标</th>
+<th>合适的工作负载形态</th>
+<th>典型机制</th>
+<th>主要限制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>降低单任务延迟</td>
+<td>可拆分且关键路径较短</td>
+<td>ILP、SIMD、多核分解</td>
+<td>依赖与串行比例</td>
+</tr>
+<tr class="even">
+<td>提高吞吐量</td>
+<td>有许多独立请求或元素</td>
+<td>SMT、多核、GPU 通道</td>
+<td>带宽与共享资源竞争</td>
+</tr>
+<tr class="odd">
+<td>隐藏长延迟</td>
+<td>一条指令或线程停顿时有其他工作就绪</td>
+<td>乱序执行、硬件多线程</td>
+<td>独立工作不足</td>
+</tr>
+<tr class="even">
+<td>提高能效</td>
+<td>许多简单操作可替代少量复杂推测操作</td>
+<td>向量、GPU、加速器</td>
+<td>适用范围较窄</td>
+</tr>
+</tbody>
+</table>
+<p>只有当软件以硬件能利用的粒度暴露工作时，设计才会成功。给一条顺序依赖链增加核心，只会增加容量，不会缩短这条链。</p>
+</section>
+<section id="forms-of-parallelism" class="level3">
+<h3 class="anchored" data-anchor-id="forms-of-parallelism"><strong>并行性的形式</strong></h3>
+<p>按照粒度分类更容易理解并行性：指令级并行重叠同一指令流中的操作；数据级并行把相似操作应用于许多值；线程级并行运行彼此独立的指令流。真实处理器通常同时组合三者。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/parallelism-levels.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="指令级、数据级与线程级并行以逐渐增大的粒度暴露独立工作。"><img src="assets/parallelism-levels.svg" class="img-fluid figure-img" alt="指令级、数据级与线程级并行以逐渐增大的粒度暴露独立工作。"></a></p>
+<figcaption>指令级、数据级与线程级并行以逐渐增大的粒度暴露独立工作。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>形式</th>
+<th>独立工作单元</th>
+<th>通常由谁发现</th>
+<th>代表性硬件</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ILP</td>
+<td>单线程内的指令</td>
+<td>编译器与动态调度器</td>
+<td>流水线、超标量发射、乱序核心</td>
+</tr>
+<tr class="even">
+<td>DLP</td>
+<td>数组、向量或张量元素</td>
+<td>程序员、编译器或库</td>
+<td>SIMD 通道、向量单元、GPU warp</td>
+</tr>
+<tr class="odd">
+<td>TLP</td>
+<td>线程、任务或请求</td>
+<td>程序员、运行时与操作系统</td>
+<td>SMT 上下文、核心、插槽</td>
+</tr>
+</tbody>
+</table>
+<section id="instruction-level-parallelism" class="level4">
+<h4 class="anchored" data-anchor-id="instruction-level-parallelism"><strong>指令级并行</strong></h4>
+<p>当同一线程中的指令并非彼此依赖时，它们可以重叠，形成<strong>指令级并行（Instruction-Level Parallelism, ILP）</strong>。第 07 章介绍了流水线和冒险；ILP 进一步使用多发射、寄存器重命名、分支预测、推测和乱序调度。微操作可以在内部以不同顺序执行，但体系结构状态仍必须表现得像遵循程序顺序。</p>
+<p>调度器必须尊重多种约束：</p>
+<ul>
+<li>RAW 是真实数据依赖，不能通过重命名消除；</li>
+<li>WAR 和 WAW 是名称依赖，通常可用寄存器重命名解除；</li>
+<li>控制依赖可能需要分支预测与恢复；</li>
+<li>地址尚不确定时，load 不能随意越过更早 store；</li>
+<li>发射端口、功能单元、队列和缓存带宽均有结构上限。</li>
+</ul>
+<p>在依赖图中，<strong>关键路径</strong>是从输入操作到最终结果的最长延迟加权链。即使功能单元无限，执行时间也不能短于该路径。若所有操作顺序执行需 <span class="math inline">\(T_{serial}\)</span> 个周期，关键路径为 <span class="math inline">\(T_{critical}\)</span> 个周期，则 <span class="math inline">\(T_{serial}/T_{critical}\)</span> 是尚未计入资源冲突和预测失败的乐观 ILP 上界。</p>
+<details>
+<summary>
+Python 模型：计算指令依赖图的关键路径
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 操作按拓扑顺序列出，延迟单位为周期。</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>operations <span class="op">=</span> {</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"load_a"</span>: {<span class="st">"latency"</span>: <span class="dv">3</span>, <span class="st">"depends_on"</span>: []},</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"load_b"</span>: {<span class="st">"latency"</span>: <span class="dv">3</span>, <span class="st">"depends_on"</span>: []},</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"multiply"</span>: {<span class="st">"latency"</span>: <span class="dv">2</span>, <span class="st">"depends_on"</span>: [<span class="st">"load_a"</span>, <span class="st">"load_b"</span>]},</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"load_c"</span>: {<span class="st">"latency"</span>: <span class="dv">3</span>, <span class="st">"depends_on"</span>: []},</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"add"</span>: {<span class="st">"latency"</span>: <span class="dv">1</span>, <span class="st">"depends_on"</span>: [<span class="st">"multiply"</span>, <span class="st">"load_c"</span>]},</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"store"</span>: {<span class="st">"latency"</span>: <span class="dv">1</span>, <span class="st">"depends_on"</span>: [<span class="st">"add"</span>]},</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>finish_cycle <span class="op">=</span> {}</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, operation <span class="kw">in</span> operations.items():</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 只有全部真实依赖完成后，操作才会就绪。</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    ready_cycle <span class="op">=</span> <span class="bu">max</span>(</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        (finish_cycle[parent] <span class="cf">for</span> parent <span class="kw">in</span> operation[<span class="st">"depends_on"</span>]),</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        default<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    finish_cycle[name] <span class="op">=</span> ready_cycle <span class="op">+</span> operation[<span class="st">"latency"</span>]</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>serial_cycles <span class="op">=</span> <span class="bu">sum</span>(op[<span class="st">"latency"</span>] <span class="cf">for</span> op <span class="kw">in</span> operations.values())</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>critical_path_cycles <span class="op">=</span> <span class="bu">max</span>(finish_cycle.values())</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>optimistic_ilp <span class="op">=</span> serial_cycles <span class="op">/</span> critical_path_cycles</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"serial=</span><span class="sc">{</span>serial_cycles<span class="sc">}</span><span class="ss">, critical path=</span><span class="sc">{</span>critical_path_cycles<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"optimistic ILP upper bound=</span><span class="sc">{</span>optimistic_ilp<span class="sc">:.2f}</span><span class="ss">x"</span>)</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (serial_cycles, critical_path_cycles) <span class="op">==</span> (<span class="dv">13</span>, <span class="dv">7</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>该模型假设功能单元无限且信息完全，因此给出的是时间下界，而不是周期精确处理器模拟。它所表达的概念是：多个独立 load 可以重叠，但 multiply—add—store 链仍必须顺序推进。</p>
+</section>
+<section id="data-level-parallelism" class="level4">
+<h4 class="anchored" data-anchor-id="data-level-parallelism"><strong>数据级并行</strong></h4>
+<p>当同一个或相似操作可以独立应用于许多数据元素时，就存在<strong>数据级并行（Data-Level Parallelism, DLP）</strong>。数组相加、像素过滤、数据库键比较和张量分块乘法都是自然例子。DLP 的优势是：一次译码的指令或一套控制计划可以让许多算术通道同时工作。</p>
+<p>对 <span class="math inline">\(N\)</span> 个独立元素和宽度为 <span class="math inline">\(W\)</span> 的硬件，理想情况下需要约</p>
+<p><span class="math display">\[
+N_{groups}=\left\lceil\frac{N}{W}\right\rceil
+\]</span></p>
+<p>组工作。向上取整用于处理最后一个不完整组。但这并不自动带来 <span class="math inline">\(W\)</span> 倍加速，因为 load、store、shuffle、归约、掩码、对齐与内存带宽可能成为瓶颈。</p>
+<p>DLP 可以通过固定宽度 SIMD、向量长度无关指令、GPU 线程或高级张量操作表达，核心属性是元素独立，而非具体指令集。求和等归约只能部分并行：元素可按树形结构并行合并，但中间结果最终仍需汇聚。</p>
+</section>
+<section id="thread-level-parallelism" class="level4">
+<h4 class="anchored" data-anchor-id="thread-level-parallelism"><strong>线程级并行</strong></h4>
+<p><strong>线程级并行（Thread-Level Parallelism, TLP）</strong>使用多条独立指令流。每个线程都有自己的 PC、寄存器状态和控制流；它们可以处理无关请求、同一数据集的不同分区，或流水线中的不同阶段。硬件线程可以共享一个执行核心，软件线程则可被调度到不同核心和插槽。</p>
+<p>此时主要挑战不再是寻找单条指令流内部的独立指令，而是让线程获得相近工作量、减少通信，并定义共享状态何时可以读取或修改。常见方式是给每个线程私有分区，最后只合并较小的局部结果。</p>
+<details>
+<summary>
+Python 模型：划分工作并合并线程局部归约
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> partition_round_robin(values, workers):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 每个 worker 使用私有列表，因此主循环无需共享写入。</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    partitions <span class="op">=</span> [[] <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(workers)]</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> index, value <span class="kw">in</span> <span class="bu">enumerate</span>(values):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        partitions[index <span class="op">%</span> workers].append(value)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> partitions</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parallel_sum_model(values, workers):</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    partitions <span class="op">=</span> partition_round_robin(values, workers)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 这些局部求和代表彼此独立的线程工作。</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    partial_sums <span class="op">=</span> [<span class="bu">sum</span>(partition) <span class="cf">for</span> partition <span class="kw">in</span> partitions]</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 只在同步点合并紧凑的局部结果。</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">sum</span>(partial_sums), partitions, partial_sums</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> <span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">17</span>))</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>total, partitions, partial_sums <span class="op">=</span> parallel_sum_model(values, workers<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(partitions)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(partial_sums, total)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> total <span class="op">==</span> <span class="bu">sum</span>(values) <span class="op">==</span> <span class="dv">136</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码建模的是任务分解，并不声称 Python 列表操作真的并行执行。真实运行时中，分区必须足够大，使有用工作超过任务创建、调度、同步和数据移动的开销。</p>
+</section>
+</section>
+<section id="flynns-taxonomy" class="level3">
+<h3 class="anchored" data-anchor-id="flynns-taxonomy"><strong>Flynn 分类法</strong></h3>
+<p>Flynn 分类法按照并发<strong>指令流</strong>和<strong>数据流</strong>的数量描述计算组织。它是一套组织结构词汇，而不是商业处理器的完整说明。现代多核 CPU 在核心层面通常属于 MIMD，但每个核心内部又可执行 SIMD 指令，所以同一机器会在不同层级同时包含多个类别。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/flynn-taxonomy-overview.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Flynn 分类法按照指令流和数据流的单一或多个，把系统划分为 SISD、SIMD、MISD 与 MIMD。"><img src="assets/flynn-taxonomy-overview.svg" class="img-fluid figure-img" alt="Flynn 分类法按照指令流和数据流的单一或多个，把系统划分为 SISD、SIMD、MISD 与 MIMD。"></a></p>
+<figcaption>Flynn 分类法按照指令流和数据流的单一或多个，把系统划分为 SISD、SIMD、MISD 与 MIMD。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>类别</th>
+<th>含义</th>
+<th>典型解释</th>
+<th>注意事项</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SISD</td>
+<td>单指令流、单数据流</td>
+<td>标量顺序机器</td>
+<td>流水线核心内部仍可利用 ILP</td>
+</tr>
+<tr class="even">
+<td>SIMD</td>
+<td>单指令流、多数据流</td>
+<td>打包 SIMD 或向量操作</td>
+<td>通道掩码会降低有效利用率</td>
+</tr>
+<tr class="odd">
+<td>MISD</td>
+<td>多指令流、单数据流</td>
+<td>冗余容错处理或专用流水线</td>
+<td>通用体系结构中少见</td>
+</tr>
+<tr class="even">
+<td>MIMD</td>
+<td>多指令流、多数据流</td>
+<td>多核、多处理器或集群</td>
+<td>通信可使用共享内存或消息</td>
+</tr>
+</tbody>
+</table>
+<p>许多 GPU 使用的 SIMT 编程模型与 SIMD 相似，因为一个 warp 对多个通道发出共同指令；但 SIMT 暴露每线程寄存器，并允许通过掩码执行分歧控制流。把 GPU 简单称为 SIMD 会掩盖编程模型差异，把整个 GPU 只称为 MIMD 又会忽略 warp 内锁步行为。准确描述应明确讨论的层级。</p>
+</section>
+<section id="simd-and-vector-processing" class="level3">
+<h3 class="anchored" data-anchor-id="simd-and-vector-processing"><strong>SIMD 与向量处理</strong></h3>
+<p>SIMD 指令使用由固定宽度通道组成的打包操作数，并对所有活动通道执行同一个操作。例如，256 位寄存器可以容纳八个 32 位整数，一次打包加法生成八个结果；不过处理器仍需要足够的 load/store 带宽与算术资源维持该速率。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-simd.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="一条 SIMD 指令被分发到多个处理单元，每个单元处理不同数据元素。"><img src="assets/source-simd.svg" class="img-fluid figure-img" alt="一条 SIMD 指令被分发到多个处理单元，每个单元处理不同数据元素。"></a></p>
+<figcaption>一条 SIMD 指令被分发到多个处理单元，每个单元处理不同数据元素。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:SIMD.svg">Cburnett, SIMD.svg, Wikimedia Commons</a>，CC BY-SA 3.0。</em></p>
+<p><strong>向量体系结构</strong>描述对可配置数量元素的操作。实现可以用多个物理批次完成一个体系结构向量，使同一二进制程序适应不同微体系结构宽度。例如，RISC-V Vector 使用向量长度配置与掩码，让软件无需假设固定物理通道数即可分段处理数组。固定宽度 SIMD 与向量长度无关设计共享 DLP 思想，但向软件暴露的契约不同。</p>
+<p>掩码用于处理边界和条件工作。若一条指令在 <span class="math inline">\(W\)</span> 个通道中只有 <span class="math inline">\(A\)</span> 个活动，则通道利用率为</p>
+<p><span class="math display">\[
+U_{lane}=\frac{A}{W}.
+\]</span></p>
+<p>八通道单元处理最后三个元素时，该条指令只有 <span class="math inline">\(3/8=37.5\%\)</span> 的利用率。掩码保证正确性，但未活动通道仍是未使用容量。</p>
+<details>
+<summary>
+Python 模型：以 SAXPY 风格操作演示掩码 SIMD
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> masked_saxpy(alpha, x, y, width):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(x) <span class="op">!=</span> <span class="bu">len</span>(y):</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"x and y must have the same length"</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> y.copy()</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    trace <span class="op">=</span> []</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> base <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(x), width):</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 最后一个组的有效元素可能少于物理通道。</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        active <span class="op">=</span> <span class="bu">min</span>(width, <span class="bu">len</span>(x) <span class="op">-</span> base)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        mask <span class="op">=</span> [lane <span class="op">&lt;</span> active <span class="cf">for</span> lane <span class="kw">in</span> <span class="bu">range</span>(width)]</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> lane, enabled <span class="kw">in</span> <span class="bu">enumerate</span>(mask):</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> enabled:</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>                index <span class="op">=</span> base <span class="op">+</span> lane</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                output[index] <span class="op">=</span> alpha <span class="op">*</span> x[index] <span class="op">+</span> y[index]</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        trace.append({<span class="st">"base"</span>: base, <span class="st">"mask"</span>: mask, <span class="st">"utilization"</span>: active <span class="op">/</span> width})</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> output, trace</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">7</span>, <span class="dv">8</span>, <span class="dv">9</span>, <span class="dv">10</span>]</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> [<span class="dv">10</span>] <span class="op">*</span> <span class="bu">len</span>(x)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>output, trace <span class="op">=</span> masked_saxpy(<span class="dv">2</span>, x, y, width<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(output)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(trace[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> output <span class="op">==</span> [<span class="dv">12</span>, <span class="dv">14</span>, <span class="dv">16</span>, <span class="dv">18</span>, <span class="dv">20</span>, <span class="dv">22</span>, <span class="dv">24</span>, <span class="dv">26</span>, <span class="dv">28</span>, <span class="dv">30</span>]</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> trace[<span class="op">-</span><span class="dv">1</span>][<span class="st">"utilization"</span>] <span class="op">==</span> <span class="fl">0.5</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>控制模型</th>
+<th>软件可见宽度</th>
+<th>最适合</th>
+<th>常见损失</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>标量</td>
+<td>一个操作、一个值</td>
+<td>一个元素</td>
+<td>不规则控制和短工作</td>
+<td>DLP 较低</td>
+</tr>
+<tr class="even">
+<td>固定宽度 SIMD</td>
+<td>一条打包指令</td>
+<td>固定寄存器宽度</td>
+<td>密集循环和媒体处理</td>
+<td>尾部、shuffle、聚集/分散</td>
+</tr>
+<tr class="odd">
+<td>向量长度无关</td>
+<td>一条向量指令</td>
+<td>可配置活动长度</td>
+<td>可移植长向量循环</td>
+<td>设置与内存行为</td>
+</tr>
+<tr class="even">
+<td>SIMT</td>
+<td>每线程程序按 warp 分组</td>
+<td>warp 宽度是性能属性</td>
+<td>大规模吞吐工作负载</td>
+<td>分支分歧与非合并访存</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hardware-multithreading-and-multicore-processors" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-multithreading-and-multicore-processors"><strong>硬件多线程与多核处理器</strong></h3>
+<p>硬件线程上下文包含跟踪独立指令流所需的体系结构状态，例如 PC、寄存器、特权状态和部分控制寄存器。复制这些状态远比复制完整乱序核心便宜，因此硬件多线程能在某个线程停顿时让其他线程使用共享执行资源。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hardware-threading-multicore.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="交错多线程共享周期，SMT 共享同周期发射槽，而多核执行为线程提供独立核心。"><img src="assets/hardware-threading-multicore.svg" class="img-fluid figure-img" alt="交错多线程共享周期，SMT 共享同周期发射槽，而多核执行为线程提供独立核心。"></a></p>
+<figcaption>交错多线程共享周期，SMT 共享同周期发射槽，而多核执行为线程提供独立核心。</figcaption>
+</figure>
+</div>
+</div>
+<ul>
+<li><strong>粗粒度多线程</strong>在缓存未命中等长延迟事件后切换，切换频率低，但无法覆盖短停顿。</li>
+<li><strong>细粒度多线程</strong>频繁切换指令流，常常每周期一次，以隐藏延迟；每周期通常只有一个线程拥有发射机会。</li>
+<li><strong>同时多线程（SMT）</strong>可在同一周期从多个线程选择指令，填充原本空闲的超标量发射槽。</li>
+<li><strong>多核执行</strong>复制完整核心，使线程使用更多独立资源真正同时运行，但仍会共享部分缓存、内存和互连带宽。</li>
+</ul>
+<details>
+<summary>
+Python 模型：从发生停顿的多个硬件线程中交错选择就绪指令
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> deque</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 每个元组为（最早就绪周期，指令名称）。</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>queues <span class="op">=</span> {</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A"</span>: deque([(<span class="dv">0</span>, <span class="st">"A0"</span>), (<span class="dv">5</span>, <span class="st">"A1"</span>), (<span class="dv">6</span>, <span class="st">"A2"</span>)]),  <span class="co"># A 在未命中后等待</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"B"</span>: deque([(<span class="dv">0</span>, <span class="st">"B0"</span>), (<span class="dv">1</span>, <span class="st">"B1"</span>), (<span class="dv">3</span>, <span class="st">"B2"</span>)]),</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"C"</span>: deque([(<span class="dv">0</span>, <span class="st">"C0"</span>), (<span class="dv">2</span>, <span class="st">"C1"</span>), (<span class="dv">4</span>, <span class="st">"C2"</span>)]),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>thread_names <span class="op">=</span> <span class="bu">list</span>(queues)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>last_choice <span class="op">=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>schedule <span class="op">=</span> []</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> cycle <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">9</span>):</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    chosen <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 在下一条指令已就绪的线程之间轮转。</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> offset <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(thread_names) <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        candidate_index <span class="op">=</span> (last_choice <span class="op">+</span> offset) <span class="op">%</span> <span class="bu">len</span>(thread_names)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        candidate <span class="op">=</span> thread_names[candidate_index]</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> queues[candidate] <span class="kw">and</span> queues[candidate][<span class="dv">0</span>][<span class="dv">0</span>] <span class="op">&lt;=</span> cycle:</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>            chosen <span class="op">=</span> candidate</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>            last_choice <span class="op">=</span> candidate_index</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> chosen <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>        schedule.append((cycle, <span class="st">"idle"</span>))</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        _, instruction <span class="op">=</span> queues[chosen].popleft()</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>        schedule.append((cycle, instruction))</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(schedule)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(instruction <span class="op">!=</span> <span class="st">"idle"</span> <span class="cf">for</span> _, instruction <span class="kw">in</span> schedule)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(schedule) <span class="op">==</span> <span class="dv">9</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个例子展示的是隐藏延迟，而不是让线程 A 本身更快。线程还会争用重排序缓冲区、发射端口、缓存容量、转换结构和内存带宽。SMT 可以提高总吞吐量，却可能让单个线程更慢或更不可预测；共享微体系结构状态还会形成侧信道，所以操作系统可能对特定安全域限制 SMT。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>组织</th>
+<th>复制的状态</th>
+<th>共享资源</th>
+<th>主要收益</th>
+<th>主要成本</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>交错 MT</td>
+<td>线程体系结构上下文</td>
+<td>几乎整个核心</td>
+<td>低成本容忍停顿</td>
+<td>每周期只有一个发射线程</td>
+</tr>
+<tr class="even">
+<td>SMT</td>
+<td>线程上下文与部分队列</td>
+<td>发射引擎、执行单元、缓存</td>
+<td>填补超标量槽位</td>
+<td>竞争与不可预测性</td>
+</tr>
+<tr class="odd">
+<td>多核</td>
+<td>完整核心与私有缓存</td>
+<td>LLC、互连、内存、I/O</td>
+<td>真正的 TLP 容量</td>
+<td>一致性与通信</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="shared-memory-multiprocessors" class="level3">
+<h3 class="anchored" data-anchor-id="shared-memory-multiprocessors"><strong>共享内存多处理器</strong></h3>
+<p>共享内存多处理器允许处理器通过共同地址空间中的 load/store 通信。这个抽象很方便：指针可以命名共享数据，普通内存指令即可传值；但物理实现并不简单，因为私有缓存会产生副本，内存控制器可能分布在多个插槽上，同步还必须把普通内存操作转换为定义明确的通信。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-shared-memory.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="对称多处理器通过总线或交换结构把多个处理器连接到共享内存。"><img src="assets/source-shared-memory.svg" class="img-fluid figure-img" alt="对称多处理器通过总线或交换结构把多个处理器连接到共享内存。"></a></p>
+<figcaption>对称多处理器通过总线或交换结构把多个处理器连接到共享内存。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:Shared_memory.svg">Khazadum and Stannered, Shared memory.svg, Wikimedia Commons</a>，CC BY-SA 3.0。</em></p>
+<p>在<strong>统一内存访问（UMA）</strong>组织中，各处理器观察到的主存延迟大体相近；在<strong>非统一内存访问（NUMA）</strong>组织中，每个插槽或节点拥有邻近内存控制器，并通过跨插槽互连访问远端内存。地址空间仍然共享，但物理放置会影响延迟和带宽。具有缓存一致性的 NUMA 常缩写为 <strong>ccNUMA</strong>。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-numa.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="NUMA 系统为每个处理器节点配置本地内存，并连接各节点，使远程内存仍可寻址但成本更高。"><img src="assets/source-numa.svg" class="img-fluid figure-img" alt="NUMA 系统为每个处理器节点配置本地内存，并连接各节点，使远程内存仍可寻址但成本更高。"></a></p>
+<figcaption>NUMA 系统为每个处理器节点配置本地内存，并连接各节点，使远程内存仍可寻址但成本更高。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:NUMA.svg">Moop2000, NUMA.svg, Wikimedia Commons</a>，公有领域。</em></p>
+<p>若比例 <span class="math inline">\(p\)</span> 的访问到达延迟为 <span class="math inline">\(L_{local}\)</span> 的本地内存，其余 <span class="math inline">\(1-p\)</span> 到达延迟为 <span class="math inline">\(L_{remote}\)</span> 的远程内存，简单平均为</p>
+<p><span class="math display">\[
+L_{avg}=pL_{local}+(1-p)L_{remote}.
+\]</span></p>
+<p><span class="math inline">\(p\)</span> 是本地访问概率。提高数据局部放置会增大 <span class="math inline">\(p\)</span>、降低加权平均。虽然公式省略排队和重叠，但它明确说明：共享虚拟地址并不意味着统一物理成本。</p>
+<details>
+<summary>
+Python 模型：根据本地和远程访问估算 NUMA 延迟
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> numa_average_latency(accesses, thread_node, page_node, local_ns, remote_ns):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    local_count <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> page <span class="kw">in</span> accesses:</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        is_local <span class="op">=</span> page_node[page] <span class="op">==</span> thread_node</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        local_count <span class="op">+=</span> <span class="bu">int</span>(is_local)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        total <span class="op">+=</span> local_ns <span class="cf">if</span> is_local <span class="cf">else</span> remote_ns</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> total <span class="op">/</span> <span class="bu">len</span>(accesses), local_count <span class="op">/</span> <span class="bu">len</span>(accesses)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>page_node <span class="op">=</span> {<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">0</span>, <span class="st">"C"</span>: <span class="dv">1</span>, <span class="st">"D"</span>: <span class="dv">1</span>}</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>accesses <span class="op">=</span> [<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"A"</span>, <span class="st">"C"</span>, <span class="st">"D"</span>, <span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>]</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>average_ns, local_fraction <span class="op">=</span> numa_average_latency(</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    accesses, thread_node<span class="op">=</span><span class="dv">0</span>, page_node<span class="op">=</span>page_node, local_ns<span class="op">=</span><span class="dv">90</span>, remote_ns<span class="op">=</span><span class="dv">150</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"local fraction=</span><span class="sc">{</span>local_fraction<span class="sc">:.2f}</span><span class="ss">, average=</span><span class="sc">{</span>average_ns<span class="sc">:.1f}</span><span class="ss"> ns"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> local_fraction <span class="op">==</span> <span class="fl">0.625</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> average_ns <span class="op">==</span> <span class="fl">112.5</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>操作系统使用处理器亲和性与首次接触策略，使线程尽量靠近其页面；并行程序也可通过数据分区、绑定工作线程，以及减少可写缓存行在节点间迁移来改善局部性。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>UMA/SMP</th>
+<th>ccNUMA</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>地址空间</td>
+<td>共享</td>
+<td>共享</td>
+</tr>
+<tr class="even">
+<td>内存延迟</td>
+<td>近似统一</td>
+<td>本地快于远程</td>
+</tr>
+<tr class="odd">
+<td>扩展性</td>
+<td>适合较少处理器，结构简单</td>
+<td>容量和带宽扩展更好</td>
+</tr>
+<tr class="even">
+<td>软件关注点</td>
+<td>竞争与缓存行为</td>
+<td>UMA 的全部问题，加上放置与亲和性</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="cache-coherence" class="level3">
+<h3 class="anchored" data-anchor-id="cache-coherence"><strong>缓存一致性</strong></h3>
+<p>私有缓存对低延迟和高带宽至关重要，却也会为同一个共享内存块制造多个物理副本。<strong>缓存一致性（cache coherence）</strong>提供逐地址契约，防止不同处理器无限期使用相互矛盾的值。非正式地说，对一个位置的写入必须串行化，而读取最终要返回这个顺序中某个适当写入的值。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-cache-coherence.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="简单的一致系统协调私有缓存与共享内存，使处理器不会继续使用互相矛盾的副本。"><img src="assets/source-cache-coherence.svg" class="img-fluid figure-img" alt="简单的一致系统协调私有缓存与共享内存，使处理器不会继续使用互相矛盾的副本。"></a></p>
+<figcaption>简单的一致系统协调私有缓存与共享内存，使处理器不会继续使用互相矛盾的副本。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:Cache_coherence.svg">Careless hx, Cache coherence.svg, Wikimedia Commons</a>，CC BY-SA 4.0。</em></p>
+<p>一个有用不变量是<strong>单写者或多读者（Single Writer or Multiple Readers, SWMR）</strong>：在同一逻辑时刻，要么一个缓存拥有修改缓存行的权限，要么多个缓存持有只读副本。另一项要求是<strong>数据值一致</strong>：所有权转移时，新所有者必须收到最新值，无论它来自另一个缓存、共享末级缓存还是主存。</p>
+<p>通用一致系统大多使用<strong>写失效（write invalidate）</strong>。核心写共享行之前先取得独占所有权，并使同伴副本失效。写更新协议则把新值推送给共享者；它可能有利于频繁读取的共享数据，却可能消耗更多互连带宽。</p>
+<section id="the-coherence-problem" class="level4">
+<h4 class="anchored" data-anchor-id="the-coherence-problem"><strong>一致性问题</strong></h4>
+<p>假设核心 0 和核心 1 都缓存了含有 <code>x=0</code> 的行。核心 0 只在自己的私有写回缓存中写入 <code>x=1</code>。如果没有协议，核心 1 可能永远继续读到 0，主存也可能一直过期。一致性事务负责建立所有权、使副本失效或降级，并在需要时传输脏数据。</p>
+<p>一致性的单位通常是<strong>缓存行</strong>而非变量。当不同线程写入同一缓存行中的不同变量时，会产生<strong>伪共享（false sharing）</strong>。由于一致性协议仍然正确，程序结果不会错，但缓存行会在核心间不断来回转移，即使线程在逻辑上并未共享同一个值。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/false-sharing-cache-lines.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="伪共享使一条缓存行在写入者之间反复迁移；填充字段或线程私有聚合可把独立计数器放入不同缓存行。"><img src="assets/false-sharing-cache-lines.svg" class="img-fluid figure-img" alt="伪共享使一条缓存行在写入者之间反复迁移；填充字段或线程私有聚合可把独立计数器放入不同缓存行。"></a></p>
+<figcaption>伪共享使一条缓存行在写入者之间反复迁移；填充字段或线程私有聚合可把独立计数器放入不同缓存行。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+Python 模型：统计伪共享造成的所有权转移
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ownership_transfers(writes, line_of_variable):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    owner_by_line <span class="op">=</span> {}</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    transfers <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> core, variable <span class="kw">in</span> writes:</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        line <span class="op">=</span> line_of_variable[variable]</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>        previous_owner <span class="op">=</span> owner_by_line.get(line)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> previous_owner <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="kw">and</span> previous_owner <span class="op">!=</span> core:</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            transfers <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>        owner_by_line[line] <span class="op">=</span> core</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> transfers</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co"># 两个核心交替更新彼此独立的计数器。</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>writes <span class="op">=</span> [(<span class="dv">0</span>, <span class="st">"A"</span>), (<span class="dv">1</span>, <span class="st">"B"</span>)] <span class="op">*</span> <span class="dv">4</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>packed <span class="op">=</span> {<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">0</span>}   <span class="co"># 两个变量位于同一缓存行</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>padded <span class="op">=</span> {<span class="st">"A"</span>: <span class="dv">0</span>, <span class="st">"B"</span>: <span class="dv">1</span>}   <span class="co"># 每个变量独占一条缓存行</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>packed_transfers <span class="op">=</span> ownership_transfers(writes, packed)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>padded_transfers <span class="op">=</span> ownership_transfers(writes, padded)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(packed_transfers, padded_transfers)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> packed_transfers <span class="op">==</span> <span class="dv">7</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> padded_transfers <span class="op">==</span> <span class="dv">0</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>填充字段并非无成本，因为它增加内存占用并降低缓存密度。若算法允许，应优先使用线程私有累积后再归约；只有频繁写字段必须分别共享时，才考虑填充。</p>
+</section>
+<section id="snooping-and-directory-protocols" class="level4">
+<h4 class="anchored" data-anchor-id="snooping-and-directory-protocols"><strong>监听协议与目录协议</strong></h4>
+<p>一致性请求必须发现哪些缓存持有该行，以及是否有某个缓存保存更新的脏值。<strong>监听（snooping）</strong>与<strong>目录（directory）</strong>协议用不同方式解决这个发现问题。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/snooping-directory-comparison.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="监听协议把请求广播给所有缓存；目录协议记录共享者，只向相关缓存发送一致性消息。"><img src="assets/snooping-directory-comparison.svg" class="img-fluid figure-img" alt="监听协议把请求广播给所有缓存；目录协议记录共享者，只向相关缓存发送一致性消息。"></a></p>
+<figcaption>监听协议把请求广播给所有缓存；目录协议记录共享者，只向相关缓存发送一致性消息。</figcaption>
+</figure>
+</div>
+</div>
+<p>监听系统把请求放到广播介质，或能够提供可观察顺序的互连上；每个缓存都把请求与自己的标记比较。它概念直接，适合核心数量适中的系统，但随着规模增加，广播带宽以及电气或逻辑扇出会变得昂贵。</p>
+<p>目录为每个被跟踪缓存行保存元数据，标识所有者或共享者集合，使主节点只联系相关缓存。若有 <span class="math inline">\(M\)</span> 条内存行和 <span class="math inline">\(P\)</span> 个处理器，完整位向量目录大约需要</p>
+<p><span class="math display">\[
+B_{directory}=M\times P
+\]</span></p>
+<p>个共享者位，尚未计入状态与实现开销。因此，大型系统常使用稀疏指针、压缩向量、层次目录或有限指针，而不是始终为每个处理器保存一位。</p>
+<details>
+<summary>
+Python 模型：比较广播观察者与定向失效
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> coherence_message_summary(processors, sharers, requester):</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    targets <span class="op">=</span> <span class="bu">sorted</span>(sharer <span class="cf">for</span> sharer <span class="kw">in</span> sharers <span class="cf">if</span> sharer <span class="op">!=</span> requester)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 监听请求会被其他每个缓存观察。</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"snoop_observers"</span>: processors <span class="op">-</span> <span class="dv">1</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># 目录只向已知同伴共享者发送失效。</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"directory_invalidation_targets"</span>: targets,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        <span class="st">"directory_target_count"</span>: <span class="bu">len</span>(targets),</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> coherence_message_summary(</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    processors<span class="op">=</span><span class="dv">64</span>, sharers<span class="op">=</span>{<span class="dv">2</span>, <span class="dv">7</span>, <span class="dv">19</span>}, requester<span class="op">=</span><span class="dv">2</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(summary)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> summary[<span class="st">"snoop_observers"</span>] <span class="op">==</span> <span class="dv">63</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> summary[<span class="st">"directory_invalidation_targets"</span>] <span class="op">==</span> [<span class="dv">7</span>, <span class="dv">19</span>]</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>监听</th>
+<th>目录</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>发现方式</td>
+<td>广播请求</td>
+<td>查询逐行元数据</td>
+</tr>
+<tr class="even">
+<td>顺序</td>
+<td>常由共享介质提供</td>
+<td>协议与网络维持所需顺序</td>
+</tr>
+<tr class="odd">
+<td>流量</td>
+<td>所有缓存观察请求</td>
+<td>消息只发给所有者和共享者</td>
+</tr>
+<tr class="even">
+<td>元数据</td>
+<td>分布在缓存标记中</td>
+<td>显式主节点/目录状态</td>
+</tr>
+<tr class="odd">
+<td>适合规模</td>
+<td>小型到中型系统</td>
+<td>多核与多插槽系统</td>
+</tr>
+<tr class="even">
+<td>复杂度</td>
+<td>广播仲裁</td>
+<td>间接访问、竞争与瞬态状态</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="mesi-intuition" class="level4">
+<h4 class="anchored" data-anchor-id="mesi-intuition"><strong>MESI 直觉</strong></h4>
+<p>MESI 是以每条缓存行的四个稳定状态命名的写失效协议：<strong>Modified、Exclusive、Shared、Invalid</strong>。状态表明本地副本是否可用、同伴是否也可持有副本，以及本地数据是否比下层内存更新。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/mesi-simplified.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="简化 MESI 状态图通过处理器读写、监听读与失效请求连接 I、E、S、M 四个状态。"><img src="assets/mesi-simplified.svg" class="img-fluid figure-img" alt="简化 MESI 状态图通过处理器读写、监听读与失效请求连接 I、E、S、M 四个状态。"></a></p>
+<figcaption>简化 MESI 状态图通过处理器读写、监听读与失效请求连接 I、E、S、M 四个状态。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+<col style="width: 21%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>状态</th>
+<th style="text-align: right;">本地可读？</th>
+<th style="text-align: right;">无需先使同伴失效即可本地写？</th>
+<th style="text-align: right;">其他缓存可有副本？</th>
+<th style="text-align: right;">与下层内存一致？</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>M: Modified</td>
+<td style="text-align: right;">是</td>
+<td style="text-align: right;">是</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">否</td>
+</tr>
+<tr class="even">
+<td>E: Exclusive</td>
+<td style="text-align: right;">是</td>
+<td style="text-align: right;">是，静默从 E 变 M</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">是</td>
+</tr>
+<tr class="odd">
+<td>S: Shared</td>
+<td style="text-align: right;">是</td>
+<td style="text-align: right;">否，必须先取得所有权</td>
+<td style="text-align: right;">可能</td>
+<td style="text-align: right;">是</td>
+</tr>
+<tr class="even">
+<td>I: Invalid</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">否，必须先取得行或所有权</td>
+<td style="text-align: right;">无关</td>
+<td style="text-align: right;">本地无可用副本</td>
+</tr>
+</tbody>
+</table>
+<p>读未命中时，若没有其他缓存报告副本可进入 E，否则进入 S。对 S 写入需请求升级并使共享者失效；对 E 的写入无需外部事务即可变为 M，因为独占性已经确定。若另一个核心读取 M 行，所有者会提供或写回最新数据，并通常降级到共享状态。</p>
+<details>
+<summary>
+Python 模型：跟踪常见 MESI 稳定状态转换
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> processor_read(state, another_cache_has_copy):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> state <span class="op">==</span> <span class="st">"I"</span>:</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"S"</span> <span class="cf">if</span> another_cache_has_copy <span class="cf">else</span> <span class="st">"E"</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> processor_write(state):</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> state <span class="kw">in</span> {<span class="st">"E"</span>, <span class="st">"M"</span>}:</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"M"</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> state <span class="op">==</span> <span class="st">"S"</span>:</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"M"</span>  <span class="co"># 升级先使同伴共享者失效</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"I requires an ownership request before the write"</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> snoop_read(state):</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 另一个核心请求可读副本。</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"S"</span> <span class="cf">if</span> state <span class="kw">in</span> {<span class="st">"M"</span>, <span class="st">"E"</span>} <span class="cf">else</span> state</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> snoop_invalidate(state):</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"I"</span> <span class="cf">if</span> state <span class="kw">in</span> {<span class="st">"M"</span>, <span class="st">"E"</span>, <span class="st">"S"</span>} <span class="cf">else</span> state</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> <span class="st">"I"</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>trace <span class="op">=</span> [state]</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> processor_read(state, another_cache_has_copy<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>trace.append(state)       <span class="co"># I -&gt; E</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> processor_write(state)</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>trace.append(state)       <span class="co"># E -&gt; M</span></span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> snoop_read(state)</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>trace.append(state)       <span class="co"># M -&gt; S</span></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> snoop_invalidate(state)</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>trace.append(state)       <span class="co"># S -&gt; I</span></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(trace)</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> trace <span class="op">==</span> [<span class="st">"I"</span>, <span class="st">"E"</span>, <span class="st">"M"</span>, <span class="st">"S"</span>, <span class="st">"I"</span>]</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>真实实现还包含请求和确认在途时的瞬态状态、本地事件与监听事件之间的竞争、重试，以及实现专用消息名称。因此，MESI 是直觉模型，而不是完整控制器规范。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>协议</th>
+<th>Invalid 之外的稳定状态</th>
+<th>区分思想</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>MSI</td>
+<td>Modified、Shared</td>
+<td>更简单；私有干净行仍为 Shared</td>
+</tr>
+<tr class="even">
+<td>MESI</td>
+<td>Modified、Exclusive、Shared</td>
+<td>E 允许第一次写入静默完成</td>
+</tr>
+<tr class="odd">
+<td>MOESI</td>
+<td>增加 Owned</td>
+<td>允许共享脏数据，同时由一个缓存负责</td>
+</tr>
+<tr class="even">
+<td>MESIF</td>
+<td>增加 Forward</td>
+<td>指定一个干净共享者负责响应</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="memory-consistency" class="level3">
+<h3 class="anchored" data-anchor-id="memory-consistency"><strong>内存一致性模型</strong></h3>
+<p>缓存一致性回答逐位置问题：对 <code>x</code> 的写入以什么顺序被观察，后续对 <code>x</code> 的读取可以返回哪个值？<strong>内存一致性模型（memory consistency）</strong>回答更广的问题：多个线程访问多个位置时，哪些观察组合是合法的？系统可以对每个地址都完全缓存一致，却仍允许某种结果，让误以为所有操作都按程序顺序立即可见的程序员感到意外。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/memory-consistency-litmus.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="在 store-buffering 测试中，每个线程先写一个变量再读另一个；若缺少同步，弱可见性可能让两次读取都看到零。"><img src="assets/memory-consistency-litmus.svg" class="img-fluid figure-img" alt="在 store-buffering 测试中，每个线程先写一个变量再读另一个；若缺少同步，弱可见性可能让两次读取都看到零。"></a></p>
+<figcaption>在 store-buffering 测试中，每个线程先写一个变量再读另一个；若缺少同步，弱可见性可能让两次读取都看到零。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>顺序一致性（Sequential Consistency, SC）</strong>提供简单模型：所有线程的操作仿佛按照一个总顺序交错，并且该总顺序保持每个线程的程序顺序。真实处理器常使用较弱模型，使 store 能进入缓冲区、load 能绕过无关操作、内存系统能重叠事务。RISC-V 基础模型 RVWMO 就是一种弱顺序模型；显式 fence 和带 acquire/release 语义的原子操作用于增加必要顺序边。</p>
+<p>在图中的 store-buffering 测试中，线程 0 执行 <code>x=1; r0=y</code>，线程 1 执行 <code>y=1; r1=x</code>，初始两个变量均为 0。如果两次 store 暂时停留在各自核心的 store buffer，后续两个 load 都可能从一致的共享内存中读到 0。每个地址仍具有合法写顺序，所以这是内存一致性问题，而不是缓存一致性失败。</p>
+<details>
+<summary>
+Python 模型：复现 store-buffering 结果
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>memory <span class="op">=</span> {<span class="st">"x"</span>: <span class="dv">0</span>, <span class="st">"y"</span>: <span class="dv">0</span>}</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>store_buffers <span class="op">=</span> {<span class="dv">0</span>: {}, <span class="dv">1</span>: {}}</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> buffered_store(thread, address, value):</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 发出 store 的线程先记录写入，全局内存尚不可见。</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    store_buffers[thread][address] <span class="op">=</span> value</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> load(thread, address):</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 线程只会转发自己对同一地址的待处理 store。</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> store_buffers[thread].get(address, memory[address])</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> flush(thread):</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    memory.update(store_buffers[thread])</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    store_buffers[thread].clear()</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>buffered_store(<span class="dv">0</span>, <span class="st">"x"</span>, <span class="dv">1</span>)</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>buffered_store(<span class="dv">1</span>, <span class="st">"y"</span>, <span class="dv">1</span>)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>r0 <span class="op">=</span> load(<span class="dv">0</span>, <span class="st">"y"</span>)</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>r1 <span class="op">=</span> load(<span class="dv">1</span>, <span class="st">"x"</span>)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"observed before flush:"</span>, r0, r1)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> (r0, r1) <span class="op">==</span> (<span class="dv">0</span>, <span class="dv">0</span>)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>flush(<span class="dv">0</span>)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>flush(<span class="dv">1</span>)</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> memory <span class="op">==</span> {<span class="st">"x"</span>: <span class="dv">1</span>, <span class="st">"y"</span>: <span class="dv">1</span>}</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>正确软件应使用语言提供的同步原语，而不是在普通数据竞争周围随意插入硬件 fence。编译器内存模型、ISA 内存模型和微体系结构必须相互一致。release 操作发布此前写入，匹配的 acquire 阻止之后读取越过同步点；二者可共同建立 <strong>happens-before</strong> 关系。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>范围</th>
+<th>回答的问题</th>
+<th>机制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>缓存一致性</td>
+<td>一个缓存行或地址</td>
+<td>该读取可以看到此位置的哪次写？</td>
+<td>一致性协议</td>
+</tr>
+<tr class="even">
+<td>内存一致性模型</td>
+<td>跨地址、跨处理器操作</td>
+<td>哪些全局观察结果合法？</td>
+<td>体系结构内存模型</td>
+</tr>
+<tr class="odd">
+<td>同步</td>
+<td>选定程序事件</td>
+<td>哪些操作必须有序且可见？</td>
+<td>原子、锁、fence、barrier</td>
+</tr>
+<tr class="even">
+<td>互斥</td>
+<td>临界区</td>
+<td>当前谁可以修改受保护状态？</td>
+<td>建立在原子操作上的锁协议</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hardware-support-for-synchronization" class="level3">
+<h3 class="anchored" data-anchor-id="hardware-support-for-synchronization"><strong>同步的硬件支持</strong></h3>
+<p>普通自增包含 load、算术和 store。两个线程可能交错执行这些步骤并丢失更新。因此，硬件提供<strong>原子读—改—写（Read-Modify-Write, RMW）</strong>操作，其读写相对于竞争访问表现为不可分割。软件以此构建锁、计数器、队列、屏障、引用计数与无锁数据结构。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/atomic-synchronization.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="非原子自增会丢失更新；原子 RMW 与 LR/SC 使状态转换不可分割，并在受到干扰时重试。"><img src="assets/atomic-synchronization.svg" class="img-fluid figure-img" alt="非原子自增会丢失更新；原子 RMW 与 LR/SC 使状态转换不可分割，并在受到干扰时重试。"></a></p>
+<figcaption>非原子自增会丢失更新；原子 RMW 与 LR/SC 使状态转换不可分割，并在受到干扰时重试。</figcaption>
+</figure>
+</div>
+</div>
+<p>常见原语包括 atomic swap、compare-and-swap（CAS）、fetch-and-add 与 load-reserved/store-conditional（LR/SC）。CAS 只在内存仍等于预期值时写入新值；LR 先建立保留，SC 仅在没有冲突事件使保留失效时成功。RISC-V A 扩展提供 LR/SC 与原子内存操作，用于处理器间同步。</p>
+<p>仅有原子性还不够。操作还要根据周围内存需要发布或观察的范围，选择 <strong>relaxed、acquire、release、acquire-release</strong> 或 <strong>sequentially consistent</strong> 等顺序模式。更强顺序更容易推理，却会限制编译器与硬件优化。</p>
+<details>
+<summary>
+Python 模型：compare-and-swap 在受到干扰后重试
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AtomicIntegerModel:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, value<span class="op">=</span><span class="dv">0</span>):</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.value <span class="op">=</span> value</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> load(<span class="va">self</span>):</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.value</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> compare_exchange(<span class="va">self</span>, expected, desired):</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.value <span class="op">!=</span> expected:</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">False</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.value <span class="op">=</span> desired</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">True</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>counter <span class="op">=</span> AtomicIntegerModel(<span class="dv">0</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 线程 A 与 B 都读到旧值。</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>observed_by_a <span class="op">=</span> counter.load()</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>observed_by_b <span class="op">=</span> counter.load()</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="co"># A 赢得从 0 到 1 的原子转换。</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> counter.compare_exchange(observed_by_a, observed_by_a <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="co"># B 的旧预期失败，因此重新读取并重试。</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>first_attempt_by_b <span class="op">=</span> counter.compare_exchange(observed_by_b, observed_by_b <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> first_attempt_by_b</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>observed_by_b <span class="op">=</span> counter.load()</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> counter.compare_exchange(observed_by_b, observed_by_b <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(counter.value)</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> counter.value <span class="op">==</span> <span class="dv">2</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个 Python 类只是状态机模型，并非硬件原子指令的实现。生产代码必须使用语言和运行时提供的原子与同步；手写的“检查后再 store”并不具有原子性。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>机制</th>
+<th>保证</th>
+<th>等待行为</th>
+<th>适用情况</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>原子 RMW</td>
+<td>对一个原子对象不可分割地更新</td>
+<td>本身不等待</td>
+<td>计数器与无锁构建块</td>
+<td>缓存行竞争</td>
+</tr>
+<tr class="even">
+<td>自旋锁</td>
+<td>临界区只有一个所有者</td>
+<td>反复轮询</td>
+<td>持有很短、核心专用</td>
+<td>长等待浪费周期</td>
+</tr>
+<tr class="odd">
+<td>阻塞互斥锁</td>
+<td>结合调度器保持单一所有者</td>
+<td>等待者休眠/park</td>
+<td>较长或不可预测等待</td>
+<td>上下文切换开销</td>
+</tr>
+<tr class="even">
+<td>屏障</td>
+<td>参与线程到齐前不能越过</td>
+<td>自旋或阻塞</td>
+<td>分阶段并行算法</td>
+<td>最慢线程决定进度</td>
+</tr>
+<tr class="odd">
+<td>无锁结构</td>
+<td>不依赖单一锁保证系统整体前进</td>
+<td>冲突后重试</td>
+<td>高并发专用结构</td>
+<td>正确性与回收非常微妙</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="gpus-and-domain-specific-accelerators" class="level3">
+<h3 class="anchored" data-anchor-id="gpus-and-domain-specific-accelerators"><strong>GPU 与领域专用加速器</strong></h3>
+<p>CPU 用大量面积与能量降低不规则指令流的延迟，例如大型缓存、分支预测、推测乱序执行和复杂控制；GPU 则把更多资源用于算术通道和硬件线程状态，以维持大量相似操作的高吞吐。二者没有普遍优劣，只是针对不同工作负载形态。</p>
+<p>GPU 程序启动由线程块组成的 <strong>grid</strong>。一个块内的线程可通过低延迟共享内存和 barrier 协作，不同块通常应可独立调度。硬件把线程组成 warp 或 wavefront，以 SIMT 方式发射。当前 NVIDIA CUDA 模型描述线程、块、grid、流式多处理器和 32 线程 warp；这些应被视作编程契约和性能模型，而不是对每个内部电路的承诺。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-cuda-thread-block.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-13" title="CUDA 线程组成线程块，多个线程块再形成可分配到流式多处理器上的 grid。"><img src="assets/source-cuda-thread-block.svg" class="img-fluid figure-img" alt="CUDA 线程组成线程块，多个线程块再形成可分配到流式多处理器上的 grid。"></a></p>
+<figcaption>CUDA 线程组成线程块，多个线程块再形成可分配到流式多处理器上的 grid。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:Block-thread.svg">NVIDIA, Block-thread.svg, Wikimedia Commons</a>，CC BY 3.0。</em></p>
+<p>SIMT 会带来两个性能风险。<strong>分支分歧</strong>使同一 warp 以不同活动通道掩码依次执行不同路径；<strong>非合并内存访问</strong>则把各通道请求拆成许多内存事务。因此，规则控制流与相邻地址和原始操作数同样重要。</p>
+<div class="diagram-scroll wide-diagram">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/gpu-simt-divergence.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-14" title="SIMT warp 中的分支分歧会屏蔽部分通道，分散地址也比合并访问需要更多内存事务。"><img src="assets/gpu-simt-divergence.svg" class="img-fluid figure-img" alt="SIMT warp 中的分支分歧会屏蔽部分通道，分散地址也比合并访问需要更多内存事务。"></a></p>
+<figcaption>SIMT warp 中的分支分歧会屏蔽部分通道，分散地址也比合并访问需要更多内存事务。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+Python 模型：映射线程到块并估算分支通道利用率
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> ceil</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> launch_geometry(elements, block_size):</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    blocks <span class="op">=</span> ceil(elements <span class="op">/</span> block_size)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    active_threads <span class="op">=</span> []</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> block <span class="kw">in</span> <span class="bu">range</span>(blocks):</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> thread <span class="kw">in</span> <span class="bu">range</span>(block_size):</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>            global_index <span class="op">=</span> block <span class="op">*</span> block_size <span class="op">+</span> thread</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> global_index <span class="op">&lt;</span> elements:</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>                active_threads.append((block, thread, global_index))</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> blocks, active_threads</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> branch_utilization(indices, predicate):</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    path_a <span class="op">=</span> <span class="bu">sum</span>(<span class="bu">bool</span>(predicate(index)) <span class="cf">for</span> index <span class="kw">in</span> indices)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    path_b <span class="op">=</span> <span class="bu">len</span>(indices) <span class="op">-</span> path_a</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 若两个路径串行执行，有效通道工作会分布在两次执行中。</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    passes <span class="op">=</span> <span class="bu">int</span>(path_a <span class="op">&gt;</span> <span class="dv">0</span>) <span class="op">+</span> <span class="bu">int</span>(path_b <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">len</span>(indices) <span class="op">/</span> (<span class="bu">len</span>(indices) <span class="op">*</span> passes), (path_a, path_b)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>blocks, threads <span class="op">=</span> launch_geometry(elements<span class="op">=</span><span class="dv">10</span>, block_size<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>utilization, split <span class="op">=</span> branch_utilization(<span class="bu">range</span>(<span class="dv">8</span>), <span class="kw">lambda</span> index: index <span class="op">%</span> <span class="dv">2</span> <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"blocks=</span><span class="sc">{</span>blocks<span class="sc">}</span><span class="ss">, final thread=</span><span class="sc">{</span>threads[<span class="op">-</span><span class="dv">1</span>]<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"branch split=</span><span class="sc">{</span>split<span class="sc">}</span><span class="ss">, lane utilization=</span><span class="sc">{</span>utilization<span class="sc">:.0%}</span><span class="ss">"</span>)</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> blocks <span class="op">==</span> <span class="dv">3</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> threads[<span class="op">-</span><span class="dv">1</span>] <span class="op">==</span> (<span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">9</span>)</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> utilization <span class="op">==</span> <span class="fl">0.5</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>领域专用加速器</strong>进一步缩小灵活性。张量处理器、视频编解码器、密码引擎和网络加速器以专用数据通路、本地存储、数据流调度和低精度算术提高每瓦性能。主要挑战是持续为专用单元供给数据，并确保足够多的真实应用能映射到它所支持的操作。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>属性</th>
+<th>通用 CPU</th>
+<th>GPU</th>
+<th>领域专用加速器</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>优先目标</td>
+<td>低延迟与灵活控制</td>
+<td>多线程吞吐量</td>
+<td>窄操作族的高效率</td>
+</tr>
+<tr class="even">
+<td>控制流</td>
+<td>强不规则控制支持</td>
+<td>warp 路径相似时最佳</td>
+<td>常为静态调度或高度受限</td>
+</tr>
+<tr class="odd">
+<td>并行单元</td>
+<td>指令与线程</td>
+<td>SIMT 通道、warp、块</td>
+<td>tile、脉动单元、编解码阶段或引擎</td>
+</tr>
+<tr class="even">
+<td>存储</td>
+<td>大型一致缓存</td>
+<td>显式层次与高带宽</td>
+<td>scratchpad、流与定制缓冲</td>
+</tr>
+<tr class="odd">
+<td>主要风险</td>
+<td>每瓦吞吐量有限</td>
+<td>分歧与数据移动</td>
+<td>目标领域之外利用率低</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="scalability-and-parallel-speedup" class="level3">
+<h3 class="anchored" data-anchor-id="scalability-and-parallel-speedup"><strong>可扩展性与并行加速</strong></h3>
+<p>可扩展性关注增加资源后是否仍能持续产生有效性能。<strong>强扩展</strong>保持总问题规模不变并增加处理器，因此每个处理器获得更少工作；<strong>弱扩展</strong>随处理器数增加问题规模，使每个处理器的工作量大体不变。一个系统可能弱扩展很好，却很快达到强扩展上限。</p>
+<p>Amdahl 定律把工作负载拆成可并行比例 <span class="math inline">\(f\)</span> 与串行比例 <span class="math inline">\(1-f\)</span>。使用 <span class="math inline">\(P\)</span> 个处理器时，理想加速为</p>
+<p><span class="math display">\[
+S_{Amdahl}(P)=\frac{1}{(1-f)+\frac{f}{P}}.
+\]</span></p>
+<p>当 <span class="math inline">\(P\)</span> 趋近无穷，<span class="math inline">\(f/P\)</span> 趋近于零，最大加速趋近 <span class="math inline">\(1/(1-f)\)</span>。若 5% 工作本质串行，无论处理器多少，上限都是 <span class="math inline">\(1/0.05=20\)</span>。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/source-amdahl-law.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-15" title="随着处理器数量增加，Amdahl 曲线逐渐变平，串行比例给出有限最大加速。"><img src="assets/source-amdahl-law.svg" class="img-fluid figure-img" alt="随着处理器数量增加，Amdahl 曲线逐渐变平，串行比例给出有限最大加速。"></a></p>
+<figcaption>随着处理器数量增加，Amdahl 曲线逐渐变平，串行比例给出有限最大加速。</figcaption>
+</figure>
+</div>
+</div>
+<p><em>图片来源：<a href="https://commons.wikimedia.org/wiki/File:AmdahlsLaw.svg">Daniels220 and contributors, AmdahlsLaw.svg, Wikimedia Commons</a>，CC BY-SA 3.0。</em></p>
+<p>Gustafson 定律提出另一问题：如果并行机器能在相同时间内处理更大的问题，实际完成了多少规模化工作？设扩展后的并行运行中串行时间比例为 <span class="math inline">\(\alpha\)</span>，</p>
+<p><span class="math display">\[
+S_{Gustafson}(P)=P-\alpha(P-1).
+\]</span></p>
+<p>Amdahl 强调固定问题规模的强扩展，Gustafson 强调随资源扩大问题规模的弱扩展直觉；二者回答不同问题，并不矛盾。</p>
+<p>实际运行时间还必须加入开销：</p>
+<p><span class="math display">\[
+T_P=T_{serial}+\frac{T_{parallel}}{P}+T_{communication}+T_{synchronization}+T_{imbalance}.
+\]</span></p>
+<p><span class="math inline">\(T_{serial}\)</span> 无法划分，<span class="math inline">\(T_{parallel}/P\)</span> 是理想分摊工作，<span class="math inline">\(T_{communication}\)</span> 用于移动数据或缓存行，<span class="math inline">\(T_{synchronization}\)</span> 包含等待和原子协调，<span class="math inline">\(T_{imbalance}\)</span> 是部分 worker 较晚完成造成的损失。这些开销常随 <span class="math inline">\(P\)</span> 增长，所以真实加速可能先达到峰值再下降。</p>
+<details>
+<summary>
+Python 示例：比较 Amdahl 与 Gustafson 加速
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math <span class="im">import</span> isclose</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> amdahl_speedup(parallel_fraction, processors):</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    serial_fraction <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> parallel_fraction</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">1</span> <span class="op">/</span> (serial_fraction <span class="op">+</span> parallel_fraction <span class="op">/</span> processors)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gustafson_speedup(serial_fraction, processors):</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> processors <span class="op">-</span> serial_fraction <span class="op">*</span> (processors <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>parallel_fraction <span class="op">=</span> <span class="fl">0.95</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>serial_fraction <span class="op">=</span> <span class="fl">0.05</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> processors <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">8</span>, <span class="dv">16</span>, <span class="dv">64</span>]:</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    fixed <span class="op">=</span> amdahl_speedup(parallel_fraction, processors)</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    scaled <span class="op">=</span> gustafson_speedup(serial_fraction, processors)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    efficiency <span class="op">=</span> fixed <span class="op">/</span> processors</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"P=</span><span class="sc">{</span>processors<span class="sc">:&gt;2}</span><span class="ss">: Amdahl=</span><span class="sc">{</span>fixed<span class="sc">:&gt;5.2f}</span><span class="ss">x, "</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"efficiency=</span><span class="sc">{</span>efficiency<span class="sc">:&gt;6.1%}</span><span class="ss">, Gustafson=</span><span class="sc">{</span>scaled<span class="sc">:&gt;5.2f}</span><span class="ss">x"</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> isclose(amdahl_speedup(<span class="fl">0.95</span>, <span class="dv">64</span>), <span class="dv">1280</span> <span class="op">/</span> <span class="dv">83</span>)</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> isclose(gustafson_speedup(<span class="fl">0.05</span>, <span class="dv">64</span>), <span class="fl">60.85</span>)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> isclose(<span class="dv">1</span> <span class="op">/</span> (<span class="dv">1</span> <span class="op">-</span> parallel_fraction), <span class="fl">20.0</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>并行效率为 <span class="math inline">\(E(P)=S(P)/P\)</span>，表示理想 <span class="math inline">\(P\)</span> 倍容量中有多少转化为加速。效率下降并不自动意味着失败：低效率运行仍可能显著缩短完成时间，而真实目标也可能是弱扩展。指标必须与工作负载及服务目标匹配。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>扩展症状</th>
+<th>可能的体系结构原因</th>
+<th>有用的调查方向</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>很小 <span class="math inline">\(P\)</span> 时加速即趋平</td>
+<td>串行临界区或依赖链</td>
+<td>分析串行时间与锁持有时间</td>
+</tr>
+<tr class="even">
+<td>吞吐上升但单线程延迟变差</td>
+<td>SMT 或缓存竞争</td>
+<td>比较独占与共调度性能计数器</td>
+</tr>
+<tr class="odd">
+<td>远程插槽变慢</td>
+<td>NUMA 放置不佳</td>
+<td>检查亲和性、页面位置与远程流量</td>
+</tr>
+<tr class="even">
+<td>核心越多缓存未命中越高</td>
+<td>容量压力或伪共享</td>
+<td>测量 LLC 未命中与所有权转移</td>
+</tr>
+<tr class="odd">
+<td>worker 在 barrier 等待</td>
+<td>负载不均或慢任务</td>
+<td>检查每个 worker 完成时间</td>
+</tr>
+<tr class="even">
+<td>GPU 通道利用率低</td>
+<td>分歧、启动规模小或不规则工作</td>
+<td>检查活动通道、占用率和分支划分</td>
+</tr>
+<tr class="odd">
+<td>带宽饱和</td>
+<td>内存或互连上限</td>
+<td>测量单位工作搬运的字节数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>本章总结。</strong> 并行性能始于指令、数据或线程层面的独立工作。Flynn 分类描述数据流和指令流组织，SIMD、向量单元、硬件多线程、多核 CPU、GPU 与加速器则把不同工作负载映射到硬件。共享内存简化通信，但私有缓存需要一致性：监听通过广播发现副本，目录记录共享者，MESI 编码常见所有权状态。缓存一致性排列一个位置，内存一致性模型约束跨位置观察，原子操作与 acquire/release 顺序共同构建同步。核心或通道数量只代表容量；串行工作、通信、竞争、不均衡、带宽和数据放置最终决定实际加速。第 12 章将从完整系统视角，把这些性能权衡与功耗、可靠性和安全性放在一起评估。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","selector":".lightbox","closeEffect":"zoom","descPosition":"bottom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

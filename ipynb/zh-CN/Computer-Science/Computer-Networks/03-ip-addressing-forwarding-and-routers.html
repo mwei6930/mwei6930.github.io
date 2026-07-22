@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>计算机网络：IP 寻址、转发与路由器</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/clipboard/clipboard.min.js"></script>
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/quarto.js"></script>
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/popper.min.js"></script>
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/anchor.min.js"></script>
+<link href="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="03-ip-addressing-forwarding-and-routers_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="03-ip-addressing-forwarding-and-routers_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="03-ip-addressing-forwarding-and-routers_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="03-ip-addressing-forwarding-and-routers_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#ip-addressing-forwarding-and-routers" id="toc-ip-addressing-forwarding-and-routers" class="nav-link active" data-scroll-target="#ip-addressing-forwarding-and-routers"><strong>IP 寻址、转发与路由器</strong></a>
+  <ul>
+  <li><a href="#network-layer-service-and-the-data-plane" id="toc-network-layer-service-and-the-data-plane" class="nav-link" data-scroll-target="#network-layer-service-and-the-data-plane"><strong>网络层服务与数据平面</strong></a>
+  <ul>
+  <li><a href="#best-effort-datagram-delivery" id="toc-best-effort-datagram-delivery" class="nav-link" data-scroll-target="#best-effort-datagram-delivery"><strong>尽力而为数据报交付</strong></a></li>
+  <li><a href="#forwarding-vs-routing" id="toc-forwarding-vs-routing" class="nav-link" data-scroll-target="#forwarding-vs-routing"><strong>转发与路由</strong></a></li>
+  <li><a href="#per-packet-processing-at-hosts-and-routers" id="toc-per-packet-processing-at-hosts-and-routers" class="nav-link" data-scroll-target="#per-packet-processing-at-hosts-and-routers"><strong>主机与路由器的逐分组处理</strong></a></li>
+  </ul></li>
+  <li><a href="#ipv4-datagrams" id="toc-ipv4-datagrams" class="nav-link" data-scroll-target="#ipv4-datagrams"><strong>IPv4 数据报</strong></a>
+  <ul>
+  <li><a href="#ipv4-header-fields" id="toc-ipv4-header-fields" class="nav-link" data-scroll-target="#ipv4-header-fields"><strong>IPv4 首部字段</strong></a></li>
+  <li><a href="#time-to-live-and-header-checksum" id="toc-time-to-live-and-header-checksum" class="nav-link" data-scroll-target="#time-to-live-and-header-checksum"><strong>TTL 与首部校验和</strong></a></li>
+  <li><a href="#protocol-demultiplexing" id="toc-protocol-demultiplexing" class="nav-link" data-scroll-target="#protocol-demultiplexing"><strong>协议分用</strong></a></li>
+  </ul></li>
+  <li><a href="#ipv4-addressing-and-subnetting" id="toc-ipv4-addressing-and-subnetting" class="nav-link" data-scroll-target="#ipv4-addressing-and-subnetting"><strong>IPv4 寻址与子网划分</strong></a>
+  <ul>
+  <li><a href="#network-and-host-portions" id="toc-network-and-host-portions" class="nav-link" data-scroll-target="#network-and-host-portions"><strong>网络部分与主机部分</strong></a></li>
+  <li><a href="#subnet-masks-and-prefix-lengths" id="toc-subnet-masks-and-prefix-lengths" class="nav-link" data-scroll-target="#subnet-masks-and-prefix-lengths"><strong>子网掩码与前缀长度</strong></a></li>
+  <li><a href="#classless-inter-domain-routing" id="toc-classless-inter-domain-routing" class="nav-link" data-scroll-target="#classless-inter-domain-routing"><strong>无类别域间路由</strong></a></li>
+  <li><a href="#address-allocation-and-special-addresses" id="toc-address-allocation-and-special-addresses" class="nav-link" data-scroll-target="#address-allocation-and-special-addresses"><strong>地址分配与特殊地址</strong></a></li>
+  </ul></li>
+  <li><a href="#forwarding-and-longest-prefix-matching" id="toc-forwarding-and-longest-prefix-matching" class="nav-link" data-scroll-target="#forwarding-and-longest-prefix-matching"><strong>转发与最长前缀匹配</strong></a>
+  <ul>
+  <li><a href="#forwarding-tables-and-next-hops" id="toc-forwarding-tables-and-next-hops" class="nav-link" data-scroll-target="#forwarding-tables-and-next-hops"><strong>转发表与下一跳</strong></a></li>
+  <li><a href="#longest-prefix-match-algorithm" id="toc-longest-prefix-match-algorithm" class="nav-link" data-scroll-target="#longest-prefix-match-algorithm"><strong>最长前缀匹配算法</strong></a></li>
+  <li><a href="#tries-tcam-and-fast-lookup" id="toc-tries-tcam-and-fast-lookup" class="nav-link" data-scroll-target="#tries-tcam-and-fast-lookup"><strong>Trie、TCAM 与高速查找</strong></a></li>
+  <li><a href="#default-routes-and-policy-actions" id="toc-default-routes-and-policy-actions" class="nav-link" data-scroll-target="#default-routes-and-policy-actions"><strong>默认路由与策略动作</strong></a></li>
+  </ul></li>
+  <li><a href="#router-architecture" id="toc-router-architecture" class="nav-link" data-scroll-target="#router-architecture"><strong>路由器体系结构</strong></a>
+  <ul>
+  <li><a href="#input-ports-and-packet-classification" id="toc-input-ports-and-packet-classification" class="nav-link" data-scroll-target="#input-ports-and-packet-classification"><strong>输入端口与分组分类</strong></a></li>
+  <li><a href="#switching-fabrics" id="toc-switching-fabrics" class="nav-link" data-scroll-target="#switching-fabrics"><strong>交换结构</strong></a></li>
+  <li><a href="#output-ports-queues-and-scheduling" id="toc-output-ports-queues-and-scheduling" class="nav-link" data-scroll-target="#output-ports-queues-and-scheduling"><strong>输出端口、队列与调度</strong></a></li>
+  <li><a href="#head-of-line-blocking-and-buffer-placement" id="toc-head-of-line-blocking-and-buffer-placement" class="nav-link" data-scroll-target="#head-of-line-blocking-and-buffer-placement"><strong>队头阻塞与缓冲位置</strong></a></li>
+  <li><a href="#control-processor-and-fast-path" id="toc-control-processor-and-fast-path" class="nav-link" data-scroll-target="#control-processor-and-fast-path"><strong>控制处理器与快速路径</strong></a></li>
+  </ul></li>
+  <li><a href="#maximum-transmission-unit-and-fragmentation" id="toc-maximum-transmission-unit-and-fragmentation" class="nav-link" data-scroll-target="#maximum-transmission-unit-and-fragmentation"><strong>最大传输单元与分片</strong></a>
+  <ul>
+  <li><a href="#link-mtu-path-mtu-and-transport-mss" id="toc-link-mtu-path-mtu-and-transport-mss" class="nav-link" data-scroll-target="#link-mtu-path-mtu-and-transport-mss"><strong>链路 MTU、路径 MTU 与传输层 MSS</strong></a></li>
+  <li><a href="#ipv4-fragmentation-and-reassembly" id="toc-ipv4-fragmentation-and-reassembly" class="nav-link" data-scroll-target="#ipv4-fragmentation-and-reassembly"><strong>IPv4 分片与重组</strong></a></li>
+  <li><a href="#path-mtu-discovery" id="toc-path-mtu-discovery" class="nav-link" data-scroll-target="#path-mtu-discovery"><strong>路径 MTU 发现</strong></a></li>
+  <li><a href="#encapsulation-and-effective-mtu" id="toc-encapsulation-and-effective-mtu" class="nav-link" data-scroll-target="#encapsulation-and-effective-mtu"><strong>封装与有效 MTU</strong></a></li>
+  </ul></li>
+  <li><a href="#internet-control-message-protocol" id="toc-internet-control-message-protocol" class="nav-link" data-scroll-target="#internet-control-message-protocol"><strong>互联网控制消息协议</strong></a>
+  <ul>
+  <li><a href="#errors-diagnostics-and-reachability" id="toc-errors-diagnostics-and-reachability" class="nav-link" data-scroll-target="#errors-diagnostics-and-reachability"><strong>错误、诊断与可达性</strong></a></li>
+  <li><a href="#echo-request-and-echo-reply" id="toc-echo-request-and-echo-reply" class="nav-link" data-scroll-target="#echo-request-and-echo-reply"><strong>Echo Request 与 Echo Reply</strong></a></li>
+  <li><a href="#time-exceeded-and-traceroute" id="toc-time-exceeded-and-traceroute" class="nav-link" data-scroll-target="#time-exceeded-and-traceroute"><strong>Time Exceeded 与 traceroute</strong></a></li>
+  </ul></li>
+  <li><a href="#host-configuration-and-address-translation" id="toc-host-configuration-and-address-translation" class="nav-link" data-scroll-target="#host-configuration-and-address-translation"><strong>主机配置与地址转换</strong></a>
+  <ul>
+  <li><a href="#dynamic-host-configuration-protocol" id="toc-dynamic-host-configuration-protocol" class="nav-link" data-scroll-target="#dynamic-host-configuration-protocol"><strong>动态主机配置协议</strong></a></li>
+  <li><a href="#network-address-translation-and-port-translation" id="toc-network-address-translation-and-port-translation" class="nav-link" data-scroll-target="#network-address-translation-and-port-translation"><strong>网络地址转换与端口转换</strong></a></li>
+  <li><a href="#benefits-costs-and-end-to-end-consequences-of-nat" id="toc-benefits-costs-and-end-to-end-consequences-of-nat" class="nav-link" data-scroll-target="#benefits-costs-and-end-to-end-consequences-of-nat"><strong>NAT 的收益、代价与端到端影响</strong></a></li>
+  </ul></li>
+  <li><a href="#ipv6" id="toc-ipv6" class="nav-link" data-scroll-target="#ipv6"><strong>IPv6</strong></a>
+  <ul>
+  <li><a href="#ipv6-addressing-and-header-design" id="toc-ipv6-addressing-and-header-design" class="nav-link" data-scroll-target="#ipv6-addressing-and-header-design"><strong>IPv6 寻址与首部设计</strong></a></li>
+  <li><a href="#neighbor-discovery-and-stateless-configuration" id="toc-neighbor-discovery-and-stateless-configuration" class="nav-link" data-scroll-target="#neighbor-discovery-and-stateless-configuration"><strong>邻居发现与无状态配置</strong></a></li>
+  <li><a href="#extension-headers-and-fragmentation" id="toc-extension-headers-and-fragmentation" class="nav-link" data-scroll-target="#extension-headers-and-fragmentation"><strong>扩展首部与分片</strong></a></li>
+  <li><a href="#dual-stack-tunnelling-and-translation" id="toc-dual-stack-tunnelling-and-translation" class="nav-link" data-scroll-target="#dual-stack-tunnelling-and-translation"><strong>双栈、隧道与转换</strong></a></li>
+  </ul></li>
+  <li><a href="#forwarding-beyond-basic-ip" id="toc-forwarding-beyond-basic-ip" class="nav-link" data-scroll-target="#forwarding-beyond-basic-ip"><strong>基本 IP 之外的转发</strong></a>
+  <ul>
+  <li><a href="#tunnels-and-virtual-interfaces" id="toc-tunnels-and-virtual-interfaces" class="nav-link" data-scroll-target="#tunnels-and-virtual-interfaces"><strong>隧道与虚拟接口</strong></a></li>
+  <li><a href="#multiprotocol-label-switching" id="toc-multiprotocol-label-switching" class="nav-link" data-scroll-target="#multiprotocol-label-switching"><strong>多协议标签交换</strong></a></li>
+  <li><a href="#middleboxes-and-service-functions" id="toc-middleboxes-and-service-functions" class="nav-link" data-scroll-target="#middleboxes-and-service-functions"><strong>中间盒与服务功能</strong></a></li>
+  </ul></li>
+  <li><a href="#building-a-minimal-longest-prefix-match-router" id="toc-building-a-minimal-longest-prefix-match-router" class="nav-link" data-scroll-target="#building-a-minimal-longest-prefix-match-router"><strong>构建最小最长前缀匹配路由器</strong></a></li>
+  <li><a href="#observing-and-troubleshooting-the-ip-data-plane" id="toc-observing-and-troubleshooting-the-ip-data-plane" class="nav-link" data-scroll-target="#observing-and-troubleshooting-the-ip-data-plane"><strong>观察与排查 IP 数据平面</strong></a></li>
+  <li><a href="#comparison-and-summary" id="toc-comparison-and-summary" class="nav-link" data-scroll-target="#comparison-and-summary"><strong>对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">计算机网络：IP 寻址、转发与路由器</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Computer-Science/Computer-Networks/03-ip-addressing-forwarding-and-routers.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/Computer-Science/Computer-Networks/Computer-Networks.html">返回计算机网络总览</a>
+</p>
+<section id="ip-addressing-forwarding-and-routers" class="level2">
+<h2 class="anchored" data-anchor-id="ip-addressing-forwarding-and-routers"><strong>IP 寻址、转发与路由器</strong></h2>
+<p>链路层解决一跳内如何发送帧，网际层则要把数据报跨越多种链路和多个管理域送到远端网络。IP 为所有下层技术提供共同的“细腰”：主机只需构造目的 IP 数据报，每台路由器再依据本地转发表选择下一跳。</p>
+<p>本章从数据平面视角回答四个问题：IP 地址怎样同时表达网络位置和接口标识；路由器如何在每个分组到来时快速匹配前缀；MTU、ICMP、DHCP 与 NAT 如何影响实际路径；IPv6 又如何扩展地址空间并调整首部与邻居机制。贯穿案例是一个最小最长前缀匹配路由器，帮助把抽象规则落实为可执行代码。</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+注记
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p><strong>转发（forwarding）</strong>是对一个到达分组执行的本地、快速动作；<strong>路由（routing）</strong>是计算和维护这些转发规则的全网/控制平面过程。路由协议改变转发表，转发表决定具体分组的下一跳。</p>
+</div>
+</div>
+<section id="network-layer-service-and-the-data-plane" class="level3">
+<h3 class="anchored" data-anchor-id="network-layer-service-and-the-data-plane"><strong>网络层服务与数据平面</strong></h3>
+<section id="best-effort-datagram-delivery" class="level4">
+<h4 class="anchored" data-anchor-id="best-effort-datagram-delivery"><strong>尽力而为数据报交付</strong></h4>
+<p>IP 提供无连接、尽力而为的数据报服务。每个数据报可独立选择路径，网络不保证到达、顺序、唯一性、固定时延或带宽。简单共同服务使 IP 能跨越以太网、Wi-Fi、蜂窝、隧道等异构链路，但可靠性、顺序、拥塞响应和应用语义必须由传输层与端点补充。</p>
+<p>“尽力而为”不等于“随意转发”。路由器仍必须遵守首部语义、递减 TTL/Hop Limit、执行转发表和策略、在无法处理时适当产生 ICMP，并在有限资源下调度队列。它只是没有向应用作出强结果保证。</p>
+</section>
+<section id="forwarding-vs-routing" class="level4">
+<h4 class="anchored" data-anchor-id="forwarding-vs-routing"><strong>转发与路由</strong></h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>转发</th>
+<th>路由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>时间尺度</td>
+<td>每个分组、纳秒到微秒</td>
+<td>拓扑或策略变化时、毫秒到分钟</td>
+</tr>
+<tr class="even">
+<td>输入</td>
+<td>分组首部与本地转发表</td>
+<td>拓扑、邻居通告、度量与策略</td>
+</tr>
+<tr class="odd">
+<td>输出</td>
+<td>输出接口、下一跳、丢弃或特殊动作</td>
+<td>RIB 中的候选路径与下装到 FIB 的规则</td>
+</tr>
+<tr class="even">
+<td>所在平面</td>
+<td>数据平面</td>
+<td>控制平面</td>
+</tr>
+</tbody>
+</table>
+<p>控制平面可以由分布式协议（OSPF、BGP）、集中控制器或静态配置产生路由；数据平面必须在高速路径上按确定规则执行。把两者分开有助于判断：错误下一跳究竟是算法/策略算错，还是硬件没有正确执行已下装规则。</p>
+</section>
+<section id="per-packet-processing-at-hosts-and-routers" class="level4">
+<h4 class="anchored" data-anchor-id="per-packet-processing-at-hosts-and-routers"><strong>主机与路由器的逐分组处理</strong></h4>
+<p>发送主机先从路由表选择出接口和下一跳，再由链路层解析邻居并封装。路由器接收帧后通常执行：验证链路与 IP 首部、检查目的是否为本机、递减 TTL/Hop Limit、执行最长前缀匹配、应用 ACL/NAT/QoS 等策略、进入输出队列并重新封装。目的主机最终按 IP 协议号或 IPv6 Next Header 把载荷分用给 TCP、UDP、ICMP 等上层协议。</p>
+<p>快速路径处理普通分组；控制处理器负责路由协议、管理和异常慢路径。若大量普通流量被迫进入慢路径，CPU 可能先于链路容量成为瓶颈。</p>
+</section>
+</section>
+<section id="ipv4-datagrams" class="level3">
+<h3 class="anchored" data-anchor-id="ipv4-datagrams"><strong>IPv4 数据报</strong></h3>
+<section id="ipv4-header-fields" class="level4">
+<h4 class="anchored" data-anchor-id="ipv4-header-fields"><strong>IPv4 首部字段</strong></h4>
+<p>IPv4 基本首部至少 20 字节。Version 标识版本；IHL 给出首部长度；DSCP/ECN 支持服务分类与显式拥塞通知；Total Length 给出整个数据报长度；Identification、Flags、Fragment Offset 用于分片；TTL 限制生存跳数；Protocol 指明上层；Header Checksum 只校验首部；源、目的地址用于标识端点和转发。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ipv4-header.svg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/ipv4-header.svg" class="img-fluid figure-img" style="width:88.0%" alt="含版本、长度、服务、分片、TTL、协议、校验和、地址与选项的 IPv4 首部"></a></p>
+<figcaption>IPv4 首部字段与位宽。</figcaption>
+</figure>
+</div>
+<p>可选字段使首部变长，也使高速处理更复杂，实际互联网中使用有限。TCP/UDP 校验和覆盖其首部、数据以及包含 IP 地址的伪首部，职责与 IPv4 首部校验和不同。</p>
+</section>
+<section id="time-to-live-and-header-checksum" class="level4">
+<h4 class="anchored" data-anchor-id="time-to-live-and-header-checksum"><strong>TTL 与首部校验和</strong></h4>
+<p>每台转发路由器至少把 <strong>TTL</strong> 减 1；减为 0 时丢弃数据报，并通常返回 ICMP Time Exceeded。这防止路由环路让分组永久存在，也是 traceroute 的基础。虽然名称是“时间”，现代实现主要把它当跳数限制。</p>
+<p>IPv4 路由器修改 TTL 后必须更新首部校验和。该校验只发现首部损坏，不保护载荷；IPv6 删除了基本首部校验和，以避免每跳重算并依赖链路与传输层校验。</p>
+</section>
+<section id="protocol-demultiplexing" class="level4">
+<h4 class="anchored" data-anchor-id="protocol-demultiplexing"><strong>协议分用</strong></h4>
+<p>Protocol 字段告诉目的主机把载荷交给哪个上层模块，例如 ICMP 为 1、TCP 为 6、UDP 为 17。它不是应用端口；端口在 TCP/UDP 首部中继续把流量分给具体套接字。分层分用链为 EtherType → IP Protocol/Next Header → 传输端口 → 应用消息。</p>
+<div id="ipv4-header-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.028979Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.028595Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.040388Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.039561Z&quot;}" data-execution_count="1">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> ipaddress</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> struct</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> internet_checksum(data: <span class="bu">bytes</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回 16 位反码互联网校验和。"""</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 校验和按 16 位字计算；奇数字节只在计算时补齐。</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(data) <span class="op">%</span> <span class="dv">2</span>:</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        data <span class="op">+=</span> <span class="st">b"</span><span class="ch">\x00</span><span class="st">"</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="bu">sum</span>(struct.unpack(<span class="ss">f"!</span><span class="sc">{</span><span class="bu">len</span>(data) <span class="op">//</span> <span class="dv">2</span><span class="sc">}</span><span class="ss">H"</span>, data))</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 把每个越过第 16 位的进位折回低 16 位。</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> total <span class="op">&gt;&gt;</span> <span class="dv">16</span>:</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        total <span class="op">=</span> (total <span class="op">&amp;</span> <span class="bn">0xFFFF</span>) <span class="op">+</span> (total <span class="op">&gt;&gt;</span> <span class="dv">16</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="op">~</span>total) <span class="op">&amp;</span> <span class="bn">0xFFFF</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>payload <span class="op">=</span> <span class="st">b"hello router"</span></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>version_ihl <span class="op">=</span> (<span class="dv">4</span> <span class="op">&lt;&lt;</span> <span class="dv">4</span>) <span class="op">|</span> <span class="dv">5</span>                    <span class="co"># IPv4，首部包含五个 32 位字</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>total_length <span class="op">=</span> <span class="dv">20</span> <span class="op">+</span> <span class="bu">len</span>(payload)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>identification <span class="op">=</span> <span class="bn">0x1234</span></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>flags_fragment <span class="op">=</span> <span class="bn">0x4000</span>                      <span class="co"># DF=1，分片偏移量为 0</span></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>ttl, protocol <span class="op">=</span> <span class="dv">64</span>, <span class="dv">17</span>                       <span class="co"># UDP 的协议号为 17</span></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> ipaddress.IPv4Address(<span class="st">"192.0.2.10"</span>).packed</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>destination <span class="op">=</span> ipaddress.IPv4Address(<span class="st">"198.51.100.8"</span>).packed</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="co"># 先以零校验和打包首部，再计算并写入校验和。</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>header_without_checksum <span class="op">=</span> struct.pack(</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"!BBHHHBBH4s4s"</span>,</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    version_ihl, <span class="dv">0</span>, total_length, identification, flags_fragment,</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    ttl, protocol, <span class="dv">0</span>, source, destination,</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>checksum <span class="op">=</span> internet_checksum(header_without_checksum)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>header <span class="op">=</span> struct.pack(</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>    <span class="st">"!BBHHHBBH4s4s"</span>,</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    version_ihl, <span class="dv">0</span>, total_length, identification, flags_fragment,</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    ttl, protocol, checksum, source, destination,</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="co"># 正确首部连同校验和一起验证时结果应为零。</span></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"header bytes: </span><span class="sc">{</span><span class="bu">len</span>(header)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"total length: </span><span class="sc">{</span>total_length<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"TTL/protocol: </span><span class="sc">{</span>ttl<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>protocol<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"checksum:     0x</span><span class="sc">{</span>checksum<span class="sc">:04x}</span><span class="ss">"</span>)</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"verification: 0x</span><span class="sc">{</span>internet_checksum(header)<span class="sc">:04x}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>header bytes: 20
+total length: 32
+TTL/protocol: 64/17
+checksum:     0x3c53
+verification: 0x0000</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="ipv4-addressing-and-subnetting" class="level3">
+<h3 class="anchored" data-anchor-id="ipv4-addressing-and-subnetting"><strong>IPv4 寻址与子网划分</strong></h3>
+<section id="network-and-host-portions" class="level4">
+<h4 class="anchored" data-anchor-id="network-and-host-portions"><strong>网络部分与主机部分</strong></h4>
+<p>IPv4 地址为 32 bit。前缀长度 <span class="math inline">\(p\)</span> 表示高 <span class="math inline">\(p\)</span> 位是网络部分，剩余 <span class="math inline">\(32-p\)</span> 位标识该前缀内地址。例如 <code>192.0.2.130/24</code> 的网络是 <code>192.0.2.0/24</code>。接口地址属于前缀；路由器转发的是前缀，而不是为互联网中每台主机保存独立项。</p>
+<p>对地址 <span class="math inline">\(A\)</span> 与前缀掩码 <span class="math inline">\(M\)</span>，网络地址为</p>
+<p><span class="math display">\[
+Network=A\ \text{AND}\ M.
+\]</span></p>
+<p>同链路判断本质上是把目的地址与本地前缀进行掩码比较。不同主机若使用不一致掩码，会对“本地还是远程”得出不同结论，造成单向或间歇故障。</p>
+</section>
+<section id="subnet-masks-and-prefix-lengths" class="level4">
+<h4 class="anchored" data-anchor-id="subnet-masks-and-prefix-lengths"><strong>子网掩码与前缀长度</strong></h4>
+<p><code>/p</code> 与连续 1 的点分十进制掩码等价，例如 <code>/24</code> 是 <code>255.255.255.0</code>，<code>/26</code> 是 <code>255.255.255.192</code>。一个 <code>/p</code> 块含 <span class="math inline">\(2^{32-p}\)</span> 个地址；传统广播子网通常不能把全 0 网络地址和全 1 广播地址分配给普通主机，因此可用数常写为 <span class="math inline">\(2^{32-p}-2\)</span>，但点到点 <code>/31</code> 等场景有专门规则。</p>
+<p>子网设计要同时满足当前主机数、增长、路由聚合、安全边界和地址管理。仅按主机数切割会导致未来无法汇总或扩容。</p>
+</section>
+<section id="classless-inter-domain-routing" class="level4">
+<h4 class="anchored" data-anchor-id="classless-inter-domain-routing"><strong>无类别域间路由</strong></h4>
+<p><strong>CIDR</strong> 以任意长度前缀取代 A/B/C 类固定边界。它支持可变长度子网（VLSM）和路由聚合。例如若一个运营者拥有连续的多个 <code>/24</code>，可以向外通告一个较短聚合前缀，减少全球路由表状态；更具体前缀仍可用于例外路径，但会增加表项并可能被过滤。</p>
+</section>
+<section id="address-allocation-and-special-addresses" class="level4">
+<h4 class="anchored" data-anchor-id="address-allocation-and-special-addresses"><strong>地址分配与特殊地址</strong></h4>
+<p>全球单播地址由注册管理体系按层次分配。常见特殊范围包括私有地址 <code>10.0.0.0/8</code>、<code>172.16.0.0/12</code>、<code>192.168.0.0/16</code>，环回 <code>127.0.0.0/8</code>，链路本地 <code>169.254.0.0/16</code>，组播 <code>224.0.0.0/4</code>，文档示例 <code>192.0.2.0/24</code> 等。特殊地址的可转发范围和语义不同，不能仅凭“格式像 IP”就当作全球可达地址。</p>
+<div id="subnetting-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.046776Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.046358Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.054003Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.052451Z&quot;}" data-execution_count="2">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ipaddress <span class="im">import</span> ip_interface, ip_network, collapse_addresses</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>interface <span class="op">=</span> ip_interface(<span class="st">"192.0.2.130/26"</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>network <span class="op">=</span> interface.network</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"interface: "</span>, interface)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mask:      "</span>, network.netmask)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"network:   "</span>, network.network_address)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"broadcast: "</span>, network.broadcast_address)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"block size:"</span>, network.num_addresses)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"traditional usable range:"</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>      network.network_address <span class="op">+</span> <span class="dv">1</span>, <span class="st">"to"</span>, network.broadcast_address <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 相邻且对齐的前缀可以用更短聚合前缀表示。</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>parts <span class="op">=</span> [</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    ip_network(<span class="st">"198.51.100.0/25"</span>),</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    ip_network(<span class="st">"198.51.100.128/25"</span>),</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    ip_network(<span class="st">"203.0.113.0/24"</span>),</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>aggregated <span class="op">=</span> <span class="bu">list</span>(collapse_addresses(parts))</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"aggregated:"</span>, <span class="st">", "</span>.join(<span class="bu">map</span>(<span class="bu">str</span>, aggregated)))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>interface:  192.0.2.130/26
+mask:       255.255.255.192
+network:    192.0.2.128
+broadcast:  192.0.2.191
+block size: 64
+traditional usable range: 192.0.2.129 to 192.0.2.190
+aggregated: 198.51.100.0/24, 203.0.113.0/24</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="forwarding-and-longest-prefix-matching" class="level3">
+<h3 class="anchored" data-anchor-id="forwarding-and-longest-prefix-matching"><strong>转发与最长前缀匹配</strong></h3>
+<section id="forwarding-tables-and-next-hops" class="level4">
+<h4 class="anchored" data-anchor-id="forwarding-tables-and-next-hops"><strong>转发表与下一跳</strong></h4>
+<p>转发表（FIB）把目的前缀映射到下一跳、输出接口和可能的动作。下一跳通常只是相邻设备地址，并非完整端到端路径；直连前缀可以直接解析目的主机，远程前缀则先解析网关。控制平面的路由信息库（RIB）可保存多个候选，最终选定项才下装到 FIB。</p>
+</section>
+<section id="longest-prefix-match-algorithm" class="level4">
+<h4 class="anchored" data-anchor-id="longest-prefix-match-algorithm"><strong>最长前缀匹配算法</strong></h4>
+<p>同一个目的地址可能匹配多条规则，路由器选择前缀长度最大的项，即<strong>最长前缀匹配（LPM）</strong>。更长前缀描述更小、更具体的地址集合，因此优先于聚合路由和默认路由。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/lpm-routing-table.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/lpm-routing-table.svg" class="img-fluid figure-img" style="width:96.0%" alt="10.1.2.130 匹配默认、/8、/16、/24 与 /25，最长的 /25 获胜"></a></p>
+<figcaption>目的地址 10.1.2.130 同时匹配多条路由，最终由 /25 获胜。</figcaption>
+</figure>
+</div>
+<p>算法可表示为：遍历所有表项，检查高 <span class="math inline">\(p\)</span> 位是否相同，并记录最大的 <span class="math inline">\(p\)</span>。软件模型可以线性扫描，真实高速路由器则需更可扩展的数据结构与并行硬件。</p>
+</section>
+<section id="tries-tcam-and-fast-lookup" class="level4">
+<h4 class="anchored" data-anchor-id="tries-tcam-and-fast-lookup"><strong>Trie、TCAM 与高速查找</strong></h4>
+<p>二进制 trie 每层检查地址的一位，前缀压缩 trie 减少只有一个子节点的路径；多位 trie 一次检查多个比特，以空间换深度。<strong>TCAM</strong> 能并行比较带“0/1/任意”掩码的规则，并按优先级返回匹配，适合 LPM 与 ACL，但功耗、成本和容量较高。现代设备也会使用 SRAM 算法、缓存、流水化与硬件分层组合。</p>
+</section>
+<section id="default-routes-and-policy-actions" class="level4">
+<h4 class="anchored" data-anchor-id="default-routes-and-policy-actions"><strong>默认路由与策略动作</strong></h4>
+<p><code>0.0.0.0/0</code> 匹配所有 IPv4 地址，只在没有更具体项时使用。主机和边缘路由器常把未知目的交给上游；互联网核心不能只依赖一个默认出口。匹配结果也不一定是“转发”：规则可以丢弃、拒绝、送控制平面、改写、镜像或选择多路径。应把前缀选择与后续策略动作分开理解。</p>
+<div id="lpm-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.059165Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.058839Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.066880Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.065795Z&quot;}" data-execution_count="3">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> ipaddress <span class="im">import</span> IPv4Address, IPv4Network</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Route:</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    prefix: IPv4Network</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    next_hop: <span class="bu">str</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    interface: <span class="bu">str</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>routes <span class="op">=</span> [</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    Route(IPv4Network(<span class="st">"0.0.0.0/0"</span>), <span class="st">"203.0.113.1"</span>, <span class="st">"if1"</span>),</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    Route(IPv4Network(<span class="st">"10.0.0.0/8"</span>), <span class="st">"10.0.0.2"</span>, <span class="st">"if2"</span>),</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    Route(IPv4Network(<span class="st">"10.1.0.0/16"</span>), <span class="st">"10.1.0.2"</span>, <span class="st">"if3"</span>),</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    Route(IPv4Network(<span class="st">"10.1.2.0/24"</span>), <span class="st">"on-link"</span>, <span class="st">"if4"</span>),</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    Route(IPv4Network(<span class="st">"10.1.2.128/25"</span>), <span class="st">"on-link"</span>, <span class="st">"if5"</span>),</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> longest_prefix_match(destination: <span class="bu">str</span>, table: <span class="bu">list</span>[Route]) <span class="op">-&gt;</span> Route <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""返回包含目的地址的最具体路由。"""</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    address <span class="op">=</span> IPv4Address(destination)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    matches <span class="op">=</span> [route <span class="cf">for</span> route <span class="kw">in</span> table <span class="cf">if</span> address <span class="kw">in</span> route.prefix]</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">max</span>(matches, key<span class="op">=</span><span class="kw">lambda</span> route: route.prefix.prefixlen, default<span class="op">=</span><span class="va">None</span>)</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> destination <span class="kw">in</span> [<span class="st">"10.1.2.130"</span>, <span class="st">"10.1.2.42"</span>, <span class="st">"203.0.113.9"</span>]:</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    route <span class="op">=</span> longest_prefix_match(destination, routes)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>destination<span class="sc">:15}</span><span class="ss"> -&gt; </span><span class="sc">{</span><span class="bu">str</span>(route.prefix)<span class="sc">:18}</span><span class="ss"> "</span></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"via </span><span class="sc">{</span>route<span class="sc">.</span>next_hop<span class="sc">:11}</span><span class="ss"> </span><span class="sc">{</span>route<span class="sc">.</span>interface<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>10.1.2.130      -&gt; 10.1.2.128/25      via on-link     if5
+10.1.2.42       -&gt; 10.1.2.0/24        via on-link     if4
+203.0.113.9     -&gt; 0.0.0.0/0          via 203.0.113.1 if1</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="router-architecture" class="level3">
+<h3 class="anchored" data-anchor-id="router-architecture"><strong>路由器体系结构</strong></h3>
+<section id="input-ports-and-packet-classification" class="level4">
+<h4 class="anchored" data-anchor-id="input-ports-and-packet-classification"><strong>输入端口与分组分类</strong></h4>
+<p>输入端口完成物理/链路接收、解帧、首部解析与校验，并查找转发表、ACL、QoS 分类或隧道状态。为了线速运行，这些操作通常被流水化。若多个输入同时争用同一输出，就需要缓冲与仲裁。</p>
+</section>
+<section id="switching-fabrics" class="level4">
+<h4 class="anchored" data-anchor-id="switching-fabrics"><strong>交换结构</strong></h4>
+<p>交换结构把分组从输入搬到输出。共享内存结构简单但受内存带宽限制；共享总线一次通常只承载一个传输；交叉开关允许多个无冲突输入—输出对并行传输，但需要调度。内部交换速率必须高于外部端口总需求，否则结构本身成为瓶颈。</p>
+</section>
+<section id="output-ports-queues-and-scheduling" class="level4">
+<h4 class="anchored" data-anchor-id="output-ports-queues-and-scheduling"><strong>输出端口、队列与调度</strong></h4>
+<p>输出端口保存等待链路发送的分组，并按 FIFO、优先级、公平队列等策略选择下一个分组。缓冲不足会丢包，缓冲过大又会造成 bufferbloat。调度决定不同类别与流的延迟、带宽和公平性；它不能创造容量，只能分配拥塞资源。</p>
+</section>
+<section id="head-of-line-blocking-and-buffer-placement" class="level4">
+<h4 class="anchored" data-anchor-id="head-of-line-blocking-and-buffer-placement"><strong>队头阻塞与缓冲位置</strong></h4>
+<p>输入队列采用单 FIFO 时，队首分组若等待忙碌输出，会阻挡后面本可去往空闲输出的分组，这就是<strong>队头阻塞（HOL blocking）</strong>。虚拟输出队列为每个目的输出维护队列，可缓解问题，但增加状态与调度复杂度。输入缓冲、输出缓冲和共享缓冲各有速度、成本与公平性权衡。</p>
+</section>
+<section id="control-processor-and-fast-path" class="level4">
+<h4 class="anchored" data-anchor-id="control-processor-and-fast-path"><strong>控制处理器与快速路径</strong></h4>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/router-data-plane.svg" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="assets/router-data-plane.svg" class="img-fluid figure-img" style="width:98.0%" alt="路由器输入端口、校验与 LPM、交换结构、输出队列、调度器和控制处理器"></a></p>
+<figcaption>从输入解析和最长前缀查找到交换结构、输出队列与调度的路由器数据平面。</figcaption>
+</figure>
+</div>
+<p>控制处理器运行路由协议、管理配置并处理异常；快速路径在专用硬件或高性能软件中处理绝大多数分组。新流首包、未知选项或异常协议被送往控制平面时要有限速，否则攻击者可用少量特殊分组耗尽 CPU。</p>
+</section>
+</section>
+<section id="maximum-transmission-unit-and-fragmentation" class="level3">
+<h3 class="anchored" data-anchor-id="maximum-transmission-unit-and-fragmentation"><strong>最大传输单元与分片</strong></h3>
+<section id="link-mtu-path-mtu-and-transport-mss" class="level4">
+<h4 class="anchored" data-anchor-id="link-mtu-path-mtu-and-transport-mss"><strong>链路 MTU、路径 MTU 与传输层 MSS</strong></h4>
+<p><strong>MTU</strong> 是链路可承载的最大网络层分组大小；<strong>路径 MTU（PMTU）</strong>是整条路径上最小 MTU；TCP <strong>MSS</strong> 是一个段中最大 TCP 载荷，通常约为 PMTU 减去 IP 与 TCP 首部。三者处于不同层次，不能互换。</p>
+</section>
+<section id="ipv4-fragmentation-and-reassembly" class="level4">
+<h4 class="anchored" data-anchor-id="ipv4-fragmentation-and-reassembly"><strong>IPv4 分片与重组</strong></h4>
+<p>若 IPv4 数据报大于输出 MTU 且 DF 未置位，路由器可把它拆成多个片段。各片复制必要首部，使用相同 Identification，Fragment Offset 以 8 字节为单位，MF 表示后面还有片。只有最终目的主机重组；任一片丢失都会使整个原始数据报无法恢复，并放大状态与安全成本。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/mtu-fragmentation-pmtud.svg" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/mtu-fragmentation-pmtud.svg" class="img-fluid figure-img" style="width:98.0%" alt="IPv4 分片成长度 1500、1500、1040，偏移 0、185、370，并展示 DF 路径 MTU 发现"></a></p>
+<figcaption>4000 字节 IPv4 数据报为 1500 字节 MTU 分为三片，以及 PMTUD 替代方案。</figcaption>
+</figure>
+</div>
+</section>
+<section id="path-mtu-discovery" class="level4">
+<h4 class="anchored" data-anchor-id="path-mtu-discovery"><strong>路径 MTU 发现</strong></h4>
+<p>经典 IPv4 PMTUD 设置 DF；若路由器无法转发，应返回 ICMP Fragmentation Needed，发送端据此减小分组。若防火墙错误阻断这些 ICMP，就会出现“能握手，小包正常，大传输卡住”的 PMTU 黑洞。IPv6 路由器从不分片，而是返回 Packet Too Big，由源主机调整。</p>
+</section>
+<section id="encapsulation-and-effective-mtu" class="level4">
+<h4 class="anchored" data-anchor-id="encapsulation-and-effective-mtu"><strong>封装与有效 MTU</strong></h4>
+<p>VPN、GRE、VXLAN、IPsec 等隧道会增加外层首部，降低内部可用 MTU。若沿用 1500 字节内部数据报而底层也只有 1500，就会分片或丢弃。部署隧道时应计算封装开销、配置接口 MTU，或在 TCP 边界合理调整 MSS，并用实际路径验证。</p>
+<div id="fragmentation-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.071492Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.071240Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.080015Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.079389Z&quot;}" data-execution_count="4">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Fragment:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    total_length: <span class="bu">int</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    payload_length: <span class="bu">int</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    offset_units: <span class="bu">int</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    more_fragments: <span class="bu">bool</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fragment_ipv4(total_length: <span class="bu">int</span>, mtu: <span class="bu">int</span>, header_length: <span class="bu">int</span> <span class="op">=</span> <span class="dv">20</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[Fragment]:</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""计算 IPv4 分片；省略选项及复制选项规则。"""</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> header_length <span class="op">&lt;</span> <span class="dv">20</span> <span class="kw">or</span> header_length <span class="op">%</span> <span class="dv">4</span>:</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"IPv4 header length must be a multiple of four"</span>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> total_length <span class="op">&lt;=</span> mtu:</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> [Fragment(total_length, total_length <span class="op">-</span> header_length, <span class="dv">0</span>, <span class="va">False</span>)]</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 每个非末片载荷必须能够装入 MTU，且长度可被 8 整除。</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    aligned_payload <span class="op">=</span> ((mtu <span class="op">-</span> header_length) <span class="op">//</span> <span class="dv">8</span>) <span class="op">*</span> <span class="dv">8</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> aligned_payload <span class="op">&lt;=</span> <span class="dv">0</span>:</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"MTU is too small for this IPv4 header"</span>)</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    remaining <span class="op">=</span> total_length <span class="op">-</span> header_length</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    offset_bytes <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    fragments <span class="op">=</span> []</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> remaining:</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        payload <span class="op">=</span> <span class="bu">min</span>(aligned_payload, remaining)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        remaining <span class="op">-=</span> payload</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        fragments.append(</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>            Fragment(</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>                total_length<span class="op">=</span>header_length <span class="op">+</span> payload,</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>                payload_length<span class="op">=</span>payload,</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>                offset_units<span class="op">=</span>offset_bytes <span class="op">//</span> <span class="dv">8</span>,</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>                more_fragments<span class="op">=</span>remaining <span class="op">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        offset_bytes <span class="op">+=</span> payload</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> fragments</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> number, fragment <span class="kw">in</span> <span class="bu">enumerate</span>(fragment_ipv4(<span class="dv">4000</span>, <span class="dv">1500</span>), start<span class="op">=</span><span class="dv">1</span>):</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"fragment </span><span class="sc">{</span>number<span class="sc">}</span><span class="ss">: total=</span><span class="sc">{</span>fragment<span class="sc">.</span>total_length<span class="sc">:4}</span><span class="ss">, "</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"payload=</span><span class="sc">{</span>fragment<span class="sc">.</span>payload_length<span class="sc">:4}</span><span class="ss">, offset=</span><span class="sc">{</span>fragment<span class="sc">.</span>offset_units<span class="sc">:3}</span><span class="ss">, "</span></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"MF=</span><span class="sc">{</span><span class="bu">int</span>(fragment.more_fragments)<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>fragment 1: total=1500, payload=1480, offset=  0, MF=1
+fragment 2: total=1500, payload=1480, offset=185, MF=1
+fragment 3: total=1040, payload=1020, offset=370, MF=0</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="internet-control-message-protocol" class="level3">
+<h3 class="anchored" data-anchor-id="internet-control-message-protocol"><strong>互联网控制消息协议</strong></h3>
+<section id="errors-diagnostics-and-reachability" class="level4">
+<h4 class="anchored" data-anchor-id="errors-diagnostics-and-reachability"><strong>错误、诊断与可达性</strong></h4>
+<p>ICMP 与 IP 配套传递网络层错误和诊断信息，例如目的不可达、TTL 超时、需要分片/分组过大和参数问题。ICMP 报文自身也封装在 IP 中，并不“比 IP 更低层”。为避免递归错误，系统不会对所有异常都产生 ICMP，设备也常限速，因此没有回复并不能证明路径不可达。</p>
+</section>
+<section id="echo-request-and-echo-reply" class="level4">
+<h4 class="anchored" data-anchor-id="echo-request-and-echo-reply"><strong>Echo Request 与 Echo Reply</strong></h4>
+<p><code>ping</code> 使用 ICMP Echo 测试从本机到目标并返回的基本可达性和 RTT。成功只说明此类探测在此刻能往返，不证明 TCP 端口、DNS 或应用正常；失败也可能只是策略过滤或限速。应把它视为一条证据而非最终结论。</p>
+</section>
+<section id="time-exceeded-and-traceroute" class="level4">
+<h4 class="anchored" data-anchor-id="time-exceeded-and-traceroute"><strong>Time Exceeded 与 traceroute</strong></h4>
+<p>traceroute 发送 TTL/Hop Limit 逐步增大的探测。第一个路由器令 TTL 归零并返回 ICMP Time Exceeded，第二个探测到下一跳，依此类推；到达终点后，具体结束信号取决于探测类型。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/icmp-traceroute.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="assets/icmp-traceroute.svg" class="img-fluid figure-img" style="width:98.0%" alt="traceroute 用递增 TTL 探测并从每台路由器收到 ICMP 超时，直至目标"></a></p>
+<figcaption>TTL 从 1 增至 4 的 traceroute 探测，以及逐跳返回的 ICMP Time Exceeded。</figcaption>
+</figure>
+</div>
+<p>负载均衡、非对称路由、ICMP 限速和控制平面优先级会让显示结果与真实数据路径不完全一致，所以应结合多次样本和其他协议探测解释。</p>
+</section>
+</section>
+<section id="host-configuration-and-address-translation" class="level3">
+<h3 class="anchored" data-anchor-id="host-configuration-and-address-translation"><strong>主机配置与地址转换</strong></h3>
+<section id="dynamic-host-configuration-protocol" class="level4">
+<h4 class="anchored" data-anchor-id="dynamic-host-configuration-protocol"><strong>动态主机配置协议</strong></h4>
+<p>DHCP 自动提供 IPv4 地址、掩码/前缀、默认网关、DNS 与租期等配置。典型 DORA 流程是 Discover、Offer、Request、Acknowledge；客户端初始没有可用地址，因此使用广播。跨子网时由 DHCP relay 把请求转给服务器，并携带来源网络信息。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dhcp-session.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="assets/dhcp-session.svg" class="img-fluid figure-img" style="width:72.0%" alt="客户端与 DHCP 服务器交换发现、提供、请求和确认消息"></a></p>
+<figcaption>DHCP Discover、Offer、Request 与 Acknowledge 交换。</figcaption>
+</figure>
+</div>
+<p>租约到期前客户端会续租；配置错误、地址池耗尽、伪造服务器或 relay/VLAN 不一致都可能导致接入失败。</p>
+</section>
+<section id="network-address-translation-and-port-translation" class="level4">
+<h4 class="anchored" data-anchor-id="network-address-translation-and-port-translation"><strong>网络地址转换与端口转换</strong></h4>
+<p>NAT 在边界重写地址；家庭网络常用的 NAPT/PAT 还重写源端口，使多台私有主机共享一个公网 IPv4。设备维护映射，例如 <code>(内网IP, 内网端口, 协议) ↔︎ (公网IP, 公网端口)</code>，返回流量据此还原。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/nat-concept.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/nat-concept.svg" class="img-fluid figure-img" style="width:78.0%" alt="私网客户端经过 NAT 路由器，被改写为同一公网 IPv4 地址"></a></p>
+<figcaption>多台私有主机通过 NAT 映射共享一个公网 IPv4 地址。</figcaption>
+</figure>
+</div>
+</section>
+<section id="benefits-costs-and-end-to-end-consequences-of-nat" class="level4">
+<h4 class="anchored" data-anchor-id="benefits-costs-and-end-to-end-consequences-of-nat"><strong>NAT 的收益、代价与端到端影响</strong></h4>
+<p>NAT 缓解 IPv4 地址短缺、隐藏内部编号并便于更换上游地址，但它不是自动的安全边界；真正的访问控制来自有状态防火墙策略。NAT 打破端到端地址透明性，入站连接需要端口映射或打洞，并使协议在载荷中携带地址时更复杂。映射超时还会影响长空闲会话、P2P、移动与故障切换。</p>
+<div id="pat-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.085625Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.085256Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.095193Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.094609Z&quot;}" data-execution_count="5">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Flow:</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    source_ip: <span class="bu">str</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    source_port: <span class="bu">int</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    destination_ip: <span class="bu">str</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    destination_port: <span class="bu">int</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    protocol: <span class="bu">str</span> <span class="op">=</span> <span class="st">"UDP"</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PortAddressTranslator:</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""用于出站流的小型端点相关 PAT 模型。"""</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, public_ip: <span class="bu">str</span>, first_port: <span class="bu">int</span> <span class="op">=</span> <span class="dv">40000</span>):</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.public_ip <span class="op">=</span> public_ip</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.next_port <span class="op">=</span> first_port</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.outbound_table <span class="op">=</span> {}   <span class="co"># 原始五元组 -&gt; 公网端口</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.inbound_table <span class="op">=</span> {}    <span class="co">#（协议、公网端口、远端 IP、端口）-&gt; 客户端</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> translate_outbound(<span class="va">self</span>, flow: Flow) <span class="op">-&gt;</span> Flow:</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>        key <span class="op">=</span> (flow.source_ip, flow.source_port, flow.destination_ip,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>               flow.destination_port, flow.protocol)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> key <span class="kw">not</span> <span class="kw">in</span> <span class="va">self</span>.outbound_table:</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>            public_port <span class="op">=</span> <span class="va">self</span>.next_port</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.next_port <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.outbound_table[key] <span class="op">=</span> public_port</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>            reverse_key <span class="op">=</span> (flow.protocol, public_port,</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>                           flow.destination_ip, flow.destination_port)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.inbound_table[reverse_key] <span class="op">=</span> (flow.source_ip, flow.source_port)</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        public_port <span class="op">=</span> <span class="va">self</span>.outbound_table[key]</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Flow(<span class="va">self</span>.public_ip, public_port,</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>                    flow.destination_ip, flow.destination_port, flow.protocol)</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> translate_inbound(<span class="va">self</span>, flow: Flow) <span class="op">-&gt;</span> Flow <span class="op">|</span> <span class="va">None</span>:</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>        reverse_key <span class="op">=</span> (flow.protocol, flow.destination_port,</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>                       flow.source_ip, flow.source_port)</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        private_endpoint <span class="op">=</span> <span class="va">self</span>.inbound_table.get(reverse_key)</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> private_endpoint <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="va">None</span>                  <span class="co"># 找不到映射：这个简化 NAT 会丢弃该分组。</span></span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>        private_ip, private_port <span class="op">=</span> private_endpoint</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> Flow(flow.source_ip, flow.source_port,</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>                    private_ip, private_port, flow.protocol)</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>nat <span class="op">=</span> PortAddressTranslator(<span class="st">"203.0.113.9"</span>)</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>request <span class="op">=</span> Flow(<span class="st">"10.0.0.24"</span>, <span class="dv">51514</span>, <span class="st">"198.51.100.8"</span>, <span class="dv">443</span>)</span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>public_request <span class="op">=</span> nat.translate_outbound(request)</span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>reply <span class="op">=</span> Flow(<span class="st">"198.51.100.8"</span>, <span class="dv">443</span>,</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>             public_request.source_ip, public_request.source_port)</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>private_reply <span class="op">=</span> nat.translate_inbound(reply)</span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"private request:"</span>, request)</span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"public request: "</span>, public_request)</span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"translated reply:"</span>, private_reply)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>private request: Flow(source_ip='10.0.0.24', source_port=51514, destination_ip='198.51.100.8', destination_port=443, protocol='UDP')
+public request:  Flow(source_ip='203.0.113.9', source_port=40000, destination_ip='198.51.100.8', destination_port=443, protocol='UDP')
+translated reply: Flow(source_ip='198.51.100.8', source_port=443, destination_ip='10.0.0.24', destination_port=51514, protocol='UDP')</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="ipv6" class="level3">
+<h3 class="anchored" data-anchor-id="ipv6"><strong>IPv6</strong></h3>
+<section id="ipv6-addressing-and-header-design" class="level4">
+<h4 class="anchored" data-anchor-id="ipv6-addressing-and-header-design"><strong>IPv6 寻址与首部设计</strong></h4>
+<p>IPv6 地址为 128 bit，采用十六进制冒号表示并允许一次压缩连续零。常见类型包括全球单播、链路本地 <code>fe80::/10</code>、组播和任播；IPv6 不使用广播。基本首部固定 40 字节，包含 Version、Traffic Class、Flow Label、Payload Length、Next Header、Hop Limit 与 128-bit 源/目的地址。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/ipv6-header.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/ipv6-header.svg" class="img-fluid figure-img" style="width:88.0%" alt="IPv6 基本首部含版本、流量类别、流标签、载荷长度、下一首部、跳数限制与 128 位地址"></a></p>
+<figcaption>IPv6 固定基本首部字段与位宽。</figcaption>
+</figure>
+</div>
+<p>固定首部移除了 IPv4 校验和和路由器分片，使快速路径更简单；可选功能通过扩展首部链表达。</p>
+</section>
+<section id="neighbor-discovery-and-stateless-configuration" class="level4">
+<h4 class="anchored" data-anchor-id="neighbor-discovery-and-stateless-configuration"><strong>邻居发现与无状态配置</strong></h4>
+<p>IPv6 <strong>Neighbor Discovery（ND）</strong>使用 ICMPv6 组播完成地址解析、路由器发现、重复地址检测和可达性确认。路由器通告（RA）提供前缀、默认路由与标志，主机可通过 SLAAC 自行形成地址，也可使用 DHCPv6 获取额外或有状态配置。阻断所有 ICMPv6 会破坏 ND 与 PMTUD，不能沿用“ICMP 可全部过滤”的错误做法。</p>
+</section>
+<section id="extension-headers-and-fragmentation" class="level4">
+<h4 class="anchored" data-anchor-id="extension-headers-and-fragmentation"><strong>扩展首部与分片</strong></h4>
+<p>Next Header 串联逐跳选项、路由、分片、目标选项和传输协议。只有源主机可以添加 Fragment Header；路由器遇到过大分组返回 ICMPv6 Packet Too Big。扩展链提高灵活性，但过长或少见组合可能被中间设备过滤，也增加安全解析难度。</p>
+</section>
+<section id="dual-stack-tunnelling-and-translation" class="level4">
+<h4 class="anchored" data-anchor-id="dual-stack-tunnelling-and-translation"><strong>双栈、隧道与转换</strong></h4>
+<p>迁移并非一次切换。<strong>双栈</strong>同时运行 IPv4/IPv6；<strong>隧道</strong>把一种协议封装在另一种网络上；<strong>转换</strong>（如 NAT64/DNS64）让仅 IPv6 客户端访问 IPv4 服务。双栈增加两套运维面，隧道引入 MTU 与故障可见性问题，转换会丢失部分端到端语义。应分别监控两种地址族，避免“IPv6 配置存在但实际不可用”拖慢连接。</p>
+</section>
+</section>
+<section id="forwarding-beyond-basic-ip" class="level3">
+<h3 class="anchored" data-anchor-id="forwarding-beyond-basic-ip"><strong>基本 IP 之外的转发</strong></h3>
+<section id="tunnels-and-virtual-interfaces" class="level4">
+<h4 class="anchored" data-anchor-id="tunnels-and-virtual-interfaces"><strong>隧道与虚拟接口</strong></h4>
+<p>隧道把内层分组作为外层载荷，在逻辑上跨越不直接支持内层协议的网络。虚拟接口为操作系统提供普通接口抽象，常用于 VPN、云网络与覆盖网。隧道改变可见路径、MTU 和安全边界；排障时必须同时检查内层路由与外层可达性。</p>
+</section>
+<section id="multiprotocol-label-switching" class="level4">
+<h4 class="anchored" data-anchor-id="multiprotocol-label-switching"><strong>多协议标签交换</strong></h4>
+<p>MPLS 在入口按转发等价类压入短标签，中间节点依据标签交换，出口弹出。标签栈可支持流量工程、VPN 与快速重路由。它并不取代 IP：控制平面仍需建立标签路径，边缘仍把流量分类到相应服务。</p>
+</section>
+<section id="middleboxes-and-service-functions" class="level4">
+<h4 class="anchored" data-anchor-id="middleboxes-and-service-functions"><strong>中间盒与服务功能</strong></h4>
+<p>防火墙、NAT、负载均衡器、代理和 WAN 优化器会基于多层信息改变、过滤或终止流量。它们提供现实所需的策略与服务，却也使端到端行为依赖隐藏状态，增加协议演进和故障定位难度。现代服务链和可编程数据平面试图让这些功能更明确、可自动化和可观测。</p>
+</section>
+</section>
+<section id="building-a-minimal-longest-prefix-match-router" class="level3">
+<h3 class="anchored" data-anchor-id="building-a-minimal-longest-prefix-match-router"><strong>构建最小最长前缀匹配路由器</strong></h3>
+<p>后面的代码把路由表抽象成前缀、下一跳、接口和度量，并对目的地址执行 LPM。正确实现应区分以下步骤：先判断所有匹配前缀；选择最长者；若长度相同再应用度量或策略；最后返回转发动作。线性扫描便于验证语义，但复杂度为 <span class="math inline">\(O(N)\)</span>；实际系统会使用 trie、TCAM 或分层结构把查询时间控制在可接受范围。</p>
+<p>测试应覆盖默认路由、重叠前缀、边界地址、无路由与同长度决胜规则。尤其要验证输入顺序不会错误地取代“最长前缀优先”的语义。</p>
+<div id="minimal-router-code" class="cell" data-execution="{&quot;iopub.execute_input&quot;:&quot;2026-07-20T03:49:37.099439Z&quot;,&quot;iopub.status.busy&quot;:&quot;2026-07-20T03:49:37.099126Z&quot;,&quot;iopub.status.idle&quot;:&quot;2026-07-20T03:49:37.109024Z&quot;,&quot;shell.execute_reply&quot;:&quot;2026-07-20T03:49:37.108029Z&quot;}" data-execution_count="6">
+<details class="code-fold">
+<summary>代码</summary>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass, replace</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Packet:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    source: <span class="bu">str</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    destination: <span class="bu">str</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    ttl: <span class="bu">int</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    total_length: <span class="bu">int</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    dont_fragment: <span class="bu">bool</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    protocol: <span class="bu">str</span> <span class="op">=</span> <span class="st">"UDP"</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>OUTPUT_MTU <span class="op">=</span> {<span class="st">"if1"</span>: <span class="dv">1500</span>, <span class="st">"if2"</span>: <span class="dv">9000</span>, <span class="st">"if3"</span>: <span class="dv">1500</span>, <span class="st">"if4"</span>: <span class="dv">1500</span>, <span class="st">"if5"</span>: <span class="dv">1500</span>}</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward_ipv4(packet: Packet) <span class="op">-&gt;</span> <span class="bu">dict</span>:</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""为一个简化 IPv4 分组作出透明转发决定。"""</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> packet.ttl <span class="op">&lt;=</span> <span class="dv">1</span>:</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {<span class="st">"action"</span>: <span class="st">"ICMP Time Exceeded"</span>, <span class="st">"packet"</span>: <span class="va">None</span>}</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    route <span class="op">=</span> longest_prefix_match(packet.destination, routes)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> route <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {<span class="st">"action"</span>: <span class="st">"ICMP Destination Unreachable"</span>, <span class="st">"packet"</span>: <span class="va">None</span>}</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    forwarded <span class="op">=</span> replace(packet, ttl<span class="op">=</span>packet.ttl <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    mtu <span class="op">=</span> OUTPUT_MTU[route.interface]</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> forwarded.total_length <span class="op">&gt;</span> mtu:</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> forwarded.dont_fragment:</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> {</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>                <span class="st">"action"</span>: <span class="st">"ICMP fragmentation needed"</span>,</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>                <span class="st">"reported_mtu"</span>: mtu,</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>                <span class="st">"packet"</span>: <span class="va">None</span>,</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>            }</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>        fragments <span class="op">=</span> fragment_ipv4(forwarded.total_length, mtu)</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> {</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>            <span class="st">"action"</span>: <span class="st">"forward fragments"</span>,</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>            <span class="st">"interface"</span>: route.interface,</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a>            <span class="st">"next_hop"</span>: route.next_hop,</span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a>            <span class="st">"ttl"</span>: forwarded.ttl,</span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>            <span class="st">"fragment_lengths"</span>: [fragment.total_length <span class="cf">for</span> fragment <span class="kw">in</span> fragments],</span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>        <span class="st">"action"</span>: <span class="st">"forward"</span>,</span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>        <span class="st">"interface"</span>: route.interface,</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>        <span class="st">"next_hop"</span>: route.next_hop,</span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ttl"</span>: forwarded.ttl,</span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>        <span class="st">"length"</span>: forwarded.total_length,</span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a>examples <span class="op">=</span> [</span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a>    Packet(<span class="st">"192.0.2.10"</span>, <span class="st">"10.1.2.130"</span>, <span class="dv">64</span>, <span class="dv">1200</span>, <span class="va">True</span>),</span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a>    Packet(<span class="st">"192.0.2.10"</span>, <span class="st">"198.51.100.8"</span>, <span class="dv">1</span>, <span class="dv">1200</span>, <span class="va">True</span>),</span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a>    Packet(<span class="st">"192.0.2.10"</span>, <span class="st">"198.51.100.8"</span>, <span class="dv">64</span>, <span class="dv">2000</span>, <span class="va">True</span>),</span>
+<span id="cb11-58"><a href="#cb11-58" aria-hidden="true" tabindex="-1"></a>    Packet(<span class="st">"192.0.2.10"</span>, <span class="st">"198.51.100.8"</span>, <span class="dv">64</span>, <span class="dv">4000</span>, <span class="va">False</span>),</span>
+<span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> packet <span class="kw">in</span> examples:</span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>packet<span class="sc">.</span>destination<span class="sc">:15}</span><span class="ss"> ttl=</span><span class="sc">{</span>packet<span class="sc">.</span>ttl<span class="sc">:2}</span><span class="ss"> len=</span><span class="sc">{</span>packet<span class="sc">.</span>total_length<span class="sc">:4}</span><span class="ss"> "</span></span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>          <span class="ss">f"DF=</span><span class="sc">{</span><span class="bu">int</span>(packet.dont_fragment)<span class="sc">}</span><span class="ss"> -&gt; </span><span class="sc">{</span>forward_ipv4(packet)<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>10.1.2.130      ttl=64 len=1200 DF=1 -&gt; {'action': 'forward', 'interface': 'if5', 'next_hop': 'on-link', 'ttl': 63, 'length': 1200}
+198.51.100.8    ttl= 1 len=1200 DF=1 -&gt; {'action': 'ICMP Time Exceeded', 'packet': None}
+198.51.100.8    ttl=64 len=2000 DF=1 -&gt; {'action': 'ICMP fragmentation needed', 'reported_mtu': 1500, 'packet': None}
+198.51.100.8    ttl=64 len=4000 DF=0 -&gt; {'action': 'forward fragments', 'interface': 'if1', 'next_hop': '203.0.113.1', 'ttl': 63, 'fragment_lengths': [1500, 1500, 1040]}</code></pre>
+</div>
+</div>
+</section>
+<section id="observing-and-troubleshooting-the-ip-data-plane" class="level3">
+<h3 class="anchored" data-anchor-id="observing-and-troubleshooting-the-ip-data-plane"><strong>观察与排查 IP 数据平面</strong></h3>
+<p>Windows 上可使用：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode powershell code-with-copy"><code class="sourceCode powershell"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 地址、前缀与默认网关</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>Get-NetIPConfiguration</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 按前缀长度和度量查看路由</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>Get-NetRoute <span class="op">|</span> <span class="fu">Sort-Object</span> AddressFamily<span class="op">,</span> DestinationPrefix<span class="op">,</span> RouteMetric</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co"># IPv4 ARP / IPv6 邻居状态</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>Get-NetNeighbor</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 基本可达性、路径与端口测试</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>ping example<span class="op">.</span><span class="fu">com</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>tracert example<span class="op">.</span><span class="fu">com</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>Test-NetConnection example<span class="op">.</span><span class="fu">com</span> <span class="op">-</span>Port <span class="dv">443</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>排障顺序应从本机向外推进：确认目的解析到预期地址族；确认本机地址与前缀；用 LPM 判断实际选中的路由和接口；确认下一跳邻居可解析；检查 MTU/DF 与 ICMP；再观察沿途路径、NAT 和策略。<code>ping</code> 成功不代表应用端口开放，traceroute 中间跳超时也不代表数据无法转发。</p>
+<p>典型模式包括：错误前缀导致主机把远端当成本地并不断 ARP；更具体黑洞路由覆盖正常默认路由；隧道开销造成大包失败；NAT 映射或回程路由不对称造成单向通信；IPv6 先被选择但路径实际失效导致连接延迟。</p>
+</section>
+<section id="comparison-and-summary" class="level3">
+<h3 class="anchored" data-anchor-id="comparison-and-summary"><strong>对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>不要混淆</th>
+<th>关键区别</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>转发与路由</td>
+<td>对单个分组的本地快速决定，与计算/维护路径的控制过程</td>
+</tr>
+<tr class="even">
+<td>RIB 与 FIB</td>
+<td>候选路由与策略状态，与数据平面实际查找表</td>
+</tr>
+<tr class="odd">
+<td>IP 地址与前缀</td>
+<td>接口标识，与可聚合的地址集合</td>
+</tr>
+<tr class="even">
+<td>下一跳与完整路径</td>
+<td>当前设备的相邻目标，与之后多跳的独立决定</td>
+</tr>
+<tr class="odd">
+<td>MTU、PMTU 与 MSS</td>
+<td>单链路 IP 上限、路径最小上限、TCP 载荷上限</td>
+</tr>
+<tr class="even">
+<td>ICMP 失败与数据不可达</td>
+<td>控制消息可能被限速/过滤，不能单凭沉默断言</td>
+</tr>
+<tr class="odd">
+<td>NAT 与防火墙</td>
+<td>地址/端口转换状态，与显式访问控制策略</td>
+</tr>
+<tr class="even">
+<td>IPv6 与“更大的 IPv4”</td>
+<td>不仅地址更长，首部、邻居发现、分片与迁移机制也改变</td>
+</tr>
+</tbody>
+</table>
+<p>IP 数据平面以分层前缀和最长前缀匹配把全球目的地址缩减为逐跳动作；路由器用输入解析、交换结构、缓冲与调度在线速执行这些动作。DHCP、ICMP、MTU 发现、NAT 与 IPv6 不是边角知识，而是决定主机能否真正接入和跨路径通信的组成部分。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
