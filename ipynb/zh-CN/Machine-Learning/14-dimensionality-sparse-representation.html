@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>机器学习：降维与稀疏表示</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="14-dimensionality-sparse-representation.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#降维与稀疏表示" id="toc-降维与稀疏表示" class="nav-link active" data-scroll-target="#降维与稀疏表示"><strong>降维与稀疏表示</strong></a>
+  <ul>
+  <li><a href="#为什么需要降维" id="toc-为什么需要降维" class="nav-link" data-scroll-target="#为什么需要降维"><strong>为什么需要降维？</strong></a>
+  <ul>
+  <li><a href="#维度灾难" id="toc-维度灾难" class="nav-link" data-scroll-target="#维度灾难"><strong>维度灾难</strong></a></li>
+  <li><a href="#压缩去噪与可视化" id="toc-压缩去噪与可视化" class="nav-link" data-scroll-target="#压缩去噪与可视化"><strong>压缩、去噪与可视化</strong></a></li>
+  </ul></li>
+  <li><a href="#主成分分析" id="toc-主成分分析" class="nav-link" data-scroll-target="#主成分分析"><strong>主成分分析</strong></a>
+  <ul>
+  <li><a href="#方差最大化与重构误差" id="toc-方差最大化与重构误差" class="nav-link" data-scroll-target="#方差最大化与重构误差"><strong>方差最大化与重构误差</strong></a></li>
+  <li><a href="#通过-eigendecomposition-与-svd-计算-pca" id="toc-通过-eigendecomposition-与-svd-计算-pca" class="nav-link" data-scroll-target="#通过-eigendecomposition-与-svd-计算-pca"><strong>通过 Eigendecomposition 与 SVD 计算 PCA</strong></a></li>
+  <li><a href="#选择成分数量" id="toc-选择成分数量" class="nav-link" data-scroll-target="#选择成分数量"><strong>选择成分数量</strong></a></li>
+  </ul></li>
+  <li><a href="#奇异值分解" id="toc-奇异值分解" class="nav-link" data-scroll-target="#奇异值分解"><strong>奇异值分解</strong></a>
+  <ul>
+  <li><a href="#低秩近似" id="toc-低秩近似" class="nav-link" data-scroll-target="#低秩近似"><strong>低秩近似</strong></a></li>
+  </ul></li>
+  <li><a href="#factor-analysis-与-independent-component-analysis" id="toc-factor-analysis-与-independent-component-analysis" class="nav-link" data-scroll-target="#factor-analysis-与-independent-component-analysis"><strong>Factor Analysis 与 Independent Component Analysis</strong></a>
+  <ul>
+  <li><a href="#潜在因子" id="toc-潜在因子" class="nav-link" data-scroll-target="#潜在因子"><strong>潜在因子</strong></a></li>
+  <li><a href="#统计独立性" id="toc-统计独立性" class="nav-link" data-scroll-target="#统计独立性"><strong>统计独立性</strong></a></li>
+  </ul></li>
+  <li><a href="#非负矩阵分解" id="toc-非负矩阵分解" class="nav-link" data-scroll-target="#非负矩阵分解"><strong>非负矩阵分解</strong></a>
+  <ul>
+  <li><a href="#基于部件的表示" id="toc-基于部件的表示" class="nav-link" data-scroll-target="#基于部件的表示"><strong>基于部件的表示</strong></a></li>
+  </ul></li>
+  <li><a href="#dictionary-learning-与-sparse-coding" id="toc-dictionary-learning-与-sparse-coding" class="nav-link" data-scroll-target="#dictionary-learning-与-sparse-coding"><strong>Dictionary Learning 与 Sparse Coding</strong></a>
+  <ul>
+  <li><a href="#稀疏表示" id="toc-稀疏表示" class="nav-link" data-scroll-target="#稀疏表示"><strong>稀疏表示</strong></a></li>
+  <li><a href="#l1-regularized-reconstruction" id="toc-l1-regularized-reconstruction" class="nav-link" data-scroll-target="#l1-regularized-reconstruction"><strong>L1-Regularized Reconstruction</strong></a></li>
+  </ul></li>
+  <li><a href="#流形学习" id="toc-流形学习" class="nav-link" data-scroll-target="#流形学习"><strong>流形学习</strong></a>
+  <ul>
+  <li><a href="#isomap-与-locally-linear-embedding" id="toc-isomap-与-locally-linear-embedding" class="nav-link" data-scroll-target="#isomap-与-locally-linear-embedding"><strong>Isomap 与 Locally Linear Embedding</strong></a></li>
+  <li><a href="#t-sne-与-umap" id="toc-t-sne-与-umap" class="nav-link" data-scroll-target="#t-sne-与-umap"><strong>t-SNE 与 UMAP</strong></a></li>
+  </ul></li>
+  <li><a href="#随机投影" id="toc-随机投影" class="nav-link" data-scroll-target="#随机投影"><strong>随机投影</strong></a></li>
+  <li><a href="#作为神经扩展的-autoencoder" id="toc-作为神经扩展的-autoencoder" class="nav-link" data-scroll-target="#作为神经扩展的-autoencoder"><strong>作为神经扩展的 Autoencoder</strong></a></li>
+  <li><a href="#评估与选择表示" id="toc-评估与选择表示" class="nav-link" data-scroll-target="#评估与选择表示"><strong>评估与选择表示</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">机器学习：降维与稀疏表示</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="../../Machine-Learning/14-dimensionality-sparse-representation.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="Machine%20Learning.html">返回机器学习总览</a></p>
+<section id="降维与稀疏表示" class="level2">
+<h2 class="anchored" data-anchor-id="降维与稀疏表示"><strong>降维与稀疏表示</strong></h2>
+<p>数据表示决定了学习算法能够轻松“看到”什么。同一个观测可以被记录为十个原始测量、数千个词频、数百万个图像像素，也可以表示为一个很短的潜在坐标向量。<strong>降维（dimensionality reduction）</strong>构造低维表示，在保留选定结构的同时，丢弃被认为冗余、含噪或与任务无关的变化。</p>
+<p>对于观测 <span class="math inline">\(\mathbf{x}\in\mathbb R^d\)</span>，降维映射产生</p>
+<p><span class="math display">\[
+\mathbf z=f(\mathbf x),
+\qquad
+\mathbf z\in\mathbb R^k,
+\qquad k\ll d.
+\]</span></p>
+<p>这个映射可以是线性的、非线性的、概率式的、随机的，也可以由神经网络学习。<strong>稀疏表示（sparse representation）</strong>与降维不同但可以互补：它的外部维度可能仍然很高，不过每个观测只有少数坐标被激活。一个具有 1,000 个候选 dictionary atom、但仅有 10 个非零系数的向量，在形状上是高维的，在有效描述上却很简单。</p>
+<p>降维从来不是没有代价的压缩。每种方法都在选择需要保留的关系：</p>
+<ul>
+<li>PCA 保留方差以及线性最小二乘重构；</li>
+<li>SVD 保留最优低秩矩阵近似；</li>
+<li>factor analysis 通过潜变量与显式噪声解释协方差；</li>
+<li>ICA 寻找统计独立的非 Gaussian source；</li>
+<li>NMF 用非负加性部件构造非负观测；</li>
+<li>sparse coding 用少数 dictionary atom 重构每个观测；</li>
+<li>manifold method 保留指定的局部关系或 geodesic relationship；</li>
+<li>random projection 近似保留大量点对距离；</li>
+<li>autoencoder 在瓶颈或正则化约束下学习非线性重构映射。</li>
+</ul>
+<p>适合可视化的表示可能不适合预测；重构误差很低的表示可能丢弃安全任务所需的稀有特征；视觉上明显分离的嵌入也可能夸大原空间中非常微弱的间隔。因此，本章把评估和防止数据泄漏视为表示学习的一部分，而不是最后才添加的步骤。</p>
+<section id="为什么需要降维" class="level3">
+<h3 class="anchored" data-anchor-id="为什么需要降维"><strong>为什么需要降维？</strong></h3>
+<p>高维会同时带来计算和统计困难。存储、矩阵运算、近邻搜索以及模型复杂度都可能随特征数量增长。更隐蔽的问题是：相对于特征空间体积，固定规模的样本会越来越稀疏，可靠的局部证据因而更难获得。</p>
+<section id="维度灾难" class="level4">
+<h4 class="anchored" data-anchor-id="维度灾难"><strong>维度灾难</strong></h4>
+<p>一个 <span class="math inline">\(d\)</span> 维单位超立方体的体积为一，但边长为 <span class="math inline">\(r&lt;1\)</span> 的子立方体只占 <span class="math inline">\(r^d\)</span>。当 <span class="math inline">\(r=0.5\)</span> 时，中心子立方体在十维中仅占 <span class="math inline">\(0.5^{10}\approx0.001\)</span>，在五十维中仅占 <span class="math inline">\(0.5^{50}\approx8.9\times10^{-16}\)</span>。若希望邻域仍包含相同比例的观测，维度升高后就必须大幅扩大邻域。</p>
+<p>在许多常见数据模型下，距离也会变得越来越缺乏区分能力。如果独立特征贡献规模相近的随机变化，平方欧氏距离会累加大量随机项并集中在其期望附近。最近点和最远点可能在相对意义上越来越相似，从而削弱 nearest-neighbour、kernel、density 和 clustering 方法。这并不是说所有高维数据都无解。稀疏性、学习到的度量、较低的内在维度和强结构都能让高维问题保持可解。</p>
+<details>
+<summary>
+<strong>Python：观察维度增加时的距离集中</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.spatial.distance <span class="im">import</span> pdist</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">14</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> dimension <span class="kw">in</span> [<span class="dv">2</span>, <span class="dv">10</span>, <span class="dv">50</span>, <span class="dv">200</span>, <span class="dv">1000</span>]:</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">500</span>, dimension))</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    distances <span class="op">=</span> pdist(X, metric<span class="op">=</span><span class="st">"euclidean"</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    relative_spread <span class="op">=</span> distances.std() <span class="op">/</span> distances.mean()</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    percentile_ratio <span class="op">=</span> np.percentile(distances, <span class="dv">5</span>) <span class="op">/</span> np.percentile(distances, <span class="dv">95</span>)</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"d=</span><span class="sc">{</span>dimension<span class="sc">:4d}</span><span class="ss">"</span>,</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"coefficient of variation="</span>, <span class="bu">round</span>(relative_spread, <span class="dv">3</span>),</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"p05/p95="</span>, <span class="bu">round</span>(percentile_ratio, <span class="dv">3</span>),</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>随着维度增加，变异系数下降，而低分位数与高分位数之比趋近于一。这个现象是否影响任务，取决于数据结构、度量和建模目的。增加 1,000 个信息丰富的稀疏特征，与增加 1,000 个独立噪声特征并不等价。</p>
+</section>
+<section id="压缩去噪与可视化" class="level4">
+<h4 class="anchored" data-anchor-id="压缩去噪与可视化"><strong>压缩、去噪与可视化</strong></h4>
+<p>降维可以服务于多种彼此不同的目标：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>目标</th>
+<th>希望保留的内容</th>
+<th>常见诊断</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>压缩</td>
+<td>足以高效重构或存储的信息</td>
+<td>留出重构误差、压缩比例</td>
+</tr>
+<tr class="even">
+<td>去噪</td>
+<td>稳定信号，同时丢弃测量波动</td>
+<td>残差分析、对干净目标的表现</td>
+</tr>
+<tr class="odd">
+<td>可视化</td>
+<td>与探索问题相关的局部或全局关系</td>
+<td>Trustworthiness、重复嵌入、原始特征检查</td>
+</tr>
+<tr class="even">
+<td>加速学习</td>
+<td>在降低时间和内存后保留任务表现</td>
+<td>与未降维基线进行端到端验证</td>
+</tr>
+<tr class="odd">
+<td>正则化</td>
+<td>更低的有效模型复杂度</td>
+<td>验证性能与稳定性</td>
+</tr>
+<tr class="even">
+<td>解释</td>
+<td>具有可辩护领域含义的成分</td>
+<td>loading structure、可重复性、专家复核</td>
+</tr>
+</tbody>
+</table>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dimension-reduction-goals.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="把高维观测映射为紧凑表示的目标与风险。"><img src="assets/dimension-reduction-goals.svg" class="img-fluid figure-img" alt="高维矩阵经过表示映射成为紧凑向量，用于压缩、去噪、可视化和建模，同时显式评估信息损失。"></a></p>
+<figcaption>把高维观测映射为紧凑表示的目标与风险。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>内在维度（intrinsic dimension）</strong>是描述相关数据结构所需的自由度数量，它可能远小于实际记录的特征数。一帧视频可能包含数百万像素，但主要由少量对象位置、光照条件和相机参数控制。内在维度很难估计，并且会随任务变化：保留身份、动作和纹理可能需要不同坐标。</p>
+<p>降维还可能产生数据泄漏。如果在 train/test split 之前使用完整数据拟合 PCA、缩放器、manifold method 或特征选择器，测试分布就影响了所学表示。用于预测评估的任何数据依赖变换，都必须在每个训练折内部拟合，再应用于验证数据。</p>
+</section>
+</section>
+<section id="主成分分析" class="level3">
+<h3 class="anchored" data-anchor-id="主成分分析"><strong>主成分分析</strong></h3>
+<p>Principal Component Analysis（PCA）是最基本的线性降维方法。它寻找中心化观测变化最大的正交方向，再把观测投影到前 <span class="math inline">\(k\)</span> 个方向。PCA 是描述性方法而不是监督方法：它不知道哪种变化能预测目标，也不知道哪种变化在领域中最重要。</p>
+<p>令中心化数据矩阵为 <span class="math inline">\(\mathbf X_c\in\mathbb R^{n\times d}\)</span>，即每个特征已经减去样本均值。样本协方差为</p>
+<p><span class="math display">\[
+\mathbf S=\frac{1}{n-1}\mathbf X_c^\top\mathbf X_c.
+\]</span></p>
+<section id="方差最大化与重构误差" class="level4">
+<h4 class="anchored" data-anchor-id="方差最大化与重构误差"><strong>方差最大化与重构误差</strong></h4>
+<p>第一主方向 <span class="math inline">\(\mathbf w_1\)</span> 满足</p>
+<p><span class="math display">\[
+\mathbf w_1
+=\arg\max_{\lVert\mathbf w\rVert_2=1}
+\operatorname{Var}(\mathbf X_c\mathbf w)
+=\arg\max_{\lVert\mathbf w\rVert_2=1}
+\mathbf w^\top\mathbf S\mathbf w.
+\]</span></p>
+<p>单位范数约束防止通过简单放大 <span class="math inline">\(\mathbf w\)</span> 来增加方差。使用 Lagrange multiplier 可得到</p>
+<p><span class="math display">\[
+\mathbf S\mathbf w=\lambda\mathbf w,
+\]</span></p>
+<p>因此主方向就是协方差矩阵的 eigenvector，并按 eigenvalue 从大到小排列。Eigenvalue <span class="math inline">\(\lambda_j\)</span> 是成分分数 <span class="math inline">\(\mathbf X_c\mathbf w_j\)</span> 的样本方差。后续方向在与之前方向正交的约束下，继续最大化剩余方差。</p>
+<p>对于 loading matrix <span class="math inline">\(\mathbf W_k=[\mathbf w_1,\ldots,\mathbf w_k]\)</span>，成分坐标和重构为</p>
+<p><span class="math display">\[
+\mathbf Z=\mathbf X_c\mathbf W_k,
+\qquad
+\widehat{\mathbf X}_c=\mathbf Z\mathbf W_k^\top
+=\mathbf X_c\mathbf W_k\mathbf W_k^\top.
+\]</span></p>
+<p>最大化捕获方差的同一个子空间，也会最小化平方正交重构误差</p>
+<p><span class="math display">\[
+\left\lVert
+\mathbf X_c-\mathbf X_c\mathbf W_k\mathbf W_k^\top
+\right\rVert_F^2.
+\]</span></p>
+<p>这个等价关系同时解释了 PCA 的优势与限制：低方差结构会被有意丢弃，即使它对预测或科学问题非常重要。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pca-variance-reconstruction.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="PCA 投影到最大方差方向，以及等价的重构误差视角。"><img src="assets/pca-variance-reconstruction.svg" class="img-fluid figure-img" alt="相关观测被正交投影到 PC1，残差线段表示丢弃的方差；侧边面板连接方差最大化与重构误差最小化。"></a></p>
+<figcaption>PCA 投影到最大方差方向，以及等价的重构误差视角。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：通过协方差特征分解实现 PCA</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">22</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>latent <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">500</span>, <span class="dv">2</span>))</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>mixing <span class="op">=</span> np.array([</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">2.0</span>, <span class="fl">0.2</span>],</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">1.4</span>, <span class="op">-</span><span class="fl">0.7</span>],</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.8</span>, <span class="fl">1.5</span>],</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    [<span class="op">-</span><span class="fl">0.4</span>, <span class="fl">1.0</span>],</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> latent <span class="op">@</span> mixing.T <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.15</span>, size<span class="op">=</span>(<span class="dv">500</span>, <span class="dv">4</span>))</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Centre before constructing the covariance matrix.</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>mean <span class="op">=</span> X.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>X_centered <span class="op">=</span> X <span class="op">-</span> mean</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>covariance <span class="op">=</span> X_centered.T <span class="op">@</span> X_centered <span class="op">/</span> (<span class="bu">len</span>(X) <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="co"># eigh exploits symmetry; reverse the ascending eigenvalue order.</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>eigenvalues, eigenvectors <span class="op">=</span> np.linalg.eigh(covariance)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>order <span class="op">=</span> np.argsort(eigenvalues)[::<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>eigenvalues <span class="op">=</span> eigenvalues[order]</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>components <span class="op">=</span> eigenvectors[:, order]</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> X_centered <span class="op">@</span> components[:, :<span class="dv">2</span>]</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>reconstruction <span class="op">=</span> scores <span class="op">@</span> components[:, :<span class="dv">2</span>].T <span class="op">+</span> mean</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>manual_mse <span class="op">=</span> np.mean((X <span class="op">-</span> reconstruction) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>sklearn_pca <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">2</span>).fit(X)</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>sklearn_reconstruction <span class="op">=</span> sklearn_pca.inverse_transform(sklearn_pca.transform(X))</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"eigenvalues:"</span>, np.<span class="bu">round</span>(eigenvalues, <span class="dv">3</span>))</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"explained ratios:"</span>, np.<span class="bu">round</span>(eigenvalues <span class="op">/</span> eigenvalues.<span class="bu">sum</span>(), <span class="dv">3</span>))</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"manual reconstruction MSE:"</span>, <span class="bu">round</span>(manual_mse, <span class="dv">6</span>))</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"sklearn reconstruction MSE:"</span>, <span class="bu">round</span>(np.mean((X <span class="op">-</span> sklearn_reconstruction) <span class="op">**</span> <span class="dv">2</span>), <span class="dv">6</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>不同实现中的 principal vector 符号可能相反，因为 <span class="math inline">\(\mathbf w\)</span> 与 <span class="math inline">\(-\mathbf w\)</span> 张成同一个轴。比较时应关注子空间、解释方差与重构，而不是要求符号完全一致。</p>
+</section>
+<section id="通过-eigendecomposition-与-svd-计算-pca" class="level4">
+<h4 class="anchored" data-anchor-id="通过-eigendecomposition-与-svd-计算-pca"><strong>通过 Eigendecomposition 与 SVD 计算 PCA</strong></h4>
+<p>PCA 可以通过协方差 eigendecomposition 计算，但显式构造 <span class="math inline">\(\mathbf X_c^\top\mathbf X_c\)</span> 可能恶化数值条件，并需要 <span class="math inline">\(O(d^2)\)</span> 内存。直接对 <span class="math inline">\(\mathbf X_c\)</span> 应用 Singular Value Decomposition 往往更稳定：</p>
+<p><span class="math display">\[
+\mathbf X_c=\mathbf U\boldsymbol\Sigma\mathbf V^\top.
+\]</span></p>
+<p><span class="math inline">\(\mathbf V\)</span> 的列就是主方向，并且</p>
+<p><span class="math display">\[
+\lambda_j=\frac{\sigma_j^2}{n-1}.
+\]</span></p>
+<p>现代实现会根据矩阵形状和所需成分数，在 full、covariance-based、truncated 和 randomized solver 之间选择。当只需要少量 leading component 时，randomized SVD 尤其有用。</p>
+<p>特征缩放会改变 PCA。中心化是必要步骤，标准化则是一项实质性选择。基于协方差矩阵的 PCA 会让高方差单位占主导；标准化后的 PCA 等价于使用相关矩阵，使每个标准化特征初始方差相当。两者都不是普遍正确答案。</p>
+</section>
+<section id="选择成分数量" class="level4">
+<h4 class="anchored" data-anchor-id="选择成分数量"><strong>选择成分数量</strong></h4>
+<p>第 <span class="math inline">\(j\)</span> 个成分的解释方差比为</p>
+<p><span class="math display">\[
+r_j=\frac{\lambda_j}{\sum_{m=1}^{d}\lambda_m},
+\]</span></p>
+<p>累计解释方差为 <span class="math inline">\(R_k=\sum_{j=1}^{k}r_j\)</span>。90% 或 95% 这样的阈值便于沟通，但本质上是人为规则。其他方法包括 scree plot elbow、留出重构误差、与噪声对比的 parallel analysis、probabilistic PCA 的 likelihood criterion，或下游交叉验证。</p>
+<details>
+<summary>
+<strong>Python：比较不同成分数的方差、重构与预测用途</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.30</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">31</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> components <span class="kw">in</span> [<span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">40</span>]:</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    pca <span class="op">=</span> PCA(n_components<span class="op">=</span>components, random_state<span class="op">=</span><span class="dv">31</span>).fit(X_train)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    test_scores <span class="op">=</span> pca.transform(X_test)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    reconstructed <span class="op">=</span> pca.inverse_transform(test_scores)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    test_mse <span class="op">=</span> np.mean((X_test <span class="op">-</span> reconstructed) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    classifier <span class="op">=</span> make_pipeline(</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        StandardScaler(),</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        PCA(n_components<span class="op">=</span>components, random_state<span class="op">=</span><span class="dv">31</span>),</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>),</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    classifier.fit(X_train, y_train)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    accuracy <span class="op">=</span> accuracy_score(y_test, classifier.predict(X_test))</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"k=</span><span class="sc">{</span>components<span class="sc">:2d}</span><span class="ss">"</span>,</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>        <span class="st">"variance="</span>, <span class="bu">round</span>(pca.explained_variance_ratio_.<span class="bu">sum</span>(), <span class="dv">3</span>),</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="st">"test MSE="</span>, <span class="bu">round</span>(test_mse, <span class="dv">3</span>),</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">"test accuracy="</span>, <span class="bu">round</span>(accuracy, <span class="dv">3</span>),</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>能够良好重构像素的成分数，不一定是保留分类性能所需的最小成分数。如果目标是预测，应在预测验证流程内部选择维度；如果目标是科学描述，除了解释方差，还要检查 loadings、残差、稳定性和领域合理性。</p>
+</section>
+</section>
+<section id="奇异值分解" class="level3">
+<h3 class="anchored" data-anchor-id="奇异值分解"><strong>奇异值分解</strong></h3>
+<p>Singular Value Decomposition（SVD）是一种矩阵分解，本身并不是统计模型。任意实矩阵 <span class="math inline">\(\mathbf X\in\mathbb R^{n\times d}\)</span> 都可以写成</p>
+<p><span class="math display">\[
+\mathbf X=\mathbf U\boldsymbol\Sigma\mathbf V^\top,
+\]</span></p>
+<p>其中 <span class="math inline">\(\mathbf U\)</span> 的列是正交归一的 left singular vector，<span class="math inline">\(\mathbf V\)</span> 的列是正交归一的 right singular vector，<span class="math inline">\(\boldsymbol\Sigma\)</span> 包含非负 singular value：</p>
+<p><span class="math display">\[
+\sigma_1\geq\sigma_2\geq\cdots\geq0.
+\]</span></p>
+<p>若矩阵秩为 <span class="math inline">\(r\)</span>，compact SVD 中 <span class="math inline">\(\mathbf U\in\mathbb R^{n\times r}\)</span>、<span class="math inline">\(\boldsymbol\Sigma\in\mathbb R^{r\times r}\)</span>、<span class="math inline">\(\mathbf V\in\mathbb R^{d\times r}\)</span>。每个三元组 <span class="math inline">\((\mathbf u_j,\sigma_j,\mathbf v_j)\)</span> 贡献一个 rank-one matrix <span class="math inline">\(\sigma_j\mathbf u_j\mathbf v_j^\top\)</span>。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/svd-three-factor-view.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="SVD 中的观测坐标、成分强度和特征方向。"><img src="assets/svd-three-factor-view.svg" class="img-fluid figure-img" alt="数据矩阵 X 分解为样本坐标 U、奇异值 Sigma 和特征方向 V-transpose；保留前 k 个三元组得到 rank-k approximation。"></a></p>
+<figcaption>SVD 中的观测坐标、成分强度和特征方向。</figcaption>
+</figure>
+</div>
+</div>
+<section id="低秩近似" class="level4">
+<h4 class="anchored" data-anchor-id="低秩近似"><strong>低秩近似</strong></h4>
+<p>在第 <span class="math inline">\(k\)</span> 个 singular value 后截断，得到</p>
+<p><span class="math display">\[
+\mathbf X_k
+=\sum_{j=1}^{k}\sigma_j\mathbf u_j\mathbf v_j^\top
+=\mathbf U_k\boldsymbol\Sigma_k\mathbf V_k^\top.
+\]</span></p>
+<p>Eckart-Young-Mirsky theorem 表明，<span class="math inline">\(\mathbf X_k\)</span> 是 Frobenius norm 和 spectral norm 下最优的 rank-<span class="math inline">\(k\)</span> approximation。在 squared Frobenius loss 下，</p>
+<p><span class="math display">\[
+\left\lVert\mathbf X-\mathbf X_k\right\rVert_F^2
+=\sum_{j=k+1}^{r}\sigma_j^2.
+\]</span></p>
+<p>这个精确等式把近似误差分解为所有被丢弃 singular direction 的能量，是图像压缩、Latent Semantic Analysis、matrix completion 和高效线性代数的基础。</p>
+<details>
+<summary>
+<strong>Python：验证最优 rank-k 重构误差</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">40</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create a nearly rank-4 matrix, then add small full-rank noise.</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>left <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">120</span>, <span class="dv">4</span>))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>right <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">4</span>, <span class="dv">70</span>))</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> left <span class="op">@</span> right <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.08</span>, size<span class="op">=</span>(<span class="dv">120</span>, <span class="dv">70</span>))</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>U, singular_values, Vt <span class="op">=</span> np.linalg.svd(X, full_matrices<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> rank <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">8</span>, <span class="dv">20</span>]:</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    reconstruction <span class="op">=</span> (U[:, :rank] <span class="op">*</span> singular_values[:rank]) <span class="op">@</span> Vt[:rank]</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    observed_squared_error <span class="op">=</span> np.linalg.norm(X <span class="op">-</span> reconstruction, <span class="bu">ord</span><span class="op">=</span><span class="st">"fro"</span>) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    theoretical_squared_error <span class="op">=</span> np.<span class="bu">sum</span>(singular_values[rank:] <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"rank=</span><span class="sc">{</span>rank<span class="sc">:2d}</span><span class="ss">"</span>,</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"observed="</span>, <span class="bu">round</span>(observed_squared_error, <span class="dv">6</span>),</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="st">"discarded singular energy="</span>, <span class="bu">round</span>(theoretical_squared_error, <span class="dv">6</span>),</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>对<strong>中心化</strong>数据矩阵应用 SVD 即可得到 PCA。scikit-learn 中的 TruncatedSVD 刻意不对输入中心化，因此可以高效处理稀疏矩阵；如果对稀疏矩阵中心化，原本的零元素通常会变成非零。文本挖掘中，把 TruncatedSVD 应用于 term-document matrix 通常称为 <strong>Latent Semantic Analysis（LSA）</strong>。由于矩阵未中心化，得到的方向会同时混合总体词频与变化。</p>
+<details>
+<summary>
+<strong>Python：对稀疏文本矩阵应用 TruncatedSVD</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> TruncatedSVD</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"graph algorithms find shortest paths and spanning trees"</span>,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"network flow algorithms optimize capacity through graphs"</span>,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"sorting and searching are fundamental algorithmic problems"</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"neural networks learn layered representations from data"</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"gradient descent trains neural models with backpropagation"</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"representation learning supports language and vision models"</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"probability models quantify uncertainty and latent variables"</span>,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"bayesian inference updates probability distributions with evidence"</span>,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>vectorizer <span class="op">=</span> TfidfVectorizer(stop_words<span class="op">=</span><span class="st">"english"</span>)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>X_sparse <span class="op">=</span> vectorizer.fit_transform(documents)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>svd <span class="op">=</span> TruncatedSVD(n_components<span class="op">=</span><span class="dv">3</span>, random_state<span class="op">=</span><span class="dv">40</span>).fit(X_sparse)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>coordinates <span class="op">=</span> svd.transform(X_sparse)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>terms <span class="op">=</span> vectorizer.get_feature_names_out()</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> component_index, component <span class="kw">in</span> <span class="bu">enumerate</span>(svd.components_):</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    top_terms <span class="op">=</span> terms[component.argsort()[<span class="op">-</span><span class="dv">5</span>:][::<span class="op">-</span><span class="dv">1</span>]]</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"component </span><span class="sc">{</span>component_index <span class="op">+</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">:"</span>, top_terms.tolist())</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"sparse input shape:"</span>, X_sparse.shape)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"reduced shape:"</span>, coordinates.shape)</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"explained variance ratio sum:"</span>, <span class="bu">round</span>(svd.explained_variance_ratio_.<span class="bu">sum</span>(), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>SVD 成分在代数意义上能够最小化低秩平方误差，但并不自动等于语义主题。成分可以同时包含正负 loading，符号可以翻转，相关潜在概念也可能被旋转成混合方向。</p>
+</section>
+</section>
+<section id="factor-analysis-与-independent-component-analysis" class="level3">
+<h3 class="anchored" data-anchor-id="factor-analysis-与-independent-component-analysis"><strong>Factor Analysis 与 Independent Component Analysis</strong></h3>
+<p>PCA、Factor Analysis（FA）和 Independent Component Analysis（ICA）都会产生线性潜在坐标，但它们的假设不同。PCA 寻找最大方差的描述性子空间；FA 是包含显式特征噪声的概率协方差模型；ICA 寻找统计独立的 latent source，而不只是互不相关的方向。</p>
+<section id="潜在因子" class="level4">
+<h4 class="anchored" data-anchor-id="潜在因子"><strong>潜在因子</strong></h4>
+<p>Factor analysis 假设</p>
+<p><span class="math display">\[
+\mathbf x=\boldsymbol\mu+\boldsymbol\Lambda\mathbf z+\boldsymbol\epsilon,
+\]</span></p>
+<p>其中 <span class="math inline">\(\mathbf z\sim\mathcal N(\mathbf0,\mathbf I_k)\)</span> 包含 latent factor，<span class="math inline">\(\boldsymbol\Lambda\in\mathbb R^{d\times k}\)</span> 是 loading matrix，并且</p>
+<p><span class="math display">\[
+\boldsymbol\epsilon\sim\mathcal N(\mathbf0,\boldsymbol\Psi)
+\]</span></p>
+<p>是具有 diagonal covariance <span class="math inline">\(\boldsymbol\Psi\)</span> 的 feature-specific noise。因此，</p>
+<p><span class="math display">\[
+\operatorname{Cov}(\mathbf x)
+=\boldsymbol\Lambda\boldsymbol\Lambda^\top+\boldsymbol\Psi.
+\]</span></p>
+<p>低秩部分解释共享协方差，<span class="math inline">\(\boldsymbol\Psi\)</span> 则允许每个观测特征拥有独特变化。PCA 不会执行这种共享变化与独特变化的分解；它的重构残差只是与所选子空间正交，而不是拟合得到的对角噪声模型。</p>
+<p>Factor loading 的方向并不唯一。如果 <span class="math inline">\(\mathbf R\)</span> 是正交矩阵，则 <span class="math inline">\(\boldsymbol\Lambda\mathbf R\)</span> 会产生相同协方差，因为</p>
+<p><span class="math display">\[
+(\boldsymbol\Lambda\mathbf R)(\boldsymbol\Lambda\mathbf R)^\top
+=\boldsymbol\Lambda\boldsymbol\Lambda^\top.
+\]</span></p>
+<p>varimax 等 rotation 试图得到更简单的 loading pattern，但它们加入的是解释准则，并不是发现唯一真实方向。因子数量应通过留出似然、残差相关、parallel analysis、稳定性和领域可解释性共同评估。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/factor-analysis-ica.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Factor analysis 如何解释共享协方差，以及 ICA 如何分离独立源。"><img src="assets/factor-analysis-ica.svg" class="img-fluid figure-img" alt="Factor analysis 把潜变量映射为相关观测特征并加入特征噪声；ICA 则学习 unmixing matrix，恢复独立非 Gaussian source signal。"></a></p>
+<figcaption>Factor analysis 如何解释共享协方差，以及 ICA 如何分离独立源。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：恢复潜在因子子空间与独特方差</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.linalg <span class="im">import</span> subspace_angles</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> FactorAnalysis, PCA</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">51</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>true_loadings <span class="op">=</span> np.array([</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">1.4</span>, <span class="fl">0.0</span>], [<span class="fl">1.1</span>, <span class="fl">0.1</span>], [<span class="fl">0.8</span>, <span class="op">-</span><span class="fl">0.1</span>],</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.0</span>, <span class="fl">1.3</span>], [<span class="fl">0.1</span>, <span class="fl">1.0</span>], [<span class="op">-</span><span class="fl">0.1</span>, <span class="fl">0.7</span>],</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>unique_std <span class="op">=</span> np.array([<span class="fl">0.25</span>, <span class="fl">0.35</span>, <span class="fl">0.50</span>, <span class="fl">0.20</span>, <span class="fl">0.45</span>, <span class="fl">0.65</span>])</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>latent <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">1600</span>, <span class="dv">2</span>))</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> latent <span class="op">@</span> true_loadings.T <span class="op">+</span> rng.normal(size<span class="op">=</span>(<span class="dv">1600</span>, <span class="dv">6</span>)) <span class="op">*</span> unique_std</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>X_train, X_test <span class="op">=</span> train_test_split(X, test_size<span class="op">=</span><span class="fl">0.30</span>, random_state<span class="op">=</span><span class="dv">51</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>fa <span class="op">=</span> FactorAnalysis(n_components<span class="op">=</span><span class="dv">2</span>, rotation<span class="op">=</span><span class="st">"varimax"</span>, random_state<span class="op">=</span><span class="dv">51</span>).fit(X_train)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>pca <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">2</span>, random_state<span class="op">=</span><span class="dv">51</span>).fit(X_train)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>angles <span class="op">=</span> np.degrees(subspace_angles(true_loadings, fa.components_.T))</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"FA principal angles to true loading space:"</span>, np.<span class="bu">round</span>(angles, <span class="dv">2</span>))</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"true unique variances:"</span>, np.<span class="bu">round</span>(unique_std<span class="op">**</span><span class="dv">2</span>, <span class="dv">3</span>))</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"estimated unique variances:"</span>, np.<span class="bu">round</span>(fa.noise_variance_, <span class="dv">3</span>))</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"FA mean held-out log-likelihood:"</span>, <span class="bu">round</span>(fa.score(X_test), <span class="dv">3</span>))</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"PCA explained variance ratio:"</span>, <span class="bu">round</span>(pca.explained_variance_ratio_.<span class="bu">sum</span>(), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Subspace angle 比较的是张成空间，而不是旋转后的单独列。真实数据中不存在 true loading，因此残差协方差和 out-of-sample likelihood 更重要。</p>
+</section>
+<section id="统计独立性" class="level4">
+<h4 class="anchored" data-anchor-id="统计独立性"><strong>统计独立性</strong></h4>
+<p>ICA 假设观测信号是潜在 source 的线性混合：</p>
+<p><span class="math display">\[
+\mathbf x=\mathbf A\mathbf s,
+\]</span></p>
+<p>并估计 unmixing matrix <span class="math inline">\(\mathbf W\approx\mathbf A^{-1}\)</span>，使 <span class="math inline">\(\widehat{\mathbf s}=\mathbf W\mathbf x\)</span> 的成分尽可能相互独立。独立性比零相关更强。对于 Gaussian variable，去相关已经耗尽二阶统计信息，因此 ICA 要求最多只有一个 Gaussian source，并利用 negentropy 或 kurtosis 等非 Gaussian 特征。</p>
+<p>ICA 可用于 blind source separation、EEG artifact removal 和多传感器信号分离。成分顺序和尺度不可识别：把一个 source 乘以 <span class="math inline">\(c\)</span>，再把对应 mixing column 除以 <span class="math inline">\(c\)</span>，不会改变观测。因此，比较估计 source 时必须先对齐 permutation 和 sign。</p>
+<details>
+<summary>
+<strong>Python：使用 FastICA 分离混合的非 Gaussian 信号</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy <span class="im">import</span> signal</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.optimize <span class="im">import</span> linear_sum_assignment</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> FastICA, PCA</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">63</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>time <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">8</span>, <span class="dv">2000</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>sources <span class="op">=</span> np.column_stack([</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    np.sin(<span class="dv">2</span> <span class="op">*</span> time),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    np.sign(np.sin(<span class="dv">3</span> <span class="op">*</span> time)),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    signal.sawtooth(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> time),</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>sources <span class="op">+=</span> <span class="fl">0.05</span> <span class="op">*</span> rng.normal(size<span class="op">=</span>sources.shape)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>sources <span class="op">/=</span> sources.std(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>mixing <span class="op">=</span> np.array([[<span class="fl">1.0</span>, <span class="fl">1.0</span>, <span class="fl">0.5</span>], [<span class="fl">0.5</span>, <span class="fl">2.0</span>, <span class="fl">1.0</span>], [<span class="fl">1.5</span>, <span class="fl">1.0</span>, <span class="fl">2.0</span>]])</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>observations <span class="op">=</span> sources <span class="op">@</span> mixing.T</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>ica_sources <span class="op">=</span> FastICA(</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    n_components<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    whiten<span class="op">=</span><span class="st">"unit-variance"</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">63</span>,</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    max_iter<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>).fit_transform(observations)</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>pca_scores <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">3</span>).fit_transform(observations)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> matched_absolute_correlation(reference, estimated):</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    correlations <span class="op">=</span> np.corrcoef(reference.T, estimated.T)[:<span class="dv">3</span>, <span class="dv">3</span>:]</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    rows, cols <span class="op">=</span> linear_sum_assignment(<span class="op">-</span>np.<span class="bu">abs</span>(correlations))</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.<span class="bu">abs</span>(correlations[rows, cols])</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"ICA matched correlations:"</span>, np.<span class="bu">round</span>(matched_absolute_correlation(sources, ica_sources), <span class="dv">3</span>))</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"PCA matched correlations:"</span>, np.<span class="bu">round</span>(matched_absolute_correlation(sources, pca_scores), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>PCA 能够对混合信号去相关，但一般无法恢复独立的非 Gaussian source。当线性混合、source independence 和充分采样等假设合理时，ICA 才可能恢复这些源。</p>
+</section>
+</section>
+<section id="非负矩阵分解" class="level3">
+<h3 class="anchored" data-anchor-id="非负矩阵分解"><strong>非负矩阵分解</strong></h3>
+<p>Non-Negative Matrix Factorization（NMF）适用于非负数据矩阵，例如像素强度、词频、功率谱或交易金额。它近似分解</p>
+<p><span class="math display">\[
+\mathbf X\approx\mathbf W\mathbf H,
+\qquad
+\mathbf W\geq0,
+\quad
+\mathbf H\geq0,
+\]</span></p>
+<p>其中 <span class="math inline">\(\mathbf X\in\mathbb R_+^{n\times d}\)</span>，<span class="math inline">\(\mathbf W\in\mathbb R_+^{n\times k}\)</span> 包含观测系数，<span class="math inline">\(\mathbf H\in\mathbb R_+^{k\times d}\)</span> 包含成分模式。</p>
+<section id="基于部件的表示" class="level4">
+<h4 class="anchored" data-anchor-id="基于部件的表示"><strong>基于部件的表示</strong></h4>
+<p>由于不允许正负抵消，一个观测只能通过<strong>相加</strong>激活成分来重构。对于人脸图像，成分可能类似眼睛、嘴巴或光照模式；对于文本，成分可能类似词语群组。这种 parts-based interpretation 是非负约束诱导出的倾向，而不是语义真实性保证。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/nmf-additive-parts.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="一个观测由非负 NMF 部件加性重构。"><img src="assets/nmf-additive-parts.svg" class="img-fluid figure-img" alt="一个非负的人脸式观测由正权重乘以眼睛、嘴巴和其他非负成分 atom 后相加近似。"></a></p>
+<figcaption>一个观测由非负 NMF 部件加性重构。</figcaption>
+</figure>
+</div>
+</div>
+<p>常见目标函数为</p>
+<p><span class="math display">\[
+\min_{\mathbf W,\mathbf H\geq0}
+\frac{1}{2}\lVert\mathbf X-\mathbf W\mathbf H\rVert_F^2
++\lambda_W\Omega(\mathbf W)
++\lambda_H\Omega(\mathbf H).
+\]</span></p>
+<p>正则项可以鼓励 coefficient 或 component 稀疏。其他损失还包括 generalized Kullback-Leibler divergence，它与 Poisson observation model 有关，可能适合 count-like data。联合问题是非凸的，不过固定任意一个 factor 后，另一个子问题会更容易。因此，初始化、成分数、solver 和正则化都可能改变结果。</p>
+<p>NMF 存在尺度和置换歧义。把 <span class="math inline">\(\mathbf W\)</span> 的第 <span class="math inline">\(k\)</span> 列乘以 <span class="math inline">\(c&gt;0\)</span>，再把 <span class="math inline">\(\mathbf H\)</span> 的第 <span class="math inline">\(k\)</span> 行除以 <span class="math inline">\(c\)</span>，乘积保持不变；成分顺序也任意。跨运行比较大小之前，应先归一化成分。</p>
+<details>
+<summary>
+<strong>Python：从非负文本特征中提取加性词语成分</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> NMF</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"graph search shortest path spanning tree network flow"</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"graph algorithms optimize paths trees and network capacity"</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"dynamic programming and greedy algorithms solve optimization problems"</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"neural networks learn representations with gradient descent"</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"deep neural models use backpropagation and nonlinear layers"</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"representation learning supports language models and computer vision"</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"bayesian probability models represent uncertainty and prior knowledge"</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"probabilistic inference estimates latent variables and distributions"</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"likelihood and posterior distributions support statistical inference"</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>vectorizer <span class="op">=</span> TfidfVectorizer(stop_words<span class="op">=</span><span class="st">"english"</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> vectorizer.fit_transform(documents)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>nmf <span class="op">=</span> NMF(</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    n_components<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    init<span class="op">=</span><span class="st">"nndsvda"</span>,</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">72</span>,</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    max_iter<span class="op">=</span><span class="dv">1000</span>,</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>).fit(X)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>document_weights <span class="op">=</span> nmf.transform(X)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>terms <span class="op">=</span> vectorizer.get_feature_names_out()</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> component_index, component <span class="kw">in</span> <span class="bu">enumerate</span>(nmf.components_):</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    top_terms <span class="op">=</span> terms[component.argsort()[<span class="op">-</span><span class="dv">6</span>:][::<span class="op">-</span><span class="dv">1</span>]]</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"component </span><span class="sc">{</span>component_index <span class="op">+</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">:"</span>, top_terms.tolist())</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"all component entries non-negative:"</span>, <span class="bu">bool</span>((nmf.components_ <span class="op">&gt;=</span> <span class="dv">0</span>).<span class="bu">all</span>()))</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"document representation shape:"</span>, document_weights.shape)</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"reconstruction error:"</span>, <span class="bu">round</span>(nmf.reconstruction_err_, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Top terms 可以帮助命名成分，但命名之前应检查不同 seed、成分数、样本和预处理下的稳定性。TF-IDF 虽然非负，它的加权方式仍会决定 NMF 能够发现什么加性模式。</p>
+</section>
+</section>
+<section id="dictionary-learning-与-sparse-coding" class="level3">
+<h3 class="anchored" data-anchor-id="dictionary-learning-与-sparse-coding"><strong>Dictionary Learning 与 Sparse Coding</strong></h3>
+<p>Dictionary learning 把每个观测表示为若干 learned <strong>atom</strong> 的线性组合。与 PCA 不同，dictionary 可以是 overcomplete 的，即 atom 数量可以超过观测维度。这里的简单性来自每个观测只使用少量 atom。</p>
+<p>令 <span class="math inline">\(\mathbf D\in\mathbb R^{m\times d}\)</span> 包含 <span class="math inline">\(m\)</span> 个行 atom，<span class="math inline">\(\boldsymbol\alpha_i\in\mathbb R^m\)</span> 编码观测 <span class="math inline">\(\mathbf x_i\)</span>。Sparse coding 求解的问题可以写为</p>
+<p><span class="math display">\[
+\min_{\boldsymbol\alpha_i}
+\frac{1}{2}\lVert\mathbf x_i-\boldsymbol\alpha_i\mathbf D\rVert_2^2
++\lambda\lVert\boldsymbol\alpha_i\rVert_1.
+\]</span></p>
+<p>重构项奖励保真度，<span class="math inline">\(L_1\)</span> penalty 促使大量系数变为零或接近零。较大的 <span class="math inline">\(\lambda\)</span> 得到更简单但重构更差的表示。如果预先知道期望的非零数量，可以用 Orthogonal Matching Pursuit（OMP）贪心选择 atom，而不是使用 <span class="math inline">\(L_1\)</span> penalty。</p>
+<section id="稀疏表示" class="level4">
+<h4 class="anchored" data-anchor-id="稀疏表示"><strong>稀疏表示</strong></h4>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/sparse-dictionary-coding.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="信号由 overcomplete dictionary 中少数活跃 atom 重构。"><img src="assets/sparse-dictionary-coding.svg" class="img-fluid figure-img" alt="一个信号经过包含多个波形 atom 的 dictionary，被映射到仅有少数柱为非零的 coefficient vector。"></a></p>
+<figcaption>信号由 overcomplete dictionary 中少数活跃 atom 重构。</figcaption>
+</figure>
+</div>
+</div>
+<p>稀疏性可以使表示更高效，也更容易进行局部解释：不同观测会激活不同的小型可复用模式集合。应用包括图像 patch、音频事件、compressed sensing 和特征构造。但稀疏并不自动意味着因果或语义纯净，相关 atom 还可能使单个 code 不稳定。</p>
+<p>Dictionary learning 联合优化 code <span class="math inline">\(\mathbf A\)</span> 和 atom <span class="math inline">\(\mathbf D\)</span>：</p>
+<p><span class="math display">\[
+\min_{\mathbf A,\mathbf D}
+\frac{1}{2}\lVert\mathbf X-\mathbf A\mathbf D\rVert_F^2
++\lambda\lVert\mathbf A\rVert_{1,1},
+\qquad
+\lVert\mathbf d_j\rVert_2\leq1.
+\]</span></p>
+<p>Atom norm constraint 防止 dictionary atom 任意增大、coefficient 相应缩小，从而不合理地降低 penalty。算法通常交替执行：固定 atom 为观测编码，再固定 code 更新 atom。联合问题仍然是非凸的。</p>
+</section>
+<section id="l1-regularized-reconstruction" class="level4">
+<h4 class="anchored" data-anchor-id="l1-regularized-reconstruction"><strong>L1-Regularized Reconstruction</strong></h4>
+<p><span class="math inline">\(L_1\)</span> ball 的角与坐标轴对齐，因此 least-squares contour 经常在具有零坐标的位置与它接触。相比之下，<span class="math inline">\(L_2\)</span> penalty 会平滑缩小所有系数，通常不会产生精确零。这个几何区别与 Lasso regression 完全相同。</p>
+<details>
+<summary>
+<strong>Python：比较稠密与稀疏重构 code</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> sparse_encode</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">84</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>n_samples, n_features, n_atoms <span class="op">=</span> <span class="dv">300</span>, <span class="dv">25</span>, <span class="dv">45</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create an overcomplete dictionary with unit-norm atoms.</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>dictionary <span class="op">=</span> rng.normal(size<span class="op">=</span>(n_atoms, n_features))</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>dictionary <span class="op">/=</span> np.linalg.norm(dictionary, axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate observations from exactly three active atoms each.</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>true_codes <span class="op">=</span> np.zeros((n_samples, n_atoms))</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> row <span class="kw">in</span> <span class="bu">range</span>(n_samples):</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    active <span class="op">=</span> rng.choice(n_atoms, size<span class="op">=</span><span class="dv">3</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    true_codes[row, active] <span class="op">=</span> rng.normal(size<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> true_codes <span class="op">@</span> dictionary <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.02</span>, size<span class="op">=</span>(n_samples, n_features))</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Minimum-norm least squares uses a dense code in an overcomplete system.</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>dense_codes <span class="op">=</span> X <span class="op">@</span> np.linalg.pinv(dictionary)</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>omp_codes <span class="op">=</span> sparse_encode(</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    X,</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    dictionary,</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    algorithm<span class="op">=</span><span class="st">"omp"</span>,</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    n_nonzero_coefs<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>lasso_codes <span class="op">=</span> sparse_encode(</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    X,</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    dictionary,</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    algorithm<span class="op">=</span><span class="st">"lasso_cd"</span>,</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    alpha<span class="op">=</span><span class="fl">0.04</span>,</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    max_iter<span class="op">=</span><span class="dv">2000</span>,</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, codes <span class="kw">in</span> [(<span class="st">"dense"</span>, dense_codes), (<span class="st">"OMP"</span>, omp_codes), (<span class="st">"L1"</span>, lasso_codes)]:</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    reconstruction <span class="op">=</span> codes <span class="op">@</span> dictionary</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>    nonzeros <span class="op">=</span> np.mean(np.<span class="bu">sum</span>(np.<span class="bu">abs</span>(codes) <span class="op">&gt;</span> <span class="fl">1e-6</span>, axis<span class="op">=</span><span class="dv">1</span>))</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    mse <span class="op">=</span> np.mean((X <span class="op">-</span> reconstruction) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="st">"mean nonzeros="</span>, <span class="bu">round</span>(nonzeros, <span class="dv">2</span>), <span class="st">"MSE="</span>, <span class="bu">round</span>(mse, <span class="dv">6</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>OMP 强制使用指定的 support size，而 <span class="math inline">\(L_1\)</span> 通过 penalty 选择 support。恢复真实 atom 或 support 需要 incoherence、稀疏度、噪声和样本量等条件；低重构误差本身并不能证明潜在结构正确。</p>
+</section>
+</section>
+<section id="流形学习" class="level3">
+<h3 class="anchored" data-anchor-id="流形学习"><strong>流形学习</strong></h3>
+<p>Manifold learning 假设高维观测位于一个较低维的弯曲表面附近。例如，三维 Swiss roll 只有两个内在坐标，但穿过外部空间的直线距离可能把沿曲面实际相距很远的点误认为相近。</p>
+<p>这些方法通常从局部近邻图开始，因此成败取决于特征表示、度量、样本覆盖和邻居数量。邻居太少会使图断开，邻居太多则会跨越曲面折叠产生 shortcut。与 PCA 不同，大多数 manifold embedding 是非线性的，没有简单 feature loading，也不一定具有全局有效的 inverse transformation。</p>
+<section id="isomap-与-locally-linear-embedding" class="level4">
+<h4 class="anchored" data-anchor-id="isomap-与-locally-linear-embedding"><strong>Isomap 与 Locally Linear Embedding</strong></h4>
+<p><strong>Isomap</strong>尝试保留沿流形的 geodesic distance：</p>
+<ol type="1">
+<li>把每个观测连接到 <span class="math inline">\(k\)</span> 个最近邻，或指定半径内的观测；</li>
+<li>使用输入空间距离作为边权；</li>
+<li>通过图上的 all-pairs shortest path 近似 geodesic distance；</li>
+<li>对 geodesic-distance matrix 应用 classical multidimensional scaling。</li>
+</ol>
+<p>如果 <span class="math inline">\(d_G(i,j)\)</span> 是图上最短路径距离，Isomap 会寻找低维坐标，使其中的 Euclidean distance 近似 <span class="math inline">\(d_G(i,j)\)</span>。当采样足够密集，并且近邻图既没有断开也没有错误 shortcut 时，它可以恢复全局流形几何。噪声、孔洞、多流形以及高计算成本都会破坏结果。</p>
+<p><strong>Locally Linear Embedding（LLE）</strong>保留局部重构关系，而不是全局路径长度。对于每个观测，它先寻找能由邻居重构该点的权重：</p>
+<p><span class="math display">\[
+\min_{\{w_{ij}\}}
+\sum_i
+\left\lVert
+\mathbf x_i-\sum_{j\in N(i)}w_{ij}\mathbf x_j
+\right\rVert_2^2,
+\qquad
+\sum_{j\in N(i)}w_{ij}=1.
+\]</span></p>
+<p>随后寻找保留同一组权重的低维坐标 <span class="math inline">\(\mathbf z_i\)</span>：</p>
+<p><span class="math display">\[
+\min_{\{\mathbf z_i\}}
+\sum_i
+\left\lVert
+\mathbf z_i-\sum_{j\in N(i)}w_{ij}\mathbf z_j
+\right\rVert_2^2,
+\]</span></p>
+<p>同时加入中心化和尺度约束，避免所有坐标都为零的平凡解。LLE 可以展开局部线性的曲面，但对邻居数量、正则化和不均匀采样都很敏感。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/manifold-methods-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="Isomap 与 LLE 如何保留不同关系并展开流形。"><img src="assets/manifold-methods-map.svg" class="img-fluid figure-img" alt="弯曲流形被转换为近邻图；Isomap 保留最短图路径，LLE 保留局部重构权重，两者都尝试得到低维展开。"></a></p>
+<figcaption>Isomap 与 LLE 如何保留不同关系并展开流形。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：在 S-curve 上比较 PCA、Isomap 与 LLE</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_s_curve</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.manifold <span class="im">import</span> Isomap, LocallyLinearEmbedding, trustworthiness</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>X, intrinsic_position <span class="op">=</span> make_s_curve(n_samples<span class="op">=</span><span class="dv">900</span>, noise<span class="op">=</span><span class="fl">0.03</span>, random_state<span class="op">=</span><span class="dv">95</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>embeddings <span class="op">=</span> {</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"PCA"</span>: PCA(n_components<span class="op">=</span><span class="dv">2</span>).fit_transform(X),</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Isomap"</span>: Isomap(n_neighbors<span class="op">=</span><span class="dv">12</span>, n_components<span class="op">=</span><span class="dv">2</span>).fit_transform(X),</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"LLE"</span>: LocallyLinearEmbedding(</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        n_neighbors<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        n_components<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        method<span class="op">=</span><span class="st">"standard"</span>,</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">95</span>,</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    ).fit_transform(X),</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, embedding <span class="kw">in</span> embeddings.items():</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    local_trust <span class="op">=</span> trustworthiness(X, embedding, n_neighbors<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Correlation with the known generator coordinate is only available here</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># because this is a controlled synthetic example.</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>    coordinate_correlation <span class="op">=</span> <span class="bu">max</span>(</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        <span class="bu">abs</span>(<span class="bu">__import__</span>(<span class="st">"numpy"</span>).corrcoef(intrinsic_position, embedding[:, axis])[<span class="dv">0</span>, <span class="dv">1</span>])</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> axis <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        <span class="st">"trustworthiness="</span>, <span class="bu">round</span>(local_trust, <span class="dv">3</span>),</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>        <span class="st">"best latent-coordinate correlation="</span>, <span class="bu">round</span>(coordinate_correlation, <span class="dv">3</span>),</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Trustworthiness 检查低维近邻是否确实是输入空间中的近邻，但不能证明全局距离、拓扑、密度或语义意义得到保留。</p>
+</section>
+<section id="t-sne-与-umap" class="level4">
+<h4 class="anchored" data-anchor-id="t-sne-与-umap"><strong>t-SNE 与 UMAP</strong></h4>
+<p><strong>t-distributed Stochastic Neighbor Embedding（t-SNE）</strong>把高维邻域 affinity 转换为概率 <span class="math inline">\(p_{ij}\)</span>，把低维 affinity 转换为 heavy-tailed probability <span class="math inline">\(q_{ij}\)</span>，再最小化</p>
+<p><span class="math display">\[
+\operatorname{KL}(P\Vert Q)
+=\sum_{i\ne j}p_{ij}\log\frac{p_{ij}}{q_{ij}}.
+\]</span></p>
+<p>这个 KL 方向会强烈惩罚“高维中真正的近邻被放到低维远处”，因此 t-SNE 主要强调局部邻域。嵌入中的 Student-<span class="math inline">\(t\)</span> kernel 允许远距离点对分布得更开，从而缓解 crowding problem。<strong>Perplexity</strong> 控制有效邻域尺度；early exaggeration、learning rate、初始化和随机种子也会影响地图。</p>
+<p><strong>UMAP</strong>在输入空间中构造加权 fuzzy neighbour graph，并通过类似 cross-entropy 的目标优化低维图。<code>n_neighbors</code> 控制局部细节与更广泛结构之间的权衡；<code>min_dist</code> 控制低维点能够聚集得多紧；<code>metric</code> 定义输入空间的相似性。UMAP 通常扩展性较好，也能转换新观测，但它仍然依赖模型与超参数。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/tsne-umap-interpretation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="如何正确和错误地解读 t-SNE 与 UMAP。"><img src="assets/tsne-umap-interpretation.svg" class="img-fluid figure-img" alt="图中把相对可靠的局部邻域关系，与可能误导的簇大小、间距和密度进行对比，并展示 t-SNE 和 UMAP 对设置的敏感性。"></a></p>
+<figcaption>如何正确和错误地解读 t-SNE 与 UMAP。</figcaption>
+</figure>
+</div>
+</div>
+<p>不要把簇的面积解释为总体方差，不要把簇间空隙解释为经过校准的分离程度，也不要把嵌入密度当作原始密度。用已知标签着色有助于诊断，但不能把标签当作算法发现的结构。如果表示将进入预测模型，预处理和具有 transform 能力的 embedding 都只能在训练数据上拟合。</p>
+<details>
+<summary>
+<strong>Python：评估 t-SNE 的邻域保留与随机种子敏感性</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.spatial.distance <span class="im">import</span> pdist</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> spearmanr</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.manifold <span class="im">import</span> TSNE, trustworthiness</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>X, labels <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">105</span>)</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>subset <span class="op">=</span> rng.choice(<span class="bu">len</span>(X), size<span class="op">=</span><span class="dv">800</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X[subset])</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co"># PCA pre-reduction removes noise and makes t-SNE cheaper.</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>X_30 <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">30</span>, random_state<span class="op">=</span><span class="dv">105</span>).fit_transform(X)</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>embeddings <span class="op">=</span> []</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> seed <span class="kw">in</span> [<span class="dv">105</span>, <span class="dv">106</span>]:</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    embedding <span class="op">=</span> TSNE(</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>        n_components<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>        perplexity<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>        learning_rate<span class="op">=</span><span class="st">"auto"</span>,</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>        init<span class="op">=</span><span class="st">"pca"</span>,</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        max_iter<span class="op">=</span><span class="dv">750</span>,</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span>seed,</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    ).fit_transform(X_30)</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    embeddings.append(embedding)</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"seed"</span>, seed, <span class="st">"trustworthiness:"</span>, <span class="bu">round</span>(trustworthiness(X_30, embedding, n_neighbors<span class="op">=</span><span class="dv">15</span>), <span class="dv">3</span>))</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Pairwise-distance correlation reveals that global geometry can change.</span></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>pair_sample <span class="op">=</span> rng.choice(<span class="bu">len</span>(X), size<span class="op">=</span><span class="dv">250</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>distance_correlation <span class="op">=</span> spearmanr(</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    pdist(embeddings[<span class="dv">0</span>][pair_sample]),</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>    pdist(embeddings[<span class="dv">1</span>][pair_sample]),</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>).statistic</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"cross-seed global distance correlation:"</span>, <span class="bu">round</span>(distance_correlation, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>UMAP 来自可选的 <code>umap-learn</code> package，而不是 scikit-learn。下面的例子在尚未安装该依赖的环境中也能安全运行。</p>
+<details>
+<summary>
+<strong>Python：在可选依赖存在时运行 UMAP</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> importlib.util</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> importlib.util.find_spec(<span class="st">"umap"</span>) <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"Optional package missing: install 'umap-learn' to run this example."</span>)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> umap</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> sklearn.manifold <span class="im">import</span> trustworthiness</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    X, labels <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    reducer <span class="op">=</span> umap.UMAP(</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        n_neighbors<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        min_dist<span class="op">=</span><span class="fl">0.15</span>,</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>        metric<span class="op">=</span><span class="st">"euclidean"</span>,</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">105</span>,</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>    embedding <span class="op">=</span> reducer.fit_transform(X)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"embedding shape:"</span>, embedding.shape)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"trustworthiness:"</span>, <span class="bu">round</span>(trustworthiness(X, embedding, n_neighbors<span class="op">=</span><span class="dv">15</span>), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>对于 t-SNE 和 UMAP，都应在合理的超参数和随机种子下重复运行，量化邻域保留，检查不稳定观测，并在为视觉群组赋予语义名称之前返回原始特征。</p>
+</section>
+</section>
+<section id="随机投影" class="level3">
+<h3 class="anchored" data-anchor-id="随机投影"><strong>随机投影</strong></h3>
+<p>Random projection 不从数据中学习方向，而是用随机生成矩阵乘以观测来降低维度。对于 <span class="math inline">\(\mathbf X\in\mathbb R^{n\times d}\)</span> 和投影矩阵 <span class="math inline">\(\mathbf R\in\mathbb R^{k\times d}\)</span>，</p>
+<p><span class="math display">\[
+\mathbf Z=\mathbf X\mathbf R^\top.
+\]</span></p>
+<p><span class="math inline">\(\mathbf R\)</span> 的元素可以来自 Gaussian distribution，也可以使用稀疏带符号分布。适当缩放能够保持期望长度稳定。随机投影速度快、适合 streaming，也不需要迭代优化；但投影轴通常无法直接解释。</p>
+<p>Johnson-Lindenstrauss lemma 表明，包含 <span class="math inline">\(n\)</span> 个点的有限集合可以嵌入到只按 <span class="math inline">\(\log n\)</span> 增长的维度中，同时近似保留全部点对平方距离。以高概率有</p>
+<p><span class="math display">\[
+(1-\varepsilon)\lVert\mathbf u-\mathbf v\rVert_2^2
+\leq
+\lVert\mathbf R\mathbf u-\mathbf R\mathbf v\rVert_2^2
+\leq
+(1+\varepsilon)\lVert\mathbf u-\mathbf v\rVert_2^2.
+\]</span></p>
+<p>一种常见的充分界为</p>
+<p><span class="math display">\[
+k\geq
+\frac{4\log n}{\varepsilon^2/2-\varepsilon^3/3}.
+\]</span></p>
+<p>这个界通常较保守，而且与原始维度 <span class="math inline">\(d\)</span> 无关。允许的失真 <span class="math inline">\(\varepsilon\)</span> 越小，所需投影维度越多。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/random-projection-jl.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="随机投影与近似点对距离保留。"><img src="assets/random-projection-jl.svg" class="img-fluid figure-img" alt="高维观测乘以随机矩阵得到 k 个坐标，Johnson-Lindenstrauss 不等式表示平方距离得到近似保留。"></a></p>
+<figcaption>随机投影与近似点对距离保留。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：测量稀疏随机投影后的点对距离失真</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.random_projection <span class="im">import</span> SparseRandomProjection, johnson_lindenstrauss_min_dim</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">116</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>n_samples, n_features <span class="op">=</span> <span class="dv">500</span>, <span class="dv">2000</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> rng.normal(size<span class="op">=</span>(n_samples, n_features))</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">0.50</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>safe_dimension <span class="op">=</span> <span class="bu">int</span>(johnson_lindenstrauss_min_dim(n_samples, eps<span class="op">=</span>epsilon))</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>projector <span class="op">=</span> SparseRandomProjection(</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    n_components<span class="op">=</span>safe_dimension,</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">116</span>,</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>Z <span class="op">=</span> projector.fit_transform(X)</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Sample pairs instead of materializing every pairwise distance.</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>left <span class="op">=</span> rng.integers(<span class="dv">0</span>, n_samples, size<span class="op">=</span><span class="dv">6000</span>)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>right <span class="op">=</span> rng.integers(<span class="dv">0</span>, n_samples, size<span class="op">=</span><span class="dv">6000</span>)</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>valid <span class="op">=</span> left <span class="op">!=</span> right</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>left, right <span class="op">=</span> left[valid], right[valid]</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>original_squared <span class="op">=</span> np.<span class="bu">sum</span>((X[left] <span class="op">-</span> X[right]) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>projected_squared <span class="op">=</span> np.<span class="bu">sum</span>((Z[left] <span class="op">-</span> Z[right]) <span class="op">**</span> <span class="dv">2</span>, axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>relative_distortion <span class="op">=</span> projected_squared <span class="op">/</span> original_squared <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"original dimension:"</span>, n_features)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"JL sufficient dimension:"</span>, safe_dimension)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"median absolute distortion:"</span>, <span class="bu">round</span>(np.median(np.<span class="bu">abs</span>(relative_distortion)), <span class="dv">3</span>))</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"95th percentile absolute distortion:"</span>, <span class="bu">round</span>(np.percentile(np.<span class="bu">abs</span>(relative_distortion), <span class="dv">95</span>), <span class="dv">3</span>))</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"fraction within epsilon:"</span>, <span class="bu">round</span>(np.mean(np.<span class="bu">abs</span>(relative_distortion) <span class="op">&lt;=</span> epsilon), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当任务依赖距离、数据极宽而且不需要解释 basis 时，random projection 很有吸引力。PCA 会适应样本，因此在相同维度下通常具有更低重构误差；random projection 则计算更便宜，也能在不学习数据方向的情况下保留几何。必须保存随机矩阵和 seed，才能一致地转换未来数据。</p>
+</section>
+<section id="作为神经扩展的-autoencoder" class="level3">
+<h3 class="anchored" data-anchor-id="作为神经扩展的-autoencoder"><strong>作为神经扩展的 Autoencoder</strong></h3>
+<p>Autoencoder 通过最小化重构损失，学习 encoder <span class="math inline">\(f_\theta\)</span> 和 decoder <span class="math inline">\(g_\phi\)</span>：</p>
+<p><span class="math display">\[
+\mathbf z=f_\theta(\mathbf x),
+\qquad
+\widehat{\mathbf x}=g_\phi(\mathbf z),
+\]</span></p>
+<p><span class="math display">\[
+\min_{\theta,\phi}
+\sum_i
+\mathcal L\left(
+\mathbf x_i,
+g_\phi(f_\theta(\mathbf x_i))
+\right).
+\]</span></p>
+<p>对于标准化实数输入，<span class="math inline">\(\mathcal L\)</span> 可以是 mean squared error；二元数据可以使用 Bernoulli cross-entropy；count 或 image model 则可能需要与 observation process 匹配的 likelihood。</p>
+<p><strong>Undercomplete autoencoder</strong> 的瓶颈维度小于输入维度。使用 squared loss 的线性 undercomplete autoencoder，在合适优化下会学习与 PCA 相同的主子空间，不过坐标可以旋转。非线性 activation 可以学习弯曲重构映射，但也会增加优化、可识别性和泛化难度。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/autoencoder-bottleneck.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="Autoencoder 中的 encoder、瓶颈、decoder 与正则化选项。"><img src="assets/autoencoder-bottleneck.svg" class="img-fluid figure-img" alt="输入经过逐渐收窄的 encoder 到达小型 latent bottleneck，再通过 decoder 得到重构；旁边列出去噪、稀疏和正则约束。"></a></p>
+<figcaption>Autoencoder 中的 encoder、瓶颈、decoder 与正则化选项。</figcaption>
+</figure>
+</div>
+</div>
+<p>Overcomplete network 如果没有约束，可能只学会 identity map。常见变体包括：</p>
+<ul>
+<li><strong>denoising autoencoder</strong>：从损坏输入重构干净输入；</li>
+<li><strong>sparse autoencoder</strong>：惩罚过于广泛的 latent activation；</li>
+<li><strong>contractive autoencoder</strong>：惩罚 encoder 对微小输入变化的敏感度；</li>
+<li><strong>variational autoencoder</strong>：学习正则化概率 latent distribution 与生成式 decoder。</li>
+</ul>
+<p>良好重构并不能保证语义有用。模型可能把容量花在背景纹理上、记忆训练样本，或忽略低方差但与目标相关的信号。必须在留出观测上评估，并与简单 PCA baseline 比较。</p>
+<details>
+<summary>
+<strong>Python：比较非线性瓶颈 autoencoder 与 PCA</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> mean_squared_error</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neural_network <span class="im">import</span> MLPRegressor</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">128</span>)</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>latent <span class="op">=</span> rng.uniform(<span class="op">-</span><span class="fl">2.5</span>, <span class="fl">2.5</span>, size<span class="op">=</span>(<span class="dv">1200</span>, <span class="dv">2</span>))</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co"># A nonlinear 10-dimensional observation generated from two variables.</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.column_stack([</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    latent[:, <span class="dv">0</span>], latent[:, <span class="dv">1</span>],</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    latent[:, <span class="dv">0</span>] <span class="op">**</span> <span class="dv">2</span>, latent[:, <span class="dv">1</span>] <span class="op">**</span> <span class="dv">2</span>,</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    latent[:, <span class="dv">0</span>] <span class="op">*</span> latent[:, <span class="dv">1</span>],</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>    np.sin(latent[:, <span class="dv">0</span>]), np.cos(latent[:, <span class="dv">1</span>]),</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    np.sin(latent[:, <span class="dv">0</span>] <span class="op">+</span> latent[:, <span class="dv">1</span>]),</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    np.exp(<span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> latent[:, <span class="dv">0</span>] <span class="op">**</span> <span class="dv">2</span>),</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    np.exp(<span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> latent[:, <span class="dv">1</span>] <span class="op">**</span> <span class="dv">2</span>),</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>X <span class="op">+=</span> rng.normal(scale<span class="op">=</span><span class="fl">0.03</span>, size<span class="op">=</span>X.shape)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>X_train, X_test <span class="op">=</span> train_test_split(X, test_size<span class="op">=</span><span class="fl">0.30</span>, random_state<span class="op">=</span><span class="dv">128</span>)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> StandardScaler().fit(X_train)</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>X_train_scaled <span class="op">=</span> scaler.transform(X_train)</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>X_test_scaled <span class="op">=</span> scaler.transform(X_test)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>pca <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">2</span>).fit(X_train_scaled)</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>pca_reconstruction <span class="op">=</span> pca.inverse_transform(pca.transform(X_test_scaled))</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>autoencoder <span class="op">=</span> MLPRegressor(</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a>    hidden_layer_sizes<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">2</span>, <span class="dv">14</span>),</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>    activation<span class="op">=</span><span class="st">"tanh"</span>,</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span><span class="st">"adam"</span>,</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a>    early_stopping<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a>    validation_fraction<span class="op">=</span><span class="fl">0.15</span>,</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>    n_iter_no_change<span class="op">=</span><span class="dv">40</span>,</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>    learning_rate_init<span class="op">=</span><span class="fl">0.005</span>,</span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>    alpha<span class="op">=</span><span class="fl">1e-4</span>,</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>    max_iter<span class="op">=</span><span class="dv">2000</span>,</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">128</span>,</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>).fit(X_train_scaled, X_train_scaled)</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>autoencoder_reconstruction <span class="op">=</span> autoencoder.predict(X_test_scaled)</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a><span class="co"># Apply the first two fitted hidden layers to obtain bottleneck coordinates.</span></span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>hidden <span class="op">=</span> np.tanh(X_test_scaled <span class="op">@</span> autoencoder.coefs_[<span class="dv">0</span>] <span class="op">+</span> autoencoder.intercepts_[<span class="dv">0</span>])</span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a>bottleneck <span class="op">=</span> np.tanh(hidden <span class="op">@</span> autoencoder.coefs_[<span class="dv">1</span>] <span class="op">+</span> autoencoder.intercepts_[<span class="dv">1</span>])</span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"PCA test reconstruction MSE:"</span>, <span class="bu">round</span>(mean_squared_error(X_test_scaled, pca_reconstruction), <span class="dv">4</span>))</span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"autoencoder test reconstruction MSE:"</span>, <span class="bu">round</span>(mean_squared_error(X_test_scaled, autoencoder_reconstruction), <span class="dv">4</span>))</span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"bottleneck shape:"</span>, bottleneck.shape)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个例子使用 scikit-learn 展示瓶颈机制，避免引入新的 deep-learning dependency。生产级 autoencoder 通常使用 PyTorch、TensorFlow 或 JAX，并结合 mini-batch、validation checkpoint 和架构相关正则化。</p>
+</section>
+<section id="评估与选择表示" class="level3">
+<h3 class="anchored" data-anchor-id="评估与选择表示"><strong>评估与选择表示</strong></h3>
+<p>降维表示必须根据预期用途评估。不存在普遍适用的单一分数，因为重构、邻域保留、预测、解释和压缩对应不同目标。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/representation-evaluation-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="评估所学表示的多视角框架。"><img src="assets/representation-evaluation-map.svg" class="img-fluid figure-img" alt="一个只在训练数据上拟合的候选表示，分别通过留出重构、几何保留、扰动稳定性、下游用途和领域含义或风险接受评估。"></a></p>
+<figcaption>评估所学表示的多视角框架。</figcaption>
+</figure>
+</div>
+</div>
+<p>可用的评估视角包括：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>视角</th>
+<th>关键问题</th>
+<th>示例诊断</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>重构</td>
+<td>能否恢复留出观测？残差集中在哪里？</td>
+<td>MSE、likelihood、按特征和子群绘制残差</td>
+</tr>
+<tr class="even">
+<td>几何</td>
+<td>哪些局部或全局关系得到保留？</td>
+<td>Trustworthiness、邻居重叠、距离相关、stress</td>
+</tr>
+<tr class="odd">
+<td>稳定性</td>
+<td>表示能否经受样本、seed 和合理预处理变化？</td>
+<td>Principal angle、对齐后的成分相关、邻域一致性</td>
+</tr>
+<tr class="even">
+<td>下游用途</td>
+<td>降维是否改善真实验证任务？</td>
+<td>Nested-CV performance、延迟、内存、校准</td>
+</tr>
+<tr class="odd">
+<td>解释</td>
+<td>能否在不事后编故事的情况下解释成分？</td>
+<td>Loading sparsity、领域复核、可重复性</td>
+</tr>
+<tr class="even">
+<td>风险</td>
+<td>是否抹去或扭曲稀有群体与安全相关方向？</td>
+<td>子群残差、公平性检查、失败案例检查</td>
+</tr>
+</tbody>
+</table>
+<p>重构误差应在留出观测上计算。对于类似 PCA 的方法，应比较子空间而不是成分符号；对于 t-SNE 或 UMAP，应检查局部邻域保留并重复不同设置，而不是比较坐标轴；对于稀疏表示，应报告 support 稳定性与重构；对于下游预测，reducer 必须放在验证 pipeline 内部。</p>
+<details>
+<summary>
+<strong>Python：在不泄漏测试信息的情况下选择 PCA 维度</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> GridSearchCV, train_test_split</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> Pipeline</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.30</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">140</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling and PCA are refitted inside every training fold.</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>pipeline <span class="op">=</span> Pipeline([</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"scale"</span>, StandardScaler()),</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"reduce"</span>, PCA(random_state<span class="op">=</span><span class="dv">140</span>)),</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"classify"</span>, LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)),</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>search <span class="op">=</span> GridSearchCV(</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>    pipeline,</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    param_grid<span class="op">=</span>{</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"reduce__n_components"</span>: [<span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>],</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"classify__C"</span>: [<span class="fl">0.1</span>, <span class="fl">1.0</span>],</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>    cv<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    scoring<span class="op">=</span><span class="st">"accuracy"</span>,</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>    n_jobs<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>search.fit(X_train, y_train)</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>test_accuracy <span class="op">=</span> accuracy_score(y_test, search.predict(X_test))</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected parameters:"</span>, search.best_params_)</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"cross-validated accuracy:"</span>, <span class="bu">round</span>(search.best_score_, <span class="dv">3</span>))</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"untouched test accuracy:"</span>, <span class="bu">round</span>(test_accuracy, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>只有在选定成分数和 classifier regularization 后，才使用一次测试集。如果在切分之前拟合 PCA，测试集协方差就会影响表示，使性能估计偏乐观。</p>
+<details>
+<summary>
+<strong>Python：量化 bootstrap 样本下的 PCA 子空间稳定性</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.linalg <span class="im">import</span> subspace_angles</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.decomposition <span class="im">import</span> PCA</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>reference <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">10</span>, random_state<span class="op">=</span><span class="dv">151</span>).fit(X).components_.T</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">151</span>)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>largest_angles <span class="op">=</span> []</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>median_angles <span class="op">=</span> []</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">30</span>):</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    indexes <span class="op">=</span> rng.integers(<span class="dv">0</span>, <span class="bu">len</span>(X), size<span class="op">=</span><span class="bu">len</span>(X))</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    bootstrap_subspace <span class="op">=</span> PCA(n_components<span class="op">=</span><span class="dv">10</span>).fit(X[indexes]).components_.T</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    angles <span class="op">=</span> np.degrees(subspace_angles(reference, bootstrap_subspace))</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>    largest_angles.append(angles.<span class="bu">max</span>())</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a>    median_angles.append(np.median(angles))</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"median angle across directions:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.median(median_angles)), <span class="dv">2</span>), <span class="st">"degrees"</span>)</span>
+<span id="cb16-22"><a href="#cb16-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"median largest principal angle:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.median(largest_angles)), <span class="dv">2</span>), <span class="st">"degrees"</span>)</span>
+<span id="cb16-23"><a href="#cb16-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"95th percentile:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.percentile(largest_angles, <span class="dv">95</span>)), <span class="dv">2</span>), <span class="st">"degrees"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>多数 leading direction 可能稳定，但所选维度边界处最弱的方向仍然不稳定，尤其是相邻 eigenvalue 几乎相等时。同时报告典型 principal angle 和最大 principal angle，能够揭示这种差异，也不需要任意进行符号或成分匹配。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>需求</th>
+<th>合理起点</th>
+<th>主要风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>线性压缩和可检查 loading</td>
+<td>PCA</td>
+<td>高方差不一定与任务相关</td>
+</tr>
+<tr class="even">
+<td>稀疏 term-document reduction</td>
+<td>TruncatedSVD</td>
+<td>未中心化成分混合均值与变化</td>
+</tr>
+<tr class="odd">
+<td>共享协方差加 feature-specific noise</td>
+<td>Factor Analysis</td>
+<td>Rotation 和因子数并不唯一</td>
+</tr>
+<tr class="even">
+<td>独立非 Gaussian source</td>
+<td>ICA</td>
+<td>假设很强，顺序与尺度不可识别</td>
+</tr>
+<tr class="odd">
+<td>加性非负部件</td>
+<td>NMF</td>
+<td>局部最优和成分不稳定</td>
+</tr>
+<tr class="even">
+<td>每个观测只用少量可复用 atom</td>
+<td>Dictionary learning / sparse coding</td>
+<td>相关 dictionary 可能产生不稳定 support</td>
+</tr>
+<tr class="odd">
+<td>弯曲流形探索</td>
+<td>Isomap 或 LLE</td>
+<td>近邻图质量与可扩展性</td>
+</tr>
+<tr class="even">
+<td>高维可视化</td>
+<td>t-SNE 或 UMAP</td>
+<td>全局间距和簇形状容易被过度解读</td>
+</tr>
+<tr class="odd">
+<td>快速保留几何的压缩</td>
+<td>Random projection</td>
+<td>可解释性弱且存在随机失真</td>
+</tr>
+<tr class="even">
+<td>非线性重构表示</td>
+<td>Autoencoder</td>
+<td>模型容量可能记忆数据或保留无关细节</td>
+</tr>
+</tbody>
+</table>
+<p>可靠工作流应从与任务一致的最简单表示开始，与未降维特征比较，在训练切分内部拟合所有数据依赖步骤，并明确报告哪些信息没有得到保留。低维图只是数据的一个模型，并不是数据本身。</p>
+<p>官方实现与示例可参考 <a href="https://scikit-learn.org/stable/modules/decomposition.html">scikit-learn decomposition guide</a>、<a href="https://scikit-learn.org/stable/modules/manifold.html">manifold-learning guide</a>、<a href="https://scikit-learn.org/stable/auto_examples/miscellaneous/plot_johnson_lindenstrauss_bound.html">random-projection example</a> 和 <a href="https://umap-learn.readthedocs.io/en/latest/parameters.html">UMAP parameter guide</a>。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","loop":false,"closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

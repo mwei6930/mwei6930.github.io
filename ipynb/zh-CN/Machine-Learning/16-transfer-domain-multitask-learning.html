@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>机器学习：迁移学习、领域适应与多任务学习</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="16-transfer-domain-multitask-learning.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#迁移学习领域适应与多任务学习" id="toc-迁移学习领域适应与多任务学习" class="nav-link active" data-scroll-target="#迁移学习领域适应与多任务学习"><strong>迁移学习、领域适应与多任务学习</strong></a>
+  <ul>
+  <li><a href="#数据集偏移" id="toc-数据集偏移" class="nav-link" data-scroll-target="#数据集偏移"><strong>数据集偏移</strong></a>
+  <ul>
+  <li><a href="#协变量标签与概念偏移" id="toc-协变量标签与概念偏移" class="nav-link" data-scroll-target="#协变量标签与概念偏移"><strong>协变量、标签与概念偏移</strong></a></li>
+  <li><a href="#检测分布变化" id="toc-检测分布变化" class="nav-link" data-scroll-target="#检测分布变化"><strong>检测分布变化</strong></a></li>
+  </ul></li>
+  <li><a href="#迁移学习" id="toc-迁移学习" class="nav-link" data-scroll-target="#迁移学习"><strong>迁移学习</strong></a>
+  <ul>
+  <li><a href="#特征复用与微调" id="toc-特征复用与微调" class="nav-link" data-scroll-target="#特征复用与微调"><strong>特征复用与微调</strong></a></li>
+  <li><a href="#正迁移与负迁移" id="toc-正迁移与负迁移" class="nav-link" data-scroll-target="#正迁移与负迁移"><strong>正迁移与负迁移</strong></a></li>
+  </ul></li>
+  <li><a href="#领域适应" id="toc-领域适应" class="nav-link" data-scroll-target="#领域适应"><strong>领域适应</strong></a>
+  <ul>
+  <li><a href="#样本重加权" id="toc-样本重加权" class="nav-link" data-scroll-target="#样本重加权"><strong>样本重加权</strong></a></li>
+  <li><a href="#特征对齐" id="toc-特征对齐" class="nav-link" data-scroll-target="#特征对齐"><strong>特征对齐</strong></a></li>
+  <li><a href="#有监督与无监督适应" id="toc-有监督与无监督适应" class="nav-link" data-scroll-target="#有监督与无监督适应"><strong>有监督与无监督适应</strong></a></li>
+  </ul></li>
+  <li><a href="#多任务学习" id="toc-多任务学习" class="nav-link" data-scroll-target="#多任务学习"><strong>多任务学习</strong></a>
+  <ul>
+  <li><a href="#硬参数共享与软参数共享" id="toc-硬参数共享与软参数共享" class="nav-link" data-scroll-target="#硬参数共享与软参数共享"><strong>硬参数共享与软参数共享</strong></a></li>
+  <li><a href="#任务加权与干扰" id="toc-任务加权与干扰" class="nav-link" data-scroll-target="#任务加权与干扰"><strong>任务加权与干扰</strong></a></li>
+  </ul></li>
+  <li><a href="#持续学习" id="toc-持续学习" class="nav-link" data-scroll-target="#持续学习"><strong>持续学习</strong></a>
+  <ul>
+  <li><a href="#灾难性遗忘" id="toc-灾难性遗忘" class="nav-link" data-scroll-target="#灾难性遗忘"><strong>灾难性遗忘</strong></a></li>
+  <li><a href="#回放正则化与动态架构" id="toc-回放正则化与动态架构" class="nav-link" data-scroll-target="#回放正则化与动态架构"><strong>回放、正则化与动态架构</strong></a></li>
+  </ul></li>
+  <li><a href="#元学习与小样本学习" id="toc-元学习与小样本学习" class="nav-link" data-scroll-target="#元学习与小样本学习"><strong>元学习与小样本学习</strong></a>
+  <ul>
+  <li><a href="#基于度量的方法" id="toc-基于度量的方法" class="nav-link" data-scroll-target="#基于度量的方法"><strong>基于度量的方法</strong></a></li>
+  <li><a href="#基于优化的元学习" id="toc-基于优化的元学习" class="nav-link" data-scroll-target="#基于优化的元学习"><strong>基于优化的元学习</strong></a></li>
+  </ul></li>
+  <li><a href="#评估适应与迁移" id="toc-评估适应与迁移" class="nav-link" data-scroll-target="#评估适应与迁移"><strong>评估适应与迁移</strong></a>
+  <ul>
+  <li><a href="#留出领域与迁移基线" id="toc-留出领域与迁移基线" class="nav-link" data-scroll-target="#留出领域与迁移基线"><strong>留出领域与迁移基线</strong></a></li>
+  </ul></li>
+  <li><a href="#选择应该共享的内容" id="toc-选择应该共享的内容" class="nav-link" data-scroll-target="#选择应该共享的内容"><strong>选择应该共享的内容</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">机器学习：迁移学习、领域适应与多任务学习</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="../../Machine-Learning/16-transfer-domain-multitask-learning.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="Machine%20Learning.html">返回机器学习总览</a></p>
+<section id="迁移学习领域适应与多任务学习" class="level2">
+<h2 class="anchored" data-anchor-id="迁移学习领域适应与多任务学习"><strong>迁移学习、领域适应与多任务学习</strong></h2>
+<p>大多数机器学习系统都不是从一个与部署环境完全匹配、拥有独立标注的数据集开始训练的。表示可能已经在另一个任务上预训练，历史数据可能来自不同人群，多个相关输出可能同时存在，部署后的环境也可能继续变化。<strong>知识复用（knowledge reuse）</strong>要回答的是：来自既往数据、任务、领域或时间阶段的哪些信息，应该影响新的目标问题。</p>
+<p>一套有用的形式化术语会把<strong>领域（domain）</strong></p>
+<p><span class="math display">\[
+\mathcal D=\{\mathcal X,P(X)\}
+\]</span></p>
+<p>与<strong>任务（task）</strong></p>
+<p><span class="math display">\[
+\mathcal T=\{\mathcal Y,P(Y\mid X)\}
+\]</span></p>
+<p>区分开来。源组合 <span class="math inline">\((\mathcal D_S,\mathcal T_S)\)</span> 提供数据或已学习的结构；目标组合 <span class="math inline">\((\mathcal D_T,\mathcal T_T)\)</span> 定义最终部署目标。不同研究方向关注的变化并不相同：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>领域</th>
+<th>任务</th>
+<th>信息流动方式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>普通监督学习</td>
+<td>相同</td>
+<td>相同</td>
+<td>假设训练与测试来自同一分布</td>
+</tr>
+<tr class="even">
+<td>迁移学习</td>
+<td>可能变化</td>
+<td>可能变化</td>
+<td>复用源参数、特征、样本或先验</td>
+</tr>
+<tr class="odd">
+<td>领域适应</td>
+<td>发生变化</td>
+<td>通常相同或高度相关</td>
+<td>让源预测器适应目标分布</td>
+</tr>
+<tr class="even">
+<td>多任务学习</td>
+<td>通常共享或相关</td>
+<td>同时存在多个任务</td>
+<td>同时学习共享结构</td>
+</tr>
+<tr class="odd">
+<td>持续学习</td>
+<td>随时间变化</td>
+<td>一个或多个顺序到达的任务</td>
+<td>获取新知识，同时保留旧能力</td>
+</tr>
+<tr class="even">
+<td>元学习</td>
+<td>面向领域或任务的分布</td>
+<td>新采样的任务</td>
+<td>学习适应规则或初始化</td>
+</tr>
+</tbody>
+</table>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/transfer-learning-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="知识如何跨领域、任务和时间复用。"><img src="assets/transfer-learning-map.svg" class="img-fluid figure-img" alt="源领域与源任务中的知识流向目标问题；迁移学习、领域适应、多任务学习、持续学习和元学习分别对应不同的变化维度。"></a></p>
+<figcaption>知识如何跨领域、任务和时间复用。</figcaption>
+</figure>
+</div>
+</div>
+<p>这些术语本身并不能保证方法有效。在共享任何信息之前，至少要明确：</p>
+<ol type="1">
+<li>哪个因素发生了变化：<span class="math inline">\(P(X)\)</span>、<span class="math inline">\(P(Y)\)</span>、<span class="math inline">\(P(Y\mid X)\)</span>、特征空间还是输出空间；</li>
+<li>训练期间能够获得哪些源标签和目标标签；</li>
+<li>部署前是否允许查看目标输入；</li>
+<li>哪些数据或信息可以被存储、回放或迁移；</li>
+<li>使用什么仅依赖目标数据的基线来判定正迁移或负迁移。</li>
+</ol>
+<section id="数据集偏移" class="level3">
+<h3 class="anchored" data-anchor-id="数据集偏移"><strong>数据集偏移</strong></h3>
+<p>当源联合分布与目标联合分布不相同时，就发生了<strong>数据集偏移（dataset shift）</strong>：</p>
+<p><span class="math display">\[
+P_S(X,Y)\ne P_T(X,Y).
+\]</span></p>
+<p>联合分布可以等价地分解为</p>
+<p><span class="math display">\[
+P(X,Y)=P(Y\mid X)P(X)=P(X\mid Y)P(Y),
+\]</span></p>
+<p>由此可以提出不同的偏移假设。这些假设非常重要，因为未标注目标输入只能揭示 <span class="math inline">\(P_T(X)\)</span>，无法识别 <span class="math inline">\(P_T(Y\mid X)\)</span> 中任意形式的变化。</p>
+<section id="协变量标签与概念偏移" class="level4">
+<h4 class="anchored" data-anchor-id="协变量标签与概念偏移"><strong>协变量、标签与概念偏移</strong></h4>
+<p><strong>协变量偏移（covariate shift）</strong>假设</p>
+<p><span class="math display">\[
+P_S(X)\ne P_T(X),
+\qquad
+P_S(Y\mid X)=P_T(Y\mid X).
+\]</span></p>
+<p>输入的组成发生了变化，但给定输入后的条件决策关系保持稳定。例如，一家医院的服务范围变化后可能接收更多高龄患者，但在控制已测量变量后，疾病机制仍然相同。只要源分布的支持集覆盖目标分布，就可以通过样本加权使源风险更接近目标风险。</p>
+<p><strong>标签偏移（label shift）</strong>也称先验概率偏移，它假设</p>
+<p><span class="math display">\[
+P_S(Y)\ne P_T(Y),
+\qquad
+P_S(X\mid Y)=P_T(X\mid Y).
+\]</span></p>
+<p>类别流行率发生变化，但每个类别内部的特征分布保持稳定。例如，流行病会提高患病率，却不一定改变每种疾病内部的症状分布。如果目标先验能够被识别，就可以校正后验概率。</p>
+<p><strong>概念偏移（concept shift）</strong>或<strong>条件偏移（conditional shift）</strong>意味着</p>
+<p><span class="math display">\[
+P_S(Y\mid X)\ne P_T(Y\mid X).
+\]</span></p>
+<p>需要预测的关系本身已经改变。典型例子包括欺诈者开始针对检测规则进行规避、政策变化改变了干预对象，或者产品定义被重新修订。仅凭未标注目标特征通常无法发现这类变化，还需要延迟标签、实验、审计或额外的结构假设。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dataset-shift-factorizations.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="协变量偏移、标签偏移与概念偏移分别改变不同的分布因子。"><img src="assets/dataset-shift-factorizations.svg" class="img-fluid figure-img" alt="三个面板依次展示：决策边界稳定但输入密度变化；类条件分布稳定但类别比例变化；输入到标签的决策关系发生变化。"></a></p>
+<figcaption>协变量偏移、标签偏移与概念偏移分别改变不同的分布因子。</figcaption>
+</figure>
+</div>
+</div>
+<p>真实系统可能同时经历多种偏移。观察到的同一种特征漂移，可能由抽样方式、传感器替换、流行率变化或新的行为机制引起。因此，这套分类法是需要验证的模型，而不是从监控面板上即可直接得到的诊断结论。</p>
+</section>
+<section id="检测分布变化" class="level4">
+<h4 class="anchored" data-anchor-id="检测分布变化"><strong>检测分布变化</strong></h4>
+<p>偏移检测应当从成本较低的完整性检查开始，逐步推进到与任务相关的证据：</p>
+<ul>
+<li><strong>模式与数据质量检查：</strong> 缺失率、类型、取值范围、类别词表、单位、重复项、时间戳和数据管线版本；</li>
+<li><strong>单变量比较：</strong> 分位数变化、标准化均值差、Kolmogorov-Smirnov 检验、卡方检验或群体稳定性指数；</li>
+<li><strong>多变量双样本检验：</strong> 最大均值差异（MMD）、能量距离、分类器双样本检验或表示空间距离；</li>
+<li><strong>预测监控：</strong> 预测类别比例、分数分布、熵、校准代理指标、拒绝预测比例与告警量；</li>
+<li><strong>延迟性能：</strong> 在真实结果可用后检查目标标签、子群指标、校准和业务效用。</li>
+</ul>
+<p>样本量很大时，即使无关紧要的微小变化也可能具有统计显著性；特征很多时，未经校正的大量检验又会产生误报。偏移检测器应同时报告效应量、不确定性、多重检验控制、受影响子群和业务上下文。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/shift-detection-pipeline.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="分层执行的偏移检测与诊断流程。"><img src="assets/shift-detection-pipeline.svg" class="img-fluid figure-img" alt="参考窗口与当前窗口依次经过完整性检查、单变量检验、领域分类器、表示层检验、原因诊断和行动决策；延迟标签用于最终性能评估。"></a></p>
+<figcaption>分层执行的偏移检测与诊断流程。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>领域分类器（domain classifier）</strong>把源样本标记为 <span class="math inline">\(d=0\)</span>、目标样本标记为 <span class="math inline">\(d=1\)</span>，再根据 <span class="math inline">\(x\)</span> 预测样本来自哪个领域。交叉验证 AUC 接近 <span class="math inline">\(0.5\)</span>，只表示所选特征和分类器无法区分两组样本；较高 AUC 则暴露了多变量偏移。它并不能证明模型性能已经下降。</p>
+<details>
+<summary>
+<strong>Python：使用留出验证的领域分类器检测多变量偏移</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> ks_2samp</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> roc_auc_score</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> PolynomialFeatures, StandardScaler</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">160</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>source <span class="op">=</span> rng.multivariate_normal(</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    mean<span class="op">=</span>[<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    cov<span class="op">=</span>np.array([</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">1.0</span>, <span class="fl">0.7</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">0.7</span>, <span class="fl">1.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="fl">0.2</span>],</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.2</span>, <span class="fl">1.0</span>],</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    ]),</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    size<span class="op">=</span><span class="dv">1800</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> rng.multivariate_normal(</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    mean<span class="op">=</span>[<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    cov<span class="op">=</span>np.array([</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">0.45</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        [<span class="op">-</span><span class="fl">0.45</span>, <span class="fl">1.0</span>, <span class="fl">0.0</span>, <span class="fl">0.0</span>],</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="fl">0.65</span>],</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>        [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.65</span>, <span class="fl">1.0</span>],</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    ]),</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    size<span class="op">=</span><span class="dv">1800</span>,</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.vstack([source, target])</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>domain <span class="op">=</span> np.concatenate([np.zeros(<span class="bu">len</span>(source)), np.ones(<span class="bu">len</span>(target))])</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>X_train, X_test, d_train, d_test <span class="op">=</span> train_test_split(</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    X, domain, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>domain, random_state<span class="op">=</span><span class="dv">160</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>detector <span class="op">=</span> make_pipeline(</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>    PolynomialFeatures(degree<span class="op">=</span><span class="dv">2</span>, include_bias<span class="op">=</span><span class="va">False</span>),</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>    StandardScaler(),</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>    LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>),</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>).fit(X_train, d_train)</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>domain_auc <span class="op">=</span> roc_auc_score(d_test, detector.predict_proba(X_test)[:, <span class="dv">1</span>])</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>univariate_p <span class="op">=</span> [ks_2samp(source[:, j], target[:, j]).pvalue <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(X.shape[<span class="dv">1</span>])]</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"domain-classifier AUC:"</span>, <span class="bu">round</span>(domain_auc, <span class="dv">3</span>))</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"univariate KS p-values:"</span>, np.<span class="bu">round</span>(univariate_p, <span class="dv">4</span>).tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>逐个特征的边缘检验可能漏掉变量依赖结构的变化，而多变量检测器能够发现它。反过来，过于灵活的领域分类器也可能利用无害的标识符或数据管线伪影。应检查分类器系数或解释结果，并按时间、站点和子群重复检测。</p>
+<p>在标签偏移假设下，可以利用一个黑盒预测器估计目标类别比例。令</p>
+<p><span class="math display">\[
+C_{ij}=P_S(\hat Y=i\mid Y=j),
+\qquad
+\mu_i=P_T(\hat Y=i).
+\]</span></p>
+<p>如果 <span class="math inline">\(P(X\mid Y)\)</span> 保持稳定且 <span class="math inline">\(C\)</span> 可逆，则 <span class="math inline">\(\mu=Cq_T\)</span>，因此目标先验估计为 <span class="math inline">\(\hat q_T=C^{-1}\hat\mu\)</span>。随后可以用先验比值修正后验概率：</p>
+<p><span class="math display">\[
+P_T(y\mid x)\propto P_S(y\mid x)\frac{P_T(y)}{P_S(y)}.
+\]</span></p>
+<details>
+<summary>
+<strong>Python：估计并校正模拟的标签偏移</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score, confusion_matrix</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">161</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>means <span class="op">=</span> np.array([[<span class="op">-</span><span class="fl">1.6</span>, <span class="fl">0.0</span>], [<span class="fl">0.3</span>, <span class="fl">1.5</span>], [<span class="fl">1.7</span>, <span class="op">-</span><span class="fl">0.3</span>]])</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>covariances <span class="op">=</span> [</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    np.array([[<span class="fl">1.0</span>, <span class="fl">0.25</span>], [<span class="fl">0.25</span>, <span class="fl">0.9</span>]]),</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    np.array([[<span class="fl">0.9</span>, <span class="op">-</span><span class="fl">0.2</span>], [<span class="op">-</span><span class="fl">0.2</span>, <span class="fl">1.0</span>]]),</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    np.array([[<span class="fl">1.0</span>, <span class="fl">0.2</span>], [<span class="fl">0.2</span>, <span class="fl">0.8</span>]]),</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_with_prior(prior, size):</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> rng.choice(<span class="dv">3</span>, size<span class="op">=</span>size, p<span class="op">=</span>prior)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    features <span class="op">=</span> np.vstack([</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        rng.multivariate_normal(means[label], covariances[label])</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> label <span class="kw">in</span> labels</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> features, labels</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>source_prior <span class="op">=</span> np.array([<span class="fl">0.60</span>, <span class="fl">0.30</span>, <span class="fl">0.10</span>])</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>target_prior <span class="op">=</span> np.array([<span class="fl">0.20</span>, <span class="fl">0.30</span>, <span class="fl">0.50</span>])</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>X_train, y_train <span class="op">=</span> sample_with_prior(source_prior, <span class="dv">5000</span>)</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>X_validation, y_validation <span class="op">=</span> sample_with_prior(source_prior, <span class="dv">3000</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>X_target, y_target <span class="op">=</span> sample_with_prior(target_prior, <span class="dv">4000</span>)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_pipeline(</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2500</span>)</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>).fit(X_train, y_train)</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a><span class="co"># confusion_matrix returns true-label rows and predicted-label columns.</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>source_prediction <span class="op">=</span> model.predict(X_validation)</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>C <span class="op">=</span> confusion_matrix(</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    y_validation, source_prediction, labels<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>], normalize<span class="op">=</span><span class="st">"true"</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>).T</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>target_prediction <span class="op">=</span> model.predict(X_target)</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>mu <span class="op">=</span> np.bincount(target_prediction, minlength<span class="op">=</span><span class="dv">3</span>) <span class="op">/</span> <span class="bu">len</span>(target_prediction)</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a>estimated_target_prior <span class="op">=</span> np.linalg.solve(C, mu)</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>estimated_target_prior <span class="op">=</span> np.clip(estimated_target_prior, <span class="fl">1e-6</span>, <span class="va">None</span>)</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a>estimated_target_prior <span class="op">/=</span> estimated_target_prior.<span class="bu">sum</span>()</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true" tabindex="-1"></a>source_probability <span class="op">=</span> model.predict_proba(X_target)</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true" tabindex="-1"></a>prior_ratio <span class="op">=</span> estimated_target_prior <span class="op">/</span> source_prior</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true" tabindex="-1"></a>corrected_probability <span class="op">=</span> source_probability <span class="op">*</span> prior_ratio</span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true" tabindex="-1"></a>corrected_probability <span class="op">/=</span> corrected_probability.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"true target prior:"</span>, np.<span class="bu">round</span>(target_prior, <span class="dv">3</span>).tolist())</span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"estimated target prior:"</span>, np.<span class="bu">round</span>(estimated_target_prior, <span class="dv">3</span>).tolist())</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"uncorrected accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_target, source_probability.argmax(axis<span class="op">=</span><span class="dv">1</span>)), <span class="dv">3</span>))</span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"label-shift-corrected accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_target, corrected_probability.argmax(axis<span class="op">=</span><span class="dv">1</span>)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>不稳定或接近奇异的混淆矩阵会使流行率估计产生很大噪声。校准、正则化、软预测和不确定性区间可以改善稳定性，但只要 <span class="math inline">\(P_S(X\mid Y)=P_T(X\mid Y)\)</span> 假设不成立，就不存在能够修复问题的纯代数技巧。</p>
+</section>
+</section>
+<section id="迁移学习" class="level3">
+<h3 class="anchored" data-anchor-id="迁移学习"><strong>迁移学习</strong></h3>
+<p>迁移学习利用在源问题上获得的知识来改进目标问题。被迁移的对象可以是训练样本、特征变换、模型参数、先验分布、相似性度量、优化器或模型架构。现代模型常见的“预训练后进行任务适应”只是其中一种重要形式，并不等同于整个迁移学习领域。</p>
+<section id="特征复用与微调" class="level4">
+<h4 class="anchored" data-anchor-id="特征复用与微调"><strong>特征复用与微调</strong></h4>
+<p>假设源模型可以分解为编码器 <span class="math inline">\(z=f_{\theta}(x)\)</span> 和源任务头 <span class="math inline">\(h_{\phi_S}(z)\)</span>。目标适应会替换或扩展任务头，得到</p>
+<p><span class="math display">\[
+\hat y_T=h_{\phi_T}(f_{\theta}(x_T)).
+\]</span></p>
+<p>以下三种常用策略依次给予模型更大的目标特异性自由度：</p>
+<ul>
+<li><strong>冻结特征复用 / 线性探测（linear probe）：</strong> 固定 <span class="math inline">\(\theta\)</span>，只训练 <span class="math inline">\(\phi_T\)</span>；</li>
+<li><strong>部分微调：</strong> 解冻编码器上层模块，同时保留下层特征；</li>
+<li><strong>完整微调：</strong> 更新全部参数，通常为预训练权重设置更小的学习率。</li>
+</ul>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/transfer-finetuning-stages.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="从冻结探测逐步过渡到完整微调。"><img src="assets/transfer-finetuning-stages.svg" class="img-fluid figure-img" alt="先为预训练编码器接入新的目标任务头并保持编码器冻结，随后解冻上层模块；只有当目标验证结果支持更高自由度时，才考虑完整微调。"></a></p>
+<figcaption>从冻结探测逐步过渡到完整微调。</figcaption>
+</figure>
+</div>
+</div>
+<p>目标标签很少时，冻结能够降低方差和计算成本；但如果源特征遗漏了目标所需的信息，也会引入偏差。完整微调适应能力更强，却可能过拟合、破坏已有表示或遗忘源任务能力。常见控制手段包括分层学习率、渐进解冻、早停、约束参数靠近预训练值的权重衰减、适配器、低秩更新，以及在允许时回放源样本。</p>
+<details>
+<summary>
+<strong>Python：预训练、线性探测并微调一个小型目标分类器</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">162</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">162</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>X_raw, digit <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>source_id, target_pool_id <span class="op">=</span> train_test_split(</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    np.arange(<span class="bu">len</span>(X_raw)), test_size<span class="op">=</span><span class="fl">0.30</span>, stratify<span class="op">=</span>digit, random_state<span class="op">=</span><span class="dv">162</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> StandardScaler().fit(X_raw[source_id])</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>X_source <span class="op">=</span> torch.tensor(scaler.transform(X_raw[source_id]).astype(<span class="st">"float32"</span>))</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>y_source <span class="op">=</span> torch.tensor(digit[source_id], dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>X_target <span class="op">=</span> scaler.transform(X_raw[target_pool_id]).astype(<span class="st">"float32"</span>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>y_target <span class="op">=</span> (digit[target_pool_id] <span class="op">%</span> <span class="dv">2</span>).astype(<span class="st">"int64"</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>target_train_id, target_test_id <span class="op">=</span> train_test_split(</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    np.arange(<span class="bu">len</span>(X_target)), train_size<span class="op">=</span><span class="dv">24</span>, stratify<span class="op">=</span>y_target, random_state<span class="op">=</span><span class="dv">162</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>X_target_train <span class="op">=</span> torch.tensor(X_target[target_train_id])</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>y_target_train <span class="op">=</span> torch.tensor(y_target[target_train_id], dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>X_target_test <span class="op">=</span> torch.tensor(X_target[target_test_id])</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>y_target_test <span class="op">=</span> torch.tensor(y_target[target_test_id], dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Encoder(nn.Module):</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.layers <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">64</span>, <span class="dv">48</span>), nn.ReLU(), nn.Linear(<span class="dv">48</span>, <span class="dv">24</span>), nn.ReLU())</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.layers(x)</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> train_model(model, X_train, y_train, epochs, optimizer):</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    loss_fn <span class="op">=</span> nn.CrossEntropyLoss()</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(epochs):</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a>        optimizer.zero_grad()</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>        loss <span class="op">=</span> loss_fn(model(X_train), y_train)</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>        loss.backward()</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>        optimizer.step()</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(model, X_eval, y_eval):</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">float</span>((model(X_eval).argmax(dim<span class="op">=</span><span class="dv">1</span>) <span class="op">==</span> y_eval).<span class="bu">float</span>().mean())</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Source pretraining predicts ten-way digit identity.</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a>encoder <span class="op">=</span> Encoder()</span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>source_model <span class="op">=</span> nn.Sequential(encoder, nn.Linear(<span class="dv">24</span>, <span class="dv">10</span>))</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>train_model(</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>    source_model, X_source, y_source, epochs<span class="op">=</span><span class="dv">160</span>,</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    optimizer<span class="op">=</span>torch.optim.Adam(source_model.parameters(), lr<span class="op">=</span><span class="fl">0.01</span>),</span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a><span class="co"># Stage 1: freeze the encoder and train a new even-versus-odd head.</span></span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a>transferred_encoder <span class="op">=</span> copy.deepcopy(encoder)</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> parameter <span class="kw">in</span> transferred_encoder.parameters():</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a>    parameter.requires_grad <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb3-61"><a href="#cb3-61" aria-hidden="true" tabindex="-1"></a>target_model <span class="op">=</span> nn.Sequential(transferred_encoder, nn.Linear(<span class="dv">24</span>, <span class="dv">2</span>))</span>
+<span id="cb3-62"><a href="#cb3-62" aria-hidden="true" tabindex="-1"></a>train_model(</span>
+<span id="cb3-63"><a href="#cb3-63" aria-hidden="true" tabindex="-1"></a>    target_model, X_target_train, y_target_train, epochs<span class="op">=</span><span class="dv">120</span>,</span>
+<span id="cb3-64"><a href="#cb3-64" aria-hidden="true" tabindex="-1"></a>    optimizer<span class="op">=</span>torch.optim.Adam(target_model[<span class="dv">1</span>].parameters(), lr<span class="op">=</span><span class="fl">0.03</span>),</span>
+<span id="cb3-65"><a href="#cb3-65" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-66"><a href="#cb3-66" aria-hidden="true" tabindex="-1"></a>probe_accuracy <span class="op">=</span> accuracy(target_model, X_target_test, y_target_test)</span>
+<span id="cb3-67"><a href="#cb3-67" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-68"><a href="#cb3-68" aria-hidden="true" tabindex="-1"></a><span class="co"># Stage 2: unfreeze with a smaller encoder learning rate.</span></span>
+<span id="cb3-69"><a href="#cb3-69" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> parameter <span class="kw">in</span> target_model[<span class="dv">0</span>].parameters():</span>
+<span id="cb3-70"><a href="#cb3-70" aria-hidden="true" tabindex="-1"></a>    parameter.requires_grad <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb3-71"><a href="#cb3-71" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.Adam([</span>
+<span id="cb3-72"><a href="#cb3-72" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"params"</span>: target_model[<span class="dv">0</span>].parameters(), <span class="st">"lr"</span>: <span class="fl">0.001</span>},</span>
+<span id="cb3-73"><a href="#cb3-73" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"params"</span>: target_model[<span class="dv">1</span>].parameters(), <span class="st">"lr"</span>: <span class="fl">0.008</span>},</span>
+<span id="cb3-74"><a href="#cb3-74" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb3-75"><a href="#cb3-75" aria-hidden="true" tabindex="-1"></a>train_model(target_model, X_target_train, y_target_train, epochs<span class="op">=</span><span class="dv">60</span>, optimizer<span class="op">=</span>optimizer)</span>
+<span id="cb3-76"><a href="#cb3-76" aria-hidden="true" tabindex="-1"></a>fine_tuned_accuracy <span class="op">=</span> accuracy(target_model, X_target_test, y_target_test)</span>
+<span id="cb3-77"><a href="#cb3-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-78"><a href="#cb3-78" aria-hidden="true" tabindex="-1"></a><span class="co"># Target-only baseline with the same architecture and label budget.</span></span>
+<span id="cb3-79"><a href="#cb3-79" aria-hidden="true" tabindex="-1"></a>scratch_model <span class="op">=</span> nn.Sequential(Encoder(), nn.Linear(<span class="dv">24</span>, <span class="dv">2</span>))</span>
+<span id="cb3-80"><a href="#cb3-80" aria-hidden="true" tabindex="-1"></a>train_model(</span>
+<span id="cb3-81"><a href="#cb3-81" aria-hidden="true" tabindex="-1"></a>    scratch_model, X_target_train, y_target_train, epochs<span class="op">=</span><span class="dv">180</span>,</span>
+<span id="cb3-82"><a href="#cb3-82" aria-hidden="true" tabindex="-1"></a>    optimizer<span class="op">=</span>torch.optim.Adam(scratch_model.parameters(), lr<span class="op">=</span><span class="fl">0.01</span>),</span>
+<span id="cb3-83"><a href="#cb3-83" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-84"><a href="#cb3-84" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-85"><a href="#cb3-85" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"frozen-probe accuracy:"</span>, <span class="bu">round</span>(probe_accuracy, <span class="dv">3</span>))</span>
+<span id="cb3-86"><a href="#cb3-86" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"fine-tuned accuracy:"</span>, <span class="bu">round</span>(fine_tuned_accuracy, <span class="dv">3</span>))</span>
+<span id="cb3-87"><a href="#cb3-87" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"target-only scratch accuracy:"</span>, <span class="bu">round</span>(accuracy(scratch_model, X_target_test, y_target_test), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>目标问题是在不重叠的留出观测上执行新的奇偶分类任务，因此迁移能否奏效，只取决于模型能否复用从源数据划分中学到的数字结构。由于只有 24 个目标样本，结果方差很大；应重复数据划分并报告结果分布，而不能把一个随机种子视为确定结论。</p>
+</section>
+<section id="正迁移与负迁移" class="level4">
+<h4 class="anchored" data-anchor-id="正迁移与负迁移"><strong>正迁移与负迁移</strong></h4>
+<p>在目标标签量、计算量和调参预算相同的条件下，<strong>正迁移（positive transfer）</strong>会优于仅使用目标数据的训练过程；<strong>负迁移（negative transfer）</strong>则会使结果变差。对于数值越大越好的评价分数，</p>
+<p><span class="math display">\[
+\Delta_{\text{transfer}}(n_T)
+=S_{\text{transfer}}(n_T)-S_{\text{target-only}}(n_T).
+\]</span></p>
+<p>迁移收益应在多个目标标签预算下报告。某个源任务可能在只有五个标签时有帮助，却在目标数据充足后反而限制性能。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/negative-transfer-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="正迁移、负迁移及其所需的比较基线。"><img src="assets/negative-transfer-map.svg" class="img-fluid figure-img" alt="源特征、参数或样本可能产生正迁移，也可能产生负迁移；两者都必须通过目标数据基线识别，并可通过源选择或减弱共享进行缓解。"></a></p>
+<figcaption>正迁移、负迁移及其所需的比较基线。</figcaption>
+</figure>
+</div>
+</div>
+<p>当源与目标语义不同、源特征编码了虚假相关、源数据主导优化、目标区域超出源支持集，或者共享模型没有能力同时处理两者时，就可能发生负迁移。可采用源领域选择、相似度加权、适配器、任务特异归一化、门控、部分共享、更加尊重目标证据的正则化，或者彻底放弃迁移来缓解它。</p>
+<p>一个简单的参数迁移估计器可以直观展示这种权衡：</p>
+<p><span class="math display">\[
+\hat\beta_T
+=\arg\min_\beta
+\lVert y_T-X_T\beta\rVert_2^2
++\lambda\lVert\beta-\hat\beta_S\rVert_2^2.
+\]</span></p>
+<p>源参数在这里充当先验。它与目标一致时能够降低方差，方向错误时则会制造偏差。</p>
+<details>
+<summary>
+<strong>Python：演示正向与负向的参数迁移</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> mean_squared_error</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">163</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>dimension <span class="op">=</span> <span class="dv">12</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>beta_target <span class="op">=</span> rng.normal(size<span class="op">=</span>dimension)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>beta_target <span class="op">/=</span> np.linalg.norm(beta_target)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>beta_aligned <span class="op">=</span> beta_target <span class="op">+</span> <span class="fl">0.15</span> <span class="op">*</span> rng.normal(size<span class="op">=</span>dimension)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>beta_opposite <span class="op">=</span> <span class="op">-</span>beta_target <span class="op">+</span> <span class="fl">0.15</span> <span class="op">*</span> rng.normal(size<span class="op">=</span>dimension)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_regression(beta, size):</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> rng.normal(size<span class="op">=</span>(size, dimension))</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> X <span class="op">@</span> beta <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.8</span>, size<span class="op">=</span>size)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> X, y</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>X_target, y_target <span class="op">=</span> sample_regression(beta_target, <span class="dv">24</span>)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>X_test, y_test <span class="op">=</span> sample_regression(beta_target, <span class="dv">3000</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>ridge <span class="op">=</span> <span class="fl">2.0</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>target_only <span class="op">=</span> np.linalg.solve(</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    X_target.T <span class="op">@</span> X_target <span class="op">+</span> ridge <span class="op">*</span> np.eye(dimension),</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    X_target.T <span class="op">@</span> y_target,</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> transfer_from(source_beta, strength<span class="op">=</span><span class="fl">12.0</span>):</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.linalg.solve(</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>        X_target.T <span class="op">@</span> X_target <span class="op">+</span> strength <span class="op">*</span> np.eye(dimension),</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>        X_target.T <span class="op">@</span> y_target <span class="op">+</span> strength <span class="op">*</span> source_beta,</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> {</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"target only"</span>: target_only,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"aligned source prior"</span>: transfer_from(beta_aligned),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"opposite source prior"</span>: transfer_from(beta_opposite),</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, coefficient <span class="kw">in</span> models.items():</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="st">"test MSE:"</span>, <span class="bu">round</span>(mean_squared_error(y_test, X_test <span class="op">@</span> coefficient), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个玩具计算直接提供了源参数，因此公式中没有显式出现源数据量。在真实系统中，应根据源参数的不确定性、来源以及与目标的相似程度来决定迁移强度。</p>
+</section>
+</section>
+<section id="领域适应" class="level3">
+<h3 class="anchored" data-anchor-id="领域适应"><strong>领域适应</strong></h3>
+<p>领域适应关注的是：当源分布与目标分布不同时，如何完成相同或高度相关的预测任务。一种标准设定包含带标签的源数据</p>
+<p><span class="math display">\[
+\{(x_i^S,y_i^S)\}_{i=1}^{n_S}
+\]</span></p>
+<p>以及带标签或不带标签的目标输入</p>
+<p><span class="math display">\[
+\{x_j^T\}_{j=1}^{n_T}.
+\]</span></p>
+<p>方法必须明确说明能够使用哪些目标信息。如果使用目标标签来选择一个号称“无监督”的适应超参数，这项实验实际上已经变成了有监督领域适应。</p>
+<section id="样本重加权" class="level4">
+<h4 class="anchored" data-anchor-id="样本重加权"><strong>样本重加权</strong></h4>
+<p>在协变量偏移假设下，目标风险可以写成加权的源分布期望：</p>
+<p><span class="math display">\[
+\begin{aligned}
+R_T(f)
+&amp;=\mathbb E_{(X,Y)\sim P_T}[\ell(f(X),Y)]\\
+&amp;=\mathbb E_{(X,Y)\sim P_S}
+\left[
+\frac{p_T(X)}{p_S(X)}
+\ell(f(X),Y)
+\right].
+\end{aligned}
+\]</span></p>
+<p>重要性权重为 <span class="math inline">\(w(x)=p_T(x)/p_S(x)\)</span>。直接估计高维密度很困难，因此实践中常利用领域分类器。若 <span class="math inline">\(d=1\)</span> 表示目标样本，并且用于训练分类器的源样本和目标样本量分别为 <span class="math inline">\(n_S,n_T\)</span>，则</p>
+<p><span class="math display">\[
+w(x)
+=\frac{P(d=1\mid x)}{P(d=0\mid x)}
+\frac{n_S}{n_T}.
+\]</span></p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/importance-weighting-domain.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="协变量偏移下的样本加权。"><img src="assets/importance-weighting-domain.svg" class="img-fluid figure-img" alt="带标签的源样本被赋予目标密度与源密度之比；与目标更相似的源样本在加权源风险中贡献更大。"></a></p>
+<figcaption>协变量偏移下的样本加权。</figcaption>
+</figure>
+</div>
+</div>
+<p>极大权重说明源分布对目标区域的覆盖很弱，并会产生高方差估计。有用的诊断包括权重直方图、权重截断敏感性、支持集重叠图，以及有效样本量</p>
+<p><span class="math display">\[
+n_{\text{eff}}
+=\frac{(\sum_i w_i)^2}{\sum_i w_i^2}.
+\]</span></p>
+<details>
+<summary>
+<strong>Python：使用领域分类器估计密度比</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> log_loss, roc_auc_score</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> PolynomialFeatures, StandardScaler</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">164</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate(mean, size):</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> rng.multivariate_normal(mean, [[<span class="fl">1.0</span>, <span class="fl">0.25</span>], [<span class="fl">0.25</span>, <span class="fl">1.0</span>]], size<span class="op">=</span>size)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    logit <span class="op">=</span> <span class="fl">0.2</span> <span class="op">+</span> <span class="fl">0.8</span> <span class="op">*</span> X[:, <span class="dv">0</span>] <span class="op">-</span> <span class="fl">0.6</span> <span class="op">*</span> X[:, <span class="dv">1</span>] <span class="op">+</span> <span class="fl">1.4</span> <span class="op">*</span> X[:, <span class="dv">0</span>] <span class="op">*</span> X[:, <span class="dv">1</span>]</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    probability <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> (<span class="dv">1</span> <span class="op">+</span> np.exp(<span class="op">-</span>logit))</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> rng.binomial(<span class="dv">1</span>, probability)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> X, y</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>X_source, y_source <span class="op">=</span> generate(mean<span class="op">=</span>[<span class="op">-</span><span class="fl">0.8</span>, <span class="op">-</span><span class="fl">0.5</span>], size<span class="op">=</span><span class="dv">5000</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>X_target_unlabeled, _ <span class="op">=</span> generate(mean<span class="op">=</span>[<span class="fl">0.8</span>, <span class="fl">0.7</span>], size<span class="op">=</span><span class="dv">3500</span>)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>X_target_test, y_target_test <span class="op">=</span> generate(mean<span class="op">=</span>[<span class="fl">0.8</span>, <span class="fl">0.7</span>], size<span class="op">=</span><span class="dv">4000</span>)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>domain_X <span class="op">=</span> np.vstack([X_source, X_target_unlabeled])</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>domain_y <span class="op">=</span> np.concatenate([</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    np.zeros(<span class="bu">len</span>(X_source)), np.ones(<span class="bu">len</span>(X_target_unlabeled))</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>domain_model <span class="op">=</span> make_pipeline(</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>).fit(domain_X, domain_y)</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>target_odds <span class="op">=</span> domain_model.predict_proba(X_source)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> (</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    target_odds[:, <span class="dv">1</span>] <span class="op">/</span> np.clip(target_odds[:, <span class="dv">0</span>], <span class="fl">1e-6</span>, <span class="va">None</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span> <span class="bu">len</span>(X_source) <span class="op">/</span> <span class="bu">len</span>(X_target_unlabeled)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> np.clip(weights, <span class="fl">0.05</span>, <span class="fl">20.0</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="co"># A linear task model is misspecified because the true relationship has an interaction.</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>unweighted <span class="op">=</span> make_pipeline(</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>).fit(X_source, y_source)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>weighted <span class="op">=</span> make_pipeline(</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>).fit(X_source, y_source, logisticregression__sample_weight<span class="op">=</span>weights)</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> [(<span class="st">"unweighted"</span>, unweighted), (<span class="st">"importance weighted"</span>, weighted)]:</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    probability <span class="op">=</span> model.predict_proba(X_target_test)[:, <span class="dv">1</span>]</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>        <span class="st">"target log loss:"</span>, <span class="bu">round</span>(log_loss(y_target_test, probability), <span class="dv">3</span>),</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>        <span class="st">"AUC:"</span>, <span class="bu">round</span>(roc_auc_score(y_target_test, probability), <span class="dv">3</span>),</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>effective_size <span class="op">=</span> weights.<span class="bu">sum</span>() <span class="op">**</span> <span class="dv">2</span> <span class="op">/</span> np.<span class="bu">sum</span>(weights <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"effective source sample size:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(effective_size), <span class="dv">1</span>), <span class="st">"of"</span>, <span class="bu">len</span>(weights))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当条件模型设定完全正确时，重要性加权并不会改变其渐近解。本例中的线性预测器有意设定错误，因此强调更像目标分布的源区域，会改变针对目标风险的最佳近似。</p>
+</section>
+<section id="特征对齐" class="level4">
+<h4 class="anchored" data-anchor-id="特征对齐"><strong>特征对齐</strong></h4>
+<p>特征对齐通过学习或变换表示 <span class="math inline">\(z=f_\theta(x)\)</span>，让源特征分布和目标特征分布更加接近，同时保留根据源标签完成预测的能力。常见方法包括：</p>
+<ul>
+<li><strong>CORAL：</strong> 匹配特征均值与协方差；</li>
+<li><strong>最大均值差异（MMD）：</strong> 最小化核双样本距离；</li>
+<li><strong>最优传输：</strong> 沿着目标几何结构移动源概率质量；</li>
+<li><strong>领域对抗学习：</strong> 训练既能支持任务预测、又能混淆领域分类器的编码器；</li>
+<li><strong>类别条件对齐：</strong> 在推断或已标注的类别内部对齐，而不只是匹配边缘分布。</li>
+</ul>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/domain-feature-alignment.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="在共享表示空间中对齐源特征与目标特征。"><img src="assets/domain-feature-alignment.svg" class="img-fluid figure-img" alt="带标签源特征和未标注目标特征进入共享表示；协方差、MMD、传输或对抗损失负责对齐领域，同时保留任务判别能力。"></a></p>
+<figcaption>在共享表示空间中对齐源特征与目标特征。</figcaption>
+</figure>
+</div>
+</div>
+<p>CORAL 使用下式变换中心化后的源特征：</p>
+<p><span class="math display">\[
+\tilde X_S
+=(X_S-\mu_S)
+(C_S+\epsilon I)^{-1/2}
+(C_T+\epsilon I)^{1/2}
++\mu_T.
+\]</span></p>
+<p>它不使用目标标签，只匹配一阶和二阶矩。特征值正则项 <span class="math inline">\(\epsilon\)</span> 能防止逆平方根运算不稳定。</p>
+<details>
+<summary>
+<strong>Python：实现 CORAL 并比较领域适应基线</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">165</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> latent_sample(size):</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> rng.integers(<span class="dv">0</span>, <span class="dv">2</span>, size<span class="op">=</span>size)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    z <span class="op">=</span> rng.normal(size<span class="op">=</span>(size, <span class="dv">3</span>))</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    z[:, <span class="dv">0</span>] <span class="op">+=</span> np.where(y <span class="op">==</span> <span class="dv">1</span>, <span class="fl">1.3</span>, <span class="op">-</span><span class="fl">1.3</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    z[:, <span class="dv">1</span>] <span class="op">+=</span> np.where(y <span class="op">==</span> <span class="dv">1</span>, <span class="fl">0.5</span>, <span class="op">-</span><span class="fl">0.5</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> z, y</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>source_z, y_source <span class="op">=</span> latent_sample(<span class="dv">2500</span>)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>target_z, y_target <span class="op">=</span> latent_sample(<span class="dv">1800</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>source_transform <span class="op">=</span> np.eye(<span class="dv">3</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>target_transform <span class="op">=</span> np.array([[<span class="fl">1.8</span>, <span class="fl">0.6</span>, <span class="fl">0.0</span>], [<span class="fl">0.6</span>, <span class="fl">0.9</span>, <span class="fl">0.1</span>], [<span class="fl">0.0</span>, <span class="fl">0.1</span>, <span class="fl">1.3</span>]])</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>X_source <span class="op">=</span> source_z <span class="op">@</span> source_transform <span class="op">+</span> np.array([<span class="op">-</span><span class="fl">0.8</span>, <span class="fl">0.4</span>, <span class="fl">0.0</span>])</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>X_target <span class="op">=</span> target_z <span class="op">@</span> target_transform <span class="op">+</span> np.array([<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">0.5</span>, <span class="fl">0.4</span>])</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> symmetric_power(matrix, power, epsilon<span class="op">=</span><span class="fl">1e-5</span>):</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    eigenvalue, eigenvector <span class="op">=</span> np.linalg.eigh(matrix <span class="op">+</span> epsilon <span class="op">*</span> np.eye(matrix.shape[<span class="dv">0</span>]))</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> eigenvector <span class="op">@</span> np.diag(eigenvalue <span class="op">**</span> power) <span class="op">@</span> eigenvector.T</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> coral_source_to_target(source, target):</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>    source_centered <span class="op">=</span> source <span class="op">-</span> source.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    target_mean <span class="op">=</span> target.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>    target_centered <span class="op">=</span> target <span class="op">-</span> target_mean</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>    C_source <span class="op">=</span> np.cov(source_centered, rowvar<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a>    C_target <span class="op">=</span> np.cov(target_centered, rowvar<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>        source_centered</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>        <span class="op">@</span> symmetric_power(C_source, <span class="op">-</span><span class="fl">0.5</span>)</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a>        <span class="op">@</span> symmetric_power(C_target, <span class="fl">0.5</span>)</span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> target_mean</span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>source_only <span class="op">=</span> LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>).fit(X_source, y_source)</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>X_source_coral <span class="op">=</span> coral_source_to_target(X_source, X_target)</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>coral_model <span class="op">=</span> LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>).fit(X_source_coral, y_source)</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a><span class="co"># A few labeled target examples define a supervised-adaptation reference.</span></span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>few_target <span class="op">=</span> np.concatenate([</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>    rng.choice(np.flatnonzero(y_target <span class="op">==</span> class_id), <span class="dv">12</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> class_id <span class="kw">in</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>supervised_adaptation <span class="op">=</span> LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>).fit(</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>    np.vstack([X_source_coral, X_target[few_target]]),</span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>    np.concatenate([y_source, y_target[few_target]]),</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>    sample_weight<span class="op">=</span>np.concatenate([np.ones(<span class="bu">len</span>(y_source)), np.full(<span class="bu">len</span>(few_target), <span class="fl">15.0</span>)]),</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> [</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"source only"</span>, source_only),</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"unsupervised CORAL"</span>, coral_model),</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"CORAL plus 24 target labels"</span>, supervised_adaptation),</span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="st">"target accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_target, model.predict(X_target)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>矩匹配可能把不同类别错误地对齐到一起。在领域对抗目标中，</p>
+<p><span class="math display">\[
+\min_{\theta,\phi}\max_{\psi}
+\quad
+\mathcal L_{\text{task}}(h_\phi(f_\theta(x_S)),y_S)
+-\lambda\mathcal L_{\text{domain}}(d_\psi(f_\theta(x)),d),
+\]</span></p>
+<p>编码器最小化源任务损失，同时最大化领域分类损失，实践中通常由梯度反转层实现。这会鼓励模型学习领域不变特征，但只有当同一个分类器能够同时在两个领域中表现良好时，不变性才真正有用。一个经典的领域适应界说明了这一点：</p>
+<p><span class="math display">\[
+\epsilon_T(h)
+\le
+\epsilon_S(h)
++\frac{1}{2}d_{\mathcal H\Delta\mathcal H}(P_S(X),P_T(X))
++\lambda^\star,
+\]</span></p>
+<p>其中 <span class="math inline">\(\lambda^\star\)</span> 是两个领域上最佳共享假设的误差。降低边缘分布差异，并不能消除由条件关系或语义不匹配造成的巨大 <span class="math inline">\(\lambda^\star\)</span>。</p>
+</section>
+<section id="有监督与无监督适应" class="level4">
+<h4 class="anchored" data-anchor-id="有监督与无监督适应"><strong>有监督与无监督适应</strong></h4>
+<p>领域适应场景应根据可用的目标信息命名：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>目标输入</th>
+<th>目标标签</th>
+<th>典型方法</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>有监督领域适应</td>
+<td>可用</td>
+<td>一小批带标签目标样本</td>
+<td>微调、联合训练、目标加权损失</td>
+</tr>
+<tr class="even">
+<td>半监督领域适应</td>
+<td>可用</td>
+<td>少量标签与大量未标注样本</td>
+<td>伪标签、一致性、条件对齐</td>
+</tr>
+<tr class="odd">
+<td>无监督领域适应</td>
+<td>可用</td>
+<td>训练和选择期间均不可用</td>
+<td>重加权、CORAL、MMD、DANN</td>
+</tr>
+<tr class="even">
+<td>无源领域适应</td>
+<td>可用</td>
+<td>不可用，且无法访问源数据</td>
+<td>只利用目标数据适应给定的源模型</td>
+</tr>
+<tr class="odd">
+<td>领域泛化</td>
+<td>训练时目标领域不可用</td>
+<td>不可用</td>
+<td>从多个源领域学习，以泛化到未知领域</td>
+</tr>
+<tr class="even">
+<td>测试时适应</td>
+<td>流式测试批次</td>
+<td>通常不可用</td>
+<td>更新归一化、熵或自监督目标</td>
+</tr>
+</tbody>
+</table>
+<p>“无监督”并不意味着评估阶段不需要目标标签。开发结束后仍然需要目标标签来证明适应是否有效，只是这些标签不能进入训练、超参数选择或停止决策。</p>
+</section>
+</section>
+<section id="多任务学习" class="level3">
+<h3 class="anchored" data-anchor-id="多任务学习"><strong>多任务学习</strong></h3>
+<p>多任务学习联合优化相关任务，使它们的训练信号充当归纳偏置。如果多个任务依赖共同的潜在因素，一个任务可以正则化另一个任务、扩大有效数据量并改善表示学习；如果任务之间存在冲突，共享就会引入干扰和负迁移。</p>
+<p>对于损失分别为 <span class="math inline">\(\mathcal L_t\)</span> 的任务 <span class="math inline">\(t=1,\ldots,T\)</span>，基本目标为</p>
+<p><span class="math display">\[
+\min_\theta \sum_{t=1}^{T}\lambda_t\mathcal L_t(\theta,\phi_t),
+\]</span></p>
+<p>其中 <span class="math inline">\(\theta\)</span> 表示共享参数，<span class="math inline">\(\phi_t\)</span> 表示任务特异参数，<span class="math inline">\(\lambda_t\)</span> 表示任务权重。</p>
+<section id="硬参数共享与软参数共享" class="level4">
+<h4 class="anchored" data-anchor-id="硬参数共享与软参数共享"><strong>硬参数共享与软参数共享</strong></h4>
+<p><strong>硬参数共享（hard parameter sharing）</strong>使用一个公共编码器和多个独立任务头：</p>
+<p><span class="math display">\[
+z=f_\theta(x),
+\qquad
+\hat y_t=h_{\phi_t}(z).
+\]</span></p>
+<p>它参数效率高、正则化作用强，但会迫使所有任务通过同一个表示瓶颈。<strong>软参数共享（soft parameter sharing）</strong>保留各任务自己的模型，再对它们施加耦合约束：</p>
+<p><span class="math display">\[
+\min_{\theta_1,\theta_2}
+\mathcal L_1(\theta_1)+\mathcal L_2(\theta_2)
++\lambda\lVert\theta_1-\theta_2\rVert_2^2.
+\]</span></p>
+<p>更灵活的变体还可以学习共享低秩基、cross-stitch 特征组合、门控、适配器或专家混合模型。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multitask-sharing.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="多任务学习中的硬参数共享与软参数共享。"><img src="assets/multitask-sharing.svg" class="img-fluid figure-img" alt="硬共享让多个任务经过同一个共享主干，再进入各自的任务头；软共享保留独立模型，并通过相似性约束或低秩结构将它们耦合。"></a></p>
+<figcaption>多任务学习中的硬参数共享与软参数共享。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：训练带有两个任务特异头的共享主干</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> mean_squared_error</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">166</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">166</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>X_train <span class="op">=</span> rng.uniform(<span class="op">-</span><span class="dv">3</span>, <span class="dv">3</span>, size<span class="op">=</span>(<span class="dv">140</span>, <span class="dv">1</span>)).astype(<span class="st">"float32"</span>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>X_test <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">1000</span>, dtype<span class="op">=</span><span class="st">"float32"</span>).reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> task_targets(X, noise<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    scale <span class="op">=</span> <span class="fl">0.18</span> <span class="cf">if</span> noise <span class="cf">else</span> <span class="fl">0.0</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    y1 <span class="op">=</span> np.sin(X[:, <span class="dv">0</span>]) <span class="op">+</span> rng.normal(<span class="dv">0</span>, scale, <span class="bu">len</span>(X))</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    y2 <span class="op">=</span> np.sin(X[:, <span class="dv">0</span>]) <span class="op">+</span> <span class="fl">0.35</span> <span class="op">*</span> X[:, <span class="dv">0</span>] <span class="op">+</span> rng.normal(<span class="dv">0</span>, scale, <span class="bu">len</span>(X))</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> y1.astype(<span class="st">"float32"</span>), y2.astype(<span class="st">"float32"</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>y1_train, y2_train <span class="op">=</span> task_targets(X_train)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>y1_test <span class="op">=</span> np.sin(X_test[:, <span class="dv">0</span>])</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>y2_test <span class="op">=</span> np.sin(X_test[:, <span class="dv">0</span>]) <span class="op">+</span> <span class="fl">0.35</span> <span class="op">*</span> X_test[:, <span class="dv">0</span>]</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>X_tensor <span class="op">=</span> torch.tensor(X_train)</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MultiTaskNet(nn.Module):</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.trunk <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">1</span>, <span class="dv">24</span>), nn.Tanh(), nn.Linear(<span class="dv">24</span>, <span class="dv">16</span>), nn.Tanh())</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.head1 <span class="op">=</span> nn.Linear(<span class="dv">16</span>, <span class="dv">1</span>)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.head2 <span class="op">=</span> nn.Linear(<span class="dv">16</span>, <span class="dv">1</span>)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        z <span class="op">=</span> <span class="va">self</span>.trunk(x)</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.head1(z).squeeze(<span class="dv">1</span>), <span class="va">self</span>.head2(z).squeeze(<span class="dv">1</span>)</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> MultiTaskNet()</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.Adam(model.parameters(), lr<span class="op">=</span><span class="fl">0.015</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> [torch.tensor(y1_train), torch.tensor(y2_train)]</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">700</span>):</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad()</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> model(X_tensor)</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> <span class="bu">sum</span>(nn.functional.mse_loss(prediction[i], targets[i]) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>))</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    loss.backward()</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>    optimizer.step()</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>    prediction1, prediction2 <span class="op">=</span> model(torch.tensor(X_test))</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"task 1 test MSE:"</span>, <span class="bu">round</span>(mean_squared_error(y1_test, prediction1.numpy()), <span class="dv">4</span>))</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"task 2 test MSE:"</span>, <span class="bu">round</span>(mean_squared_error(y2_test, prediction2.numpy()), <span class="dv">4</span>))</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"shared parameters:"</span>, <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> model.trunk.parameters()))</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"task-specific parameters:"</span>, <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> model.head1.parameters()) <span class="op">*</span> <span class="dv">2</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>两个任务共享一个正弦分量，因此使用公共主干具有合理性。不过，要声称多任务学习带来了迁移收益，仍然必须与调参预算和容量相匹配的独立单任务网络比较；这里的代码只演示架构，不主张它一定能够提高性能。</p>
+</section>
+<section id="任务加权与干扰" class="level4">
+<h4 class="anchored" data-anchor-id="任务加权与干扰"><strong>任务加权与干扰</strong></h4>
+<p>损失权重不只表达任务重要性，也直接决定梯度尺度：</p>
+<p><span class="math display">\[
+g=\sum_t\lambda_t g_t,
+\qquad
+g_t=\nabla_\theta\mathcal L_t.
+\]</span></p>
+<p>某个任务可能因为损失单位不同、样本更多、噪声更大或学习速度更快而主导优化。静态归一化、不确定性加权、动态权重平均和 GradNorm 分别尝试平衡梯度尺度或任务学习速度。</p>
+<p>当</p>
+<p><span class="math display">\[
+g_i^\top g_j&lt;0
+\]</span></p>
+<p>时，任务发生梯度干扰：一个有利于任务 <span class="math inline">\(i\)</span> 的局部更新会损害任务 <span class="math inline">\(j\)</span>。PCGrad 会移除发生冲突的梯度分量：</p>
+<p><span class="math display">\[
+g_i
+\leftarrow
+g_i-\frac{g_i^\top g_j}{\lVert g_j\rVert_2^2}g_j
+\quad\text{when }g_i^\top g_j&lt;0.
+\]</span></p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/multitask-gradient-interference.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="梯度冲突以及多任务学习中的应对方法。"><img src="assets/multitask-gradient-interference.svg" class="img-fluid figure-img" alt="两个任务梯度指向相互冲突的方向；图中展示损失加权、GradNorm、PCGrad 投影和任务特异路由等缓解策略。"></a></p>
+<figcaption>梯度冲突以及多任务学习中的应对方法。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：使用 PCGrad 投影相互冲突的梯度</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>gradient_a <span class="op">=</span> np.array([<span class="fl">1.0</span>, <span class="fl">0.2</span>, <span class="op">-</span><span class="fl">0.3</span>])</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>gradient_b <span class="op">=</span> np.array([<span class="op">-</span><span class="fl">0.8</span>, <span class="fl">0.4</span>, <span class="fl">0.1</span>])</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pcgrad_project(gradient, other):</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    dot <span class="op">=</span> <span class="bu">float</span>(gradient <span class="op">@</span> other)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> dot <span class="op">&lt;</span> <span class="dv">0</span>:</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        gradient <span class="op">=</span> gradient <span class="op">-</span> dot <span class="op">/</span> (other <span class="op">@</span> other) <span class="op">*</span> other</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> gradient</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>projected_a <span class="op">=</span> pcgrad_project(gradient_a.copy(), gradient_b)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>plain_update <span class="op">=</span> gradient_a <span class="op">+</span> gradient_b</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>pcgrad_update <span class="op">=</span> projected_a <span class="op">+</span> gradient_b</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"original dot product:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(gradient_a <span class="op">@</span> gradient_b), <span class="dv">3</span>))</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"dot after projection:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(projected_a <span class="op">@</span> gradient_b), <span class="dv">8</span>))</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"plain joint gradient:"</span>, np.<span class="bu">round</span>(plain_update, <span class="dv">3</span>).tolist())</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"PCGrad joint gradient:"</span>, np.<span class="bu">round</span>(pcgrad_update, <span class="dv">3</span>).tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当多个任务依次处理时，投影是局部且依赖顺序的；消除所有冲突也可能一并删除有价值的权衡。多任务学习本质上是多目标问题，因此应报告每个任务的表现、Pareto 权衡、梯度统计量和单任务基线，而不能只展示平均分数。</p>
+</section>
+</section>
+<section id="持续学习" class="level3">
+<h3 class="anchored" data-anchor-id="持续学习"><strong>持续学习</strong></h3>
+<p>持续学习会在数据、领域或任务依次到达时不断更新模型。它与普通在线学习的区别是：持续学习会明确评估模型在多次经验之间的知识保留与迁移。常见场景包括：</p>
+<ul>
+<li><strong>任务增量学习（task-incremental）：</strong> 已知任务身份，可以使用任务特异的预测头；</li>
+<li><strong>领域增量学习（domain-incremental）：</strong> 任务保持不变，但输入分布持续变化；</li>
+<li><strong>类别增量学习（class-incremental）：</strong> 新类别逐步到达，推理时不知道任务身份；</li>
+<li><strong>流式持续学习：</strong> 任务边界可能未知，同时存储空间受到约束。</li>
+</ul>
+<section id="灾难性遗忘" class="level4">
+<h4 class="anchored" data-anchor-id="灾难性遗忘"><strong>灾难性遗忘</strong></h4>
+<p>当新任务的优化过程覆盖了早期任务所需的参数或表示时，就发生了<strong>灾难性遗忘（catastrophic forgetting）</strong>。令 <span class="math inline">\(A_{i,j}\)</span> 表示模型训练到任务 <span class="math inline">\(i\)</span> 后在任务 <span class="math inline">\(j\)</span> 上的性能。完成 <span class="math inline">\(T\)</span> 个任务后，</p>
+<p><span class="math display">\[
+\text{Average accuracy}
+=\frac{1}{T}\sum_{j=1}^{T}A_{T,j},
+\]</span></p>
+<p>一种遗忘度量为</p>
+<p><span class="math display">\[
+F
+=\frac{1}{T-1}\sum_{j=1}^{T-1}
+\left(
+\max_{i&lt;T}A_{i,j}-A_{T,j}
+\right).
+\]</span></p>
+<p>前向迁移衡量早期任务是否帮助模型学习后续任务；后向迁移衡量后续学习是否改善或损害早期任务。知识保留必须在整个任务序列中持续测量，而不能只看训练结束时的最终结果。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/continual-learning-strategies.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="顺序到达的任务、灾难性遗忘及防御策略。"><img src="assets/continual-learning-strategies.svg" class="img-fluid figure-img" alt="任务依次到达，后续更新可能擦除早期解决方案；图中展示回放、参数正则化、动态架构和用于评估的准确率矩阵。"></a></p>
+<figcaption>顺序到达的任务、灾难性遗忘及防御策略。</figcaption>
+</figure>
+</div>
+</div>
+</section>
+<section id="回放正则化与动态架构" class="level4">
+<h4 class="anchored" data-anchor-id="回放正则化与动态架构"><strong>回放、正则化与动态架构</strong></h4>
+<p>三类主要方法在存储、隐私、模型容量和任务干扰之间做出不同权衡：</p>
+<ul>
+<li><strong>回放（replay）：</strong> 把存储的旧样本、压缩样本或生成样本与当前数据混合训练。回放直接且通常很有效，但存储数据可能违反隐私或许可要求。</li>
+<li><strong>正则化（regularization）：</strong> 保护重要参数或旧模型行为。例如，弹性权重巩固（EWC）会惩罚参数偏离旧参数 <span class="math inline">\(\theta^\star\)</span>：</li>
+</ul>
+<p><span class="math display">\[
+\mathcal L_{\text{new}}(\theta)
++\frac{\lambda}{2}\sum_k F_k(\theta_k-\theta_k^\star)^2,
+\]</span></p>
+<p>其中 <span class="math inline">\(F_k\)</span> 通过 Fisher 信息矩阵的对角近似表示参数重要性。蒸馏方法则尝试保留旧模型的输出或特征。</p>
+<ul>
+<li><strong>动态架构（dynamic architectures）：</strong> 分配新模块、掩码、适配器或专家，并按照任务或上下文进行路由。这类方法能减少参数覆盖，但会持续增加模型容量，而且可能要求系统识别当前任务。</li>
+</ul>
+<pre class="text"><code>for each new experience t:
+    receive current data D_t
+    sample replay memory M
+    update model on D_t union M
+    evaluate every previously seen task
+    update M under memory, privacy, and diversity constraints</code></pre>
+<details>
+<summary>
+<strong>Python：比较使用回放与不使用回放时的遗忘</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">167</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">167</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> (X <span class="op">/</span> <span class="fl">16.0</span>).astype(<span class="st">"float32"</span>)</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">167</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>permutation <span class="op">=</span> rng.permutation(X.shape[<span class="dv">1</span>])</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>task_a_train <span class="op">=</span> torch.tensor(X_train)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>task_a_test <span class="op">=</span> torch.tensor(X_test)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>task_b_train <span class="op">=</span> torch.tensor(X_train[:, permutation].copy())</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>task_b_test <span class="op">=</span> torch.tensor(X_test[:, permutation].copy())</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>y_train_tensor <span class="op">=</span> torch.tensor(y_train, dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>y_test_tensor <span class="op">=</span> torch.tensor(y_test, dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> new_model():</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> nn.Sequential(nn.Linear(<span class="dv">64</span>, <span class="dv">64</span>), nn.ReLU(), nn.Linear(<span class="dv">64</span>, <span class="dv">10</span>))</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> train(model, X_data, y_data, epochs<span class="op">=</span><span class="dv">55</span>, lr<span class="op">=</span><span class="fl">0.03</span>):</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    optimizer <span class="op">=</span> torch.optim.SGD(model.parameters(), lr<span class="op">=</span>lr, momentum<span class="op">=</span><span class="fl">0.9</span>)</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(epochs):</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>        optimizer.zero_grad()</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>        loss <span class="op">=</span> nn.functional.cross_entropy(model(X_data), y_data)</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        loss.backward()</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>        optimizer.step()</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(model, X_data, y_data):</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">float</span>((model(X_data).argmax(<span class="dv">1</span>) <span class="op">==</span> y_data).<span class="bu">float</span>().mean())</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>initial <span class="op">=</span> new_model().state_dict()</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Sequential training without replay.</span></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>plain <span class="op">=</span> new_model()</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>plain.load_state_dict(copy.deepcopy(initial))</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>train(plain, task_a_train, y_train_tensor)</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>a_before <span class="op">=</span> accuracy(plain, task_a_test, y_test_tensor)</span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>train(plain, task_b_train, y_train_tensor)</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="co"># Repeat from the same initialization and replay 300 task-A examples.</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>replay <span class="op">=</span> new_model()</span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a>replay.load_state_dict(copy.deepcopy(initial))</span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a>train(replay, task_a_train, y_train_tensor)</span>
+<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>memory_id <span class="op">=</span> rng.choice(<span class="bu">len</span>(task_a_train), <span class="dv">300</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>mixed_X <span class="op">=</span> torch.cat([task_b_train, task_a_train[memory_id]])</span>
+<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>mixed_y <span class="op">=</span> torch.cat([y_train_tensor, y_train_tensor[memory_id]])</span>
+<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>train(replay, mixed_X, mixed_y)</span>
+<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-57"><a href="#cb10-57" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"task A before task B:"</span>, <span class="bu">round</span>(a_before, <span class="dv">3</span>))</span>
+<span id="cb10-58"><a href="#cb10-58" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"no replay - task A / task B:"</span>, <span class="bu">round</span>(accuracy(plain, task_a_test, y_test_tensor), <span class="dv">3</span>), <span class="bu">round</span>(accuracy(plain, task_b_test, y_test_tensor), <span class="dv">3</span>))</span>
+<span id="cb10-59"><a href="#cb10-59" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"with replay - task A / task B:"</span>, <span class="bu">round</span>(accuracy(replay, task_a_test, y_test_tensor), <span class="dv">3</span>), <span class="bu">round</span>(accuracy(replay, task_b_test, y_test_tensor), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>第二个任务在保留数字标签的同时置换像素。一个网络有足够容量表示两种映射，但顺序优化可能覆盖第一种映射。回放改变了训练分布，使两种映射都持续出现在训练数据中。完整基准还应重复不同任务顺序和随机种子，报告存储与计算成本，并确保测试数据不会进入回放缓冲区。</p>
+</section>
+</section>
+<section id="元学习与小样本学习" class="level3">
+<h3 class="anchored" data-anchor-id="元学习与小样本学习"><strong>元学习与小样本学习</strong></h3>
+<p>小样本学习要求模型利用很小的<strong>支持集（support set）</strong>解决一个新任务。元学习则在一组既往任务构成的分布上训练，使学习器获得能够快速适应的嵌入空间、初始化、优化器或推理过程。</p>
+<p>在一次 <span class="math inline">\(N\)</span>-way <span class="math inline">\(K\)</span>-shot 分类 episode 中，支持集为 <span class="math inline">\(N\)</span> 个类别中的每一类提供 <span class="math inline">\(K\)</span> 个带标签样本；独立的查询集用于测量 episode 内部的泛化能力。根据研究主张，元训练与元测试必须使用彼此不重叠的类别、领域、用户或任务。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/episodic-meta-learning.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="episode 式元训练与留出任务上的小样本评估。"><img src="assets/episodic-meta-learning.svg" class="img-fluid figure-img" alt="多个元训练 episode 用于学习可复用的度量或初始化；在留出的元测试任务上，模型用小型支持集进行适应，再用独立查询集评估。"></a></p>
+<figcaption>episode 式元训练与留出任务上的小样本评估。</figcaption>
+</figure>
+</div>
+</div>
+<section id="基于度量的方法" class="level4">
+<h4 class="anchored" data-anchor-id="基于度量的方法"><strong>基于度量的方法</strong></h4>
+<p>基于度量的方法会学习一个嵌入空间，使少量支持样本能够直接定义分类器。在原型网络中，类别 <span class="math inline">\(k\)</span> 的原型为</p>
+<p><span class="math display">\[
+c_k
+=\frac{1}{|S_k|}
+\sum_{(x_i,y_i)\in S_k}f_\theta(x_i),
+\]</span></p>
+<p>查询样本的类别概率为</p>
+<p><span class="math display">\[
+P(y=k\mid x)
+=
+\frac{\exp(-d(f_\theta(x),c_k))}
+{\sum_j\exp(-d(f_\theta(x),c_j))}.
+\]</span></p>
+<p>嵌入模型通过 episode 式训练，使构造原型后的查询损失下降。欧氏距离隐含地假设学习空间中的类别簇近似球形；如果一个类别本身是多模态分布，单一原型可能不足以描述它。</p>
+<details>
+<summary>
+<strong>Python：评估一个 N-way K-shot 原型分类器</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">168</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> load_digits(return_X_y<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>classes <span class="op">=</span> np.array([<span class="dv">5</span>, <span class="dv">6</span>, <span class="dv">7</span>, <span class="dv">8</span>, <span class="dv">9</span>])  <span class="co"># treated as held-out meta-test classes</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prototype_episode(shots<span class="op">=</span><span class="dv">5</span>, queries_per_class<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    support_X, support_y, query_X, query_y <span class="op">=</span> [], [], [], []</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> class_id <span class="kw">in</span> classes:</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        class_index <span class="op">=</span> np.flatnonzero(y <span class="op">==</span> class_id)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        chosen <span class="op">=</span> rng.choice(class_index, shots <span class="op">+</span> queries_per_class, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        support_X.append(X[chosen[:shots]])</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>        support_y.extend([class_id] <span class="op">*</span> shots)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>        query_X.append(X[chosen[shots:]])</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>        query_y.extend([class_id] <span class="op">*</span> queries_per_class)</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    support_X <span class="op">=</span> np.vstack(support_X)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    query_X <span class="op">=</span> np.vstack(query_X)</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    query_y <span class="op">=</span> np.array(query_y)</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    prototypes <span class="op">=</span> np.vstack([</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>        support_X[np.array(support_y) <span class="op">==</span> class_id].mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> class_id <span class="kw">in</span> classes</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    squared_distance <span class="op">=</span> ((query_X[:, <span class="va">None</span>, :] <span class="op">-</span> prototypes[<span class="va">None</span>, :, :]) <span class="op">**</span> <span class="dv">2</span>).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> classes[squared_distance.argmin(axis<span class="op">=</span><span class="dv">1</span>)]</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.mean(prediction <span class="op">==</span> query_y)</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> shots <span class="kw">in</span> [<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>]:</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    episode_accuracy <span class="op">=</span> np.array([prototype_episode(shots<span class="op">=</span>shots) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">200</span>)])</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>shots<span class="sc">}</span><span class="ss">-shot mean accuracy:"</span>,</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        <span class="bu">round</span>(<span class="bu">float</span>(episode_accuracy.mean()), <span class="dv">3</span>),</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"95</span><span class="sc">% i</span><span class="st">nterval:"</span>,</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>        np.<span class="bu">round</span>(np.quantile(episode_accuracy, [<span class="fl">0.025</span>, <span class="fl">0.975</span>]), <span class="dv">3</span>).tolist(),</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里使用标准化像素而不是经过元学习的编码器，因此它是一个透明的原型基线。真正的原型网络会在互不重叠的元训练类别上学习 <span class="math inline">\(f_\theta\)</span>，同时保留此处展示的支持集与查询集隔离。</p>
+</section>
+<section id="基于优化的元学习" class="level4">
+<h4 class="anchored" data-anchor-id="基于优化的元学习"><strong>基于优化的元学习</strong></h4>
+<p>基于优化的方法学习一组参数，使模型只需少量目标更新就能获得良好效果。模型无关元学习（MAML）首先为每个任务 <span class="math inline">\(\tau\)</span> 执行内部更新：</p>
+<p><span class="math display">\[
+\theta_\tau'
+=\theta-\alpha\nabla_\theta
+\mathcal L_{\tau}^{\text{support}}(\theta),
+\]</span></p>
+<p>随后利用查询集损失优化共享初始化：</p>
+<p><span class="math display">\[
+\min_\theta
+\sum_{\tau\sim p(\tau)}
+\mathcal L_{\tau}^{\text{query}}(\theta_\tau').
+\]</span></p>
+<p>对内部更新求导会引入二阶导数；一阶近似变体会忽略这些项。MAML 学习的是一组容易适应的初始化，而不是一个在所有任务上都已经最优的统一模型。</p>
+<details>
+<summary>
+<strong>Python：为正弦回归实现一个紧凑的 MAML 循环</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">169</span>)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">169</span>)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>parameters <span class="op">=</span> {</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"w1"</span>: torch.randn(<span class="dv">1</span>, <span class="dv">32</span>, requires_grad<span class="op">=</span><span class="va">True</span>) <span class="op">*</span> <span class="fl">0.15</span>,</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"b1"</span>: torch.zeros(<span class="dv">32</span>, requires_grad<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"w2"</span>: torch.randn(<span class="dv">32</span>, <span class="dv">32</span>, requires_grad<span class="op">=</span><span class="va">True</span>) <span class="op">*</span> <span class="fl">0.15</span>,</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"b2"</span>: torch.zeros(<span class="dv">32</span>, requires_grad<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"w3"</span>: torch.randn(<span class="dv">32</span>, <span class="dv">1</span>, requires_grad<span class="op">=</span><span class="va">True</span>) <span class="op">*</span> <span class="fl">0.15</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"b3"</span>: torch.zeros(<span class="dv">1</span>, requires_grad<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Multiplication above creates non-leaf tensors, so replace them with leaf Parameters.</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>parameters <span class="op">=</span> {name: torch.nn.Parameter(value.detach()) <span class="cf">for</span> name, value <span class="kw">in</span> parameters.items()}</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.Adam(parameters.values(), lr<span class="op">=</span><span class="fl">0.004</span>)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(x, p):</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> torch.tanh(x <span class="op">@</span> p[<span class="st">"w1"</span>] <span class="op">+</span> p[<span class="st">"b1"</span>])</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> torch.tanh(hidden <span class="op">@</span> p[<span class="st">"w2"</span>] <span class="op">+</span> p[<span class="st">"b2"</span>])</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> hidden <span class="op">@</span> p[<span class="st">"w3"</span>] <span class="op">+</span> p[<span class="st">"b3"</span>]</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sample_task(support_points, query_points):</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    amplitude <span class="op">=</span> rng.uniform(<span class="fl">0.2</span>, <span class="fl">5.0</span>)</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    phase <span class="op">=</span> rng.uniform(<span class="dv">0</span>, np.pi)</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    support_x <span class="op">=</span> rng.uniform(<span class="op">-</span><span class="dv">5</span>, <span class="dv">5</span>, size<span class="op">=</span>(support_points, <span class="dv">1</span>)).astype(<span class="st">"float32"</span>)</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    query_x <span class="op">=</span> rng.uniform(<span class="op">-</span><span class="dv">5</span>, <span class="dv">5</span>, size<span class="op">=</span>(query_points, <span class="dv">1</span>)).astype(<span class="st">"float32"</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    support_y <span class="op">=</span> (amplitude <span class="op">*</span> np.sin(support_x <span class="op">+</span> phase)).astype(<span class="st">"float32"</span>)</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>    query_y <span class="op">=</span> (amplitude <span class="op">*</span> np.sin(query_x <span class="op">+</span> phase)).astype(<span class="st">"float32"</span>)</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>        torch.tensor(support_x),</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>        torch.tensor(support_y),</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>        torch.tensor(query_x),</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>        torch.tensor(query_y),</span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>inner_rate <span class="op">=</span> <span class="fl">0.01</span></span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">320</span>):</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>    meta_loss <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">6</span>):</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>        support_x, support_y, query_x, query_y <span class="op">=</span> sample_task(<span class="dv">10</span>, <span class="dv">20</span>)</span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>        support_loss <span class="op">=</span> torch.mean((forward(support_x, parameters) <span class="op">-</span> support_y) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>        gradient <span class="op">=</span> torch.autograd.grad(</span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>            support_loss, <span class="bu">tuple</span>(parameters.values()), create_graph<span class="op">=</span><span class="va">True</span></span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>        adapted <span class="op">=</span> {</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>            name: value <span class="op">-</span> inner_rate <span class="op">*</span> grad</span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> (name, value), grad <span class="kw">in</span> <span class="bu">zip</span>(parameters.items(), gradient)</span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>        meta_loss <span class="op">=</span> meta_loss <span class="op">+</span> torch.mean((forward(query_x, adapted) <span class="op">-</span> query_y) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad()</span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a>    (meta_loss <span class="op">/</span> <span class="dv">6</span>).backward()</span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a>    optimizer.step()</span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate one unseen task before and after five support-set updates.</span></span>
+<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a>amplitude, phase <span class="op">=</span> <span class="fl">3.2</span>, <span class="fl">0.7</span></span>
+<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a>support_x <span class="op">=</span> torch.linspace(<span class="op">-</span><span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">10</span>).reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>support_y <span class="op">=</span> amplitude <span class="op">*</span> torch.sin(support_x <span class="op">+</span> phase)</span>
+<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a>query_x <span class="op">=</span> torch.linspace(<span class="op">-</span><span class="dv">5</span>, <span class="dv">5</span>, <span class="dv">200</span>).reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>query_y <span class="op">=</span> amplitude <span class="op">*</span> torch.sin(query_x <span class="op">+</span> phase)</span>
+<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a>adapted <span class="op">=</span> <span class="bu">dict</span>(parameters)</span>
+<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>    before <span class="op">=</span> torch.mean((forward(query_x, adapted) <span class="op">-</span> query_y) <span class="op">**</span> <span class="dv">2</span>).item()</span>
+<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">5</span>):</span>
+<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> torch.mean((forward(support_x, adapted) <span class="op">-</span> support_y) <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a>    gradient <span class="op">=</span> torch.autograd.grad(loss, <span class="bu">tuple</span>(adapted.values()))</span>
+<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a>    adapted <span class="op">=</span> {</span>
+<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a>        name: value <span class="op">-</span> inner_rate <span class="op">*</span> grad</span>
+<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (name, value), grad <span class="kw">in</span> <span class="bu">zip</span>(adapted.items(), gradient)</span>
+<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a>    after <span class="op">=</span> torch.mean((forward(query_x, adapted) <span class="op">-</span> query_y) <span class="op">**</span> <span class="dv">2</span>).item()</span>
+<span id="cb12-76"><a href="#cb12-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-77"><a href="#cb12-77" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"query MSE before adaptation:"</span>, <span class="bu">round</span>(before, <span class="dv">3</span>))</span>
+<span id="cb12-78"><a href="#cb12-78" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"query MSE after five updates:"</span>, <span class="bu">round</span>(after, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>小样本评估对统计设计要求很高。应报告大量留出 episode 的结果、置信区间、支持集抽样过程、类别身份是否真正未见过，并与“预训练嵌入加逻辑回归”或最近原型等强而简单的非元学习基线比较。</p>
+</section>
+</section>
+<section id="评估适应与迁移" class="level3">
+<h3 class="anchored" data-anchor-id="评估适应与迁移"><strong>评估适应与迁移</strong></h3>
+<p>迁移方法很容易得到过度乐观的评估，因为源信息和目标信息可能通过预处理、超参数选择、预训练检查点或领域构造发生泄漏。数据划分必须与研究主张一致：</p>
+<ul>
+<li>要声称能够迁移到新用户，就必须留出用户；</li>
+<li>要声称能够迁移到新医院或新设备，就必须留出医院或设备；</li>
+<li>要声称对未来变化具有鲁棒性，就应采用时间顺序划分；</li>
+<li>要声称具备小样本元泛化能力，就应留出类别或任务；</li>
+<li>应轮换被留出的领域，以测量结果对源领域选择的敏感性。</li>
+</ul>
+<section id="留出领域与迁移基线" class="level4">
+<h4 class="anchored" data-anchor-id="留出领域与迁移基线"><strong>留出领域与迁移基线</strong></h4>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/transfer-evaluation-matrix.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="留出领域评估与迁移学习所需的基线。"><img src="assets/transfer-evaluation-matrix.svg" class="img-fluid figure-img" alt="多个源领域用于训练和模型选择，另一个领域完全留出；最终把方法与仅源数据、仅目标数据、数据合并、冻结探测及其他适应基线比较。"></a></p>
+<figcaption>留出领域评估与迁移学习所需的基线。</figcaption>
+</figure>
+</div>
+</div>
+<p>至少应比较：</p>
+<ol type="1">
+<li><strong>仅源数据（source only）：</strong> 不做任何适应，直接部署源模型；</li>
+<li><strong>仅目标数据 / 从头训练（target only / scratch）：</strong> 只使用被允许的目标标签，不复用源知识；</li>
+<li><strong>合并数据（pooled data）：</strong> 合并源数据和允许使用的目标标签，不采用专门适应方法；</li>
+<li><strong>冻结探测（frozen probe）：</strong> 迁移表示，但不更新编码器；</li>
+<li><strong>微调或领域适应：</strong> 所提出的方法；</li>
+<li><strong>目标预言机（target oracle）：</strong> 使用大量目标标签，只作为性能上界参考，不能伪装成公平竞争者。</li>
+</ol>
+<p>仅目标数据的性能是判断正迁移的参照；仅源数据的性能用于测量未经适应的领域差距；合并训练则用于检验复杂方法是否真的优于简单的数据组合。</p>
+<details>
+<summary>
+<strong>Python：比较随机划分与留出领域验证</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> StratifiedKFold, cross_val_score</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">170</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>features, labels, domains <span class="op">=</span> [], [], []</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> domain_id <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">4</span>):</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> <span class="dv">900</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    core <span class="op">=</span> rng.normal(size<span class="op">=</span>n)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> (core <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.9</span>, size<span class="op">=</span>n) <span class="op">&gt;</span> <span class="dv">0</span>).astype(<span class="bu">int</span>)</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># A spurious feature reverses only in the held-out fourth domain.</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>    direction <span class="op">=</span> <span class="fl">1.0</span> <span class="cf">if</span> domain_id <span class="op">&lt;</span> <span class="dv">3</span> <span class="cf">else</span> <span class="op">-</span><span class="fl">1.0</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    spurious <span class="op">=</span> direction <span class="op">*</span> (<span class="dv">2</span> <span class="op">*</span> y <span class="op">-</span> <span class="dv">1</span>) <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.45</span>, size<span class="op">=</span>n)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    nuisance <span class="op">=</span> rng.normal(loc<span class="op">=</span><span class="fl">0.6</span> <span class="op">*</span> domain_id, scale<span class="op">=</span><span class="fl">1.0</span>, size<span class="op">=</span>n)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    X_domain <span class="op">=</span> np.column_stack([core, spurious, nuisance])</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>    features.append(X_domain)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>    labels.append(y)</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>    domains.append(np.full(n, domain_id))</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.vstack(features)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> np.concatenate(labels)</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>domain <span class="op">=</span> np.concatenate(domains)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_pipeline(StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>))</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>random_cv <span class="op">=</span> StratifiedKFold(n_splits<span class="op">=</span><span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">170</span>)</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>random_score <span class="op">=</span> cross_val_score(model, X, y, cv<span class="op">=</span>random_cv, scoring<span class="op">=</span><span class="st">"accuracy"</span>)</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>held_out_score <span class="op">=</span> []</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> target_domain <span class="kw">in</span> np.unique(domain):</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>    source <span class="op">=</span> domain <span class="op">!=</span> target_domain</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    target <span class="op">=</span> domain <span class="op">==</span> target_domain</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    fitted <span class="op">=</span> make_pipeline(</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a>        StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a>    ).fit(X[source], y[source])</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>    held_out_score.append(accuracy_score(y[target], fitted.predict(X[target])))</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"random-row CV accuracy:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(random_score.mean()), <span class="dv">3</span>))</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"held-out-domain accuracy:"</span>, np.<span class="bu">round</span>(held_out_score, <span class="dv">3</span>).tolist())</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"held-out-domain mean:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.mean(held_out_score)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>随机划分会让每个领域都影响训练，从而掩盖模型在“虚假关系方向反转”的领域上发生的失败。逐领域结果还能够暴露单一平均值隐藏的异质性。</p>
+<p>性能表应包含目标分数、迁移收益、目标标签预算、源领域、训练时使用的目标信息、模型选择流程、校准、子群指标、计算量和存储量。对于持续学习，应报告完整准确率矩阵 <span class="math inline">\(A_{i,j}\)</span>，而不仅是最终平均准确率；对于小样本学习，应给出 episode 层面的区间估计，并使用类别不重叠的元测试任务。</p>
+<details>
+<summary>
+<strong>Python：计算迁移收益和持续学习汇总指标</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Rows: after learning tasks 1, 2, and 3. Columns: evaluation tasks 1, 2, and 3.</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>accuracy_matrix <span class="op">=</span> np.array([</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.91</span>, np.nan, np.nan],</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.84</span>, <span class="fl">0.88</span>, np.nan],</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.79</span>, <span class="fl">0.85</span>, <span class="fl">0.90</span>],</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>final_average_accuracy <span class="op">=</span> np.nanmean(accuracy_matrix[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>forgetting <span class="op">=</span> np.mean([</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>    np.nanmax(accuracy_matrix[:, task]) <span class="op">-</span> accuracy_matrix[<span class="op">-</span><span class="dv">1</span>, task]</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> task <span class="kw">in</span> <span class="bu">range</span>(accuracy_matrix.shape[<span class="dv">1</span>] <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>target_only_score <span class="op">=</span> np.array([<span class="fl">0.62</span>, <span class="fl">0.71</span>, <span class="fl">0.78</span>])</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>transfer_score <span class="op">=</span> np.array([<span class="fl">0.74</span>, <span class="fl">0.77</span>, <span class="fl">0.80</span>])</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>transfer_gain <span class="op">=</span> transfer_score <span class="op">-</span> target_only_score</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"final average accuracy:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(final_average_accuracy), <span class="dv">3</span>))</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean forgetting:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(forgetting), <span class="dv">3</span>))</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"transfer gain by target-label budget:"</span>, np.<span class="bu">round</span>(transfer_gain, <span class="dv">3</span>).tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>不确定性估计必须尊重真正的泛化单位。如果研究主张是泛化到新领域，就应对领域进行 bootstrap；若关注新任务，就应对任务采样；若关注新用户，就应对用户采样；小样本评估则应对 episode 采样。只有少数医院或环境时，对单条数据记录做 bootstrap 无法恢复跨医院或跨环境的不确定性。</p>
+</section>
+</section>
+<section id="选择应该共享的内容" class="level3">
+<h3 class="anchored" data-anchor-id="选择应该共享的内容"><strong>选择应该共享的内容</strong></h3>
+<p>共享既是统计决策，也是运行约束下的工程决策。最值得复用的组件，应当由一个在目标环境中仍然合理的不变性假设支撑：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>证据与约束</th>
+<th>合理起点</th>
+<th>需要重点检验的失败模式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>相同任务、存在协变量偏移、支持集重叠良好</td>
+<td>样本加权</td>
+<td>极端权重与缺乏源支持的目标区域</td>
+</tr>
+<tr class="even">
+<td>语义相同，但特征统计量发生变换</td>
+<td>CORAL、MMD 或条件对齐</td>
+<td>把不同类别错误地对齐到一起</td>
+</tr>
+<tr class="odd">
+<td>大规模相关源任务，目标标签很少</td>
+<td>先冻结探测，再渐进微调</td>
+<td>源偏差与过拟合</td>
+</tr>
+<tr class="even">
+<td>同时存在多个相关输出</td>
+<td>共享主干与任务特异头</td>
+<td>梯度冲突与某个任务主导训练</td>
+</tr>
+<tr class="odd">
+<td>顺序任务，允许回放</td>
+<td>小型且具有代表性的回放缓冲区</td>
+<td>隐私、存储开销与有偏样本选择</td>
+</tr>
+<tr class="even">
+<td>顺序任务，禁止存储数据</td>
+<td>EWC、蒸馏、适配器或路由</td>
+<td>保护不足或容量持续增长</td>
+</tr>
+<tr class="odd">
+<td>重复出现一类小样本任务</td>
+<td>基于度量或基于优化的元学习</td>
+<td>元测试泄漏与简单基线过弱</td>
+</tr>
+<tr class="even">
+<td>任务相关性不确定</td>
+<td>目标数据基线加选择性或门控迁移</td>
+<td>汇总平均值隐藏负迁移</td>
+</tr>
+</tbody>
+</table>
+<p>一套可辩护的工作流程是：</p>
+<ol type="1">
+<li>定义源与目标的领域-任务组合；</li>
+<li>说明所假设的不变量，以及允许使用的目标信息；</li>
+<li>建立仅目标、仅源和数据合并基线；</li>
+<li>从可能有效的最弱共享形式开始；</li>
+<li>在不同目标标签预算和留出领域上测量迁移收益；</li>
+<li>检查样本权重、特征对齐、梯度冲突、遗忘和子群失败；</li>
+<li>只有当目标验证持续支持时，才增加共享强度；</li>
+<li>当部署证据推翻原假设时，保留可执行的回滚路径。</li>
+</ol>
+<p>迁移是否成功，应由它能否在公平资源比较下改善目标问题来决定，而不是由流程中是否出现了预训练检查点来决定。最稳健的默认策略是选择性共享、显式诊断，并始终保留仅使用目标数据的退出路径。</p>
+<p>主要原始与权威资源包括 <a href="https://doi.org/10.7551/mitpress/9780262170055.001.0001">《Dataset Shift in Machine Learning》</a>、<a href="https://proceedings.mlr.press/v80/lipton18a.html">标签偏移校正论文</a>、<a href="https://jmlr.org/papers/v17/15-239.html">领域对抗训练论文</a>、<a href="https://proceedings.mlr.press/v9/david10a.html">领域适应的不可能性结果</a>、最初的<a href="https://doi.org/10.1023/A:1007379606734">多任务学习论文</a>、<a href="https://proceedings.mlr.press/v80/chen18a.html">GradNorm</a>、<a href="https://papers.nips.cc/paper/2020/hash/3fe78a8acf5fda99de95303940a2420c-Abstract.html">PCGrad</a>、<a href="https://doi.org/10.1073/PNAS.1611835114">弹性权重巩固</a>、<a href="https://papers.nips.cc/paper/2017/hash/cb8da6767461f2812ae4290eac7cbc42-Abstract.html">原型网络</a>和 <a href="https://proceedings.mlr.press/v70/finn17a.html">MAML</a>。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","loop":false,"closeEffect":"zoom","openEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

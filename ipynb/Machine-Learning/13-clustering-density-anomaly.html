@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Machine Learning: Clustering, Density Estimation, and Anomaly Detection</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="13-clustering-density-anomaly_files/libs/clipboard/clipboard.min.js"></script>
+<script src="13-clustering-density-anomaly_files/libs/quarto-html/quarto.js"></script>
+<script src="13-clustering-density-anomaly_files/libs/quarto-html/popper.min.js"></script>
+<script src="13-clustering-density-anomaly_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="13-clustering-density-anomaly_files/libs/quarto-html/anchor.min.js"></script>
+<link href="13-clustering-density-anomaly_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="13-clustering-density-anomaly_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="13-clustering-density-anomaly_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="13-clustering-density-anomaly_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="13-clustering-density-anomaly_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#clustering-density-estimation-and-anomaly-detection" id="toc-clustering-density-estimation-and-anomaly-detection" class="nav-link active" data-scroll-target="#clustering-density-estimation-and-anomaly-detection"><strong>Clustering, Density Estimation, and Anomaly Detection</strong></a>
+  <ul>
+  <li><a href="#what-does-a-cluster-mean" id="toc-what-does-a-cluster-mean" class="nav-link" data-scroll-target="#what-does-a-cluster-mean"><strong>What Does a Cluster Mean?</strong></a>
+  <ul>
+  <li><a href="#similarity-compactness-connectivity-and-density" id="toc-similarity-compactness-connectivity-and-density" class="nav-link" data-scroll-target="#similarity-compactness-connectivity-and-density"><strong>Similarity, Compactness, Connectivity, and Density</strong></a></li>
+  </ul></li>
+  <li><a href="#k-means-clustering" id="toc-k-means-clustering" class="nav-link" data-scroll-target="#k-means-clustering"><strong>K-Means Clustering</strong></a>
+  <ul>
+  <li><a href="#objective-and-lloyds-algorithm" id="toc-objective-and-lloyds-algorithm" class="nav-link" data-scroll-target="#objective-and-lloyds-algorithm"><strong>Objective and Lloyd’s Algorithm</strong></a></li>
+  <li><a href="#initialization-and-k-means" id="toc-initialization-and-k-means" class="nav-link" data-scroll-target="#initialization-and-k-means"><strong>Initialization and K-Means++</strong></a></li>
+  <li><a href="#failure-modes" id="toc-failure-modes" class="nav-link" data-scroll-target="#failure-modes"><strong>Failure Modes</strong></a></li>
+  </ul></li>
+  <li><a href="#hierarchical-clustering" id="toc-hierarchical-clustering" class="nav-link" data-scroll-target="#hierarchical-clustering"><strong>Hierarchical Clustering</strong></a>
+  <ul>
+  <li><a href="#agglomerative-and-divisive-methods" id="toc-agglomerative-and-divisive-methods" class="nav-link" data-scroll-target="#agglomerative-and-divisive-methods"><strong>Agglomerative and Divisive Methods</strong></a></li>
+  <li><a href="#linkage-criteria-and-dendrograms" id="toc-linkage-criteria-and-dendrograms" class="nav-link" data-scroll-target="#linkage-criteria-and-dendrograms"><strong>Linkage Criteria and Dendrograms</strong></a></li>
+  </ul></li>
+  <li><a href="#density-based-clustering" id="toc-density-based-clustering" class="nav-link" data-scroll-target="#density-based-clustering"><strong>Density-Based Clustering</strong></a>
+  <ul>
+  <li><a href="#dbscan" id="toc-dbscan" class="nav-link" data-scroll-target="#dbscan"><strong>DBSCAN</strong></a></li>
+  <li><a href="#hdbscan-and-variable-density" id="toc-hdbscan-and-variable-density" class="nav-link" data-scroll-target="#hdbscan-and-variable-density"><strong>HDBSCAN and Variable Density</strong></a></li>
+  </ul></li>
+  <li><a href="#spectral-clustering" id="toc-spectral-clustering" class="nav-link" data-scroll-target="#spectral-clustering"><strong>Spectral Clustering</strong></a></li>
+  <li><a href="#mixture-models-and-em" id="toc-mixture-models-and-em" class="nav-link" data-scroll-target="#mixture-models-and-em"><strong>Mixture Models and EM</strong></a>
+  <ul>
+  <li><a href="#gaussian-mixture-models" id="toc-gaussian-mixture-models" class="nav-link" data-scroll-target="#gaussian-mixture-models"><strong>Gaussian Mixture Models</strong></a></li>
+  <li><a href="#expectation-maximization" id="toc-expectation-maximization" class="nav-link" data-scroll-target="#expectation-maximization"><strong>Expectation-Maximization</strong></a></li>
+  <li><a href="#soft-cluster-membership" id="toc-soft-cluster-membership" class="nav-link" data-scroll-target="#soft-cluster-membership"><strong>Soft Cluster Membership</strong></a></li>
+  </ul></li>
+  <li><a href="#density-estimation" id="toc-density-estimation" class="nav-link" data-scroll-target="#density-estimation"><strong>Density Estimation</strong></a>
+  <ul>
+  <li><a href="#parametric-density-models" id="toc-parametric-density-models" class="nav-link" data-scroll-target="#parametric-density-models"><strong>Parametric Density Models</strong></a></li>
+  <li><a href="#kernel-density-estimation" id="toc-kernel-density-estimation" class="nav-link" data-scroll-target="#kernel-density-estimation"><strong>Kernel Density Estimation</strong></a></li>
+  </ul></li>
+  <li><a href="#anomaly-and-novelty-detection" id="toc-anomaly-and-novelty-detection" class="nav-link" data-scroll-target="#anomaly-and-novelty-detection"><strong>Anomaly and Novelty Detection</strong></a>
+  <ul>
+  <li><a href="#statistical-scores-and-local-outlier-factor" id="toc-statistical-scores-and-local-outlier-factor" class="nav-link" data-scroll-target="#statistical-scores-and-local-outlier-factor"><strong>Statistical Scores and Local Outlier Factor</strong></a></li>
+  <li><a href="#isolation-forest-and-one-class-svm" id="toc-isolation-forest-and-one-class-svm" class="nav-link" data-scroll-target="#isolation-forest-and-one-class-svm"><strong>Isolation Forest and One-Class SVM</strong></a></li>
+  </ul></li>
+  <li><a href="#evaluating-unsupervised-structure" id="toc-evaluating-unsupervised-structure" class="nav-link" data-scroll-target="#evaluating-unsupervised-structure"><strong>Evaluating Unsupervised Structure</strong></a>
+  <ul>
+  <li><a href="#internal-external-and-stability-criteria" id="toc-internal-external-and-stability-criteria" class="nav-link" data-scroll-target="#internal-external-and-stability-criteria"><strong>Internal, External, and Stability Criteria</strong></a></li>
+  </ul></li>
+  <li><a href="#choosing-an-unsupervised-method" id="toc-choosing-an-unsupervised-method" class="nav-link" data-scroll-target="#choosing-an-unsupervised-method"><strong>Choosing an Unsupervised Method</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Machine Learning: Clustering, Density Estimation, and Anomaly Detection</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="Article language">
+<p><span aria-current="page">English</span> <a href="../zh-CN/Machine-Learning/13-clustering-density-anomaly.html" lang="zh-CN" hreflang="zh-CN">中文</a></p>
+</div>
+<p><a href="Machine%20Learning.html">Back to Machine Learning guideline</a></p>
+<section id="clustering-density-estimation-and-anomaly-detection" class="level2">
+<h2 class="anchored" data-anchor-id="clustering-density-estimation-and-anomaly-detection"><strong>Clustering, Density Estimation, and Anomaly Detection</strong></h2>
+<p>Supervised learning asks a model to predict a target that is supplied during training. The methods in this chapter begin with a harder scientific situation: there is no target column that states what the answer should be. They instead describe the distribution of the observations themselves.</p>
+<p>Three tasks are related but should not be treated as synonyms:</p>
+<ul>
+<li><strong>Clustering</strong> constructs a partition, hierarchy, or soft assignment that summarizes which observations belong together.</li>
+<li><strong>Density estimation</strong> models where observations are likely to occur by estimating a probability density <span class="math inline">\(p(\mathbf{x})\)</span>.</li>
+<li><strong>Anomaly detection</strong> ranks observations by how poorly they conform to a specified notion of normality.</li>
+</ul>
+<p>An unsupervised result is never produced by the data alone. It is produced by the combination</p>
+<p><span class="math display">\[
+\text{result}
+=f(\text{representation},\text{metric},\text{model assumptions},\text{hyperparameters},\text{sample}).
+\]</span></p>
+<p>Changing the unit of one feature, replacing Euclidean distance with cosine distance, or changing a neighbourhood radius can create a different answer even though the rows are unchanged. The absence of labels therefore does <strong>not</strong> mean the absence of assumptions. It makes those assumptions more important because prediction error against a target cannot automatically expose them.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Analytical question</th>
+<th>Typical output</th>
+<th>Central risk</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Are there useful groups?</td>
+<td>Hard labels, probabilities, or a hierarchy</td>
+<td>The algorithm may impose groups that are not substantively real</td>
+</tr>
+<tr class="even">
+<td>Where is probability mass concentrated?</td>
+<td>A fitted density or log-density score</td>
+<td>High-dimensional estimates can be unstable and poorly calibrated</td>
+</tr>
+<tr class="odd">
+<td>Which observations deserve investigation?</td>
+<td>Anomaly scores and an alert threshold</td>
+<td>Rare does not necessarily mean erroneous, harmful, or interesting</td>
+</tr>
+</tbody>
+</table>
+<p>This chapter develops centroid, connectivity, density, graph, and probabilistic views of structure. The aim is not to identify one universally best method. It is to learn how each method defines similarity, what structure it can express, how its output should be diagnosed, and when “no convincing structure” is the most defensible conclusion.</p>
+<section id="what-does-a-cluster-mean" class="level3">
+<h3 class="anchored" data-anchor-id="what-does-a-cluster-mean"><strong>What Does a Cluster Mean?</strong></h3>
+<p>A <strong>cluster</strong> is a set of observations regarded as more strongly related to one another than to observations outside the set. That definition is deliberately incomplete: “related” can mean close to a centroid, linked by a chain of neighbours, located in the same high-density region, generated by the same probability component, or connected strongly in a graph.</p>
+<p>Consider customers described by annual spending and number of purchases. One analysis may seek compact customer segments around representative profiles. Another may seek a thin path from occasional to frequent purchasing. A third may identify dense communities while leaving unusual customers unassigned. These are different mathematical questions, so they can reasonably produce different clusters.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cluster-definitions.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Compactness, connectivity, density, and distributional definitions of a cluster."><img src="assets/cluster-definitions.svg" class="img-fluid figure-img" alt="Four panels show clusters defined by distance to a centroid, chains of nearby points, dense regions separated by sparse regions, and overlapping probability components."></a></p>
+<figcaption>Compactness, connectivity, density, and distributional definitions of a cluster.</figcaption>
+</figure>
+</div>
+</div>
+<section id="similarity-compactness-connectivity-and-density" class="level4">
+<h4 class="anchored" data-anchor-id="similarity-compactness-connectivity-and-density"><strong>Similarity, Compactness, Connectivity, and Density</strong></h4>
+<p>Before selecting an algorithm, define the <strong>observational unit</strong>, the <strong>representation</strong>, and the <strong>dissimilarity measure</strong>. For numeric vectors, Euclidean distance is</p>
+<p><span class="math display">\[
+d_2(\mathbf{x}_i,\mathbf{x}_j)
+=\sqrt{\sum_{r=1}^{d}(x_{ir}-x_{jr})^2}.
+\]</span></p>
+<p>Every feature contributes in its numerical units. A difference of 10,000 dollars can dominate a difference of 20 purchases even if purchasing frequency is more meaningful. Standardization changes feature <span class="math inline">\(r\)</span> to <span class="math inline">\((x_{ir}-\bar{x}_r)/s_r\)</span>, making a one-standard-deviation difference comparable across features. This is a modelling decision, not a universally correct preprocessing step: standardization can also magnify noisy low-variance features.</p>
+<p>Cosine similarity instead compares directions,</p>
+<p><span class="math display">\[
+\operatorname{cos}(\mathbf{x}_i,\mathbf{x}_j)
+=\frac{\mathbf{x}_i^\top\mathbf{x}_j}
+{\lVert\mathbf{x}_i\rVert_2\lVert\mathbf{x}_j\rVert_2},
+\]</span></p>
+<p>and is often useful for sparse text vectors when relative composition matters more than document length. Manhattan distance can be more robust to one large coordinate difference; Hamming or Jaccard dissimilarity can suit binary attributes; mixed numeric and categorical records may require a mixed-type measure such as Gower distance. A cluster statement is interpretable only when the metric has an interpretable meaning.</p>
+<p>The main cluster concepts are:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Cluster concept</th>
+<th>Operational meaning</th>
+<th>Representative methods</th>
+<th>Characteristic limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Compactness</td>
+<td>Small within-cluster distance to a representative</td>
+<td>K-Means, K-Medoids</td>
+<td>Prefers roughly convex groups</td>
+</tr>
+<tr class="even">
+<td>Connectivity</td>
+<td>Members can be reached through nearby members</td>
+<td>Hierarchical single linkage, spectral methods</td>
+<td>Can join groups through a thin bridge</td>
+</tr>
+<tr class="odd">
+<td>Density</td>
+<td>Dense regions are separated by sparse regions</td>
+<td>DBSCAN, HDBSCAN</td>
+<td>Depends on neighbourhood scale</td>
+</tr>
+<tr class="even">
+<td>Distribution</td>
+<td>Members have high probability under one latent component</td>
+<td>Gaussian mixture models</td>
+<td>Depends on the component family</td>
+</tr>
+</tbody>
+</table>
+<p>Outputs also differ. A <strong>hard partition</strong> assigns each observation to exactly one cluster. A <strong>soft assignment</strong> reports membership probabilities or responsibilities. A hierarchy gives nested groups at many resolutions. Density methods can label some points as noise. None of these output types is automatically more truthful; each represents a different claim.</p>
+<details>
+<summary>
+<strong>Python: observe how scaling changes nearest neighbours</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> pairwise_distances</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Columns are annual spending in dollars and visits per year.</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>customers <span class="op">=</span> np.array([</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">20_000</span>, <span class="dv">4</span>],</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">21_500</span>, <span class="dv">16</span>],</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">42_000</span>, <span class="dv">5</span>],</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">43_000</span>, <span class="dv">18</span>],</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>], dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> np.array([<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"D"</span>])</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>raw_distances <span class="op">=</span> pairwise_distances(customers)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>scaled_customers <span class="op">=</span> StandardScaler().fit_transform(customers)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>scaled_distances <span class="op">=</span> pairwise_distances(scaled_customers)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> nearest_other(distance_matrix, index):</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    row <span class="op">=</span> distance_matrix[index].copy()</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    row[index] <span class="op">=</span> np.inf</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> names[np.argmin(row)]</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> index, name <span class="kw">in</span> <span class="bu">enumerate</span>(names):</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">"nearest before scaling:"</span>, nearest_other(raw_distances, index),</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| after scaling:"</span>, nearest_other(scaled_distances, index),</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>In the raw representation, spending dominates the geometry. After standardization, visit frequency can change which customer is regarded as nearest. The example does not prove that scaling is correct; it proves that the preprocessing choice is part of the cluster definition.</p>
+</section>
+</section>
+<section id="k-means-clustering" class="level3">
+<h3 class="anchored" data-anchor-id="k-means-clustering"><strong>K-Means Clustering</strong></h3>
+<p>K-Means represents each cluster by its arithmetic mean, or <strong>centroid</strong>. It is suitable when the intended groups are compact in Euclidean space and a centroid is a meaningful summary. Its popularity comes from a simple objective, efficient iterations, and scalability to large numeric datasets. Those advantages should not be mistaken for a guarantee that every dataset contains K-Means-shaped clusters.</p>
+<section id="objective-and-lloyds-algorithm" class="level4">
+<h4 class="anchored" data-anchor-id="objective-and-lloyds-algorithm"><strong>Objective and Lloyd’s Algorithm</strong></h4>
+<p>Let <span class="math inline">\(z_i\in\{1,\ldots,K\}\)</span> be the cluster assigned to observation <span class="math inline">\(\mathbf{x}_i\)</span>, and let <span class="math inline">\(\boldsymbol\mu_k\)</span> be centroid <span class="math inline">\(k\)</span>. K-Means minimizes the <strong>within-cluster sum of squared distances</strong>:</p>
+<p><span class="math display">\[
+J(\mathbf z,\boldsymbol\mu)
+=\sum_{i=1}^{n}\left\lVert
+\mathbf{x}_i-\boldsymbol\mu_{z_i}
+\right\rVert_2^2.
+\]</span></p>
+<p>The expression has a concrete interpretation. For each observation, select the centroid indexed by <span class="math inline">\(z_i\)</span>, measure the squared Euclidean residual, and add all residuals. Squaring emphasizes distant observations and makes the arithmetic mean the optimal representative when assignments are fixed.</p>
+<p>Lloyd’s algorithm alternates two exact conditional improvements:</p>
+<pre class="text"><code>Choose K initial centroids.
+repeat
+    Assignment step:
+        assign every observation to its nearest centroid
+    Update step:
+        replace every centroid by the mean of its assigned observations
+until assignments stop changing or the objective improvement is negligible</code></pre>
+<p>The assignment step minimizes <span class="math inline">\(J\)</span> while the centroids are fixed. The update step minimizes <span class="math inline">\(J\)</span> while the assignments are fixed. Consequently, the objective cannot increase. However, the joint problem is non-convex: monotonic improvement leads to a <strong>local</strong> optimum, not necessarily the globally best partition.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kmeans-lloyd-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="The assignment and centroid-update stages of Lloyd’s K-Means algorithm."><img src="assets/kmeans-lloyd-loop.svg" class="img-fluid figure-img" alt="A flow diagram shows initialization followed by repeated assignment of points to the nearest centroid and movement of each centroid to its assigned mean until convergence."></a></p>
+<figcaption>The assignment and centroid-update stages of Lloyd’s K-Means algorithm.</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python: implement Lloyd’s algorithm from first principles</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">240</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">4</span>, <span class="op">-</span><span class="dv">2</span>), (<span class="dv">0</span>, <span class="dv">4</span>), (<span class="dv">4</span>, <span class="op">-</span><span class="dv">1</span>)],</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.8</span>, <span class="fl">1.0</span>, <span class="fl">0.9</span>],</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lloyd_kmeans(X, n_clusters, seed<span class="op">=</span><span class="dv">0</span>, max_iter<span class="op">=</span><span class="dv">100</span>):</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(seed)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Start from distinct observations so each centroid is in data space.</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    centroids <span class="op">=</span> X[rng.choice(<span class="bu">len</span>(X), size<span class="op">=</span>n_clusters, replace<span class="op">=</span><span class="va">False</span>)].copy()</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    inertia_history <span class="op">=</span> []</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_iter):</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Assignment: squared distances from every row to every centroid.</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        squared_distances <span class="op">=</span> ((X[:, <span class="va">None</span>, :] <span class="op">-</span> centroids[<span class="va">None</span>, :, :]) <span class="op">**</span> <span class="dv">2</span>).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        labels <span class="op">=</span> squared_distances.argmin(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        inertia <span class="op">=</span> squared_distances[np.arange(<span class="bu">len</span>(X)), labels].<span class="bu">sum</span>()</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        inertia_history.append(<span class="bu">float</span>(inertia))</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Update: each non-empty cluster is represented by its arithmetic mean.</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        new_centroids <span class="op">=</span> centroids.copy()</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> cluster <span class="kw">in</span> <span class="bu">range</span>(n_clusters):</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            members <span class="op">=</span> X[labels <span class="op">==</span> cluster]</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(members) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>                new_centroids[cluster] <span class="op">=</span> members.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> np.allclose(new_centroids, centroids):</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>            centroids <span class="op">=</span> new_centroids</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        centroids <span class="op">=</span> new_centroids</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> labels, centroids, np.array(inertia_history)</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>labels, centroids, history <span class="op">=</span> lloyd_kmeans(X, n_clusters<span class="op">=</span><span class="dv">3</span>, seed<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"iterations:"</span>, <span class="bu">len</span>(history))</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"objective never increased:"</span>, <span class="bu">bool</span>(np.<span class="bu">all</span>(np.diff(history) <span class="op">&lt;=</span> <span class="fl">1e-9</span>)))</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"final inertia:"</span>, <span class="bu">round</span>(history[<span class="op">-</span><span class="dv">1</span>], <span class="dv">2</span>))</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"centroids:</span><span class="ch">\n</span><span class="st">"</span>, np.<span class="bu">round</span>(centroids, <span class="dv">2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The reported <strong>inertia</strong> is exactly <span class="math inline">\(J\)</span>. It is useful for comparing runs with the same representation and <span class="math inline">\(K\)</span>, but it always weakly decreases as <span class="math inline">\(K\)</span> grows. It therefore cannot, by itself, prove the correct number of clusters.</p>
+</section>
+<section id="initialization-and-k-means" class="level4">
+<h4 class="anchored" data-anchor-id="initialization-and-k-means"><strong>Initialization and K-Means++</strong></h4>
+<p>Poor starting centroids can send Lloyd’s algorithm to a poor local optimum. Running many random starts and retaining the lowest-inertia result reduces this risk. <strong>K-Means++</strong> creates more informative starts by spreading centroids through the data:</p>
+<ol type="1">
+<li>choose the first centroid uniformly from the observations;</li>
+<li>compute <span class="math inline">\(D(\mathbf{x})\)</span>, the distance from each observation to its nearest chosen centroid;</li>
+<li>choose the next centroid with probability proportional to <span class="math inline">\(D(\mathbf{x})^2\)</span>;</li>
+<li>repeat until <span class="math inline">\(K\)</span> centroids have been selected, then run Lloyd’s algorithm.</li>
+</ol>
+<p>Points far from existing centroids are more likely to seed a new region, but the procedure remains stochastic. In practice, use K-Means++ together with multiple initializations and record the random seed.</p>
+<details>
+<summary>
+<strong>Python: compare random and K-Means++ starts</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">700</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span><span class="dv">6</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.8</span>, <span class="fl">0.6</span>, <span class="fl">1.2</span>, <span class="fl">0.8</span>, <span class="fl">1.5</span>],</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> inertias_for(initialization):</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    scores <span class="op">=</span> []</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">20</span>):</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># n_init=1 exposes the variability of one initialization.</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> KMeans(</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            n_clusters<span class="op">=</span><span class="dv">6</span>,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>            init<span class="op">=</span>initialization,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            n_init<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>            random_state<span class="op">=</span>seed,</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        model.fit(X)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        scores.append(model.inertia_)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(scores)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>random_scores <span class="op">=</span> inertias_for(<span class="st">"random"</span>)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>plus_scores <span class="op">=</span> inertias_for(<span class="st">"k-means++"</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, scores <span class="kw">in</span> [(<span class="st">"random"</span>, random_scores), (<span class="st">"k-means++"</span>, plus_scores)]:</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:11s}</span><span class="ss">"</span>,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">"best="</span>, <span class="bu">round</span>(scores.<span class="bu">min</span>(), <span class="dv">1</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"median="</span>, <span class="bu">round</span>(np.median(scores), <span class="dv">1</span>),</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"worst="</span>, <span class="bu">round</span>(scores.<span class="bu">max</span>(), <span class="dv">1</span>),</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="failure-modes" class="level4">
+<h4 class="anchored" data-anchor-id="failure-modes"><strong>Failure Modes</strong></h4>
+<p>K-Means implicitly favors clusters that are roughly convex, similarly dispersed, and adequately represented by their means. It can fail for curved manifolds, unequal density, strongly unequal sizes, non-Euclidean similarity, categorical data, and datasets containing influential outliers.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kmeans-failure-modes.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Situations in which K-Means can impose misleading partitions."><img src="assets/kmeans-failure-modes.svg" class="img-fluid figure-img" alt="Four panels illustrate successful compact clusters and failure on crescent shapes, unequal density, and outliers that pull centroids."></a></p>
+<figcaption>Situations in which K-Means can impose misleading partitions.</figcaption>
+</figure>
+</div>
+</div>
+<p>Feature scaling is especially consequential because the objective uses squared distance. Outliers have squared influence and can drag a centroid away from the dense core. K-Medoids can replace means with observed representatives for greater robustness, although at greater computational cost. For very large samples with appropriate geometry, Mini-Batch K-Means trades exact updates for faster stochastic ones.</p>
+<details>
+<summary>
+<strong>Python: compare K-Means on compact blobs and curved moons</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs, make_moons</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score, silhouette_score</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>datasets <span class="op">=</span> {</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"compact blobs"</span>: make_blobs(n_samples<span class="op">=</span><span class="dv">500</span>, centers<span class="op">=</span><span class="dv">2</span>, cluster_std<span class="op">=</span><span class="fl">0.8</span>, random_state<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"curved moons"</span>: make_moons(n_samples<span class="op">=</span><span class="dv">500</span>, noise<span class="op">=</span><span class="fl">0.07</span>, random_state<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, (X, synthetic_truth) <span class="kw">in</span> datasets.items():</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">4</span>).fit_predict(X)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| silhouette:"</span>, <span class="bu">round</span>(silhouette_score(X, labels), <span class="dv">3</span>),</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The synthetic labels are used here only because the data generator exposes the intended geometry. In a real unsupervised task, those labels usually do not exist. The experiment shows why a respectable compactness score cannot establish that a partition matches the structure relevant to the application.</p>
+</section>
+</section>
+<section id="hierarchical-clustering" class="level3">
+<h3 class="anchored" data-anchor-id="hierarchical-clustering"><strong>Hierarchical Clustering</strong></h3>
+<p>Hierarchical clustering represents grouping at multiple resolutions rather than committing immediately to one flat partition. The result is a tree of nested sets: nearby observations merge low in the tree, while broad groups meet only at greater dissimilarity. This is useful when a domain naturally contains subtypes inside larger categories, or when the appropriate number of clusters is not known in advance.</p>
+<section id="agglomerative-and-divisive-methods" class="level4">
+<h4 class="anchored" data-anchor-id="agglomerative-and-divisive-methods"><strong>Agglomerative and Divisive Methods</strong></h4>
+<p><strong>Agglomerative</strong> clustering starts with every observation in its own cluster and repeatedly merges the two closest clusters. <strong>Divisive</strong> clustering starts with all observations together and recursively splits them. Agglomerative methods are much more common because the merge operation is simple and mature implementations are widely available.</p>
+<p>An agglomerative procedure is:</p>
+<pre class="text"><code>Start with n singleton clusters.
+Compute dissimilarities between all current clusters.
+repeat until only one cluster remains
+    merge the pair with the smallest linkage dissimilarity
+    update dissimilarities between the new cluster and all others
+    record the merge dissimilarity</code></pre>
+<p>The word <strong>linkage</strong> is crucial. Point-to-point distance does not by itself define distance between two sets. Different linkage rules encode different meanings of a coherent group and can produce very different hierarchies from the same distance matrix.</p>
+</section>
+<section id="linkage-criteria-and-dendrograms" class="level4">
+<h4 class="anchored" data-anchor-id="linkage-criteria-and-dendrograms"><strong>Linkage Criteria and Dendrograms</strong></h4>
+<p>For clusters <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span> with pointwise distance <span class="math inline">\(d(\mathbf{x}_i,\mathbf{x}_j)\)</span>:</p>
+<p><span class="math display">\[
+d_{\text{single}}(A,B)=\min_{i\in A,j\in B}d(\mathbf{x}_i,\mathbf{x}_j),
+\]</span></p>
+<p><span class="math display">\[
+d_{\text{complete}}(A,B)=\max_{i\in A,j\in B}d(\mathbf{x}_i,\mathbf{x}_j),
+\]</span></p>
+<p><span class="math display">\[
+d_{\text{average}}(A,B)
+=\frac{1}{|A||B|}\sum_{i\in A}\sum_{j\in B}d(\mathbf{x}_i,\mathbf{x}_j).
+\]</span></p>
+<p>Single linkage asks whether <strong>any</strong> pair connects the clusters and can recover elongated shapes, but it can chain groups together through a thin bridge. Complete linkage controls the worst pairwise separation and tends to form compact groups, but it is sensitive to extreme points. Average linkage is a compromise. Ward linkage is specialized to squared Euclidean geometry and merges the pair causing the smallest increase in within-cluster sum of squares:</p>
+<p><span class="math display">\[
+\Delta(A,B)
+=\frac{|A||B|}{|A|+|B|}
+\left\lVert\boldsymbol\mu_A-\boldsymbol\mu_B\right\rVert_2^2.
+\]</span></p>
+<p>The size factor prevents a merge decision from depending only on centroid distance. Ward’s method is often K-Means-like in its preference for compact groups, whereas single linkage expresses connectivity.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linkage-dendrogram.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Linkage criteria and the interpretation of a dendrogram cut."><img src="assets/linkage-dendrogram.svg" class="img-fluid figure-img" alt="The diagram compares single, complete, average, and Ward linkage, then shows a dendrogram whose horizontal cut creates a flat partition."></a></p>
+<figcaption>Linkage criteria and the interpretation of a dendrogram cut.</figcaption>
+</figure>
+</div>
+</div>
+<p>A <strong>dendrogram</strong> plots the sequence of merges. Leaves are observations or preliminary groups, and the vertical position of a merge records its linkage dissimilarity. Cutting the tree horizontally gives a flat partition. The left-to-right order of leaves is not a one-dimensional measurement, and the merge height is not a probability or confidence level. A large vertical gap can suggest a stable resolution, but it does not prove that the corresponding groups are substantively real.</p>
+<p>Straightforward hierarchical clustering stores an <span class="math inline">\(n\times n\)</span> dissimilarity structure, so memory can become <span class="math inline">\(O(n^2)\)</span>. This makes it attractive for exploratory analysis of moderate samples, but unsuitable for millions of observations without approximation, connectivity constraints, or prior compression.</p>
+<details>
+<summary>
+<strong>Python: inspect merge history under different linkages</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.cluster.hierarchy <span class="im">import</span> linkage, fcluster</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_blobs(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">60</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">3</span>, <span class="dv">0</span>), (<span class="dv">0</span>, <span class="dv">0</span>), (<span class="dv">3</span>, <span class="dv">0</span>)],</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.35</span>, <span class="fl">0.85</span>, <span class="fl">0.35</span>],</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> method <span class="kw">in</span> [<span class="st">"single"</span>, <span class="st">"complete"</span>, <span class="st">"average"</span>, <span class="st">"ward"</span>]:</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Each row of Z is: left child, right child, merge height, merged size.</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    Z <span class="op">=</span> linkage(X, method<span class="op">=</span>method, metric<span class="op">=</span><span class="st">"euclidean"</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> fcluster(Z, t<span class="op">=</span><span class="dv">3</span>, criterion<span class="op">=</span><span class="st">"maxclust"</span>) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    last_merges <span class="op">=</span> np.<span class="bu">round</span>(Z[<span class="op">-</span><span class="dv">3</span>:, <span class="dv">2</span>], <span class="dv">3</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>method<span class="sc">:8s}</span><span class="ss">"</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"last merge heights:"</span>, last_merges.tolist(),</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The external synthetic labels make the linkage differences visible in this controlled example. In an unlabeled application, compare dendrogram structure, sensitivity to scaling and linkage, cluster stability, and domain interpretation rather than selecting the most visually pleasing tree.</p>
+</section>
+</section>
+<section id="density-based-clustering" class="level3">
+<h3 class="anchored" data-anchor-id="density-based-clustering"><strong>Density-Based Clustering</strong></h3>
+<p>Density-based methods define a cluster as a region containing many nearby observations, separated from other such regions by sparse space. Unlike K-Means, they can recover non-convex groups and can leave observations unassigned as noise. The price is that density must be defined relative to a neighbourhood scale and a minimum amount of local support.</p>
+<section id="dbscan" class="level4">
+<h4 class="anchored" data-anchor-id="dbscan"><strong>DBSCAN</strong></h4>
+<p>DBSCAN uses two principal hyperparameters:</p>
+<ul>
+<li><span class="math inline">\(\varepsilon\)</span> (<code>eps</code>) is the neighbourhood radius;</li>
+<li><code>min_samples</code> is the minimum number of observations, including the point itself, required for a dense neighbourhood.</li>
+</ul>
+<p>The <span class="math inline">\(\varepsilon\)</span>-neighbourhood of point <span class="math inline">\(\mathbf{x}_i\)</span> is</p>
+<p><span class="math display">\[
+N_{\varepsilon}(\mathbf{x}_i)
+=\{\mathbf{x}_j:d(\mathbf{x}_i,\mathbf{x}_j)\leq\varepsilon\}.
+\]</span></p>
+<p>A <strong>core point</strong> satisfies <span class="math inline">\(|N_{\varepsilon}(\mathbf{x}_i)|\geq m\)</span>, where <span class="math inline">\(m\)</span> is <code>min_samples</code>. A <strong>border point</strong> has too few neighbours to be core but lies in a core point’s neighbourhood. A <strong>noise point</strong> is neither core nor density-reachable from one. Clusters are maximal sets connected through chains of core neighbourhoods, with reachable border points attached.</p>
+<pre class="text"><code>Mark every observation unvisited.
+For each unvisited observation x:
+    find its epsilon-neighbourhood
+    if x is not a core point, provisionally mark it as noise
+    otherwise start a new cluster and expand it through core neighbours
+        add every density-reachable core point
+        attach border points encountered during expansion</code></pre>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dbscan-core-border-noise.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Core, border, and noise points in DBSCAN."><img src="assets/dbscan-core-border-noise.svg" class="img-fluid figure-img" alt="A neighbourhood circle illustrates a core point with sufficient neighbours, a border point reachable from the dense region, and an isolated noise point."></a></p>
+<figcaption>Core, border, and noise points in DBSCAN.</figcaption>
+</figure>
+</div>
+</div>
+<p>A smaller <code>eps</code> fragments clusters and marks more points as noise. A larger <code>eps</code> joins regions and may bridge distinct clusters. Increasing <code>min_samples</code> demands stronger density support. A sorted distance to each point’s <span class="math inline">\(k\)</span>-th nearest neighbour can reveal candidate scales, but an apparent elbow is only a diagnostic and may not exist when densities vary.</p>
+<p>With a spatial index, neighbourhood queries can be efficient in low dimensions. In high dimensions, distances concentrate and tree indexes deteriorate; DBSCAN can approach quadratic work or memory. Scaling, metric choice, duplicates, and sample density all matter.</p>
+<details>
+<summary>
+<strong>Python: recover curved clusters and identify noise with DBSCAN</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">500</span>, noise<span class="op">=</span><span class="fl">0.065</span>, random_state<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">13</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>background_noise <span class="op">=</span> rng.uniform(low<span class="op">=</span>[<span class="op">-</span><span class="fl">1.5</span>, <span class="op">-</span><span class="fl">1.0</span>], high<span class="op">=</span>[<span class="fl">2.5</span>, <span class="fl">1.5</span>], size<span class="op">=</span>(<span class="dv">35</span>, <span class="dv">2</span>))</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.vstack([X, background_noise])</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> DBSCAN(eps<span class="op">=</span><span class="fl">0.18</span>, min_samples<span class="op">=</span><span class="dv">8</span>).fit_predict(X)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>core_mask <span class="op">=</span> labels <span class="op">!=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>cluster_count <span class="op">=</span> <span class="bu">len</span>(<span class="bu">set</span>(labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> labels <span class="cf">else</span> <span class="dv">0</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"clusters:"</span>, cluster_count)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"noise observations:"</span>, <span class="bu">int</span>((labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()))</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co"># ARI is calculated only on the generated moon observations.</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"synthetic moon ARI:"</span>,</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels[: <span class="bu">len</span>(synthetic_truth)]), <span class="dv">3</span>),</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"assigned fraction:"</span>, <span class="bu">round</span>(core_mask.mean(), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The label <code>-1</code> means noise, not automatically bad data. A rare but valid event, a transition between regimes, and a measurement error can all receive that label. Interpretation requires returning to the original records.</p>
+</section>
+<section id="hdbscan-and-variable-density" class="level4">
+<h4 class="anchored" data-anchor-id="hdbscan-and-variable-density"><strong>HDBSCAN and Variable Density</strong></h4>
+<p>One global <span class="math inline">\(\varepsilon\)</span> cannot simultaneously preserve a sparse cluster and avoid merging a dense cluster with its surroundings. HDBSCAN addresses this by building a hierarchy over density scales rather than selecting one radius at the beginning.</p>
+<p>For a chosen <code>min_samples</code>, the <strong>core distance</strong> of point <span class="math inline">\(\mathbf{x}\)</span> is the distance to its <code>min_samples</code>-th nearest neighbour. HDBSCAN defines mutual-reachability distance</p>
+<p><span class="math display">\[
+d_{\text{mr}}(\mathbf{x}_i,\mathbf{x}_j)
+=\max\left\{
+d_{\text{core}}(\mathbf{x}_i),
+d_{\text{core}}(\mathbf{x}_j),
+d(\mathbf{x}_i,\mathbf{x}_j)
+\right\}.
+\]</span></p>
+<p>This stretches distances around isolated points while preserving distances inside dense regions. HDBSCAN then:</p>
+<ol type="1">
+<li>builds a minimum spanning tree under mutual-reachability distance;</li>
+<li>converts edge removals across density levels into a cluster hierarchy;</li>
+<li>condenses branches smaller than <code>min_cluster_size</code>;</li>
+<li>selects clusters that persist over a large density interval.</li>
+</ol>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hdbscan-stability-tree.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="How HDBSCAN converts variable-density data into a stability hierarchy."><img src="assets/hdbscan-stability-tree.svg" class="img-fluid figure-img" alt="A flow diagram shows core distances, mutual-reachability edges, a minimum spanning tree, a condensed hierarchy, and stable cluster selection."></a></p>
+<figcaption>How HDBSCAN converts variable-density data into a stability hierarchy.</figcaption>
+</figure>
+</div>
+</div>
+<p><code>min_cluster_size</code> expresses the smallest group worth retaining. <code>min_samples</code> controls how conservative the density estimate is; larger values generally label more points as noise. HDBSCAN reduces dependence on one radius, but it does not eliminate modelling choices or guarantee recovery of every variable-density structure.</p>
+<details>
+<summary>
+<strong>Python: compare one-scale DBSCAN with hierarchical density clustering</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN, HDBSCAN</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># The left group is dense; the right group is much more diffuse.</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_blobs(</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span>[<span class="dv">260</span>, <span class="dv">340</span>],</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="fl">3.0</span>, <span class="fl">0.0</span>), (<span class="fl">3.0</span>, <span class="fl">0.0</span>)],</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.22</span>, <span class="fl">1.15</span>],</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">21</span>,</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> eps <span class="kw">in</span> [<span class="fl">0.10</span>, <span class="fl">0.18</span>, <span class="fl">0.30</span>]:</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> DBSCAN(eps<span class="op">=</span>eps, min_samples<span class="op">=</span><span class="dv">10</span>).fit_predict(X)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    clusters <span class="op">=</span> <span class="bu">len</span>(<span class="bu">set</span>(labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> labels <span class="cf">else</span> <span class="dv">0</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"DBSCAN eps=</span><span class="sc">{</span>eps<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"clusters="</span>, clusters,</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"noise="</span>, <span class="bu">int</span>((labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()),</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ARI="</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>hdbscan_labels <span class="op">=</span> HDBSCAN(min_cluster_size<span class="op">=</span><span class="dv">35</span>, min_samples<span class="op">=</span><span class="dv">10</span>).fit_predict(X)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"HDBSCAN       "</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"clusters="</span>, <span class="bu">len</span>(<span class="bu">set</span>(hdbscan_labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> hdbscan_labels <span class="cf">else</span> <span class="dv">0</span>),</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"noise="</span>, <span class="bu">int</span>((hdbscan_labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()),</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ARI="</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, hdbscan_labels), <span class="dv">3</span>),</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>DBSCAN remains an excellent interpretable baseline when one density scale is meaningful. HDBSCAN is preferable when meaningful groups persist at different density levels and a hierarchy plus noise assignments is useful.</p>
+</section>
+</section>
+<section id="spectral-clustering" class="level3">
+<h3 class="anchored" data-anchor-id="spectral-clustering"><strong>Spectral Clustering</strong></h3>
+<p>Spectral clustering converts observations into a weighted graph. Each observation is a node, and an edge weight <span class="math inline">\(w_{ij}\)</span> expresses similarity. Clustering then seeks weakly connected graph regions rather than compact regions around Euclidean centroids. This makes non-convex structures accessible after an appropriate graph embedding.</p>
+<p>Let <span class="math inline">\(\mathbf W\)</span> be the symmetric affinity matrix and let the degree matrix be diagonal with</p>
+<p><span class="math display">\[
+D_{ii}=\sum_j W_{ij}.
+\]</span></p>
+<p>The unnormalized graph Laplacian is <span class="math inline">\(\mathbf L=\mathbf D-\mathbf W\)</span>. A common normalized form is</p>
+<p><span class="math display">\[
+\mathbf L_{\text{sym}}
+=\mathbf I-\mathbf D^{-1/2}\mathbf W\mathbf D^{-1/2}.
+\]</span></p>
+<p>The smallest-eigenvalue eigenvectors vary slowly across strong graph edges. Using several of them as coordinates maps strongly connected nodes close together. K-Means in that <strong>spectral embedding</strong> can then implement an approximate graph cut that was nonlinear in the original coordinates.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/spectral-graph-embedding.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="The graph construction, Laplacian embedding, and final partition stages of spectral clustering."><img src="assets/spectral-graph-embedding.svg" class="img-fluid figure-img" alt="Four stages show non-convex observations, a local affinity graph, low-frequency Laplacian eigenvectors, and a simple partition in spectral coordinates."></a></p>
+<figcaption>The graph construction, Laplacian embedding, and final partition stages of spectral clustering.</figcaption>
+</figure>
+</div>
+</div>
+<p>The algorithmic pipeline is:</p>
+<pre class="text"><code>Construct an affinity graph W from observations.
+Compute a graph Laplacian L from W and its degree matrix D.
+Extract eigenvectors associated with the smallest relevant eigenvalues.
+Treat each row of those eigenvectors as an embedded observation.
+Cluster the embedded rows, commonly with K-Means.</code></pre>
+<p>The affinity graph is the main modelling decision. An RBF affinity</p>
+<p><span class="math display">\[
+w_{ij}=\exp(-\gamma\lVert\mathbf{x}_i-\mathbf{x}_j\rVert_2^2)
+\]</span></p>
+<p>connects all pairs with rapidly decaying weights. A <span class="math inline">\(k\)</span>-nearest-neighbour graph is sparse and emphasizes local structure. If the graph is disconnected, too dense, or dominated by noisy features, the eigenvectors faithfully encode the wrong graph.</p>
+<p>Storing dense affinities costs <span class="math inline">\(O(n^2)\)</span> memory, and eigendecomposition can dominate computation. Sparse neighbour graphs and approximate eigensolvers help, but spectral clustering is generally less scalable than K-Means. It also requires the number of clusters unless an eigengap or downstream criterion provides a defensible choice.</p>
+<details>
+<summary>
+<strong>Python: compare centroid and graph-based clustering on two moons</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans, SpectralClustering</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">600</span>, noise<span class="op">=</span><span class="fl">0.07</span>, random_state<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>kmeans_labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">8</span>).fit_predict(X)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>spectral_labels <span class="op">=</span> SpectralClustering(</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    n_clusters<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    affinity<span class="op">=</span><span class="st">"nearest_neighbors"</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    n_neighbors<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    assign_labels<span class="op">=</span><span class="st">"kmeans"</span>,</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    n_init<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>).fit_predict(X)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"K-Means synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, kmeans_labels), <span class="dv">3</span>))</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Spectral synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, spectral_labels), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Spectral clustering succeeds here because local connectivity matches the generator’s curved geometry. This is not universal superiority: on large, compact blobs, K-Means is simpler, faster, and usually the better engineering choice.</p>
+</section>
+<section id="mixture-models-and-em" class="level3">
+<h3 class="anchored" data-anchor-id="mixture-models-and-em"><strong>Mixture Models and EM</strong></h3>
+<p>A mixture model assumes that each observation was generated by one of several latent probability components. Unlike K-Means, it describes an explicit density and can report uncertainty about component membership. A component is a mathematical part of the density; calling it a real-world cluster requires additional interpretation.</p>
+<section id="gaussian-mixture-models" class="level4">
+<h4 class="anchored" data-anchor-id="gaussian-mixture-models"><strong>Gaussian Mixture Models</strong></h4>
+<p>A <span class="math inline">\(K\)</span>-component Gaussian mixture model (GMM) has density</p>
+<p><span class="math display">\[
+p(\mathbf{x})
+=\sum_{k=1}^{K}\pi_k
+\,\mathcal N(\mathbf{x}\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k),
+\]</span></p>
+<p>where <span class="math inline">\(\pi_k\geq0\)</span>, <span class="math inline">\(\sum_k\pi_k=1\)</span>, and each component has mean <span class="math inline">\(\boldsymbol\mu_k\)</span> and covariance <span class="math inline">\(\boldsymbol\Sigma_k\)</span>. The mixing weight <span class="math inline">\(\pi_k\)</span> is the prior probability of selecting component <span class="math inline">\(k\)</span>. The covariance controls orientation, scale, and correlation, so full-covariance GMMs can express elliptical groups that K-Means cannot.</p>
+<p>Covariance constraints trade flexibility for statistical and computational stability:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Covariance type</th>
+<th>Assumption</th>
+<th>Consequence</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Spherical</td>
+<td>One variance per component</td>
+<td>Round components, few parameters</td>
+</tr>
+<tr class="even">
+<td>Diagonal</td>
+<td>Feature independence within each component</td>
+<td>Axis-aligned ellipses</td>
+</tr>
+<tr class="odd">
+<td>Tied</td>
+<td>All components share one full covariance</td>
+<td>Different means, common shape</td>
+</tr>
+<tr class="even">
+<td>Full</td>
+<td>One unrestricted covariance per component</td>
+<td>Flexible but data-hungry</td>
+</tr>
+</tbody>
+</table>
+<p>K-Means can be viewed as a limiting hard-assignment case of equally weighted spherical Gaussian components with a common variance approaching zero. A GMM is more expressive, but additional flexibility increases sensitivity to initialization and overfitting.</p>
+</section>
+<section id="expectation-maximization" class="level4">
+<h4 class="anchored" data-anchor-id="expectation-maximization"><strong>Expectation-Maximization</strong></h4>
+<p>If the latent component labels <span class="math inline">\(z_i\)</span> were known, parameter estimation would be straightforward. If the parameters were known, component probabilities would be straightforward. <strong>Expectation-Maximization (EM)</strong> alternates these two easier problems.</p>
+<p>In the E-step, compute the responsibility of component <span class="math inline">\(k\)</span> for observation <span class="math inline">\(i\)</span>:</p>
+<p><span class="math display">\[
+\gamma_{ik}
+=P(z_i=k\mid\mathbf{x}_i)
+=\frac{\pi_k\mathcal N(\mathbf{x}_i\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k)}
+{\sum_{j=1}^{K}\pi_j\mathcal N(\mathbf{x}_i\mid\boldsymbol\mu_j,\boldsymbol\Sigma_j)}.
+\]</span></p>
+<p>The denominator normalizes the component scores, so <span class="math inline">\(\sum_k\gamma_{ik}=1\)</span>. In the M-step, let <span class="math inline">\(N_k=\sum_i\gamma_{ik}\)</span> and update</p>
+<p><span class="math display">\[
+\pi_k=\frac{N_k}{n},
+\qquad
+\boldsymbol\mu_k
+=\frac{1}{N_k}\sum_i\gamma_{ik}\mathbf{x}_i,
+\]</span></p>
+<p><span class="math display">\[
+\boldsymbol\Sigma_k
+=\frac{1}{N_k}\sum_i\gamma_{ik}
+(\mathbf{x}_i-\boldsymbol\mu_k)(\mathbf{x}_i-\boldsymbol\mu_k)^\top.
+\]</span></p>
+<p>These are weighted estimates: an observation contributes to every component in proportion to its responsibility. EM does not decrease the observed-data log-likelihood, but it can converge to a local optimum. Multiple starts, covariance regularization, and held-out evaluation are therefore important.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/gmm-em-soft-membership.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="Soft membership and the E-step/M-step cycle in a Gaussian mixture model."><img src="assets/gmm-em-soft-membership.svg" class="img-fluid figure-img" alt="Overlapping Gaussian components give an ambiguous point two responsibilities, while a loop alternates responsibility calculation and weighted parameter updates."></a></p>
+<figcaption>Soft membership and the E-step/M-step cycle in a Gaussian mixture model.</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python: implement EM for a one-dimensional Gaussian mixture</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> logsumexp</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">5</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">2.0</span>, <span class="fl">0.65</span>, size<span class="op">=</span><span class="dv">220</span>),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">2.5</span>, <span class="fl">1.10</span>, size<span class="op">=</span><span class="dv">280</span>),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>means <span class="op">=</span> np.array([<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>])</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>variances <span class="op">=</span> np.array([<span class="fl">1.0</span>, <span class="fl">1.0</span>])</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.5</span>])</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>log_likelihoods <span class="op">=</span> []</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">100</span>):</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># E-step in log space prevents numerical underflow.</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    log_components <span class="op">=</span> []</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> weight, mean, variance <span class="kw">in</span> <span class="bu">zip</span>(weights, means, variances):</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        log_density <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>            np.log(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> variance) <span class="op">+</span> (X <span class="op">-</span> mean) <span class="op">**</span> <span class="dv">2</span> <span class="op">/</span> variance</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        log_components.append(np.log(weight) <span class="op">+</span> log_density)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    log_components <span class="op">=</span> np.column_stack(log_components)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    log_normalizer <span class="op">=</span> logsumexp(log_components, axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    responsibilities <span class="op">=</span> np.exp(log_components <span class="op">-</span> log_normalizer)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    log_likelihoods.append(<span class="bu">float</span>(log_normalizer.<span class="bu">sum</span>()))</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    <span class="co"># M-step: update parameters with responsibility-weighted statistics.</span></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    effective_counts <span class="op">=</span> responsibilities.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    weights <span class="op">=</span> effective_counts <span class="op">/</span> <span class="bu">len</span>(X)</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    means <span class="op">=</span> (responsibilities <span class="op">*</span> X[:, <span class="va">None</span>]).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>) <span class="op">/</span> effective_counts</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    variances <span class="op">=</span> (</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>        responsibilities <span class="op">*</span> (X[:, <span class="va">None</span>] <span class="op">-</span> means) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    ).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>) <span class="op">/</span> effective_counts</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    variances <span class="op">=</span> np.maximum(variances, <span class="fl">1e-6</span>)</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"weights:"</span>, np.<span class="bu">round</span>(weights, <span class="dv">3</span>))</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"means:"</span>, np.<span class="bu">round</span>(means, <span class="dv">3</span>))</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"standard deviations:"</span>, np.<span class="bu">round</span>(np.sqrt(variances), <span class="dv">3</span>))</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"likelihood never decreased:"</span>, <span class="bu">bool</span>(np.<span class="bu">all</span>(np.diff(log_likelihoods) <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-8</span>)))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="soft-cluster-membership" class="level4">
+<h4 class="anchored" data-anchor-id="soft-cluster-membership"><strong>Soft Cluster Membership</strong></h4>
+<p>Responsibilities quantify ambiguity under the fitted model. A point near one component centre may have <span class="math inline">\((0.99,0.01)\)</span> membership, while a point in an overlap may have <span class="math inline">\((0.52,0.48)\)</span>. This supports risk-aware decisions and reveals uncertain boundaries that hard labels hide.</p>
+<p>The number of components can be compared using held-out log-likelihood or information criteria. The Bayesian information criterion is</p>
+<p><span class="math display">\[
+\operatorname{BIC}
+=-2\log p(\mathbf X\mid\widehat\theta)+q\log n,
+\]</span></p>
+<p>where <span class="math inline">\(q\)</span> is the number of free parameters. Lower BIC balances fit against complexity. It selects a useful density model under assumptions; it does not discover an ontologically true number of social, biological, or behavioral groups.</p>
+<details>
+<summary>
+<strong>Python: inspect soft membership and select component count with BIC</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.mixture <span class="im">import</span> GaussianMixture</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">700</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">3</span>, <span class="dv">0</span>), (<span class="dv">0</span>, <span class="fl">0.5</span>), (<span class="dv">3</span>, <span class="dv">0</span>)],</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.25</span>, <span class="fl">0.8</span>],</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> []</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> components <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> GaussianMixture(</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>        n_components<span class="op">=</span>components,</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        covariance_type<span class="op">=</span><span class="st">"full"</span>,</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        n_init<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        reg_covar<span class="op">=</span><span class="fl">1e-6</span>,</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    ).fit(X)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    candidates.append((model.bic(X), model))</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>best_bic, best_model <span class="op">=</span> <span class="bu">min</span>(candidates, key<span class="op">=</span><span class="kw">lambda</span> item: item[<span class="dv">0</span>])</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>probabilities <span class="op">=</span> best_model.predict_proba(X)</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>uncertainty <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> probabilities.<span class="bu">max</span>(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>most_ambiguous <span class="op">=</span> np.argsort(uncertainty)[<span class="op">-</span><span class="dv">5</span>:][::<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected components:"</span>, best_model.n_components)</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"BIC:"</span>, <span class="bu">round</span>(best_bic, <span class="dv">1</span>))</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"five largest uncertainties:"</span>, np.<span class="bu">round</span>(uncertainty[most_ambiguous], <span class="dv">3</span>))</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"their memberships:</span><span class="ch">\n</span><span class="st">"</span>, np.<span class="bu">round</span>(probabilities[most_ambiguous], <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Mixture component numbers are not stable semantic names: component labels can permute without changing the density, and one irregular real-world group may require several Gaussian components. Interpret probabilities as model-based responsibilities rather than ground-truth class probabilities.</p>
+</section>
+</section>
+<section id="density-estimation" class="level3">
+<h3 class="anchored" data-anchor-id="density-estimation"><strong>Density Estimation</strong></h3>
+<p>Density estimation seeks a function <span class="math inline">\(\widehat p(\mathbf{x})\)</span> that describes how probability mass is distributed through the feature space. It supports likelihood-based comparison, simulation, missing-data models, anomaly scores, and probabilistic components. It is a different goal from clustering: a smooth unimodal density may have no meaningful partition, while one substantive group may require a multimodal density.</p>
+<p>A density value is not the probability of observing exactly <span class="math inline">\(\mathbf{x}\)</span>. For continuous data, that probability is zero. Probability is obtained by integrating density over a region <span class="math inline">\(A\)</span>:</p>
+<p><span class="math display">\[
+P(\mathbf X\in A)=\int_A p(\mathbf{x})\,d\mathbf{x}.
+\]</span></p>
+<p>Density also depends on units. Changing metres to centimetres changes numerical density values because the volume element changes, although probabilities for corresponding physical regions remain the same. Compare log density only under a consistent representation and measure.</p>
+<section id="parametric-density-models" class="level4">
+<h4 class="anchored" data-anchor-id="parametric-density-models"><strong>Parametric Density Models</strong></h4>
+<p>A parametric model assumes that the density belongs to a family indexed by a fixed-dimensional parameter <span class="math inline">\(\theta\)</span>. A multivariate Gaussian, for example, uses a mean vector and covariance matrix:</p>
+<p><span class="math display">\[
+p(\mathbf{x})
+=\frac{1}{(2\pi)^{d/2}|\boldsymbol\Sigma|^{1/2}}
+\exp\left[-\frac{1}{2}
+(\mathbf{x}-\boldsymbol\mu)^\top
+\boldsymbol\Sigma^{-1}
+(\mathbf{x}-\boldsymbol\mu)
+\right].
+\]</span></p>
+<p>The quadratic term is squared Mahalanobis distance. The determinant <span class="math inline">\(|\boldsymbol\Sigma|\)</span> normalizes for the volume and orientation of the covariance ellipsoid. A single Gaussian is statistically efficient when the shape is plausible, but it cannot represent separated modes or strongly non-elliptical support. Gaussian mixtures add modes at the cost of more parameters and local optimization.</p>
+<p>Maximum likelihood selects parameters that maximize</p>
+<p><span class="math display">\[
+\ell(\theta)=\sum_{i=1}^{n}\log p(\mathbf{x}_i\mid\theta).
+\]</span></p>
+<p>Evaluate density models on held-out observations. Training likelihood can always reward excess flexibility, including a Gaussian component collapsing around a point unless covariance is regularized.</p>
+</section>
+<section id="kernel-density-estimation" class="level4">
+<h4 class="anchored" data-anchor-id="kernel-density-estimation"><strong>Kernel Density Estimation</strong></h4>
+<p>Kernel density estimation (KDE) places a smooth kernel around every observation and averages them:</p>
+<p><span class="math display">\[
+\widehat p_h(\mathbf{x})
+=\frac{1}{nh^d}\sum_{i=1}^{n}
+K\left(\frac{\mathbf{x}-\mathbf{x}_i}{h}\right).
+\]</span></p>
+<p>Here <span class="math inline">\(K\)</span> is a non-negative kernel integrating to one, <span class="math inline">\(h&gt;0\)</span> is the bandwidth, and <span class="math inline">\(h^d\)</span> accounts for the rescaled <span class="math inline">\(d\)</span>-dimensional volume. With a Gaussian kernel, KDE becomes a mixture of equal-covariance Gaussians centred on every observation.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kde-bandwidth-bias-variance.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="How KDE bandwidth controls under-smoothing and over-smoothing."><img src="assets/kde-bandwidth-bias-variance.svg" class="img-fluid figure-img" alt="The same sample is shown with a small bandwidth producing noisy spikes, a moderate bandwidth preserving broad modes, and a large bandwidth merging structure."></a></p>
+<figcaption>How KDE bandwidth controls under-smoothing and over-smoothing.</figcaption>
+</figure>
+</div>
+</div>
+<p>Bandwidth matters much more than the exact smooth kernel shape. A small <span class="math inline">\(h\)</span> creates low bias but high variance and can interpret sampling noise as modes. A large <span class="math inline">\(h\)</span> creates a stable but biased estimate that can erase meaningful modes. Cross-validated held-out log-likelihood is a defensible selector when density prediction is the objective.</p>
+<p>KDE suffers acutely from the <strong>curse of dimensionality</strong>. The volume of a neighbourhood grows as <span class="math inline">\(h^d\)</span>, so maintaining local resolution requires exponentially more observations as <span class="math inline">\(d\)</span> increases. Irrelevant features further dilute neighbourhoods. Dimension reduction can help only if it preserves the density features relevant to the task and its transformation is accounted for.</p>
+<details>
+<summary>
+<strong>Python: compare a Gaussian model with KDE on bimodal data</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> KernelDensity</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">14</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">2.2</span>, <span class="fl">0.45</span>, size<span class="op">=</span><span class="dv">450</span>),</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">2.0</span>, <span class="fl">0.85</span>, size<span class="op">=</span><span class="dv">550</span>),</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>])[:, <span class="va">None</span>]</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>X_train, X_test <span class="op">=</span> train_test_split(X, test_size<span class="op">=</span><span class="fl">0.35</span>, random_state<span class="op">=</span><span class="dv">14</span>)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Maximum-likelihood parameters for one univariate Gaussian.</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>mean <span class="op">=</span> X_train.mean()</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>variance <span class="op">=</span> X_train.var()</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>gaussian_log_density <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    np.log(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> variance) <span class="op">+</span> (X_test[:, <span class="dv">0</span>] <span class="op">-</span> mean) <span class="op">**</span> <span class="dv">2</span> <span class="op">/</span> variance</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>kde <span class="op">=</span> KernelDensity(kernel<span class="op">=</span><span class="st">"gaussian"</span>, bandwidth<span class="op">=</span><span class="fl">0.35</span>).fit(X_train)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>kde_log_density <span class="op">=</span> kde.score_samples(X_test)</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"single Gaussian mean test log density:"</span>, <span class="bu">round</span>(gaussian_log_density.mean(), <span class="dv">3</span>))</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"KDE mean test log density:"</span>, <span class="bu">round</span>(kde_log_density.mean(), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+<strong>Python: select KDE bandwidth using cross-validated likelihood</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> GridSearchCV, KFold</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> KernelDensity</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">30</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">1.5</span>, <span class="fl">0.35</span>, size<span class="op">=</span><span class="dv">220</span>),</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">1.3</span>, <span class="fl">0.70</span>, size<span class="op">=</span><span class="dv">280</span>),</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>])[:, <span class="va">None</span>]</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>bandwidths <span class="op">=</span> np.geomspace(<span class="fl">0.05</span>, <span class="fl">1.5</span>, <span class="dv">18</span>)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>search <span class="op">=</span> GridSearchCV(</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    KernelDensity(kernel<span class="op">=</span><span class="st">"gaussian"</span>),</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    param_grid<span class="op">=</span>{<span class="st">"bandwidth"</span>: bandwidths},</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    cv<span class="op">=</span>KFold(n_splits<span class="op">=</span><span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">30</span>),</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>search.fit(X)</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected bandwidth:"</span>, <span class="bu">round</span>(search.best_params_[<span class="st">"bandwidth"</span>], <span class="dv">3</span>))</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean validation log-likelihood:"</span>, <span class="bu">round</span>(search.best_score_, <span class="dv">2</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The <code>GridSearchCV</code> score is total log-likelihood on a validation fold, so its magnitude depends on fold size. It is suitable for ranking bandwidths under the same split, not for comparison across arbitrary datasets.</p>
+</section>
+</section>
+<section id="anomaly-and-novelty-detection" class="level3">
+<h3 class="anchored" data-anchor-id="anomaly-and-novelty-detection"><strong>Anomaly and Novelty Detection</strong></h3>
+<p>An <strong>anomaly score</strong> orders observations from more normal to more unusual under a specified model. Turning scores into binary alerts requires a threshold. This separation matters: a detector can rank rare events well while a poor threshold overwhelms analysts with false alerts.</p>
+<p>Two deployment settings should be distinguished:</p>
+<ul>
+<li><strong>Outlier detection</strong> fits a model to a training set that may already contain anomalies. Robustness to contamination is essential.</li>
+<li><strong>Novelty detection</strong> fits only or mostly on representative normal data, then scores future observations. Training anomalies can distort the learned normal region.</li>
+</ul>
+<p>An anomaly can be <strong>global</strong> (extreme relative to the whole sample), <strong>local</strong> (unusual only relative to nearby observations), <strong>contextual</strong> (unusual conditional on time, location, or subgroup), or <strong>collective</strong> (an unusual sequence even when individual values seem ordinary). No single point detector covers all four.</p>
+<section id="statistical-scores-and-local-outlier-factor" class="level4">
+<h4 class="anchored" data-anchor-id="statistical-scores-and-local-outlier-factor"><strong>Statistical Scores and Local Outlier Factor</strong></h4>
+<p>For approximately elliptical data, squared Mahalanobis distance provides a statistical score:</p>
+<p><span class="math display">\[
+s(\mathbf{x})
+=(\mathbf{x}-\widehat{\boldsymbol\mu})^\top
+\widehat{\boldsymbol\Sigma}^{-1}
+(\mathbf{x}-\widehat{\boldsymbol\mu}).
+\]</span></p>
+<p>It corrects for feature scale and correlation, unlike raw Euclidean distance. Classical mean and covariance estimates are themselves sensitive to anomalies, so robust covariance estimators may be necessary. The Gaussian assumption also makes one global ellipse unsuitable for multimodal normal data.</p>
+<p>Local Outlier Factor (LOF) asks whether a point has substantially lower local density than its neighbours. For neighbour <span class="math inline">\(o\)</span>, define reachability distance</p>
+<p><span class="math display">\[
+\operatorname{reach\_dist}_k(p,o)
+=\max\{d_k(o),d(p,o)\},
+\]</span></p>
+<p>where <span class="math inline">\(d_k(o)\)</span> is the distance from <span class="math inline">\(o\)</span> to its <span class="math inline">\(k\)</span>-th neighbour. The local reachability density is the inverse average reachability distance from <span class="math inline">\(p\)</span> to its neighbour set <span class="math inline">\(N_k(p)\)</span>:</p>
+<p><span class="math display">\[
+\operatorname{lrd}_k(p)
+=\left(
+\frac{1}{|N_k(p)|}
+\sum_{o\in N_k(p)}\operatorname{reach\_dist}_k(p,o)
+\right)^{-1}.
+\]</span></p>
+<p>LOF compares neighbour density with the point’s density:</p>
+<p><span class="math display">\[
+\operatorname{LOF}_k(p)
+=\frac{1}{|N_k(p)|}
+\sum_{o\in N_k(p)}
+\frac{\operatorname{lrd}_k(o)}{\operatorname{lrd}_k(p)}.
+\]</span></p>
+<p>Values near one indicate comparable local density; larger values suggest a local outlier. The neighbourhood size <span class="math inline">\(k\)</span> determines scale, and high-dimensional distance concentration can weaken the comparison.</p>
+</section>
+<section id="isolation-forest-and-one-class-svm" class="level4">
+<h4 class="anchored" data-anchor-id="isolation-forest-and-one-class-svm"><strong>Isolation Forest and One-Class SVM</strong></h4>
+<p>Isolation Forest uses random axis-aligned splits. An unusual observation tends to be isolated after fewer splits than a point embedded in a dense region. Averaging path lengths across randomized trees yields a scalable anomaly score without explicitly estimating density. It works well in many tabular settings but can be less effective when useful anomalies require oblique, sequence, or context-dependent structure.</p>
+<p>One-Class SVM learns a boundary around normal observations in a kernel feature space. With an RBF kernel, it can form a nonlinear normal region. The parameter <span class="math inline">\(\nu\)</span> controls a bound related to training errors and support vectors, while <span class="math inline">\(\gamma\)</span> controls kernel scale. Both the representation and feature scaling are critical; the method can be computationally expensive on large samples.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/anomaly-method-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="Global, local-density, isolation, and learned-boundary views of anomalies."><img src="assets/anomaly-method-map.svg" class="img-fluid figure-img" alt="Four panels compare Mahalanobis-style global distance, Local Outlier Factor, Isolation Forest random splits, and a One-Class SVM boundary."></a></p>
+<figcaption>Global, local-density, isolation, and learned-boundary views of anomalies.</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python: compare LOF, Isolation Forest, and One-Class SVM in novelty mode</strong>
+</summary>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.ensemble <span class="im">import</span> IsolationForest</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> roc_auc_score</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> LocalOutlierFactor</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.svm <span class="im">import</span> OneClassSVM</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">44</span>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit only on representative normal observations.</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>normal_train <span class="op">=</span> rng.normal(loc<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>], scale<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">0.45</span>], size<span class="op">=</span>(<span class="dv">700</span>, <span class="dv">2</span>))</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>normal_test <span class="op">=</span> rng.normal(loc<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>], scale<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">0.45</span>], size<span class="op">=</span>(<span class="dv">300</span>, <span class="dv">2</span>))</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>anomaly_test <span class="op">=</span> rng.uniform(low<span class="op">=</span>[<span class="op">-</span><span class="dv">6</span>, <span class="op">-</span><span class="dv">4</span>], high<span class="op">=</span>[<span class="dv">6</span>, <span class="dv">4</span>], size<span class="op">=</span>(<span class="dv">70</span>, <span class="dv">2</span>))</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>X_test <span class="op">=</span> np.vstack([normal_test, anomaly_test])</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>y_test <span class="op">=</span> np.r_[np.zeros(<span class="bu">len</span>(normal_test)), np.ones(<span class="bu">len</span>(anomaly_test))]</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> StandardScaler().fit(normal_train)</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>X_train_scaled <span class="op">=</span> scaler.transform(normal_train)</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>X_test_scaled <span class="op">=</span> scaler.transform(X_test)</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> {</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"LOF"</span>: LocalOutlierFactor(n_neighbors<span class="op">=</span><span class="dv">30</span>, novelty<span class="op">=</span><span class="va">True</span>).fit(X_train_scaled),</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Isolation Forest"</span>: IsolationForest(</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>        n_estimators<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">44</span>,</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>    ).fit(X_train_scaled),</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"One-Class SVM"</span>: OneClassSVM(kernel<span class="op">=</span><span class="st">"rbf"</span>, gamma<span class="op">=</span><span class="st">"scale"</span>, nu<span class="op">=</span><span class="fl">0.05</span>).fit(X_train_scaled),</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> models.items():</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># sklearn scores are larger for more normal observations, so negate them.</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>    anomaly_score <span class="op">=</span> <span class="op">-</span>model.score_samples(X_test_scaled)</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="st">"ROC AUC:"</span>, <span class="bu">round</span>(roc_auc_score(y_test, anomaly_score), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>ROC AUC measures ranking in this synthetic experiment and is threshold-independent. In deployment, alert precision, investigation capacity, missed-event cost, and delayed labels are usually more important than ROC AUC alone.</p>
+<details>
+<summary>
+<strong>Python: calibrate an alert threshold separately from model fitting</strong>
+</summary>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.ensemble <span class="im">import</span> IsolationForest</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">52</span>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>train_normal <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">1000</span>, <span class="dv">4</span>))</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>calibration_normal <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">500</span>, <span class="dv">4</span>))</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>future_batch <span class="op">=</span> np.vstack([</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(size<span class="op">=</span>(<span class="dv">195</span>, <span class="dv">4</span>)),</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    rng.normal(loc<span class="op">=</span><span class="fl">5.0</span>, scale<span class="op">=</span><span class="fl">0.5</span>, size<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">4</span>)),</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>detector <span class="op">=</span> IsolationForest(n_estimators<span class="op">=</span><span class="dv">300</span>, random_state<span class="op">=</span><span class="dv">52</span>).fit(train_normal)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>calibration_scores <span class="op">=</span> <span class="op">-</span>detector.score_samples(calibration_normal)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>future_scores <span class="op">=</span> <span class="op">-</span>detector.score_samples(future_batch)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a><span class="co"># This threshold targets a 1% alert rate on representative normal calibration data.</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>threshold <span class="op">=</span> np.quantile(calibration_scores, <span class="fl">0.99</span>)</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>alerts <span class="op">=</span> future_scores <span class="op">&gt;=</span> threshold</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"calibrated threshold:"</span>, <span class="bu">round</span>(threshold, <span class="dv">3</span>))</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"future alerts:"</span>, <span class="bu">int</span>(alerts.<span class="bu">sum</span>()), <span class="st">"of"</span>, <span class="bu">len</span>(alerts))</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"indices of largest scores:"</span>, np.argsort(future_scores)[<span class="op">-</span><span class="dv">8</span>:][::<span class="op">-</span><span class="dv">1</span>].tolist())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The quantile is an operational choice, not a guarantee that exactly one percent of future data are anomalous. Distribution shift can change the alert rate, so score distributions, alert volumes, and investigated outcomes should be monitored over time.</p>
+</section>
+</section>
+<section id="evaluating-unsupervised-structure" class="level3">
+<h3 class="anchored" data-anchor-id="evaluating-unsupervised-structure"><strong>Evaluating Unsupervised Structure</strong></h3>
+<p>Unsupervised evaluation is difficult because the target that would define correctness is absent. A good evaluation therefore combines several independent lenses rather than treating one scalar index as ground truth.</p>
+<section id="internal-external-and-stability-criteria" class="level4">
+<h4 class="anchored" data-anchor-id="internal-external-and-stability-criteria"><strong>Internal, External, and Stability Criteria</strong></h4>
+<p><strong>Internal criteria</strong> use the fitted representation, metric, and assignments. For observation <span class="math inline">\(i\)</span>, let <span class="math inline">\(a(i)\)</span> be its mean distance to its own cluster and <span class="math inline">\(b(i)\)</span> the smallest mean distance to another cluster. Its silhouette is</p>
+<p><span class="math display">\[
+s(i)=\frac{b(i)-a(i)}{\max\{a(i),b(i)\}},
+\qquad -1\leq s(i)\leq1.
+\]</span></p>
+<p>A high value means the observation is much closer to its assigned cluster than to the nearest alternative. The average silhouette rewards compact, separated clusters under the chosen distance. It tends to favor convex partitions and may penalize a scientifically valid curved or density-based structure.</p>
+<p>The Calinski-Harabasz index compares between-cluster to within-cluster dispersion; larger is preferred. The Davies-Bouldin index averages each cluster’s worst similarity to another cluster; smaller is preferred. All inherit assumptions from centroids and distances. They are diagnostics, not universal truth tests.</p>
+<p><strong>External criteria</strong> compare assignments with labels that were not used to fit the clusters. Adjusted Rand Index (ARI) measures pairwise agreement corrected for chance; Normalized Mutual Information (NMI) measures shared information. These can be valuable on simulated data or when independent expert categories exist. If labels are used repeatedly to select preprocessing, hyperparameters, and algorithms, the exercise has become supervised model selection and requires an untouched test set.</p>
+<p><strong>Stability criteria</strong> ask whether conclusions survive plausible perturbations: random initialization, bootstrap or subsampling, measurement noise, and modest hyperparameter changes. Because cluster names can permute, use label-invariant comparisons such as ARI or compare co-clustering matrices. A stable partition can still encode the wrong metric, while an unstable partition warns that substantive interpretation is fragile.</p>
+<p>Density models should also be judged by held-out log-likelihood, calibration of simulated summaries, or task-specific predictive checks. Anomaly detectors with labels need precision-recall curves, recall at investigation capacity, time-aware validation, and post-alert review. Ultimately, <strong>domain validity and downstream usefulness</strong> remain separate from geometric neatness.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unsupervised-evaluation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="A four-lens framework for evaluating unsupervised results."><img src="assets/unsupervised-evaluation.svg" class="img-fluid figure-img" alt="Candidate structure is evaluated through internal geometry, external agreement, perturbation stability, and domain or downstream usefulness."></a></p>
+<figcaption>A four-lens framework for evaluating unsupervised results.</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python: show that an internal score can prefer the wrong geometry</strong>
+</summary>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans, SpectralClustering</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score, silhouette_score</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">700</span>, noise<span class="op">=</span><span class="fl">0.08</span>, random_state<span class="op">=</span><span class="dv">61</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> {</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"K-Means"</span>: KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">61</span>),</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Spectral"</span>: SpectralClustering(</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>        n_clusters<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        affinity<span class="op">=</span><span class="st">"nearest_neighbors"</span>,</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        n_neighbors<span class="op">=</span><span class="dv">14</span>,</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>        n_init<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">61</span>,</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> models.items():</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> model.fit_predict(X)</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| Euclidean silhouette:"</span>, <span class="bu">round</span>(silhouette_score(X, labels), <span class="dv">3</span>),</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>The Euclidean silhouette evaluates compactness in the original coordinates, while the synthetic labels encode connectivity along each moon. A mismatch between the scores is expected because they ask different questions.</p>
+<details>
+<summary>
+<strong>Python: test assignment stability under small measurement perturbations</strong>
+</summary>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">600</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.0</span>, <span class="fl">0.8</span>, <span class="fl">1.2</span>],</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">71</span>,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>base_labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">4</span>, n_init<span class="op">=</span><span class="dv">30</span>, random_state<span class="op">=</span><span class="dv">71</span>).fit_predict(X)</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">71</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>stabilities <span class="op">=</span> []</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> repeat <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">30</span>):</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>    perturbed <span class="op">=</span> X <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.03</span>, size<span class="op">=</span>X.shape)</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">4</span>, n_init<span class="op">=</span><span class="dv">10</span>, random_state<span class="op">=</span>repeat).fit_predict(perturbed)</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>    stabilities.append(adjusted_rand_score(base_labels, labels))</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean perturbation stability:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.mean(stabilities)), <span class="dv">3</span>))</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"minimum perturbation stability:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.<span class="bu">min</span>(stabilities)), <span class="dv">3</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Perturbation scale should reflect plausible measurement uncertainty, not an arbitrary amount chosen after seeing the answer. Report the stability distribution and where assignments change, not only its mean.</p>
+</section>
+</section>
+<section id="choosing-an-unsupervised-method" class="level3">
+<h3 class="anchored" data-anchor-id="choosing-an-unsupervised-method"><strong>Choosing an Unsupervised Method</strong></h3>
+<p>Method selection should begin with the scientific or operational question. “Run clustering” is not yet a well-posed request. Specify what constitutes an observation, which variations should count as similar, whether every observation must belong to a group, and how the result will be used.</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unsupervised-method-selection.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="A decision map for selecting clustering, density, and anomaly methods."><img src="assets/unsupervised-method-selection.svg" class="img-fluid figure-img" alt="A decision flow starts from the desired output and routes centroid, connectivity, density, graph, probabilistic, and anomaly assumptions to suitable method families, followed by validation."></a></p>
+<figcaption>A decision map for selecting clustering, density, and anomaly methods.</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Strong starting point</th>
+<th>Why</th>
+<th>Diagnostic priority</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Large numeric data with compact groups</td>
+<td>K-Means or Mini-Batch K-Means</td>
+<td>Fast and interpretable centroid baseline</td>
+<td>Scaling, multiple starts, stability over <span class="math inline">\(K\)</span></td>
+</tr>
+<tr class="even">
+<td>Need nested structure at moderate <span class="math inline">\(n\)</span></td>
+<td>Agglomerative clustering</td>
+<td>Exposes several resolutions</td>
+<td>Linkage sensitivity and dendrogram cuts</td>
+</tr>
+<tr class="odd">
+<td>Irregular groups plus possible noise</td>
+<td>DBSCAN</td>
+<td>Encodes density connectivity directly</td>
+<td><code>eps</code>, <code>min_samples</code>, noise interpretation</td>
+</tr>
+<tr class="even">
+<td>Groups occur at varying densities</td>
+<td>HDBSCAN</td>
+<td>Selects persistent branches across scales</td>
+<td>Minimum cluster size and stability</td>
+</tr>
+<tr class="odd">
+<td>Similarity is naturally a graph</td>
+<td>Spectral clustering</td>
+<td>Uses connectivity rather than centroid geometry</td>
+<td>Affinity construction and scalability</td>
+</tr>
+<tr class="even">
+<td>Need soft assignments or a generative density</td>
+<td>Gaussian mixture</td>
+<td>Probabilistic membership and covariance structure</td>
+<td>Initialization, covariance type, held-out likelihood</td>
+</tr>
+<tr class="odd">
+<td>Need a smooth low-dimensional density</td>
+<td>KDE</td>
+<td>Flexible nonparametric estimate</td>
+<td>Bandwidth and held-out likelihood</td>
+</tr>
+<tr class="even">
+<td>Need unusual-observation ranking</td>
+<td>LOF, Isolation Forest, or One-Class SVM</td>
+<td>Different local, isolation, and boundary assumptions</td>
+<td>Time-aware validation and threshold costs</td>
+</tr>
+</tbody>
+</table>
+<p>A practical workflow is:</p>
+<ol type="1">
+<li><strong>Define the unit and purpose.</strong> Decide whether rows are people, sessions, documents, machines, or time windows, and what decision the output will support.</li>
+<li><strong>Construct a defensible representation.</strong> Handle units, skew, missingness, mixed types, and irrelevant features. Choose a metric whose changes have domain meaning.</li>
+<li><strong>Inspect simple baselines.</strong> Compare K-Means, a hierarchy, or a one-Gaussian density before introducing a flexible method.</li>
+<li><strong>Vary assumptions deliberately.</strong> Change scales, linkage, neighbourhood sizes, component counts, random seeds, and plausible preprocessing.</li>
+<li><strong>Evaluate through several lenses.</strong> Combine internal geometry, stability, held-out density, independent labels where legitimate, and domain review.</li>
+<li><strong>Inspect records, not only plots.</strong> Two-dimensional projections can distort high-dimensional neighbourhoods. Return to original features and representative examples.</li>
+<li><strong>Document uncertainty and noise.</strong> Avoid converting every algorithmic component into a confident semantic category.</li>
+</ol>
+<details>
+<summary>
+<strong>Python: create a compact, assumption-aware comparison report</strong>
+</summary>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN, KMeans</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> silhouette_score</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.mixture <span class="im">import</span> GaussianMixture</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">650</span>, noise<span class="op">=</span><span class="fl">0.08</span>, random_state<span class="op">=</span><span class="dv">90</span>)</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>candidate_labels <span class="op">=</span> {</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"K-Means"</span>: KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">30</span>, random_state<span class="op">=</span><span class="dv">90</span>).fit_predict(X),</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DBSCAN"</span>: DBSCAN(eps<span class="op">=</span><span class="fl">0.20</span>, min_samples<span class="op">=</span><span class="dv">9</span>).fit_predict(X),</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"GMM"</span>: GaussianMixture(n_components<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">10</span>, random_state<span class="op">=</span><span class="dv">90</span>).fit_predict(X),</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, labels <span class="kw">in</span> candidate_labels.items():</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    assigned <span class="op">=</span> labels <span class="op">!=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    unique_assigned <span class="op">=</span> np.unique(labels[assigned])</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Silhouette requires at least two assigned groups and excludes DBSCAN noise here.</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(unique_assigned) <span class="op">&gt;=</span> <span class="dv">2</span> <span class="kw">and</span> assigned.<span class="bu">sum</span>() <span class="op">&gt;</span> <span class="bu">len</span>(unique_assigned):</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>        silhouette <span class="op">=</span> silhouette_score(X[assigned], labels[assigned])</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>        silhouette <span class="op">=</span> np.nan</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:8s}</span><span class="ss">"</span>,</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"clusters="</span>, <span class="bu">len</span>(unique_assigned),</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">"noise_fraction="</span>, <span class="bu">round</span>(<span class="bu">float</span>((<span class="op">~</span>assigned).mean()), <span class="dv">3</span>),</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">"assigned_silhouette="</span>, <span class="bu">round</span>(<span class="bu">float</span>(silhouette), <span class="dv">3</span>),</span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>This report intentionally does not announce a winner. The silhouette uses Euclidean compactness and excludes DBSCAN noise, so it must be read together with the method’s assumptions and the records left unassigned. A fair report states such choices explicitly.</p>
+<p>The most important unsupervised habit is intellectual restraint. Algorithms will return clusters, scores, and density curves even when the sample contains weak, unstable, or irrelevant structure. The analyst’s job is not to force a story from every output, but to establish which conclusions survive alternative representations, methods, samples, and substantive scrutiny.</p>
+<p>Official implementations and worked comparisons are available in the <a href="https://scikit-learn.org/stable/modules/clustering.html">scikit-learn clustering guide</a>, <a href="https://scikit-learn.org/stable/modules/density.html">density-estimation guide</a>, and <a href="https://scikit-learn.org/stable/modules/outlier_detection.html">novelty and outlier detection guide</a>.</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","closeEffect":"zoom","loop":false,"descPosition":"bottom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

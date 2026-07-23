@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>自然语言处理：文本表示</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="03-text-representation_files/libs/clipboard/clipboard.min.js"></script>
+<script src="03-text-representation_files/libs/quarto-html/quarto.js"></script>
+<script src="03-text-representation_files/libs/quarto-html/popper.min.js"></script>
+<script src="03-text-representation_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="03-text-representation_files/libs/quarto-html/anchor.min.js"></script>
+<link href="03-text-representation_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="03-text-representation_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="03-text-representation_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="03-text-representation_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="03-text-representation_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#text-representation" id="toc-text-representation" class="nav-link active" data-scroll-target="#text-representation"><strong>文本表示</strong></a>
+  <ul>
+  <li><a href="#discrete-representationfrequency-based" id="toc-discrete-representationfrequency-based" class="nav-link" data-scroll-target="#discrete-representationfrequency-based"><strong>离散表示（基于频率）</strong></a>
+  <ul>
+  <li><a href="#one-hot-encoding" id="toc-one-hot-encoding" class="nav-link" data-scroll-target="#one-hot-encoding"><strong>One-Hot 编码</strong></a></li>
+  <li><a href="#bag-of-words-bow" id="toc-bag-of-words-bow" class="nav-link" data-scroll-target="#bag-of-words-bow"><strong>词袋模型（BoW）</strong></a></li>
+  <li><a href="#tf-idf" id="toc-tf-idf" class="nav-link" data-scroll-target="#tf-idf"><strong>TF-IDF</strong></a></li>
+  <li><a href="#bm-25okapi-best-matching-25" id="toc-bm-25okapi-best-matching-25" class="nav-link" data-scroll-target="#bm-25okapi-best-matching-25"><strong>BM25（Okapi Best Matching 25）</strong></a></li>
+  <li><a href="#vector-similarity" id="toc-vector-similarity" class="nav-link" data-scroll-target="#vector-similarity"><strong>向量相似度</strong></a></li>
+  </ul></li>
+  <li><a href="#distributed-representation-word-embedding-predic" id="toc-distributed-representation-word-embedding-predic" class="nav-link" data-scroll-target="#distributed-representation-word-embedding-predic"><strong>分布式表示（词嵌入与预测式表示）</strong></a>
+  <ul>
+  <li><a href="#word2vec" id="toc-word2vec" class="nav-link" data-scroll-target="#word2vec"><strong>Word2Vec</strong></a></li>
+  <li><a href="#glove" id="toc-glove" class="nav-link" data-scroll-target="#glove"><strong>GloVe</strong></a></li>
+  <li><a href="#fasttext" id="toc-fasttext" class="nav-link" data-scroll-target="#fasttext"><strong>FastText</strong></a></li>
+  <li><a href="#word-embedding-evaluation" id="toc-word-embedding-evaluation" class="nav-link" data-scroll-target="#word-embedding-evaluation"><strong>词嵌入评估</strong></a></li>
+  </ul></li>
+  <li><a href="#contextual-embedding" id="toc-contextual-embedding" class="nav-link" data-scroll-target="#contextual-embedding"><strong>上下文化嵌入</strong></a>
+  <ul>
+  <li><a href="#elmo-based-on-lstm" id="toc-elmo-based-on-lstm" class="nav-link" data-scroll-target="#elmo-based-on-lstm"><strong>ELMo（基于 LSTM）</strong></a></li>
+  <li><a href="#bert-based-on-transformer" id="toc-bert-based-on-transformer" class="nav-link" data-scroll-target="#bert-based-on-transformer"><strong>BERT（基于 Transformer）</strong></a></li>
+  <li><a href="#gpt" id="toc-gpt" class="nav-link" data-scroll-target="#gpt"><strong>GPT</strong></a></li>
+  </ul></li>
+  <li><a href="#summary-choosing-a-text-representation" id="toc-summary-choosing-a-text-representation" class="nav-link" data-scroll-target="#summary-choosing-a-text-representation"><strong>总结：如何选择文本表示</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">自然语言处理：文本表示</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/NLP/03-text-representation.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/NLP/Natural-Language-Processing.html">返回 NLP 总览</a>
+</p>
+<section id="text-representation" class="level2">
+<h2 class="anchored" data-anchor-id="text-representation"><strong>文本表示</strong></h2>
+<p>文本表示把离散语言符号转换成可计算对象。频率表示强调词是否出现及出现多少，分布式表示学习稠密语义空间，上下文化表示则让同一词在不同句子中获得不同向量。方法选择取决于任务、数据、解释需求和计算预算。</p>
+<section id="discrete-representationfrequency-based" class="level3">
+<h3 class="anchored" data-anchor-id="discrete-representationfrequency-based"><strong>离散表示（基于频率）</strong></h3>
+<p>离散方法以固定词表为坐标，将文档表示为独立维度上的计数或权重。它们通常稀疏、可解释且训练快速，适合检索、线性分类与强基线；但词序、同义关系和上下文词义大多被忽略。</p>
+<section id="one-hot-encoding" class="level4">
+<h4 class="anchored" data-anchor-id="one-hot-encoding"><strong>One-Hot 编码</strong></h4>
+<p>One-Hot 为词表中的每个 token 分配一个维度，目标词位置为 1，其余为 0。向量不会表达 <code>cat</code> 与 <code>dog</code> 比 <code>cat</code> 与 <code>table</code> 更接近，维度也随词表增长。英文词表与编码矩阵保持原文，保证索引可核对。</p>
+<p><a href="03-text-representation_files/figure-html/4ac7f523-9d04-44ad-89f7-150d0563f0f3-1-8f152fd7-34c9-4667-bb6e-f379cb4dcf8a.png" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="03-text-representation_files/figure-html/4ac7f523-9d04-44ad-89f7-150d0563f0f3-1-8f152fd7-34c9-4667-bb6e-f379cb4dcf8a.png" class="img-fluid" alt="One-Hot 编码示意图"></a><a href="03-text-representation_files/figure-html/4ac7f523-9d04-44ad-89f7-150d0563f0f3-2-f27fe714-3de3-4c53-8878-1cc798cbdb4c.png" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="03-text-representation_files/figure-html/4ac7f523-9d04-44ad-89f7-150d0563f0f3-2-f27fe714-3de3-4c53-8878-1cc798cbdb4c.png" class="img-fluid" alt="image.png"></a></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> one_hot_encode(text):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    words <span class="op">=</span> text.split() <span class="co"># Split the text by whitespace</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    vocabulary <span class="op">=</span> <span class="bu">set</span>(words) <span class="co"># Keep the elements unique in the set</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    word_to_index <span class="op">=</span> {word: i <span class="cf">for</span> i, word <span class="kw">in</span> <span class="bu">enumerate</span>(vocabulary)} <span class="co"># Assign index for each word in vocabulary, output will be like {word0 : 0, word1: 1, ...}</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    one_hot_encoded <span class="op">=</span> []</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> word <span class="kw">in</span> words: <span class="co"># For every word, create the vector with 0 and lenght of vocabulary firstly, then set the corresponding position to 1 according to the word index</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        one_hot_vector <span class="op">=</span> [<span class="dv">0</span>] <span class="op">*</span> <span class="bu">len</span>(vocabulary) </span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>        one_hot_vector[word_to_index[word]] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        one_hot_encoded.append(one_hot_vector)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> one_hot_encoded, word_to_index, vocabulary</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> OneHotEncoder</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Example data</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>words <span class="op">=</span> np.array([<span class="st">"cat"</span>, <span class="st">"dog"</span>, <span class="st">"fish"</span>, <span class="st">"cat"</span>]).reshape(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Create encoder</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>encoder <span class="op">=</span> OneHotEncoder(sparse_output<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit and transform</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>one_hot_vectors <span class="op">=</span> encoder.fit_transform(words)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Vocabulary:"</span>, encoder.categories_)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"One-hot vectors:</span><span class="ch">\n</span><span class="st">"</span>, one_hot_vectors)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="bag-of-words-bow" class="level4">
+<h4 class="anchored" data-anchor-id="bag-of-words-bow"><strong>词袋模型（BoW）</strong></h4>
+<p>BoW 把文档表示为词频向量，忽略词序但保留出现次数。构建过程是确定词表、统计每个文档的 token、形成文档-词矩阵。它可直接解释分类权重，却无法区分 <code>dog bites man</code> 与 <code>man bites dog</code> 这类词集合相同的句子。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="03-text-representation_files/figure-html/59224409-deb1-4386-a287-d8e6100f0b81-1-b1894ece-f1e1-4b6f-b216-0070e8942979.png" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="03-text-representation_files/figure-html/59224409-deb1-4386-a287-d8e6100f0b81-1-b1894ece-f1e1-4b6f-b216-0070e8942979.png" class="img-fluid figure-img"></a></p>
+<figcaption>词袋模型（BoW）示意图</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">"""</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">Document</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co">   ↓</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="co">Tokenization</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="co">   ↓</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co">Count word frequency</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="co">   ↓</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="co">Map to vocabulary index</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co">   ↓</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co">Vector representation</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co">"""</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="co"># vocabulary (normally built from a corpus)</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>vocab <span class="op">=</span> [<span class="st">"cat"</span>, <span class="st">"dog"</span>, <span class="st">"fish"</span>]</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a><span class="co"># word -&gt; index</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>word_to_index <span class="op">=</span> {word: i <span class="cf">for</span> i, word <span class="kw">in</span> <span class="bu">enumerate</span>(vocab)}</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bow_encode(document):</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    vector <span class="op">=</span> np.zeros(<span class="bu">len</span>(vocab))</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    words <span class="op">=</span> document.split()</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> word <span class="kw">in</span> words:</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> word <span class="kw">in</span> word_to_index:</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            vector[word_to_index[word]] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> vector</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>doc <span class="op">=</span> <span class="st">"cat dog cat"</span></span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(bow_encode(doc))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> CountVectorizer</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [<span class="st">"This is the first document."</span>, <span class="st">"This document is the second document."</span>, <span class="st">"And this is the third one."</span>, <span class="st">"Is this the first document?"</span>]</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>vectorizer <span class="op">=</span> CountVectorizer()</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> vectorizer.fit_transform(documents)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>feature_names <span class="op">=</span> vectorizer.get_feature_names_out()</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Bag-of-Words Matrix:"</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(X.toarray())</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Vocabulary (Feature Names):"</span>, feature_names)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="tf-idf" class="level4">
+<h4 class="anchored" data-anchor-id="tf-idf"><strong>TF-IDF</strong></h4>
+<p>TF-IDF 用文档内词频乘以逆文档频率，使在当前文档常见但在语料中稀有的词获得高权重。常见形式为 <span class="math inline">\(w_{t,d}=tf_{t,d}\times\log(N/df_t)\)</span>，实现中通常加入平滑、子线性 TF 和向量归一化。它仍不建模词序，但检索与分类效果很强。</p>
+<p><span class="math inline">\(\text{TF-IDF: } w_{t,d} = tf_{t,d} \times idf_{t}\)</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="03-text-representation_files/figure-html/258b7fdf-1722-444b-a99f-b9b36dc95a80-2-3e8d6498-4027-4540-860b-d6c046e895b2.png" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="03-text-representation_files/figure-html/258b7fdf-1722-444b-a99f-b9b36dc95a80-2-3e8d6498-4027-4540-860b-d6c046e895b2.png" class="img-fluid figure-img"></a></p>
+<figcaption>TF-IDF示意图</figcaption>
+</figure>
+</div>
+<p><span class="math inline">\(idf(t) = \log\left(\frac{N}{df_t} \right)\)</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="03-text-representation_files/figure-html/258b7fdf-1722-444b-a99f-b9b36dc95a80-1-17c4ca37-d545-45ba-8c2c-219f0297f0c4.png" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="03-text-representation_files/figure-html/258b7fdf-1722-444b-a99f-b9b36dc95a80-1-17c4ca37-d545-45ba-8c2c-219f0297f0c4.png" class="img-fluid figure-img"></a></p>
+<figcaption>TF-IDF示意图</figcaption>
+</figure>
+</div>
+<p><span class="math display">\[
+tf(t,d) =
+\begin{cases}
+1 + \log_{10}(count(t,d)) &amp; \text{if } count(t,d) &gt; 0 \\
+0 &amp; \text{otherwise}
+\end{cases}
+\]</span></p>
+<p><span class="math display">\[
+tf(data, D2) = 1 + \log_{10}(2) \approx 1.301
+\]</span></p>
+<p><span class="math display">\[
+idf(t) = \log_{10}\left(\frac{N}{df_t}\right)
+\]</span></p>
+<p><span class="math display">\[
+idf(data) = \log_{10}\left(\frac{3}{2}\right) \approx 0.176
+\]</span></p>
+<p><span class="math display">\[
+tfidf(data, D2) = tf(data, D2) \times idf(data)
+\]</span></p>
+<p><span class="math display">\[
+tfidf(data, D2) = 1.301 \times 0.176 \approx 0.229
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_tfidf(documents):</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="co">    Compute TF-IDF vectors for a list of documents.</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="co">    </span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co">    Parameters:</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="co">        documents (list[str]): A list of input documents.</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="co">        </span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co">    Returns:</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="co">        tfidf_vectors (list[dict]): TF-IDF vector for each document.</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="co">        vocabulary (list[str]): Sorted list of all unique terms.</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co">        idf (dict): IDF value for each term.</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co">    """</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 1: Tokenize documents</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    tokenized_docs <span class="op">=</span> [doc.lower().split() <span class="cf">for</span> doc <span class="kw">in</span> documents]</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 2: Build vocabulary</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    vocabulary <span class="op">=</span> <span class="bu">sorted</span>(<span class="bu">set</span>(word <span class="cf">for</span> doc <span class="kw">in</span> tokenized_docs <span class="cf">for</span> word <span class="kw">in</span> doc))</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 3: Compute document frequency (df)</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    N <span class="op">=</span> <span class="bu">len</span>(documents)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    df <span class="op">=</span> {}</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> term <span class="kw">in</span> vocabulary:</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>        df[term] <span class="op">=</span> <span class="bu">sum</span>(<span class="dv">1</span> <span class="cf">for</span> doc <span class="kw">in</span> tokenized_docs <span class="cf">if</span> term <span class="kw">in</span> doc)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 4: Compute IDF</span></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    idf <span class="op">=</span> {}</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> term <span class="kw">in</span> vocabulary:</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        idf[term] <span class="op">=</span> math.log10(N <span class="op">/</span> df[term])</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Step 5: Compute TF-IDF for each document</span></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>    tfidf_vectors <span class="op">=</span> []</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> doc <span class="kw">in</span> tokenized_docs:</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>        term_counts <span class="op">=</span> Counter(doc)</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a>        tfidf <span class="op">=</span> {}</span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> term <span class="kw">in</span> vocabulary:</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>            count <span class="op">=</span> term_counts.get(term, <span class="dv">0</span>)</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>            <span class="co"># Log-scaled TF</span></span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> count <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>                tf <span class="op">=</span> <span class="dv">1</span> <span class="op">+</span> math.log10(count)</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a>                tf <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-49"><a href="#cb5-49" aria-hidden="true" tabindex="-1"></a>            </span>
+<span id="cb5-50"><a href="#cb5-50" aria-hidden="true" tabindex="-1"></a>            tfidf[term] <span class="op">=</span> tf <span class="op">*</span> idf[term]</span>
+<span id="cb5-51"><a href="#cb5-51" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-52"><a href="#cb5-52" aria-hidden="true" tabindex="-1"></a>        tfidf_vectors.append(tfidf)</span>
+<span id="cb5-53"><a href="#cb5-53" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb5-54"><a href="#cb5-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> tfidf_vectors, vocabulary, idf</span>
+<span id="cb5-55"><a href="#cb5-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-56"><a href="#cb5-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-57"><a href="#cb5-57" aria-hidden="true" tabindex="-1"></a><span class="co"># Example usage</span></span>
+<span id="cb5-58"><a href="#cb5-58" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [</span>
+<span id="cb5-59"><a href="#cb5-59" aria-hidden="true" tabindex="-1"></a>    <span class="st">"data science is fun"</span>,</span>
+<span id="cb5-60"><a href="#cb5-60" aria-hidden="true" tabindex="-1"></a>    <span class="st">"data science uses data"</span>,</span>
+<span id="cb5-61"><a href="#cb5-61" aria-hidden="true" tabindex="-1"></a>    <span class="st">"machine learning is fun"</span></span>
+<span id="cb5-62"><a href="#cb5-62" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-63"><a href="#cb5-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-64"><a href="#cb5-64" aria-hidden="true" tabindex="-1"></a>tfidf_vectors, vocabulary, idf <span class="op">=</span> compute_tfidf(documents)</span>
+<span id="cb5-65"><a href="#cb5-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-66"><a href="#cb5-66" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Vocabulary:"</span>)</span>
+<span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(vocabulary)</span>
+<span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">IDF values:"</span>)</span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> term, value <span class="kw">in</span> idf.items():</span>
+<span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>term<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>value<span class="sc">:.3f}</span><span class="ss">"</span>)</span>
+<span id="cb5-72"><a href="#cb5-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-73"><a href="#cb5-73" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">TF-IDF vectors:"</span>)</span>
+<span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, vec <span class="kw">in</span> <span class="bu">enumerate</span>(tfidf_vectors, start<span class="op">=</span><span class="dv">1</span>):</span>
+<span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Document D</span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">:"</span>)</span>
+<span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> term <span class="kw">in</span> vocabulary:</span>
+<span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>term<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>vec[term]<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>documents <span class="op">=</span> [ <span class="st">"The quick brown fox jumps over the lazy dog."</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"A journey of a thousand miles begins with a single step."</span> ]</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>vectorizer <span class="op">=</span> TfidfVectorizer() </span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>tfidf_matrix <span class="op">=</span> vectorizer.fit_transform(documents)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>feature_names <span class="op">=</span> vectorizer.get_feature_names_out()</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>tfidf_values <span class="op">=</span> {}</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> doc_index, doc <span class="kw">in</span> <span class="bu">enumerate</span>(documents):</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    feature_index <span class="op">=</span> tfidf_matrix[doc_index, :].nonzero()[<span class="dv">1</span>]</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    tfidf_doc_values <span class="op">=</span> <span class="bu">zip</span>(feature_index, [tfidf_matrix[doc_index, x] <span class="cf">for</span> x <span class="kw">in</span> feature_index])</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    tfidf_values[doc_index] <span class="op">=</span> {feature_names[i]: value <span class="cf">for</span> i, value <span class="kw">in</span> tfidf_doc_values}</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> doc_index, values <span class="kw">in</span> tfidf_values.items():</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Document </span><span class="sc">{</span>doc_index <span class="op">+</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">:"</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> word, tfidf_value <span class="kw">in</span> values.items():</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>word<span class="sc">}</span><span class="ss">: </span><span class="sc">{</span>tfidf_value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="bm-25okapi-best-matching-25" class="level4">
+<h4 class="anchored" data-anchor-id="bm-25okapi-best-matching-25"><strong>BM25（Okapi Best Matching 25）</strong></h4>
+<p>BM25 是概率检索排序函数，对词频采用饱和增长，并用参数 <span class="math inline">\(b\)</span> 校正文档长度。<span class="math inline">\(k_1\)</span> 控制重复词的边际收益，<span class="math inline">\(b\)</span> 控制长度归一化。与普通 TF-IDF 相比，它避免超长文档仅因词多而占优，是搜索与 RAG 稀疏检索的重要基线。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="03-text-representation_files/figure-html/325dff2b-88a7-4791-a216-0c3a1fc94d00-1-3e000bd7-cff8-41ac-a6bf-50fe9581f4b1.png" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="03-text-representation_files/figure-html/325dff2b-88a7-4791-a216-0c3a1fc94d00-1-3e000bd7-cff8-41ac-a6bf-50fe9581f4b1.png" class="img-fluid figure-img"></a></p>
+<figcaption>BM25（Okapi Best Matching 25）示意图</figcaption>
+</figure>
+</div>
+<p><span class="math inline">\(\text{BM25}(D, Q) = \sum_{i=1}^{n}\text{IDF}(q_i)\cdot\frac{f(q_i, D)\cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}\)</span></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Aspect</th>
+<th>TF-IDF</th>
+<th>BM25</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>TF behavior</td>
+<td>Linear growth</td>
+<td>Saturation (diminishing returns)</td>
+</tr>
+<tr class="even">
+<td>Length handling</td>
+<td>Weak/simple</td>
+<td>Explicit normalization</td>
+</tr>
+<tr class="odd">
+<td>IDF</td>
+<td>Standard</td>
+<td>Smoothed</td>
+</tr>
+<tr class="even">
+<td>Performance</td>
+<td>Baseline</td>
+<td>Stronger retrieval model</td>
+</tr>
+<tr class="odd">
+<td>Usage</td>
+<td>Simple tasks</td>
+<td>Industrial search systems</td>
+</tr>
+</tbody>
+</table>
+<p>下面给出 BM25 的完整 Python 实现。查询、文档 token 与输出保持英文原文，从而使分词、词频和排名结果与英文版一致。</p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> Counter, defaultdict</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BM25:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, corpus, k1<span class="op">=</span><span class="fl">1.5</span>, b<span class="op">=</span><span class="fl">0.75</span>):</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co">        corpus: list[list[str]]</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co">        Example:</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">        [</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">            ["this", "is", "a", "document"],</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co">            ["this", "document", "is", "about", "nlp"]</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">        ]</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.corpus <span class="op">=</span> corpus</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.k1 <span class="op">=</span> k1</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.b <span class="op">=</span> b</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.N <span class="op">=</span> <span class="bu">len</span>(corpus)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.doc_len <span class="op">=</span> [<span class="bu">len</span>(doc) <span class="cf">for</span> doc <span class="kw">in</span> corpus]</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.avgdl <span class="op">=</span> <span class="bu">sum</span>(<span class="va">self</span>.doc_len) <span class="op">/</span> <span class="va">self</span>.N</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.doc_freq <span class="op">=</span> defaultdict(<span class="bu">int</span>)</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.term_freqs <span class="op">=</span> []</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> doc <span class="kw">in</span> corpus:</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>            tf <span class="op">=</span> Counter(doc)</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.term_freqs.append(tf)</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> term <span class="kw">in</span> tf:</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>                <span class="va">self</span>.doc_freq[term] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> idf(<span class="va">self</span>, term):</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>        n_i <span class="op">=</span> <span class="va">self</span>.doc_freq.get(term, <span class="dv">0</span>)</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> math.log((<span class="va">self</span>.N <span class="op">-</span> n_i <span class="op">+</span> <span class="fl">0.5</span>) <span class="op">/</span> (n_i <span class="op">+</span> <span class="fl">0.5</span>) <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> score(<span class="va">self</span>, query, doc_index):</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        score <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        doc_tf <span class="op">=</span> <span class="va">self</span>.term_freqs[doc_index]</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>        doc_len <span class="op">=</span> <span class="va">self</span>.doc_len[doc_index]</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> term <span class="kw">in</span> query:</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>            f <span class="op">=</span> doc_tf.get(term, <span class="dv">0</span>)</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> f <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>            numerator <span class="op">=</span> f <span class="op">*</span> (<span class="va">self</span>.k1 <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>            denominator <span class="op">=</span> f <span class="op">+</span> <span class="va">self</span>.k1 <span class="op">*</span> (</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>                <span class="dv">1</span> <span class="op">-</span> <span class="va">self</span>.b <span class="op">+</span> <span class="va">self</span>.b <span class="op">*</span> doc_len <span class="op">/</span> <span class="va">self</span>.avgdl</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>            score <span class="op">+=</span> <span class="va">self</span>.idf(term) <span class="op">*</span> numerator <span class="op">/</span> denominator</span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> score</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> rank(<span class="va">self</span>, query):</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> []</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="va">self</span>.N):</span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a>            scores.append((i, <span class="va">self</span>.score(query, i)))</span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">sorted</span>(scores, key<span class="op">=</span><span class="kw">lambda</span> x: x[<span class="dv">1</span>], reverse<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>corpus <span class="op">=</span> [</span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>    <span class="st">"machine learning is useful"</span>,</span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>    <span class="st">"deep learning is a part of machine learning"</span>,</span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    <span class="st">"natural language processing uses machine learning"</span>,</span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cooking recipes and food"</span></span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a>tokenized_corpus <span class="op">=</span> [doc.lower().split() <span class="cf">for</span> doc <span class="kw">in</span> corpus]</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>bm25 <span class="op">=</span> BM25(tokenized_corpus)</span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> <span class="st">"machine learning"</span></span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a>tokenized_query <span class="op">=</span> query.lower().split()</span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> bm25.rank(tokenized_query)</span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> doc_id, score <span class="kw">in</span> results:</span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(score, corpus[doc_id])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rank_bm25 <span class="im">import</span> BM25Okapi</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>corpus <span class="op">=</span> [</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"machine learning is useful"</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"deep learning is a part of machine learning"</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"natural language processing uses machine learning"</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"cooking recipes and food"</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>tokenized_corpus <span class="op">=</span> [doc.lower().split() <span class="cf">for</span> doc <span class="kw">in</span> corpus]</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>bm25 <span class="op">=</span> BM25Okapi(tokenized_corpus)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> <span class="st">"machine learning"</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>tokenized_query <span class="op">=</span> query.lower().split()</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> bm25.get_scores(tokenized_query)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>ranked_docs <span class="op">=</span> <span class="bu">sorted</span>(</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">enumerate</span>(scores),</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    key<span class="op">=</span><span class="kw">lambda</span> x: x[<span class="dv">1</span>],</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    reverse<span class="op">=</span><span class="va">True</span></span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> doc_id, score <span class="kw">in</span> ranked_docs:</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(score, corpus[doc_id])</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>top_docs <span class="op">=</span> bm25.get_top_n(tokenized_query, corpus, n<span class="op">=</span><span class="dv">3</span>)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> doc <span class="kw">in</span> top_docs:</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(doc)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="vector-similarity" class="level4">
+<h4 class="anchored" data-anchor-id="vector-similarity"><strong>向量相似度</strong></h4>
+<p>得到 BoW、TF-IDF 或 embedding 后，需要定义向量间接近程度。余弦相似度关注方向，适合长度不同文档；点积同时受向量范数影响；欧氏距离则依赖尺度。选择度量时必须与训练目标和索引系统一致，并处理零向量。</p>
+<p><span class="math display">\[
+\mathbf{A} = (a_1, a_2, ..., a_n)
+\]</span></p>
+<p><span class="math display">\[
+\mathbf{B} = (b_1, b_2, ..., b_n)
+\]</span></p>
+<p><span class="math display">\[
+A \cdot B = \sum_{i=1}^{n} a_i b_i
+\]</span></p>
+<p><span class="math display">\[
+\cos(\theta) =
+\frac{A \cdot B}{||A|| \, ||B||}
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics.pairwise <span class="im">import</span> cosine_similarity</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Example TF-IDF-like document vectors</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>A <span class="op">=</span> np.array([<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">0</span>, <span class="dv">1</span>])</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>B <span class="op">=</span> np.array([<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>])</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Dot product</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>dot_product <span class="op">=</span> np.dot(A, B)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Dot product:"</span>, dot_product)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Cosine similarity from scratch</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>cosine <span class="op">=</span> np.dot(A, B) <span class="op">/</span> (np.linalg.norm(A) <span class="op">*</span> np.linalg.norm(B))</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Cosine similarity:"</span>, cosine)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Cosine similarity using scikit-learn</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>cosine_sklearn <span class="op">=</span> cosine_similarity([A], [B])[<span class="dv">0</span>][<span class="dv">0</span>]</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Cosine similarity (sklearn):"</span>, cosine_sklearn)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="distributed-representation-word-embedding-predic" class="level3">
+<h3 class="anchored" data-anchor-id="distributed-representation-word-embedding-predic"><strong>分布式表示（词嵌入与预测式表示）</strong></h3>
+<p>分布式表示用低维稠密向量编码词的使用模式。分布假设认为出现在相似上下文中的词具有相近意义，因此相似关系来自数据而非人工维度。静态 embedding 每个词只有一个向量，无法充分表达多义词。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/embedding-space.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="assets/embedding-space.svg" class="img-fluid figure-img"></a></p>
+<figcaption>分布式表示（词嵌入与预测式表示）示意图</figcaption>
+</figure>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Representation</th>
+<th>Vector Type</th>
+<th>Captures Semantics</th>
+<th>Captures Context</th>
+<th>Typical Use</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>One-Hot</td>
+<td>Sparse</td>
+<td>No</td>
+<td>No</td>
+<td>Basic encoding</td>
+</tr>
+<tr class="even">
+<td>BoW / TF-IDF</td>
+<td>Sparse</td>
+<td>Weak</td>
+<td>No</td>
+<td>Classification, retrieval</td>
+</tr>
+<tr class="odd">
+<td>Word2Vec / GloVe / FastText</td>
+<td>Dense</td>
+<td>Yes</td>
+<td>No</td>
+<td>Word similarity, feature initialization</td>
+</tr>
+<tr class="even">
+<td>ELMo / BERT / GPT</td>
+<td>Dense</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Modern NLP systems</td>
+</tr>
+</tbody>
+</table>
+<section id="word2vec" class="level4">
+<h4 class="anchored" data-anchor-id="word2vec"><strong>Word2Vec</strong></h4>
+<p>Word2Vec 通过局部上下文预测学习词向量。CBOW 用上下文预测中心词，Skip-gram 用中心词预测上下文；negative sampling 用少量负例近似完整 softmax。训练窗口、最小词频和负采样分布会显著影响语义与句法关系。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/word2vec-cbow-skipgram.svg" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="assets/word2vec-cbow-skipgram.svg" class="img-fluid figure-img"></a></p>
+<figcaption>Word2Vec示意图</figcaption>
+</figure>
+</div>
+<pre class="text"><code>I love natural language processing</code></pre>
+<pre class="text"><code>context = [I, love, language, processing]
+center  = natural</code></pre>
+<p><span class="math display">\[
+score(w, c) = v_w \cdot v_c
+\]</span></p>
+<p><span class="math display">\[
+P(w_t \mid w_{t-m}, ..., w_{t-1}, w_{t+1}, ..., w_{t+m})
+\]</span></p>
+<pre class="text"><code>Sentence: I love natural language processing
+Input context: I, love, language, processing
+Target word: natural</code></pre>
+<p><span class="math display">\[
+P(w_{t-m}, ..., w_{t-1}, w_{t+1}, ..., w_{t+m} \mid w_t)
+\]</span></p>
+<pre class="text"><code>Sentence: I love natural language processing
+Input word: natural
+Target context: I, love, language, processing</code></pre>
+<pre class="text"><code>(natural, language)</code></pre>
+<pre class="text"><code>(natural, banana)
+(natural, table)
+(natural, window)</code></pre>
+<p><span class="math display">\[
+\log \sigma(v_w \cdot v_c) + \sum_{i=1}^{k} \log \sigma(-v_w \cdot v_{n_i})
+\]</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Input</th>
+<th>Output</th>
+<th>Strength</th>
+<th>Weakness</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CBOW</td>
+<td>Context words</td>
+<td>Center word</td>
+<td>Fast, good for frequent words</td>
+<td>Weaker for rare words</td>
+</tr>
+<tr class="even">
+<td>Skip-gram</td>
+<td>Center word</td>
+<td>Context words</td>
+<td>Good for rare words, high-quality embeddings</td>
+<td>Slower training</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> gensim.models <span class="im">import</span> Word2Vec</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>sentences <span class="op">=</span> [</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"natural"</span>, <span class="st">"language"</span>, <span class="st">"processing"</span>, <span class="st">"is"</span>, <span class="st">"fun"</span>],</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"machine"</span>, <span class="st">"learning"</span>, <span class="st">"is"</span>, <span class="st">"useful"</span>],</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"deep"</span>, <span class="st">"learning"</span>, <span class="st">"uses"</span>, <span class="st">"neural"</span>, <span class="st">"networks"</span>],</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"language"</span>, <span class="st">"models"</span>, <span class="st">"learn"</span>, <span class="st">"word"</span>, <span class="st">"representations"</span>]</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="co"># sg=0 means CBOW, sg=1 means Skip-gram</span></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Word2Vec(</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>    sentences<span class="op">=</span>sentences,</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    vector_size<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    window<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    min_count<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>    sg<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>    workers<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.wv[<span class="st">"language"</span>])</span>
+<span id="cb16-21"><a href="#cb16-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.wv.most_similar(<span class="st">"learning"</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="glove" class="level4">
+<h4 class="anchored" data-anchor-id="glove"><strong>GloVe</strong></h4>
+<p>GloVe 从全局词共现矩阵学习向量，使向量点积逼近共现概率的对数。它把矩阵统计与预测式 embedding 的优点结合起来，适合分析全局语义结构，但仍受固定词表、语料偏差和单词单向量限制。</p>
+<p><span class="math display">\[
+X_{ij} = \text{number of times word } j \text{ appears in the context of word } i
+\]</span></p>
+<p><span class="math display">\[
+w_i^T \tilde{w}_j + b_i + \tilde{b}_j \approx \log(X_{ij})
+\]</span></p>
+<p><span class="math display">\[
+vector(king) - vector(man) + vector(woman) \approx vector(queen)
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> defaultdict</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>sentences <span class="op">=</span> [</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"natural"</span>, <span class="st">"language"</span>, <span class="st">"processing"</span>, <span class="st">"is"</span>, <span class="st">"fun"</span>],</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"machine"</span>, <span class="st">"learning"</span>, <span class="st">"is"</span>, <span class="st">"useful"</span>],</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"language"</span>, <span class="st">"models"</span>, <span class="st">"learn"</span>, <span class="st">"representations"</span>]</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>window_size <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>cooccurrence <span class="op">=</span> defaultdict(<span class="bu">float</span>)</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sentence <span class="kw">in</span> sentences:</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i, word <span class="kw">in</span> <span class="bu">enumerate</span>(sentence):</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>        start <span class="op">=</span> <span class="bu">max</span>(<span class="dv">0</span>, i <span class="op">-</span> window_size)</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>        end <span class="op">=</span> <span class="bu">min</span>(<span class="bu">len</span>(sentence), i <span class="op">+</span> window_size <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(start, end):</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> i <span class="op">==</span> j:</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>            context_word <span class="op">=</span> sentence[j]</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>            distance <span class="op">=</span> <span class="bu">abs</span>(i <span class="op">-</span> j)</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>            cooccurrence[(word, context_word)] <span class="op">+=</span> <span class="fl">1.0</span> <span class="op">/</span> distance</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pair, count <span class="kw">in</span> cooccurrence.items():</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(pair, count)</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a><span class="co"># In the real GloVe algorithm, these co-occurrence counts are used</span></span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a><span class="co"># to learn dense vectors whose dot products approximate log counts.</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> gensim.downloader <span class="im">as</span> api</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co"># This downloads pretrained vectors, so it requires internet access.</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>glove <span class="op">=</span> api.load(<span class="st">"glove-wiki-gigaword-50"</span>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(glove[<span class="st">"language"</span>])</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(glove.most_similar(<span class="st">"language"</span>, topn<span class="op">=</span><span class="dv">5</span>))</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> glove.most_similar(</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>    positive<span class="op">=</span>[<span class="st">"woman"</span>, <span class="st">"king"</span>],</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>    negative<span class="op">=</span>[<span class="st">"man"</span>],</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>    topn<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(result)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="fasttext" class="level4">
+<h4 class="anchored" data-anchor-id="fasttext"><strong>FastText</strong></h4>
+<p>FastText 将词表示为字符 n-gram 向量之和，因此拼写相近或具有共同词缀的词可以共享统计信息。它能为未登录词组合向量，对形态丰富语言和拼写噪声更稳健；代价是可能过度依赖表面形式，并增加存储与计算。</p>
+<pre class="text"><code>&lt;wh, whe, her, ere, re&gt;</code></pre>
+<pre class="text"><code>run, runs, running, runner</code></pre>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Main Signal</th>
+<th>Handles OOV?</th>
+<th>Static or Contextual</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Word2Vec</td>
+<td>Local prediction</td>
+<td>No</td>
+<td>Static</td>
+</tr>
+<tr class="even">
+<td>GloVe</td>
+<td>Global co-occurrence</td>
+<td>No</td>
+<td>Static</td>
+</tr>
+<tr class="odd">
+<td>FastText</td>
+<td>Subword + prediction</td>
+<td>Better</td>
+<td>Static</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> gensim.models <span class="im">import</span> FastText</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>sentences <span class="op">=</span> [</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"run"</span>, <span class="st">"runs"</span>, <span class="st">"running"</span>, <span class="st">"runner"</span>],</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"natural"</span>, <span class="st">"language"</span>, <span class="st">"processing"</span>],</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"machine"</span>, <span class="st">"learning"</span>, <span class="st">"models"</span>]</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> FastText(</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    sentences<span class="op">=</span>sentences,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    vector_size<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    window<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    min_count<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    workers<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>    sg<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.wv[<span class="st">"running"</span>])</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.wv.most_similar(<span class="st">"run"</span>))</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="co"># FastText can infer a vector for a word that was not directly seen,</span></span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a><span class="co"># as long as its character n-grams are informative.</span></span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.wv[<span class="st">"runners"</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="word-embedding-evaluation" class="level4">
+<h4 class="anchored" data-anchor-id="word-embedding-evaluation"><strong>词嵌入评估</strong></h4>
+<p>内在评估使用词相似度、类比或邻居质量，便于诊断空间结构；外在评估把 embedding 放入真实任务，观察下游收益。类比准确率不能代表所有语义能力，还可能放大训练语料中的社会偏差，因此应结合任务、语言和频率切片。</p>
+<p><span class="math display">\[
+\text{sim}(w_1, w_2) = \frac{v_{w_1} \cdot v_{w_2}}{||v_{w_1}|| ||v_{w_2}||}
+\]</span></p>
+<pre class="text"><code>similarity(cat, dog) &gt; similarity(cat, table)</code></pre>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> gensim.downloader <span class="im">as</span> api</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Requires internet access the first time it downloads the model.</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> api.load(<span class="st">"glove-wiki-gigaword-50"</span>)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Word similarity</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>pairs <span class="op">=</span> [</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"cat"</span>, <span class="st">"dog"</span>),</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"cat"</span>, <span class="st">"table"</span>),</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"king"</span>, <span class="st">"queen"</span>)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> w1, w2 <span class="kw">in</span> pairs:</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(w1, w2, model.similarity(w1, w2))</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-16"><a href="#cb23-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Word analogy: king - man + woman ? queen</span></span>
+<span id="cb23-17"><a href="#cb23-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb23-18"><a href="#cb23-18" aria-hidden="true" tabindex="-1"></a>    model.most_similar(</span>
+<span id="cb23-19"><a href="#cb23-19" aria-hidden="true" tabindex="-1"></a>        positive<span class="op">=</span>[<span class="st">"king"</span>, <span class="st">"woman"</span>],</span>
+<span id="cb23-20"><a href="#cb23-20" aria-hidden="true" tabindex="-1"></a>        negative<span class="op">=</span>[<span class="st">"man"</span>],</span>
+<span id="cb23-21"><a href="#cb23-21" aria-hidden="true" tabindex="-1"></a>        topn<span class="op">=</span><span class="dv">5</span></span>
+<span id="cb23-22"><a href="#cb23-22" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb23-23"><a href="#cb23-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb23-24"><a href="#cb23-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-25"><a href="#cb23-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Nearest neighbors</span></span>
+<span id="cb23-26"><a href="#cb23-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.most_similar(<span class="st">"language"</span>, topn<span class="op">=</span><span class="dv">5</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Suppose each document has already been converted into one embedding vector.</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.array([</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.8</span>, <span class="fl">0.1</span>, <span class="fl">0.3</span>],</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.7</span>, <span class="fl">0.2</span>, <span class="fl">0.2</span>],</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.1</span>, <span class="fl">0.9</span>, <span class="fl">0.4</span>],</span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.2</span>, <span class="fl">0.8</span>, <span class="fl">0.5</span>]</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> np.array([<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>])</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.5</span>, random_state<span class="op">=</span><span class="dv">42</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>clf <span class="op">=</span> LogisticRegression()</span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>clf.fit(X_train, y_train)</span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>pred <span class="op">=</span> clf.predict(X_test)</span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Accuracy:"</span>, accuracy_score(y_test, pred))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="contextual-embedding" class="level3">
+<h3 class="anchored" data-anchor-id="contextual-embedding"><strong>上下文化嵌入</strong></h3>
+<p>上下文化模型根据整句或更长上下文为每个 token 生成表示，因此 <code>bank</code> 在不同语境中可得到不同向量。表示通常来自深层网络的隐藏状态，可用于特征抽取或端到端微调。层的选择、池化方式和子词聚合都会改变结果。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/contextual-embedding-bank.svg" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/contextual-embedding-bank.svg" class="img-fluid figure-img"></a></p>
+<figcaption>上下文化嵌入示意图</figcaption>
+</figure>
+</div>
+<pre class="text"><code>I deposited money in the bank.
+The boat stopped near the river bank.</code></pre>
+<p><span class="math display">\[
+\text{embedding}(word) = f(word, context)
+\]</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Architecture</th>
+<th>Direction</th>
+<th>Representation Type</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>ELMo</td>
+<td>BiLSTM</td>
+<td>Bidirectional</td>
+<td>Contextual word embedding</td>
+</tr>
+<tr class="even">
+<td>BERT</td>
+<td>Transformer Encoder</td>
+<td>Bidirectional</td>
+<td>Contextual token embedding</td>
+</tr>
+<tr class="odd">
+<td>GPT</td>
+<td>Transformer Decoder</td>
+<td>Left-to-right</td>
+<td>Contextual token embedding / generation</td>
+</tr>
+</tbody>
+</table>
+<section id="elmo-based-on-lstm" class="level4">
+<h4 class="anchored" data-anchor-id="elmo-based-on-lstm"><strong>ELMo（基于 LSTM）</strong></h4>
+<p>ELMo 使用双向语言模型，将前向与后向 LSTM 的多层隐藏状态组合成上下文词表示。字符级输入改善未登录词处理，层权重可按任务学习。它开启了深层上下文表示范式，但顺序计算限制并行性，长距离依赖也弱于 Transformer。</p>
+<p><span class="math display">\[
+w_1, ..., w_{t-1}, w_t, w_{t+1}, ..., w_n
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># ELMo is commonly accessed through libraries such as AllenNLP.</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Installation can be heavy, so this is a reference example.</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> allennlp.commands.elmo <span class="im">import</span> ElmoEmbedder</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>elmo <span class="op">=</span> ElmoEmbedder()</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>sentences <span class="op">=</span> [</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"I"</span>, <span class="st">"deposited"</span>, <span class="st">"money"</span>, <span class="st">"in"</span>, <span class="st">"the"</span>, <span class="st">"bank"</span>, <span class="st">"."</span>],</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    [<span class="st">"The"</span>, <span class="st">"boat"</span>, <span class="st">"stopped"</span>, <span class="st">"near"</span>, <span class="st">"the"</span>, <span class="st">"river"</span>, <span class="st">"bank"</span>, <span class="st">"."</span>]</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sentence <span class="kw">in</span> sentences:</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    embeddings <span class="op">=</span> elmo.embed_sentence(sentence)</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Shape: (3 layers, sentence_length, embedding_dim)</span></span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(sentence)</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(embeddings.shape)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="bert-based-on-transformer" class="level4">
+<h4 class="anchored" data-anchor-id="bert-based-on-transformer"><strong>BERT（基于 Transformer）</strong></h4>
+<p>BERT 通过双向 Transformer 编码上下文，并主要使用 masked language modeling 预训练。下游任务可读取 <code>[CLS]</code> 表示或逐 token 隐藏状态。注意子词 token 与原词/字符边界的对齐，且 <code>[MASK]</code> 只在预训练阶段出现会形成训练与推断差异。</p>
+<pre class="text"><code>The [MASK] sat on the mat.</code></pre>
+<pre class="text"><code>Input:  Natural language [MASK] is useful.
+Target: processing</code></pre>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModel</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"bert-base-uncased"</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModel.from_pretrained(model_name)</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>sentences <span class="op">=</span> [</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"I deposited money in the bank."</span>,</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"The boat stopped near the river bank."</span></span>
+<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-13"><a href="#cb29-13" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> tokenizer(sentences, padding<span class="op">=</span><span class="va">True</span>, return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span>
+<span id="cb29-14"><a href="#cb29-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-15"><a href="#cb29-15" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb29-16"><a href="#cb29-16" aria-hidden="true" tabindex="-1"></a>    outputs <span class="op">=</span> model(<span class="op">**</span>inputs)</span>
+<span id="cb29-17"><a href="#cb29-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-18"><a href="#cb29-18" aria-hidden="true" tabindex="-1"></a><span class="co"># last_hidden_state shape: (batch_size, sequence_length, hidden_size)</span></span>
+<span id="cb29-19"><a href="#cb29-19" aria-hidden="true" tabindex="-1"></a>token_embeddings <span class="op">=</span> outputs.last_hidden_state</span>
+<span id="cb29-20"><a href="#cb29-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-21"><a href="#cb29-21" aria-hidden="true" tabindex="-1"></a><span class="co"># A simple sentence embedding can be made by averaging token embeddings.</span></span>
+<span id="cb29-22"><a href="#cb29-22" aria-hidden="true" tabindex="-1"></a>attention_mask <span class="op">=</span> inputs[<span class="st">"attention_mask"</span>].unsqueeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb29-23"><a href="#cb29-23" aria-hidden="true" tabindex="-1"></a>sentence_embeddings <span class="op">=</span> (token_embeddings <span class="op">*</span> attention_mask).<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">1</span>) <span class="op">/</span> attention_mask.<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb29-24"><a href="#cb29-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb29-25"><a href="#cb29-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(sentence_embeddings.shape)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> pipeline</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>fill_mask <span class="op">=</span> pipeline(<span class="st">"fill-mask"</span>, model<span class="op">=</span><span class="st">"bert-base-uncased"</span>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> fill_mask(<span class="st">"Natural language [MASK] is useful."</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> item <span class="kw">in</span> results[:<span class="dv">5</span>]:</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(item[<span class="st">"token_str"</span>], item[<span class="st">"score"</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="gpt" class="level4">
+<h4 class="anchored" data-anchor-id="gpt"><strong>GPT</strong></h4>
+<p>GPT 使用自回归 Transformer，根据左侧上下文预测下一个 token。隐藏状态既能支持提示学习和生成，也可作为任务表示。因训练目标直接对应逐 token 生成，它在开放式文本生成上自然；但输出真实性仍需外部证据、约束和评估。</p>
+<p><span class="math display">\[
+P(w_t \mid w_1, w_2, ..., w_{t-1})
+\]</span></p>
+<pre class="text"><code>Input:  Natural language processing is
+Target: useful</code></pre>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Aspect</th>
+<th>BERT</th>
+<th>GPT</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Architecture</td>
+<td>Transformer Encoder</td>
+<td>Transformer Decoder</td>
+</tr>
+<tr class="even">
+<td>Direction</td>
+<td>Bidirectional</td>
+<td>Left-to-right</td>
+</tr>
+<tr class="odd">
+<td>Main Objective</td>
+<td>Masked token prediction</td>
+<td>Next-token prediction</td>
+</tr>
+<tr class="even">
+<td>Strength</td>
+<td>Understanding</td>
+<td>Generation</td>
+</tr>
+<tr class="odd">
+<td>Typical Use</td>
+<td>Classification, NER, QA</td>
+<td>Generation, chat, completion</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> pipeline</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> pipeline(<span class="st">"text-generation"</span>, model<span class="op">=</span><span class="st">"gpt2"</span>)</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>outputs <span class="op">=</span> generator(</span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Natural language processing is"</span>,</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    max_new_tokens<span class="op">=</span><span class="dv">30</span>,</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>    num_return_sequences<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(outputs[<span class="dv">0</span>][<span class="st">"generated_text"</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"gpt2"</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(model_name)</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>text <span class="op">=</span> <span class="st">"Natural language processing is"</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> tokenizer(text, return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>    outputs <span class="op">=</span> model(<span class="op">**</span>inputs)</span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>next_token_logits <span class="op">=</span> outputs.logits[<span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>, :]</span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>top_tokens <span class="op">=</span> torch.topk(next_token_logits, k<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> token_id, score <span class="kw">in</span> <span class="bu">zip</span>(top_tokens.indices, top_tokens.values):</span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(tokenizer.decode(token_id), score.item())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="summary-choosing-a-text-representation" class="level3">
+<h3 class="anchored" data-anchor-id="summary-choosing-a-text-representation"><strong>总结：如何选择文本表示</strong></h3>
+<p>小数据、检索和可解释基线优先考虑 TF-IDF/BM25；需要静态语义或低成本部署时可用 Word2Vec、GloVe、FastText；复杂理解与生成通常使用 BERT/GPT 类上下文化表示。最可靠的选择来自同一数据切分上的性能、成本和误差比较。</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Goal</th>
+<th>Suitable Representation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Simple baseline classification</td>
+<td>BoW / TF-IDF</td>
+</tr>
+<tr class="even">
+<td>Search and ranking</td>
+<td>BM25</td>
+</tr>
+<tr class="odd">
+<td>Word similarity or clustering</td>
+<td>Word2Vec / GloVe / FastText</td>
+</tr>
+<tr class="even">
+<td>Handling rare or morphologically complex words</td>
+<td>FastText</td>
+</tr>
+<tr class="odd">
+<td>Context-sensitive understanding</td>
+<td>BERT / ELMo</td>
+</tr>
+<tr class="even">
+<td>Text generation</td>
+<td>GPT</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

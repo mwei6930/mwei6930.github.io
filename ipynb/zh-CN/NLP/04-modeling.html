@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>自然语言处理：建模方法</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="04-modeling_files/libs/clipboard/clipboard.min.js"></script>
+<script src="04-modeling_files/libs/quarto-html/quarto.js"></script>
+<script src="04-modeling_files/libs/quarto-html/popper.min.js"></script>
+<script src="04-modeling_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="04-modeling_files/libs/quarto-html/anchor.min.js"></script>
+<link href="04-modeling_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="04-modeling_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="04-modeling_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="04-modeling_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="04-modeling_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#modeling-in-nlp" id="toc-modeling-in-nlp" class="nav-link active" data-scroll-target="#modeling-in-nlp"><strong>NLP 建模</strong></a>
+  <ul>
+  <li><a href="#what-does-modeling-mean-in-nlp" id="toc-what-does-modeling-mean-in-nlp" class="nav-link" data-scroll-target="#what-does-modeling-mean-in-nlp"><strong>NLP 中的建模意味着什么</strong></a></li>
+  <li><a href="#input-output-formulations-in-nlp" id="toc-input-output-formulations-in-nlp" class="nav-link" data-scroll-target="#input-output-formulations-in-nlp"><strong>NLP 的输入输出形式</strong></a>
+  <ul>
+  <li><a href="#sequence-to-label-modeling" id="toc-sequence-to-label-modeling" class="nav-link" data-scroll-target="#sequence-to-label-modeling"><strong>序列到标签建模</strong></a></li>
+  <li><a href="#sequence-to-label-sequence-modeling" id="toc-sequence-to-label-sequence-modeling" class="nav-link" data-scroll-target="#sequence-to-label-sequence-modeling"><strong>序列到标签序列建模</strong></a></li>
+  <li><a href="#sequence-to-sequence-modeling" id="toc-sequence-to-sequence-modeling" class="nav-link" data-scroll-target="#sequence-to-sequence-modeling"><strong>序列到序列建模</strong></a></li>
+  <li><a href="#language-modeling" id="toc-language-modeling" class="nav-link" data-scroll-target="#language-modeling"><strong>语言建模</strong></a></li>
+  <li><a href="#pairwise-and-matching-based-modeling" id="toc-pairwise-and-matching-based-modeling" class="nav-link" data-scroll-target="#pairwise-and-matching-based-modeling"><strong>成对与匹配建模</strong></a></li>
+  </ul></li>
+  <li><a href="#probabilistic-view-of-nlp-modeling" id="toc-probabilistic-view-of-nlp-modeling" class="nav-link" data-scroll-target="#probabilistic-view-of-nlp-modeling"><strong>NLP 建模的概率视角</strong></a>
+  <ul>
+  <li><a href="#discriminative-modeling" id="toc-discriminative-modeling" class="nav-link" data-scroll-target="#discriminative-modeling"><strong>判别式建模</strong></a></li>
+  <li><a href="#generative-modeling" id="toc-generative-modeling" class="nav-link" data-scroll-target="#generative-modeling"><strong>生成式建模</strong></a></li>
+  <li><a href="#conditional-generation" id="toc-conditional-generation" class="nav-link" data-scroll-target="#conditional-generation"><strong>条件生成</strong></a></li>
+  </ul></li>
+  <li><a href="#architecture-as-context-modeling" id="toc-architecture-as-context-modeling" class="nav-link" data-scroll-target="#architecture-as-context-modeling"><strong>把架构理解为上下文建模方式</strong></a>
+  <ul>
+  <li><a href="#traditional-probabilistic-sequence-models" id="toc-traditional-probabilistic-sequence-models" class="nav-link" data-scroll-target="#traditional-probabilistic-sequence-models"><strong>传统概率序列模型</strong></a></li>
+  <li><a href="#linear-models" id="toc-linear-models" class="nav-link" data-scroll-target="#linear-models"><strong>线性模型</strong></a></li>
+  <li><a href="#cnn-based-models" id="toc-cnn-based-models" class="nav-link" data-scroll-target="#cnn-based-models"><strong>基于 CNN 的模型</strong></a></li>
+  <li><a href="#rnn-lstm-gru" id="toc-rnn-lstm-gru" class="nav-link" data-scroll-target="#rnn-lstm-gru"><strong>RNN、LSTM 与 GRU</strong></a></li>
+  <li><a href="#transformer-based-models" id="toc-transformer-based-models" class="nav-link" data-scroll-target="#transformer-based-models"><strong>基于 Transformer 的模型</strong></a></li>
+  </ul></li>
+  <li><a href="#prediction-heads-and-output-structures" id="toc-prediction-heads-and-output-structures" class="nav-link" data-scroll-target="#prediction-heads-and-output-structures"><strong>预测头与输出结构</strong></a>
+  <ul>
+  <li><a href="#classification-head" id="toc-classification-head" class="nav-link" data-scroll-target="#classification-head"><strong>分类头</strong></a></li>
+  <li><a href="#token-classification-head" id="toc-token-classification-head" class="nav-link" data-scroll-target="#token-classification-head"><strong>Token 分类头</strong></a></li>
+  <li><a href="#language-modeling-head" id="toc-language-modeling-head" class="nav-link" data-scroll-target="#language-modeling-head"><strong>语言模型头</strong></a></li>
+  <li><a href="#encoder-decoder-output-layer" id="toc-encoder-decoder-output-layer" class="nav-link" data-scroll-target="#encoder-decoder-output-layer"><strong>Encoder-Decoder 输出层</strong></a></li>
+  </ul></li>
+  <li><a href="#decoding-and-inference" id="toc-decoding-and-inference" class="nav-link" data-scroll-target="#decoding-and-inference"><strong>解码与推断</strong></a>
+  <ul>
+  <li><a href="#greedy-decoding" id="toc-greedy-decoding" class="nav-link" data-scroll-target="#greedy-decoding"><strong>贪心解码</strong></a></li>
+  <li><a href="#beam-search" id="toc-beam-search" class="nav-link" data-scroll-target="#beam-search"><strong>Beam Search</strong></a></li>
+  <li><a href="#sampling-based-decoding" id="toc-sampling-based-decoding" class="nav-link" data-scroll-target="#sampling-based-decoding"><strong>基于采样的解码</strong></a></li>
+  </ul></li>
+  <li><a href="#choosing-a-modeling-strategy" id="toc-choosing-a-modeling-strategy" class="nav-link" data-scroll-target="#choosing-a-modeling-strategy"><strong>选择建模策略</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">自然语言处理：建模方法</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/NLP/04-modeling.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p>
+<a href="/ipynb/zh-CN/NLP/Natural-Language-Processing.html">返回 NLP 总览</a>
+</p>
+<section id="modeling-in-nlp" class="level2">
+<h2 class="anchored" data-anchor-id="modeling-in-nlp"><strong>NLP 建模</strong></h2>
+<p>NLP 建模把任务合同转化为一个可学习的条件分布、结构预测问题或生成过程。输入表示、上下文编码、预测头和解码算法共同决定可表达的输出。英文输入输出案例保持原文，以免改变标签边界、长度和语义关系。</p>
+<pre class="text"><code>Raw Text -&gt; Tokenisation -&gt; Representation -&gt; Model -&gt; Prediction / Generation</code></pre>
+<section id="what-does-modeling-mean-in-nlp" class="level3">
+<h3 class="anchored" data-anchor-id="what-does-modeling-mean-in-nlp"><strong>NLP 中的建模意味着什么</strong></h3>
+<p>建模不是简单选择神经网络名称，而是明确 <span class="math inline">\(x\)</span> 是什么、<span class="math inline">\(y\)</span> 的结构是什么、要估计 <span class="math inline">\(p(y\mid x)\)</span> 还是联合分布，以及推断时如何从分数得到输出。同一架构可配不同任务头，同一任务也可用规则、概率模型或深度模型解决。</p>
+<p><span class="math display">\[
+P(y \mid x)
+\]</span></p>
+<p><span class="math display">\[
+P(y_1, y_2, ..., y_T \mid x)
+\]</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Part</th>
+<th>Role</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Input representation</td>
+<td>Turns text into vectors</td>
+<td>BoW, TF-IDF, embeddings, contextual embeddings</td>
+</tr>
+<tr class="even">
+<td>Context modeling architecture</td>
+<td>Combines information across tokens</td>
+<td>Linear model, CNN, RNN, Transformer</td>
+</tr>
+<tr class="odd">
+<td>Prediction head</td>
+<td>Converts hidden representation into output</td>
+<td>Classification head, token classifier, LM head</td>
+</tr>
+</tbody>
+</table>
+<pre class="text"><code>Representation answers: what does each token/document look like numerically?
+Architecture answers: how does information move between tokens?
+Prediction head answers: what kind of output do we want?</code></pre>
+</section>
+<section id="input-output-formulations-in-nlp" class="level3">
+<h3 class="anchored" data-anchor-id="input-output-formulations-in-nlp"><strong>NLP 的输入输出形式</strong></h3>
+<p>先按输入与输出结构分类问题，可以在选择模型前识别所需上下文和损失。常见形式包括序列到标签、序列到标签序列、序列到序列、语言模型以及 pairwise matching。形式决定数据标注、张量形状、解码和指标。</p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/sequence-input-output-formulations.jpeg" class="lightbox" data-gallery="quarto-lightbox-inline-1"><img src="assets/sequence-input-output-formulations.jpeg" class="img-fluid figure-img"></a></p>
+<figcaption>NLP 的输入输出形式示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Diagram pattern</th>
+<th>Formulation in this chapter</th>
+<th>NLP interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Many-to-one</td>
+<td>Sequence-to-Label</td>
+<td>Read an entire review, then predict one sentiment label</td>
+</tr>
+<tr class="even">
+<td>Aligned many-to-many</td>
+<td>Sequence-to-Label-Sequence</td>
+<td>Produce one POS or NER label for each input token</td>
+</tr>
+<tr class="odd">
+<td>Delayed many-to-many</td>
+<td>Sequence-to-Sequence</td>
+<td>Encode a source sequence before generating a target sequence</td>
+</tr>
+<tr class="even">
+<td>One-to-many / autoregressive many-to-many</td>
+<td>Language Modeling</td>
+<td>Generate a continuation from a prompt or previous tokens</td>
+</tr>
+<tr class="odd">
+<td>Multiple sequences to one score</td>
+<td>Pairwise / Matching</td>
+<td>Encode a query-document or premise-hypothesis pair and produce a score</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Formulation</th>
+<th>Input</th>
+<th>Output</th>
+<th>Example Task</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Sequence-to-Label</td>
+<td>one sequence</td>
+<td>one label</td>
+<td>sentiment classification</td>
+</tr>
+<tr class="even">
+<td>Sequence-to-Label-Sequence</td>
+<td>one sequence</td>
+<td>one label per token</td>
+<td>POS tagging, NER</td>
+</tr>
+<tr class="odd">
+<td>Sequence-to-Sequence</td>
+<td>one sequence</td>
+<td>another sequence</td>
+<td>translation, summarisation</td>
+</tr>
+<tr class="even">
+<td>Language Modeling</td>
+<td>previous tokens</td>
+<td>next token / continuation</td>
+<td>GPT-style generation</td>
+</tr>
+<tr class="odd">
+<td>Pairwise / Matching</td>
+<td>two sequences</td>
+<td>score or label</td>
+<td>NLI, semantic similarity, retrieval</td>
+</tr>
+</tbody>
+</table>
+<section id="sequence-to-label-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-to-label-modeling"><strong>序列到标签建模</strong></h4>
+<p>模型读取一个 token 序列并输出固定标签或连续值，例如 sentiment、topic、intent。编码器先聚合序列，分类头再产生 logits。池化策略必须保留任务所需证据，并注意长文截断可能删除决定性片段。</p>
+<pre class="text"><code>Input:  "This movie was surprisingly good"
+Output: Positive</code></pre>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Input</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Sentiment classification</td>
+<td>review text</td>
+<td>positive / negative</td>
+</tr>
+<tr class="even">
+<td>Spam detection</td>
+<td>email text</td>
+<td>spam / not spam</td>
+</tr>
+<tr class="odd">
+<td>Topic classification</td>
+<td>news article</td>
+<td>politics / sport / finance</td>
+</tr>
+<tr class="even">
+<td>Intent detection</td>
+<td>user utterance</td>
+<td>book_flight / cancel_order</td>
+</tr>
+</tbody>
+</table>
+<p><span class="math display">\[
+\hat{y} = \arg\max_y P(y \mid x)
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> Pipeline</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>texts <span class="op">=</span> [</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"the movie was excellent"</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"great story and acting"</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"the film was boring"</span>,</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"terrible pacing and weak plot"</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>]</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Pipeline([</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"tfidf"</span>, TfidfVectorizer()),</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"clf"</span>, LogisticRegression())</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>model.fit(texts, labels)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model.predict([<span class="st">"excellent acting"</span>]))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="sequence-to-label-sequence-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-to-label-sequence-modeling"><strong>序列到标签序列建模</strong></h4>
+<p>输出与输入 token 或 span 对齐，例如 POS、NER 与 slot filling。模型需要同时判断标签类别和边界；独立 token softmax 简单，CRF 等结构层可约束合法转移。子词拆分后还要规定标签投影与聚合规则。</p>
+<pre class="text"><code>Input:  John   works  at  Google
+Output: B-PER  O      O   B-ORG</code></pre>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Output Label Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>POS tagging</td>
+<td>grammatical category for each token</td>
+</tr>
+<tr class="even">
+<td>Named Entity Recognition</td>
+<td>entity span and type</td>
+</tr>
+<tr class="odd">
+<td>Chunking</td>
+<td>phrase boundary</td>
+</tr>
+<tr class="even">
+<td>Slot filling</td>
+<td>semantic slot in a user utterance</td>
+</tr>
+</tbody>
+</table>
+<p><span class="math display">\[
+y_1, ..., y_n
+\]</span></p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/sequence-labeling-example.svg" class="lightbox" data-gallery="quarto-lightbox-inline-2"><img src="assets/sequence-labeling-example.svg" class="img-fluid figure-img"></a></p>
+<figcaption>序列到标签序列建模示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>batch_size <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>seq_len <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>hidden_dim <span class="op">=</span> <span class="dv">16</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>num_tags <span class="op">=</span> <span class="dv">4</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>hidden_states <span class="op">=</span> torch.randn(batch_size, seq_len, hidden_dim)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>classifier <span class="op">=</span> nn.Linear(hidden_dim, num_tags)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> classifier(hidden_states)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(logits.shape)  <span class="co"># [batch_size, seq_len, num_tags]</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="sequence-to-sequence-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="sequence-to-sequence-modeling"><strong>序列到序列建模</strong></h4>
+<p>输入和输出都是可变长序列，常见于翻译、摘要与问答。encoder-decoder 先编码 <span class="math inline">\(x\)</span>，decoder 自回归建模 <span class="math inline">\(p(y\mid x)=\prod_t p(y_t\mid y_{&lt;t},x)\)</span>。训练可并行，推断却依赖已生成前缀。</p>
+<pre class="text"><code>Input:  I love natural language processing
+Output: J'aime le traitement du langage naturel</code></pre>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Input</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Machine Translation</td>
+<td>sentence in source language</td>
+<td>sentence in target language</td>
+</tr>
+<tr class="even">
+<td>Summarisation</td>
+<td>long document</td>
+<td>short summary</td>
+</tr>
+<tr class="odd">
+<td>Question Answering</td>
+<td>question + passage</td>
+<td>answer text</td>
+</tr>
+<tr class="even">
+<td>Text-to-SQL</td>
+<td>user question</td>
+<td>SQL query</td>
+</tr>
+</tbody>
+</table>
+<p><span class="math display">\[
+P(y_1, ..., y_m \mid x_1, ..., x_n)
+\]</span></p>
+<p><span class="math display">\[
+P(y \mid x) = \prod_{t=1}^{m} P(y_t \mid y_{&lt;t}, x)
+\]</span></p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="https://upload.wikimedia.org/wikipedia/commons/c/c7/Seq2seq_RNN_encoder-decoder_with_attention_mechanism%2C_training.png" class="lightbox" data-gallery="quarto-lightbox-inline-3"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c7/Seq2seq_RNN_encoder-decoder_with_attention_mechanism%2C_training.png" class="img-fluid figure-img"></a></p>
+<figcaption>序列到序列建模示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+</section>
+<section id="language-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="language-modeling"><strong>语言建模</strong></h4>
+<p>语言模型为 token 序列分配概率。自回归模型预测下一 token，masked model 根据双向上下文恢复被遮蔽 token。它们学习通用语言统计，但低 perplexity 不自动意味着事实正确、指令遵循或安全。</p>
+<pre class="text"><code>Input:  Natural language processing is
+Output: [fun, difficult, useful, ...]</code></pre>
+<p><span class="math display">\[
+P(w_1, w_2, ..., w_n)
+\]</span></p>
+<p><span class="math display">\[
+P(w_1, ..., w_n) = \prod_{i=1}^{n} P(w_i \mid w_1, ..., w_{i-1})
+\]</span></p>
+<p><span class="math display">\[
+P(w_i \mid w_{&lt;i})
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> transformers <span class="im">import</span> AutoTokenizer, AutoModelForCausalLM</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>model_name <span class="op">=</span> <span class="st">"gpt2"</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_name)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(model_name)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> <span class="st">"Natural language processing is"</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> tokenizer(prompt, return_tensors<span class="op">=</span><span class="st">"pt"</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    outputs <span class="op">=</span> model(<span class="op">**</span>inputs)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>next_token_logits <span class="op">=</span> outputs.logits[<span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>next_token_id <span class="op">=</span> next_token_logits.argmax().item()</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(tokenizer.decode([next_token_id]))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="pairwise-and-matching-based-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="pairwise-and-matching-based-modeling"><strong>成对与匹配建模</strong></h4>
+<p>匹配任务比较 query-document、premise-hypothesis 或两句是否等价。cross-encoder 联合编码 pair，交互充分但成本高；bi-encoder 分别编码并用相似度比较，便于大规模索引。负例选择往往比单纯扩大模型更关键。</p>
+<pre class="text"><code>Text A: A dog is running in the park.
+Text B: An animal is moving outdoors.
+Output: entailment / high similarity</code></pre>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Input Pair</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Natural Language Inference</td>
+<td>premise + hypothesis</td>
+<td>entailment / contradiction / neutral</td>
+</tr>
+<tr class="even">
+<td>Semantic Textual Similarity</td>
+<td>sentence A + sentence B</td>
+<td>similarity score</td>
+</tr>
+<tr class="odd">
+<td>Question Answering Retrieval</td>
+<td>query + passage</td>
+<td>relevance score</td>
+</tr>
+<tr class="even">
+<td>Duplicate Detection</td>
+<td>question A + question B</td>
+<td>duplicate / not duplicate</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Style</th>
+<th>Method</th>
+<th>Strength</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Cross-encoder</td>
+<td>encode both texts together</td>
+<td>high accuracy, full interaction</td>
+</tr>
+<tr class="even">
+<td>Bi-encoder</td>
+<td>encode separately, compare vectors</td>
+<td>efficient retrieval</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="probabilistic-view-of-nlp-modeling" class="level3">
+<h3 class="anchored" data-anchor-id="probabilistic-view-of-nlp-modeling"><strong>NLP 建模的概率视角</strong></h3>
+<p>概率视角明确模型在估计什么分布以及不确定性来自哪里。分类常直接估计条件分布，生成模型可描述数据生成过程，条件生成则在给定输入下生成输出。概率需要校准与任务约束，不能把 softmax 数值直接当作事实可信度。</p>
+<section id="discriminative-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="discriminative-modeling"><strong>判别式建模</strong></h4>
+<p>判别模型直接学习 <span class="math inline">\(p(y\mid x)\)</span> 或决策边界，重点区分目标类别。逻辑回归、CRF 和大多数微调分类器都属此类。它们通常在有标签任务上高效，但不会完整解释输入如何产生，也难自然生成新文本。</p>
+<p><span class="math display">\[
+P(y \mid x)
+\]</span></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Task</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Logistic Regression</td>
+<td>sentiment classification</td>
+</tr>
+<tr class="even">
+<td>Linear SVM</td>
+<td>document classification</td>
+</tr>
+<tr class="odd">
+<td>BERT classifier</td>
+<td>intent detection</td>
+</tr>
+<tr class="even">
+<td>CRF tagger</td>
+<td>sequence labeling</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="generative-modeling" class="level4">
+<h4 class="anchored" data-anchor-id="generative-modeling"><strong>生成式建模</strong></h4>
+<p>生成模型学习 <span class="math inline">\(p(x)\)</span> 或 <span class="math inline">\(p(x,y)\)</span>，可采样、补全或通过 Bayes 规则分类。n-gram、HMM 和自回归语言模型体现不同形式。它们能利用无标签数据，但对分布假设、解码与生成错误更敏感。</p>
+<p><span class="math display">\[
+P(x, y) = P(y)P(x \mid y)
+\]</span></p>
+<p><span class="math display">\[
+P(y \mid x) = \frac{P(x \mid y)P(y)}{P(x)}
+\]</span></p>
+<p><span class="math display">\[
+P(c \mid d) \propto P(c) \prod_i P(w_i \mid c)
+\]</span></p>
+<p><span class="math display">\[
+P(w_1, ..., w_n)
+\]</span></p>
+</section>
+<section id="conditional-generation" class="level4">
+<h4 class="anchored" data-anchor-id="conditional-generation"><strong>条件生成</strong></h4>
+<p>条件生成估计 <span class="math inline">\(p(y\mid x)\)</span>，但 <span class="math inline">\(y\)</span> 是开放序列而非固定类别。翻译、摘要和基于证据的回答都属于此类。模型必须同时满足内容条件与语言流畅性，评估也要区分事实支持、覆盖、风格和多解问题。</p>
+<p><span class="math display">\[
+P(y \mid x)
+\]</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Task</th>
+<th>Conditional Probability</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Translation</td>
+<td><span class="math inline">\(P(\text{target sentence} \mid \text{source sentence})\)</span></td>
+</tr>
+<tr class="even">
+<td>Summarisation</td>
+<td><span class="math inline">\(P(\text{summary} \mid \text{document})\)</span></td>
+</tr>
+<tr class="odd">
+<td>Dialogue</td>
+<td><span class="math inline">\(P(\text{response} \mid \text{conversation})\)</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="architecture-as-context-modeling" class="level3">
+<h3 class="anchored" data-anchor-id="architecture-as-context-modeling"><strong>把架构理解为上下文建模方式</strong></h3>
+<p>不同架构的核心差异是信息如何在 token 之间传播：线性模型使用局部人工特征，CNN 聚合固定窗口，RNN 顺序传递状态，Transformer 用注意力直接连接位置。选择架构就是选择归纳偏置、并行方式、上下文长度与成本。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Architecture</th>
+<th>Context Strategy</th>
+<th>Good At</th>
+<th>Weakness</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Traditional sequence models</td>
+<td>transitions between neighboring hidden labels or states</td>
+<td>structured sequence prediction with limited data</td>
+<td>strong independence assumptions and manual features</td>
+</tr>
+<tr class="even">
+<td>Linear Models</td>
+<td>no real token-token context unless features encode it</td>
+<td>fast baselines</td>
+<td>weak word order modeling</td>
+</tr>
+<tr class="odd">
+<td>CNN-Based Models</td>
+<td>local n-gram windows</td>
+<td>local phrase patterns</td>
+<td>limited long-range context</td>
+</tr>
+<tr class="even">
+<td>RNN / LSTM / GRU</td>
+<td>recurrent hidden state</td>
+<td>sequential context</td>
+<td>hard to parallelise</td>
+</tr>
+<tr class="odd">
+<td>Transformer-Based Models</td>
+<td>self-attention between tokens</td>
+<td>global context</td>
+<td>quadratic attention cost</td>
+</tr>
+</tbody>
+</table>
+<section id="traditional-probabilistic-sequence-models" class="level4">
+<h4 class="anchored" data-anchor-id="traditional-probabilistic-sequence-models"><strong>传统概率序列模型</strong></h4>
+<p>HMM 用隐状态和生成假设建模序列，MEMM 直接建模局部条件分布，CRF 对整条标签序列归一化并加入转移约束。它们在小数据、可解释标注和结构约束场景仍有价值，也为理解神经序列模型提供清晰基线。</p>
+<p><span class="math display">\[
+y^* = \arg\max_{y \in \mathcal{Y}(x)} \operatorname{score}(x,y)
+\]</span></p>
+<pre class="text"><code>Observed words:    The       bank      raised     rates
+Hidden POS tags:   DET  -&gt;   NOUN  -&gt;  VERB  -&gt;   NOUN</code></pre>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hmm-tagger-components.png" class="lightbox" data-gallery="quarto-lightbox-inline-4"><img src="assets/hmm-tagger-components.png" class="img-fluid figure-img"></a></p>
+<figcaption>传统概率序列模型示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<p><span class="math display">\[
+P(x,y)
+=P(y_1)
+\prod_{t=2}^{T}P(y_t\mid y_{t-1})
+\prod_{t=1}^{T}P(x_t\mid y_t)
+\]</span></p>
+<p><span class="math display">\[
+y^*=\arg\max_y P(y\mid x)
+=\arg\max_y P(x,y)
+\]</span></p>
+<p><span class="math display">\[
+\delta_t(j)
+=
+\max_i\left[\delta_{t-1}(i)a_{ij}\right]b_j(x_t)
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>words <span class="op">=</span> [<span class="st">"the"</span>, <span class="st">"bank"</span>, <span class="st">"closed"</span>]</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>tags <span class="op">=</span> [<span class="st">"DET"</span>, <span class="st">"NOUN"</span>, <span class="st">"VERB"</span>]</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Probabilities are deliberately small and illustrative rather than learned</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co"># from a full corpus. In practice, estimate them from tagged training data.</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>start <span class="op">=</span> {<span class="st">"DET"</span>: <span class="fl">0.60</span>, <span class="st">"NOUN"</span>: <span class="fl">0.25</span>, <span class="st">"VERB"</span>: <span class="fl">0.15</span>}</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>transition <span class="op">=</span> {</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DET"</span>:  {<span class="st">"DET"</span>: <span class="fl">0.05</span>, <span class="st">"NOUN"</span>: <span class="fl">0.85</span>, <span class="st">"VERB"</span>: <span class="fl">0.10</span>},</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NOUN"</span>: {<span class="st">"DET"</span>: <span class="fl">0.10</span>, <span class="st">"NOUN"</span>: <span class="fl">0.20</span>, <span class="st">"VERB"</span>: <span class="fl">0.70</span>},</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"VERB"</span>: {<span class="st">"DET"</span>: <span class="fl">0.40</span>, <span class="st">"NOUN"</span>: <span class="fl">0.40</span>, <span class="st">"VERB"</span>: <span class="fl">0.20</span>},</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>emission <span class="op">=</span> {</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DET"</span>:  {<span class="st">"the"</span>: <span class="fl">0.90</span>, <span class="st">"bank"</span>: <span class="fl">0.01</span>, <span class="st">"closed"</span>: <span class="fl">0.01</span>},</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"NOUN"</span>: {<span class="st">"the"</span>: <span class="fl">0.01</span>, <span class="st">"bank"</span>: <span class="fl">0.70</span>, <span class="st">"closed"</span>: <span class="fl">0.10</span>},</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>    <span class="st">"VERB"</span>: {<span class="st">"the"</span>: <span class="fl">0.01</span>, <span class="st">"bank"</span>: <span class="fl">0.20</span>, <span class="st">"closed"</span>: <span class="fl">0.80</span>},</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Log probabilities turn products into sums and prevent numerical underflow.</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> safe_log(probability):</span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> math.log(<span class="bu">max</span>(probability, <span class="fl">1e-12</span>))</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> []       <span class="co"># scores[t][tag] = best log-score ending in tag at t</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>backpointers <span class="op">=</span> [] <span class="co"># backpointers[t][tag] = best previous tag</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1: initialize paths using the start and first-word probabilities.</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>first_scores <span class="op">=</span> {</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>    tag: safe_log(start[tag]) <span class="op">+</span> safe_log(emission[tag].get(words[<span class="dv">0</span>], <span class="fl">1e-6</span>))</span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> tag <span class="kw">in</span> tags</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>scores.append(first_scores)</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>backpointers.append({tag: <span class="va">None</span> <span class="cf">for</span> tag <span class="kw">in</span> tags})</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 2: extend only the best path into each current tag.</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> position <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="bu">len</span>(words)):</span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    current_scores <span class="op">=</span> {}</span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>    current_backpointers <span class="op">=</span> {}</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> current_tag <span class="kw">in</span> tags:</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>        candidates <span class="op">=</span> {</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a>            previous_tag: (</span>
+<span id="cb12-43"><a href="#cb12-43" aria-hidden="true" tabindex="-1"></a>                scores[position <span class="op">-</span> <span class="dv">1</span>][previous_tag]</span>
+<span id="cb12-44"><a href="#cb12-44" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> safe_log(transition[previous_tag][current_tag])</span>
+<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> safe_log(emission[current_tag].get(words[position], <span class="fl">1e-6</span>))</span>
+<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> previous_tag <span class="kw">in</span> tags</span>
+<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>        best_previous <span class="op">=</span> <span class="bu">max</span>(candidates, key<span class="op">=</span>candidates.get)</span>
+<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>        current_scores[current_tag] <span class="op">=</span> candidates[best_previous]</span>
+<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>        current_backpointers[current_tag] <span class="op">=</span> best_previous</span>
+<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    scores.append(current_scores)</span>
+<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>    backpointers.append(current_backpointers)</span>
+<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: start from the best final tag and follow pointers backward.</span></span>
+<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a>best_final_tag <span class="op">=</span> <span class="bu">max</span>(scores[<span class="op">-</span><span class="dv">1</span>], key<span class="op">=</span>scores[<span class="op">-</span><span class="dv">1</span>].get)</span>
+<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a>best_path <span class="op">=</span> [best_final_tag]</span>
+<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> position <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(words) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">1</span>):</span>
+<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>    best_path.append(backpointers[position][best_path[<span class="op">-</span><span class="dv">1</span>]])</span>
+<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-63"><a href="#cb12-63" aria-hidden="true" tabindex="-1"></a>best_path.reverse()</span>
+<span id="cb12-64"><a href="#cb12-64" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="bu">list</span>(<span class="bu">zip</span>(words, best_path)))</span>
+<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a><span class="co"># [('the', 'DET'), ('bank', 'NOUN'), ('closed', 'VERB')]</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><span class="math display">\[
+P(y\mid x)
+=\prod_{t=1}^{T}P(y_t\mid y_{t-1},x,t)
+\]</span></p>
+<p><span class="math display">\[
+\operatorname{score}(x,y)
+=\sum_{t=1}^{T}s_t(y_t,x)
++\sum_{t=2}^{T}A_{y_{t-1},y_t}
+\]</span></p>
+<p><span class="math display">\[
+P(y\mid x)
+=\frac{\exp(\operatorname{score}(x,y))}{Z(x)},
+\qquad
+Z(x)=\sum_{y'\in\mathcal{Y}(x)}\exp(\operatorname{score}(x,y'))
+\]</span></p>
+<pre class="text"><code>Tokens -&gt; BiLSTM or Transformer -&gt; contextual token scores -&gt; CRF -&gt; best label sequence</code></pre>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Probability view</th>
+<th>Input features</th>
+<th>Output dependency</th>
+<th>Main limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>HMM</td>
+<td>Generative <span class="math inline">\(P(x,y)\)</span></td>
+<td>Restricted emission model</td>
+<td>State transitions</td>
+<td>Strong independence assumptions</td>
+</tr>
+<tr class="even">
+<td>MEMM</td>
+<td>Discriminative <span class="math inline">\(P(y_t\mid y_{t-1},x,t)\)</span></td>
+<td>Flexible overlapping features</td>
+<td>Previous label</td>
+<td>Local normalization and label bias</td>
+</tr>
+<tr class="odd">
+<td>CRF</td>
+<td>Discriminative <span class="math inline">\(P(y\mid x)\)</span></td>
+<td>Flexible or neural features</td>
+<td>Globally scored label chain</td>
+<td>More expensive training and decoding</td>
+</tr>
+<tr class="even">
+<td>Independent neural tagger</td>
+<td>Per-token <span class="math inline">\(P(y_t\mid x)\)</span></td>
+<td>Contextual encoder</td>
+<td>No explicit label transitions</td>
+<td>May produce inconsistent tag sequences</td>
+</tr>
+<tr class="odd">
+<td>Neural encoder + CRF</td>
+<td>Global <span class="math inline">\(P(y\mid x)\)</span></td>
+<td>Contextual neural features</td>
+<td>Learned transitions</td>
+<td>Extra implementation and inference cost</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="linear-models" class="level4">
+<h4 class="anchored" data-anchor-id="linear-models"><strong>线性模型</strong></h4>
+<p>线性模型对 BoW、TF-IDF 或人工特征加权，再通过 sigmoid/softmax 预测。训练快速、系数可解释、对小数据稳定，但除非显式构造 n-gram 或交互特征，否则难表达词序和复杂组合。</p>
+<p><span class="math display">\[
+f(x)=w^Tx+b
+\]</span></p>
+<pre class="text"><code>Input sentence: "not very good"
+Features: not=1, very=1, good=1, not_good=1
+Model score: sum(feature value * feature weight)</code></pre>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> Pipeline</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> Pipeline([</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"tfidf"</span>, TfidfVectorizer(ngram_range<span class="op">=</span>(<span class="dv">1</span>, <span class="dv">2</span>))),</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"clf"</span>, LogisticRegression())</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="cnn-based-models" class="level4">
+<h4 class="anchored" data-anchor-id="cnn-based-models"><strong>基于 CNN 的模型</strong></h4>
+<p>文本 CNN 用卷积核检测局部 n-gram 模式，再通过 pooling 得到固定表示。它能并行训练并捕获关键短语，适合分类；更深或空洞卷积可扩大感受野，但长距离依赖仍需多层传播。</p>
+<pre class="text"><code>Embeddings -&gt; Convolution Filters -&gt; Max Pooling -&gt; Classifier</code></pre>
+<pre class="text"><code>not very good
+really loved this
+waste of time</code></pre>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="https://upload.wikimedia.org/wikipedia/commons/5/51/CNN_Convolutional_Layers.svg" class="lightbox" data-gallery="quarto-lightbox-inline-5"><img src="https://upload.wikimedia.org/wikipedia/commons/5/51/CNN_Convolutional_Layers.svg" class="img-fluid figure-img"></a></p>
+<figcaption>基于 CNN 的模型示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>NLP Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Embedding matrix</td>
+<td>sentence represented as token vectors</td>
+</tr>
+<tr class="even">
+<td>Convolution filter</td>
+<td>detects local phrase pattern</td>
+</tr>
+<tr class="odd">
+<td>Feature map</td>
+<td>where the pattern appears</td>
+</tr>
+<tr class="even">
+<td>Max pooling</td>
+<td>keeps the strongest signal</td>
+</tr>
+<tr class="odd">
+<td>Classifier</td>
+<td>predicts the final label</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn.functional <span class="im">as</span> F</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TextCNN(nn.Module):</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, vocab_size, embed_dim, num_classes):</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.embedding <span class="op">=</span> nn.Embedding(vocab_size, embed_dim)</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.conv <span class="op">=</span> nn.Conv1d(</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>            in_channels<span class="op">=</span>embed_dim,</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>            out_channels<span class="op">=</span><span class="dv">100</span>,</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>            kernel_size<span class="op">=</span><span class="dv">3</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc <span class="op">=</span> nn.Linear(<span class="dv">100</span>, num_classes)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, token_ids):</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> <span class="va">self</span>.embedding(token_ids)      <span class="co"># [batch, seq_len, embed_dim]</span></span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> x.transpose(<span class="dv">1</span>, <span class="dv">2</span>)              <span class="co"># [batch, embed_dim, seq_len]</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.relu(<span class="va">self</span>.conv(x))           <span class="co"># [batch, channels, new_seq_len]</span></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.max_pool1d(x, kernel_size<span class="op">=</span>x.size(<span class="dv">2</span>)).squeeze(<span class="dv">2</span>)</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.fc(x)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="rnn-lstm-gru" class="level4">
+<h4 class="anchored" data-anchor-id="rnn-lstm-gru"><strong>RNN、LSTM 与 GRU</strong></h4>
+<p>RNN 按顺序更新隐藏状态，天然表示前缀；LSTM/GRU 通过门控缓解梯度消失并控制记忆。双向模型适合理解任务，单向模型适合生成。顺序依赖限制并行，超长上下文中的信息仍可能衰减。</p>
+<p><span class="math display">\[
+h_t = \tanh(Wx_t + Uh_{t-1} + b)
+\]</span></p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="https://upload.wikimedia.org/wikipedia/commons/b/b5/Recurrent_neural_network_unfold.svg" class="lightbox" data-gallery="quarto-lightbox-inline-6"><img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/Recurrent_neural_network_unfold.svg" class="img-fluid figure-img"></a></p>
+<figcaption>RNN、LSTM 与 GRU示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Pattern</th>
+<th>Input</th>
+<th>Output</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>many-to-one</td>
+<td>token sequence</td>
+<td>one label</td>
+<td>sentiment classification</td>
+</tr>
+<tr class="even">
+<td>many-to-many</td>
+<td>token sequence</td>
+<td>token label sequence</td>
+<td>NER, POS tagging</td>
+</tr>
+<tr class="odd">
+<td>encoder-decoder</td>
+<td>source sequence</td>
+<td>generated target sequence</td>
+<td>translation</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="https://upload.wikimedia.org/wikipedia/commons/6/63/Long_Short-Term_Memory.svg" class="lightbox" data-gallery="quarto-lightbox-inline-7"><img src="https://upload.wikimedia.org/wikipedia/commons/6/63/Long_Short-Term_Memory.svg" class="img-fluid figure-img"></a></p>
+<figcaption>RNN、LSTM 与 GRU示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Model</th>
+<th>Main Mechanism</th>
+<th>Intuition</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>RNN</td>
+<td>one hidden state</td>
+<td>simple sequential memory</td>
+</tr>
+<tr class="even">
+<td>LSTM</td>
+<td>cell state + input/forget/output gates</td>
+<td>stronger long-term memory</td>
+</tr>
+<tr class="odd">
+<td>GRU</td>
+<td>update/reset gates</td>
+<td>simpler gated memory</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BiLSTMTagger(nn.Module):</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, vocab_size, embed_dim, hidden_dim, num_tags):</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.embedding <span class="op">=</span> nn.Embedding(vocab_size, embed_dim)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.lstm <span class="op">=</span> nn.LSTM(</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>            embed_dim,</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>            hidden_dim,</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>            batch_first<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>            bidirectional<span class="op">=</span><span class="va">True</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.classifier <span class="op">=</span> nn.Linear(hidden_dim <span class="op">*</span> <span class="dv">2</span>, num_tags)</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, token_ids):</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>        embeddings <span class="op">=</span> <span class="va">self</span>.embedding(token_ids)</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>        outputs, _ <span class="op">=</span> <span class="va">self</span>.lstm(embeddings)</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.classifier(outputs)</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> BiLSTMTagger(<span class="dv">10000</span>, <span class="dv">128</span>, <span class="dv">64</span>, <span class="dv">5</span>)</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> torch.tensor([[<span class="dv">11</span>, <span class="dv">22</span>, <span class="dv">33</span>, <span class="dv">44</span>]])</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(model(batch).shape)  <span class="co"># [batch, seq_len, num_tags]</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="transformer-based-models" class="level4">
+<h4 class="anchored" data-anchor-id="transformer-based-models"><strong>基于 Transformer 的模型</strong></h4>
+<p>Transformer 用 self-attention 让每个 token 根据其他位置加权聚合信息，并结合位置编码与前馈层。encoder、decoder 和 encoder-decoder 分别适合理解、生成与条件生成。全局交互能力强，但注意力成本、上下文管理和位置泛化仍需权衡。</p>
+<p><span class="math display">\[
+q_i = W_Qx_i, \quad k_i = W_Kx_i, \quad v_i = W_Vx_i
+\]</span></p>
+<p><span class="math display">\[
+\text{Attention}(Q,K,V)=\text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\]</span></p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="https://upload.wikimedia.org/wikipedia/commons/3/34/Transformer%2C_full_architecture.png" class="lightbox" data-gallery="quarto-lightbox-inline-8"><img src="https://upload.wikimedia.org/wikipedia/commons/3/34/Transformer%2C_full_architecture.png" class="img-fluid figure-img"></a></p>
+<figcaption>基于 Transformer 的模型示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Multi-head self-attention</td>
+<td>lets tokens exchange contextual information</td>
+</tr>
+<tr class="even">
+<td>Feed-forward network</td>
+<td>applies non-linear transformation at each position</td>
+</tr>
+<tr class="odd">
+<td>Residual connection</td>
+<td>stabilizes deep networks</td>
+</tr>
+<tr class="even">
+<td>Layer normalization</td>
+<td>normalizes hidden activations</td>
+</tr>
+<tr class="odd">
+<td>Positional encoding</td>
+<td>injects word order information</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Family</th>
+<th>Attention Pattern</th>
+<th>Suitable Tasks</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Encoder-only</td>
+<td>bidirectional attention</td>
+<td>classification, NER, embeddings</td>
+</tr>
+<tr class="even">
+<td>Decoder-only</td>
+<td>causal attention</td>
+<td>text generation, chat, completion</td>
+</tr>
+<tr class="odd">
+<td>Encoder-decoder</td>
+<td>encoder attention + decoder cross-attention</td>
+<td>translation, summarisation</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>attention <span class="op">=</span> nn.MultiheadAttention(</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    embed_dim<span class="op">=</span><span class="dv">128</span>,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    num_heads<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    batch_first<span class="op">=</span><span class="va">True</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(<span class="dv">2</span>, <span class="dv">10</span>, <span class="dv">128</span>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>output, weights <span class="op">=</span> attention(x, x, x)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(output.shape)   <span class="co"># [2, 10, 128]</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(weights.shape)  <span class="co"># [2, 10, 10]</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+</section>
+<section id="prediction-heads-and-output-structures" class="level3">
+<h3 class="anchored" data-anchor-id="prediction-heads-and-output-structures"><strong>预测头与输出结构</strong></h3>
+<p>共享编码器的隐藏状态必须通过与任务相匹配的输出头转成预测。头部规定 logits 的维度、参数共享方式和损失位置；输出结构不匹配时，再强的编码器也无法自然表达任务约束。</p>
+<pre class="text"><code>Backbone hidden states -&gt; Prediction Head -&gt; Task-specific Output</code></pre>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/bert-task-heads.png" class="lightbox" data-gallery="quarto-lightbox-inline-9"><img src="assets/bert-task-heads.png" class="img-fluid figure-img"></a></p>
+<figcaption>预测头与输出结构示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<section id="classification-head" class="level4">
+<h4 class="anchored" data-anchor-id="classification-head"><strong>分类头</strong></h4>
+<p>分类头从 pooled 表示或指定 token 隐藏状态计算类别 logits，随后用 softmax 或 sigmoid。单标签任务通常使用 softmax，多标签任务逐类使用 sigmoid。阈值、类别权重和校准属于最终决策的一部分。</p>
+<p><span class="math display">\[
+z = W h_{CLS} + b
+\]</span></p>
+<p><span class="math display">\[
+P(y \mid x)=\text{softmax}(z)
+\]</span></p>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn <span class="im">as</span> nn</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>hidden_size <span class="op">=</span> <span class="dv">768</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>num_classes <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>cls_vector <span class="op">=</span> torch.randn(<span class="dv">4</span>, hidden_size)  <span class="co"># [batch, hidden]</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>head <span class="op">=</span> nn.Linear(hidden_size, num_classes)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> head(cls_vector)</span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(logits.shape)  <span class="co"># [4, 3]</span></span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="token-classification-head" class="level4">
+<h4 class="anchored" data-anchor-id="token-classification-head"><strong>Token 分类头</strong></h4>
+<p>Token 分类头在每个位置共享同一个线性层，输出形状通常为 <code>[batch, length, labels]</code>。训练时应屏蔽 padding，并规定首子词或全子词的标签策略。需要全局合法性时可在 logits 之上增加 CRF。</p>
+<p><span class="math display">\[
+z_t = W h_t + b
+\]</span></p>
+<pre class="text"><code>Input hidden states: [h_1, h_2, ..., h_n]
+Output logits:       [z_1, z_2, ..., z_n]</code></pre>
+</section>
+<section id="language-modeling-head" class="level4">
+<h4 class="anchored" data-anchor-id="language-modeling-head"><strong>语言模型头</strong></h4>
+<p>语言模型头把隐藏状态投影到词表维度，常与输入 embedding 权重绑定。自回归模型在每个位置预测下一 token，masked model 只在被选位置计算主要损失。大词表投影会占用显著参数和计算。</p>
+<p><span class="math display">\[
+z_t = W h_t + b
+\]</span></p>
+<p><span class="math display">\[
+P(w_{t+1} \mid w_{\le t})=\text{softmax}(z_t)
+\]</span></p>
+<pre class="text"><code>hidden state -&gt; vocabulary logits -&gt; probability over all tokens</code></pre>
+</section>
+<section id="encoder-decoder-output-layer" class="level4">
+<h4 class="anchored" data-anchor-id="encoder-decoder-output-layer"><strong>Encoder-Decoder 输出层</strong></h4>
+<p>decoder 根据已生成前缀和 encoder 表示产生下一 token logits，并重复直到 EOS 或长度上限。cross-attention 提供输入条件，输出层负责词表概率。训练中的 teacher forcing 与推断中的自回归前缀不同，会产生 exposure bias。</p>
+<pre class="text"><code>encoder input -&gt; encoder states
+previous output tokens -&gt; decoder states -&gt; vocabulary distribution</code></pre>
+</section>
+</section>
+<section id="decoding-and-inference" class="level3">
+<h3 class="anchored" data-anchor-id="decoding-and-inference"><strong>解码与推断</strong></h3>
+<p>解码在巨大输出空间中搜索或采样序列。它会改变重复、长度、多样性和延迟，因此必须与任务目标共同调参。生成分数通常累加 log-probability，并需要长度归一化、停止条件和非法 token 约束。</p>
+<p><span class="math display">\[
+P(y_t \mid y_{&lt;t}, x)
+\]</span></p>
+<section id="greedy-decoding" class="level4">
+<h4 class="anchored" data-anchor-id="greedy-decoding"><strong>贪心解码</strong></h4>
+<p>贪心解码每一步选择概率最高的 token，速度快、确定性强，但局部最优不保证整句概率最高。一旦早期选择错误，后续只能在错误前缀上继续。适合低延迟或输出较受约束的任务。</p>
+<p><span class="math display">\[
+y_t = \arg\max_w P(w \mid y_{&lt;t}, x)
+\]</span></p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/greedy-search.png" class="lightbox" data-gallery="quarto-lightbox-inline-10"><img src="assets/greedy-search.png" class="img-fluid figure-img"></a></p>
+<figcaption>贪心解码示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<pre class="text"><code>Step 1: choose "I"
+Step 2: choose "love"
+Step 3: choose "NLP"</code></pre>
+<details>
+<summary>
+代码与案例
+</summary>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> greedy_decode(next_token_fn, start_token, end_token, max_len<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> [start_token]</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_len):</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>        probs <span class="op">=</span> next_token_fn(output)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>        next_token <span class="op">=</span> <span class="bu">max</span>(probs, key<span class="op">=</span>probs.get)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>        output.append(next_token)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> next_token <span class="op">==</span> end_token:</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> output</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="beam-search" class="level4">
+<h4 class="anchored" data-anchor-id="beam-search"><strong>Beam Search</strong></h4>
+<p>Beam search 同时保留 <span class="math inline">\(k\)</span> 个得分最高前缀，每步扩展并裁剪。较大 beam 可改善搜索，却增加计算，并可能偏向短、保守或重复输出。长度惩罚、覆盖约束和结束序列处理决定实际效果。</p>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/beam-search.png" class="lightbox" data-gallery="quarto-lightbox-inline-11"><img src="assets/beam-search.png" class="img-fluid figure-img"></a></p>
+<figcaption>Beam Search示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<pre class="text"><code>beam width = 3
+keep only the best 3 partial sequences after each step</code></pre>
+<p><span class="math display">\[
+score(y)=\sum_{t=1}^{T}\log P(y_t \mid y_{&lt;t},x)
+\]</span></p>
+</section>
+<section id="sampling-based-decoding" class="level4">
+<h4 class="anchored" data-anchor-id="sampling-based-decoding"><strong>基于采样的解码</strong></h4>
+<p>采样按模型分布选择 token，可用 temperature、top-k 或 top-p 控制随机性和长尾。它适合开放生成与多样候选，但不保证稳定或事实正确。应记录随机种子与参数，并对高风险输出增加验证。</p>
+<p><span class="math display">\[
+y_t \sim P(\cdot \mid y_{&lt;t}, x)
+\]</span></p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Idea</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Temperature</td>
+<td>divide logits by temperature</td>
+<td>controls randomness</td>
+</tr>
+<tr class="even">
+<td>Top-k Sampling</td>
+<td>sample only from top k tokens</td>
+<td>removes very unlikely tokens</td>
+</tr>
+<tr class="odd">
+<td>Top-p Sampling</td>
+<td>sample from smallest set with cumulative probability p</td>
+<td>adapts candidate set size</td>
+</tr>
+</tbody>
+</table>
+<blockquote class="blockquote">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/top-p-sampling.png" class="lightbox" data-gallery="quarto-lightbox-inline-12"><img src="assets/top-p-sampling.png" class="img-fluid figure-img"></a></p>
+<figcaption>基于采样的解码示意图</figcaption>
+</figure>
+</div>
+</blockquote>
+<p><span class="math display">\[
+P(w)=\text{softmax}(z_w / T)
+\]</span></p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Temperature</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Low temperature</td>
+<td>safer, more deterministic</td>
+</tr>
+<tr class="even">
+<td>High temperature</td>
+<td>more diverse, more risky</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="choosing-a-modeling-strategy" class="level3">
+<h3 class="anchored" data-anchor-id="choosing-a-modeling-strategy"><strong>选择建模策略</strong></h3>
+<p>先确定输出结构、数据量、错误代价和部署预算，再建立从简单基线到复杂模型的阶梯。比较时保持数据、指标和调参预算一致，同时观察准确率、延迟、内存、校准和关键切片。最小且满足任务合同的模型通常更容易维护。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Situation</th>
+<th>Recommended Starting Point</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Small labelled classification dataset</td>
+<td>TF-IDF + Logistic Regression</td>
+<td>strong and interpretable baseline</td>
+</tr>
+<tr class="even">
+<td>Local phrase patterns matter</td>
+<td>Text CNN</td>
+<td>captures n-gram-like features</td>
+</tr>
+<tr class="odd">
+<td>Token-level sequence labels</td>
+<td>BiLSTM or encoder Transformer</td>
+<td>uses context around each token</td>
+</tr>
+<tr class="even">
+<td>Translation / summarisation</td>
+<td>Encoder-decoder Transformer</td>
+<td>input and output are both sequences</td>
+</tr>
+<tr class="odd">
+<td>Open-ended generation</td>
+<td>Decoder-only Transformer</td>
+<td>natural next-token generation</td>
+</tr>
+<tr class="even">
+<td>Retrieval at scale</td>
+<td>Bi-encoder</td>
+<td>efficient vector search</td>
+</tr>
+<tr class="odd">
+<td>Highest accuracy on pair classification</td>
+<td>Cross-encoder</td>
+<td>full interaction between two texts</td>
+</tr>
+</tbody>
+</table>
+<pre class="text"><code>1. Define input-output formulation
+2. Build a simple baseline
+3. Check failure cases
+4. Choose architecture based on context requirement
+5. Choose prediction head
+6. Choose decoding strategy if generation is needed
+7. Evaluate with task-appropriate metrics</code></pre>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

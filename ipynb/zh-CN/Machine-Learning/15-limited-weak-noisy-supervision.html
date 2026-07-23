@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>机器学习：有限、弱与噪声监督下的学习</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="15-limited-weak-noisy-supervision.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#有限弱与噪声监督下的学习" id="toc-有限弱与噪声监督下的学习" class="nav-link active" data-scroll-target="#有限弱与噪声监督下的学习"><strong>有限、弱与噪声监督下的学习</strong></a>
+  <ul>
+  <li><a href="#为什么监督信息会成为瓶颈" id="toc-为什么监督信息会成为瓶颈" class="nav-link" data-scroll-target="#为什么监督信息会成为瓶颈"><strong>为什么监督信息会成为瓶颈</strong></a></li>
+  <li><a href="#半监督学习" id="toc-半监督学习" class="nav-link" data-scroll-target="#半监督学习"><strong>半监督学习</strong></a>
+  <ul>
+  <li><a href="#聚类平滑性与流形假设" id="toc-聚类平滑性与流形假设" class="nav-link" data-scroll-target="#聚类平滑性与流形假设"><strong>聚类、平滑性与流形假设</strong></a></li>
+  <li><a href="#自训练与伪标签" id="toc-自训练与伪标签" class="nav-link" data-scroll-target="#自训练与伪标签"><strong>自训练与伪标签</strong></a></li>
+  <li><a href="#基于图的方法" id="toc-基于图的方法" class="nav-link" data-scroll-target="#基于图的方法"><strong>基于图的方法</strong></a></li>
+  <li><a href="#一致性正则化" id="toc-一致性正则化" class="nav-link" data-scroll-target="#一致性正则化"><strong>一致性正则化</strong></a></li>
+  </ul></li>
+  <li><a href="#自监督学习" id="toc-自监督学习" class="nav-link" data-scroll-target="#自监督学习"><strong>自监督学习</strong></a>
+  <ul>
+  <li><a href="#代理任务与预测目标" id="toc-代理任务与预测目标" class="nav-link" data-scroll-target="#代理任务与预测目标"><strong>代理任务与预测目标</strong></a></li>
+  <li><a href="#对比学习" id="toc-对比学习" class="nav-link" data-scroll-target="#对比学习"><strong>对比学习</strong></a></li>
+  </ul></li>
+  <li><a href="#主动学习" id="toc-主动学习" class="nav-link" data-scroll-target="#主动学习"><strong>主动学习</strong></a>
+  <ul>
+  <li><a href="#不确定性多样性与查询策略" id="toc-不确定性多样性与查询策略" class="nav-link" data-scroll-target="#不确定性多样性与查询策略"><strong>不确定性、多样性与查询策略</strong></a></li>
+  <li><a href="#人在回路的标注" id="toc-人在回路的标注" class="nav-link" data-scroll-target="#人在回路的标注"><strong>人在回路的标注</strong></a></li>
+  </ul></li>
+  <li><a href="#弱监督" id="toc-弱监督" class="nav-link" data-scroll-target="#弱监督"><strong>弱监督</strong></a>
+  <ul>
+  <li><a href="#启发式规则远程监督与标签模型" id="toc-启发式规则远程监督与标签模型" class="nav-link" data-scroll-target="#启发式规则远程监督与标签模型"><strong>启发式规则、远程监督与标签模型</strong></a></li>
+  <li><a href="#正例-未标注学习" id="toc-正例-未标注学习" class="nav-link" data-scroll-target="#正例-未标注学习"><strong>正例-未标注学习</strong></a></li>
+  </ul></li>
+  <li><a href="#噪声标签学习" id="toc-噪声标签学习" class="nav-link" data-scroll-target="#噪声标签学习"><strong>噪声标签学习</strong></a>
+  <ul>
+  <li><a href="#噪声模型与转移矩阵" id="toc-噪声模型与转移矩阵" class="nav-link" data-scroll-target="#噪声模型与转移矩阵"><strong>噪声模型与转移矩阵</strong></a></li>
+  <li><a href="#鲁棒损失与样本重加权" id="toc-鲁棒损失与样本重加权" class="nav-link" data-scroll-target="#鲁棒损失与样本重加权"><strong>鲁棒损失与样本重加权</strong></a></li>
+  <li><a href="#co-teaching-与置信学习" id="toc-co-teaching-与置信学习" class="nav-link" data-scroll-target="#co-teaching-与置信学习"><strong>Co-Teaching 与置信学习</strong></a></li>
+  </ul></li>
+  <li><a href="#类别不平衡与稀有事件" id="toc-类别不平衡与稀有事件" class="nav-link" data-scroll-target="#类别不平衡与稀有事件"><strong>类别不平衡与稀有事件</strong></a>
+  <ul>
+  <li><a href="#重采样成本敏感学习与阈值调整" id="toc-重采样成本敏感学习与阈值调整" class="nav-link" data-scroll-target="#重采样成本敏感学习与阈值调整"><strong>重采样、成本敏感学习与阈值调整</strong></a></li>
+  </ul></li>
+  <li><a href="#不完美监督下的评估" id="toc-不完美监督下的评估" class="nav-link" data-scroll-target="#不完美监督下的评估"><strong>不完美监督下的评估</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">机器学习：有限、弱与噪声监督下的学习</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="../../Machine-Learning/15-limited-weak-noisy-supervision.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="Machine%20Learning.html">返回机器学习总览</a></p>
+<section id="有限弱与噪声监督下的学习" class="level2">
+<h2 class="anchored" data-anchor-id="有限弱与噪声监督下的学习"><strong>有限、弱与噪声监督下的学习</strong></h2>
+<p>监督学习通常被介绍成这样一种理想情形：数据集中的每个观测旁边都天然附带一个正确目标。现实中的标签却来自人、仪器、业务流程、启发式规则或旧模型。每个标签都有自己的<strong>来源（provenance）</strong>、<strong>成本</strong>、<strong>延迟</strong>和<strong>误差机制</strong>。不完美监督下的学习研究的是：如何从这些信号中提取有用信息，同时不把所有可用目标都假装成彼此独立且可靠的专家判断。</p>
+<p>首先要区分观测 <span class="math inline">\(x\)</span>、真正希望预测但未必可见的潜在目标 <span class="math inline">\(y\)</span>，以及数据管线实际记录下来的监督信号。根据场景不同，这个监督信号可能缺失、经过选择、由多人或多规则聚合、延迟出现，或者已经被污染。本章的方法会改变以下四类资源中的一项或多项：</p>
+<ul>
+<li>利用未标注观测的结构来改进对<strong>数据分布</strong>的认识；</li>
+<li>通过决定哪些样本值得专家关注来改变<strong>标签获取策略</strong>；</li>
+<li>显式描述弱来源或噪声如何产生观测标签，从而建立<strong>监督模型</strong>；</li>
+<li>通过修改<strong>训练目标与决策策略</strong>，降低不可靠标签或类别不平衡带来的影响。</li>
+</ul>
+<p>这些方法可以组合，但不能互相替代。自训练假设高置信度预测往往正确；主动学习假设标注者能够回答模型选择的问题；弱监督假设多个带噪来源包含可以互补的信息；噪声校正则必须对污染过程作出某种可识别的假设。一旦假设不成立，相应方法不仅可能无效，还可能放大原有错误。</p>
+<section id="为什么监督信息会成为瓶颈" class="level3">
+<h3 class="anchored" data-anchor-id="为什么监督信息会成为瓶颈"><strong>为什么监督信息会成为瓶颈</strong></h3>
+<p>标签可能因为完全不同的原因成为瓶颈：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>监督问题</th>
+<th>已经观测到什么</th>
+<th>缺失或不可靠的部分</th>
+<th>自然的起点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>少量干净标签</td>
+<td>小规模可信标注集和大量未标注样本</td>
+<td>对输入分布的覆盖</td>
+<td>半监督或自监督学习</td>
+</tr>
+<tr class="even">
+<td>专家标签昂贵</td>
+<td>未标注池和有限标注预算</td>
+<td>哪些样本最值得标注</td>
+<td>主动学习</td>
+</tr>
+<tr class="odd">
+<td>程序化或远程标签</td>
+<td>规则、数据库匹配、众包投票或模型输出</td>
+<td>来源的可靠性与依赖关系</td>
+<td>弱监督与标签模型</td>
+</tr>
+<tr class="even">
+<td>正例-未标注数据</td>
+<td>被选中的正例和一个未标注混合体</td>
+<td>显式负例和正例选择概率</td>
+<td>PU 学习</td>
+</tr>
+<tr class="odd">
+<td>标签受到污染</td>
+<td>大多数样本都有标签</td>
+<td>干净标签和噪声过程</td>
+<td>鲁棒损失、噪声模型与标签审计</td>
+</tr>
+<tr class="even">
+<td>稀有事件</td>
+<td>标签大体正确，但正类占比极低</td>
+<td>足够的少数类证据和合适的行动阈值</td>
+<td>成本敏感学习、重采样与阈值调整</td>
+</tr>
+<tr class="odd">
+<td>主观目标</td>
+<td>多个各有依据的判断</td>
+<td>唯一的“标准答案”</td>
+<td>标注者建模与分布式目标</td>
+</tr>
+</tbody>
+</table>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/supervision-bottleneck-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="从不同监督瓶颈到相应学习策略的映射。"><img src="assets/supervision-bottleneck-map.svg" class="img-fluid figure-img" alt="少量标签、未标注池、弱标签、噪声标签和稀有事件分别映射到半监督、自监督、主动学习、弱监督与鲁棒学习策略。"></a></p>
+<figcaption>从不同监督瓶颈到相应学习策略的映射。</figcaption>
+</figure>
+</div>
+</div>
+<p>标签成本并不只是每次点击的价格。实际预算还可能包括发现问题、争议裁决和返工：</p>
+<p><span class="math display">\[
+C_{\text{total}}
+=n_{\text{query}}c_{\text{annotation}}
++n_{\text{disputed}}c_{\text{adjudication}}
++c_{\text{guideline}}
++c_{\text{quality control}}
++c_{\text{delay}}.
+\]</span></p>
+<p>另一条标签的价值取决于它覆盖了什么，以及它产生得有多可靠。来自缺失子群的 10 个独立标签，可能比容易区域中重复出现的 10,000 个标签更有价值。分歧也不只有一种含义：它可能来自粗心操作、不清晰的标注指南、真实存在的语义模糊，或者说明目标本身应该表示成一个分布，而不应被强制压成单一类别。</p>
+<details>
+<summary>
+<strong>Python：区分标注者一致性与多数投票准确率</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score, cohen_kappa_score</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="co"># The latent labels are available only because this is a controlled simulation.</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>y_true <span class="op">=</span> np.array([<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>annotator_a <span class="op">=</span> np.array([<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>annotator_b <span class="op">=</span> np.array([<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>annotator_c <span class="op">=</span> np.array([<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>])</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>votes <span class="op">=</span> np.vstack([annotator_a, annotator_b, annotator_c])</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>majority <span class="op">=</span> (votes.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>) <span class="op">&gt;=</span> <span class="dv">2</span>).astype(<span class="bu">int</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>vote_probability <span class="op">=</span> votes.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Entropy is high near a 50/50 vote and zero under unanimous agreement.</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>eps <span class="op">=</span> <span class="fl">1e-12</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>entropy <span class="op">=</span> <span class="op">-</span>(</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    vote_probability <span class="op">*</span> np.log2(vote_probability <span class="op">+</span> eps)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> vote_probability) <span class="op">*</span> np.log2(<span class="dv">1</span> <span class="op">-</span> vote_probability <span class="op">+</span> eps)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>pairwise_kappa <span class="op">=</span> [</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    cohen_kappa_score(votes[i], votes[j])</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>)</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(i <span class="op">+</span> <span class="dv">1</span>, <span class="dv">3</span>)</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"majority-vote accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_true, majority), <span class="dv">3</span>))</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean pairwise Cohen's kappa:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.mean(pairwise_kappa)), <span class="dv">3</span>))</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"items with disagreement:"</span>, np.flatnonzero(entropy <span class="op">&gt;</span> <span class="dv">0</span>).tolist())</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"soft targets:"</span>, np.<span class="bu">round</span>(vote_probability, <span class="dv">2</span>).tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>多数投票可以用于训练，但它抹去了全票一致的 <span class="math inline">\(3\)</span> 比 <span class="math inline">\(0\)</span> 与存在争议的 <span class="math inline">\(2\)</span> 比 <span class="math inline">\(1\)</span> 之间的差别。在符合伦理和法律要求的前提下，应保存原始标注、标注者身份、时间戳、所用指南版本与裁决结果。对许多项目而言，这段历史往往比最终留下的整数标签更有价值。</p>
+</section>
+<section id="半监督学习" class="level3">
+<h3 class="anchored" data-anchor-id="半监督学习"><strong>半监督学习</strong></h3>
+<p>半监督学习同时使用一个小规模标注集 <span class="math inline">\(L=\{(x_i,y_i)\}\)</span> 与一个规模更大的未标注集 <span class="math inline">\(U=\{x_j\}\)</span>。未标注观测能够揭示边缘分布 <span class="math inline">\(p(x)\)</span>，而任务真正需要的是 <span class="math inline">\(p(y\mid x)\)</span>。因此，<span class="math inline">\(U\)</span> 只有在某个假设把 <span class="math inline">\(p(x)\)</span> 的几何结构与目标决策边界联系起来时才会提供帮助。</p>
+<section id="聚类平滑性与流形假设" class="level4">
+<h4 class="anchored" data-anchor-id="聚类平滑性与流形假设"><strong>聚类、平滑性与流形假设</strong></h4>
+<p>大多数经典半监督方法可以由三个相互关联的假设解释：</p>
+<ul>
+<li><strong>平滑性假设（smoothness assumption）：</strong>足够相似的观测应该具有相似的条件标签分布。</li>
+<li><strong>聚类或低密度分隔假设（cluster / low-density separation assumption）：</strong>高密度区域中的样本往往共享标签，因此理想的决策边界应穿过低密度空间。</li>
+<li><strong>流形假设（manifold assumption）：</strong>高维观测集中在某个更低维的结构附近，标签沿这个结构平滑变化，而不是按照环境空间中的坐标任意变化。</li>
+</ul>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/semi-supervised-assumptions.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="半监督学习中的聚类、平滑性与流形假设。"><img src="assets/semi-supervised-assumptions.svg" class="img-fluid figure-img" alt="三个面板分别展示穿过低密度间隙的边界、相邻样本间平滑变化的类别概率，以及位于弯曲低维流形上的样本。"></a></p>
+<figcaption>半监督学习中的聚类、平滑性与流形假设。</figcaption>
+</figure>
+</div>
+</div>
+<p>这些假设是归纳偏置，并不是未标注数据自动提供的事实。设想两个类别由颜色区分，却占据完全相同的几何聚类。增加未标注点只会让聚类估计更精确，却不会揭示颜色标签。类似地，一条由模糊样本构成的狭窄“桥梁”可能连接原本分开的两个簇，使图传播把错误标签传到另一侧。因此，可靠实验必须在相同干净标签预算下与纯监督基线比较，并重复多个标注子集随机种子。</p>
+</section>
+<section id="自训练与伪标签" class="level4">
+<h4 class="anchored" data-anchor-id="自训练与伪标签"><strong>自训练与伪标签</strong></h4>
+<p><strong>自训练（self-training）</strong>把一个概率监督估计器变成迭代式教师。在第 <span class="math inline">\(t\)</span> 轮中：</p>
+<ol type="1">
+<li>在当前标注集 <span class="math inline">\(L_t\)</span> 上拟合模型；</li>
+<li>为 <span class="math inline">\(U_t\)</span> 预测类别概率；</li>
+<li>选择置信度或排名满足规则的样本；</li>
+<li>为它们分配硬伪标签或软伪标签；</li>
+<li>把选中样本加入训练集并重复上述过程。</li>
+</ol>
+<p>对于硬伪标签 <span class="math inline">\(\hat y_j=\arg\max_c p_{\theta_t}(c\mid x_j)\)</span> 与置信度 <span class="math inline">\(q_j=\max_c p_{\theta_t}(c\mid x_j)\)</span>，一种典型目标为</p>
+<p><span class="math display">\[
+\mathcal L(\theta)
+=\frac{1}{|L|}\sum_{(x_i,y_i)\in L}\ell(y_i,p_\theta(x_i))
++\lambda_t\frac{1}{|P_t|}\sum_{j\in P_t}w(q_j)\ell(\hat y_j,p_\theta(x_j)),
+\]</span></p>
+<p>其中 <span class="math inline">\(P_t=\{j:q_j\ge\tau_t\}\)</span> 是当前接受的伪标签集合。通常会调度权重 <span class="math inline">\(\lambda_t\)</span> 或阈值 <span class="math inline">\(\tau_t\)</span>，防止不确定的合成目标在训练早期占据主导。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/self-training-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="自训练循环及其确认偏误失败路径。"><img src="assets/self-training-loop.svg" class="img-fluid figure-img" alt="少量干净种子标签训练教师，教师预测未标注池；高置信度伪标签训练学生并重复循环，而高置信度错误可能通过反馈形成确认偏误。"></a></p>
+<figcaption>自训练循环及其确认偏误失败路径。</figcaption>
+</figure>
+</div>
+</div>
+<p>置信度并不等于正确性。在分布偏移、类别不平衡、校准不佳或存在未知类别时，模型可能非常自信地犯错。常见保护措施包括：在干净验证数据上进行概率校准、设置类别感知阈值、使用软目标与强数据增强、采用指数移动平均教师、限制伪标签比例，以及按类别和子群人工审计被接受的样本。阈值属于模型选择参数，绝不能通过测试集调节。</p>
+<details>
+<summary>
+<strong>Python：比较纯标注基线与自训练</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.base <span class="im">import</span> clone</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.semi_supervised <span class="im">import</span> SelfTrainingClassifier</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">1200</span>, noise<span class="op">=</span><span class="fl">0.22</span>, random_state<span class="op">=</span><span class="dv">15</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">15</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">15</span>)</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>labeled_index <span class="op">=</span> np.concatenate([</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    rng.choice(np.flatnonzero(y_train <span class="op">==</span> class_id), size<span class="op">=</span><span class="dv">12</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> class_id <span class="kw">in</span> np.unique(y_train)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>y_semi <span class="op">=</span> np.full_like(y_train, fill_value<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>y_semi[labeled_index] <span class="op">=</span> y_train[labeled_index]</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> make_pipeline(</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    StandardScaler(),</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>    LogisticRegression(C<span class="op">=</span><span class="fl">2.0</span>, max_iter<span class="op">=</span><span class="dv">2000</span>),</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>supervised <span class="op">=</span> clone(base).fit(X_train[labeled_index], y_train[labeled_index])</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>self_training <span class="op">=</span> SelfTrainingClassifier(</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    estimator<span class="op">=</span>clone(base), threshold<span class="op">=</span><span class="fl">0.88</span>, max_iter<span class="op">=</span><span class="dv">20</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>).fit(X_train, y_semi)</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>selected <span class="op">=</span> self_training.labeled_iter_ <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>pseudo_label_precision <span class="op">=</span> accuracy_score(</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a>    y_train[selected], self_training.transduction_[selected]</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a>) <span class="cf">if</span> selected.<span class="bu">any</span>() <span class="cf">else</span> <span class="bu">float</span>(<span class="st">"nan"</span>)</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"clean labels:"</span>, <span class="bu">len</span>(labeled_index))</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"pseudo-labels accepted:"</span>, <span class="bu">int</span>(selected.<span class="bu">sum</span>()))</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"pseudo-label precision (simulation audit):"</span>, <span class="bu">round</span>(pseudo_label_precision, <span class="dv">3</span>))</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"label-only test accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, supervised.predict(X_test)), <span class="dv">3</span>))</span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"self-training test accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, self_training.predict(X_test)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码只因为处于受控模拟中，才会查看训练集被隐藏的真实标签来审计伪标签。真实项目应使用一个独立的干净审计样本估计伪标签质量。单次运行并不能证明自训练有效：必须对不同标注子集重复比较，因为最初的少量种子标签会决定哪些错误可能在后续循环中被强化。</p>
+</section>
+<section id="基于图的方法" class="level4">
+<h4 class="anchored" data-anchor-id="基于图的方法"><strong>基于图的方法</strong></h4>
+<p>基于图的半监督学习把每个已标注或未标注观测都视为节点。边权 <span class="math inline">\(W_{ij}\ge 0\)</span> 表示两个样本的相似程度，通常通过 <span class="math inline">\(k\)</span> 近邻图或 RBF 核构造。预测向量 <span class="math inline">\(f_i\)</span> 应在强连接边上缓慢变化，同时尊重已经观测到的标签。</p>
+<p>一个代表性目标为</p>
+<p><span class="math display">\[
+\min_F\quad
+\frac{1}{2}\sum_{i,j}W_{ij}\lVert F_i-F_j\rVert_2^2
++\mu\sum_{i\in L}\lVert F_i-Y_i\rVert_2^2.
+\]</span></p>
+<p>第一项是图平滑性。令度矩阵 <span class="math inline">\(D_{ii}=\sum_j W_{ij}\)</span>、图拉普拉斯矩阵 <span class="math inline">\(L_G=D-W\)</span>，该项可以写成 <span class="math inline">\(\operatorname{tr}(F^\top L_G F)\)</span>。第二项把预测锚定在已观测标签上。<strong>标签传播（label propagation）</strong>强力固定标注节点；<strong>标签扩散（label spreading）</strong>使用归一化图结构与软钳制，因此对错误种子标签具有一定抵抗能力。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/graph-label-spreading.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="标签沿加权相似图传播。"><img src="assets/graph-label-spreading.svg" class="img-fluid figure-img" alt="蓝色与红色标注节点通过加权边连接未标注节点；平滑目标与标签锚点共同产生每个节点的软类别概率。"></a></p>
+<figcaption>标签沿加权相似图传播。</figcaption>
+</figure>
+</div>
+</div>
+<p>图本身就是模型。错误的特征尺度、不合适的距离度量、没有标签的断开分量、枢纽节点，或跨越语义类别的边都会改变答案。稠密 RBF 图大致需要 <span class="math inline">\(O(n^2)\)</span> 内存；大型系统通常需要稀疏近邻图、近似搜索、子采样或归纳式替代方法。</p>
+<details>
+<summary>
+<strong>Python：在近邻图上用少量标签进行传播</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.semi_supervised <span class="im">import</span> LabelSpreading</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">1000</span>, noise<span class="op">=</span><span class="fl">0.18</span>, random_state<span class="op">=</span><span class="dv">21</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">21</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">21</span>)</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>labeled_index <span class="op">=</span> np.concatenate([</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    rng.choice(np.flatnonzero(y_train <span class="op">==</span> class_id), <span class="dv">10</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> class_id <span class="kw">in</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>y_graph <span class="op">=</span> np.full_like(y_train, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>y_graph[labeled_index] <span class="op">=</span> y_train[labeled_index]</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Scaling matters because graph edges are built from distances.</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> StandardScaler().fit(X_train)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>X_train_scaled <span class="op">=</span> scaler.transform(X_train)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>X_test_scaled <span class="op">=</span> scaler.transform(X_test)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>baseline <span class="op">=</span> LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>).fit(</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>    X_train_scaled[labeled_index], y_train[labeled_index]</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>spreading <span class="op">=</span> LabelSpreading(</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    kernel<span class="op">=</span><span class="st">"knn"</span>, n_neighbors<span class="op">=</span><span class="dv">12</span>, alpha<span class="op">=</span><span class="fl">0.20</span>, max_iter<span class="op">=</span><span class="dv">100</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>).fit(X_train_scaled, y_graph)</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"label-only accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, baseline.predict(X_test_scaled)), <span class="dv">3</span>))</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"label-spreading accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, spreading.predict(X_test_scaled)), <span class="dv">3</span>))</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"iterations to convergence:"</span>, spreading.n_iter_)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="一致性正则化" class="level4">
+<h4 class="anchored" data-anchor-id="一致性正则化"><strong>一致性正则化</strong></h4>
+<p>一致性正则化要求模型对同一个观测的不同标签保持变换产生相容预测。设 <span class="math inline">\(a_w\)</span> 是弱变换、<span class="math inline">\(a_s\)</span> 是较强变换，一种常见的未标注损失为</p>
+<p><span class="math display">\[
+\mathcal L_u
+=\mathbb E_{x\in U}
+\left[
+\mathbf 1\!\left(\max q\ge\tau\right)
+H\!\left(\operatorname{stopgrad}(q),p_\theta(\cdot\mid a_s(x))\right)
+\right],
+\qquad
+q=p_{\bar\theta}(\cdot\mid a_w(x)).
+\]</span></p>
+<p>教师参数 <span class="math inline">\(\bar\theta\)</span> 可以是当前模型，也可以是模型参数的指数移动平均。指示函数只在教师足够自信时启用该损失。<code>stopgrad</code> 阻止目标分布仅仅为了减小同一个损失而跟随模型移动。回归任务可使用平方误差衡量差异，分类任务则常用交叉熵或 KL 散度。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/consistency-regularization.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="弱视图与强视图之间的一致性正则化。"><img src="assets/consistency-regularization.svg" class="img-fluid figure-img" alt="未标注输入产生教师的弱增强视图与学生的强增强视图；当两个变换都保持标签时，置信度门控的一致性损失使预测相互吻合。"></a></p>
+<figcaption>弱视图与强视图之间的一致性正则化。</figcaption>
+</figure>
+</div>
+</div>
+<p>真正困难的是定义有效的不变性。轻微图像平移可能保持物体身份；任意删除文本却可能反转情感；时间序列的扭曲也可能破坏事件持续时间。当增强改变真实目标时，一致性会造成伤害。如果没有监督锚点、置信度控制、平衡伪标签或对比结构，它也可能塌缩为无意义的恒定预测。</p>
+<details>
+<summary>
+<strong>Python：把不同扰动间的一致预测用作伪标签门控</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.base <span class="im">import</span> clone</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_classification</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_classification(</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">1600</span>, n_features<span class="op">=</span><span class="dv">12</span>, n_informative<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    class_sep<span class="op">=</span><span class="fl">1.15</span>, flip_y<span class="op">=</span><span class="fl">0.02</span>, random_state<span class="op">=</span><span class="dv">22</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">22</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">22</span>)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>labeled <span class="op">=</span> np.concatenate([</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    rng.choice(np.flatnonzero(y_train <span class="op">==</span> c), <span class="dv">20</span>, replace<span class="op">=</span><span class="va">False</span>) <span class="cf">for</span> c <span class="kw">in</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>unlabeled <span class="op">=</span> np.setdiff1d(np.arange(<span class="bu">len</span>(X_train)), labeled)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_pipeline(StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>))</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>teacher <span class="op">=</span> clone(model).fit(X_train[labeled], y_train[labeled])</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Two feature perturbations approximate two valid measurement views.</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>scale <span class="op">=</span> X_train.std(axis<span class="op">=</span><span class="dv">0</span>, ddof<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>view_a <span class="op">=</span> X_train[unlabeled] <span class="op">+</span> rng.normal(<span class="dv">0</span>, <span class="fl">0.04</span> <span class="op">*</span> scale, size<span class="op">=</span>(<span class="bu">len</span>(unlabeled), X.shape[<span class="dv">1</span>]))</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>view_b <span class="op">=</span> X_train[unlabeled] <span class="op">+</span> rng.normal(<span class="dv">0</span>, <span class="fl">0.09</span> <span class="op">*</span> scale, size<span class="op">=</span>(<span class="bu">len</span>(unlabeled), X.shape[<span class="dv">1</span>]))</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>proba_a <span class="op">=</span> teacher.predict_proba(view_a)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>proba_b <span class="op">=</span> teacher.predict_proba(view_b)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>label_a <span class="op">=</span> proba_a.argmax(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>label_b <span class="op">=</span> proba_b.argmax(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>confidence <span class="op">=</span> np.minimum(proba_a.<span class="bu">max</span>(axis<span class="op">=</span><span class="dv">1</span>), proba_b.<span class="bu">max</span>(axis<span class="op">=</span><span class="dv">1</span>))</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>accept <span class="op">=</span> (label_a <span class="op">==</span> label_b) <span class="op">&amp;</span> (confidence <span class="op">&gt;=</span> <span class="fl">0.90</span>)</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>accepted_index <span class="op">=</span> unlabeled[accept]</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>student_X <span class="op">=</span> np.vstack([X_train[labeled], X_train[accepted_index]])</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>student_y <span class="op">=</span> np.concatenate([y_train[labeled], label_a[accept]])</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>student <span class="op">=</span> clone(model).fit(student_X, student_y)</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"accepted pseudo-labels:"</span>, <span class="bu">int</span>(accept.<span class="bu">sum</span>()))</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"accepted-label precision (simulation):"</span>, <span class="bu">round</span>(accuracy_score(y_train[accepted_index], label_a[accept]), <span class="dv">3</span>))</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"teacher test accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, teacher.predict(X_test)), <span class="dv">3</span>))</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"student test accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, student.predict(X_test)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个紧凑示例把扰动一致性用作选择规则，而不是对神经网络的一致性损失直接求导。它仍然呈现了核心控制点：两个有效视图、置信度、一致判断与干净评估集。在神经方法中，会直接优化强视图损失，并通常配合增强调度与教师更新。</p>
+</section>
+</section>
+<section id="自监督学习" class="level3">
+<h3 class="anchored" data-anchor-id="自监督学习"><strong>自监督学习</strong></h3>
+<p>自监督学习利用观测中已经存在的结构自动生成监督目标。预训练阶段不需要人工类别标签，但学习信号并非没有假设：所选择的预测任务和数据变换规定了表示应该保留或忽略哪些信息。之后再通过线性探测、微调、检索或少标签学习曲线，评估所学编码器对下游任务的价值。</p>
+<section id="代理任务与预测目标" class="level4">
+<h4 class="anchored" data-anchor-id="代理任务与预测目标"><strong>代理任务与预测目标</strong></h4>
+<p><strong>代理任务（pretext task）</strong>是为了学习表示而自动构造的训练任务。常见类型包括：</p>
+<ul>
+<li><strong>掩码预测：</strong>遮住词、图像块或传感器通道，并预测缺失内容；</li>
+<li><strong>自回归预测：</strong>根据上下文预测未来 token、帧或时间步；</li>
+<li><strong>去噪与重构：</strong>先污染输入，再恢复干净版本；</li>
+<li><strong>变换预测：</strong>预测旋转角度、时间顺序、拼图位置或其他自动生成的变换；</li>
+<li><strong>跨模态预测：</strong>从一个视图或模态预测另一个，例如利用图像与文本配对关系。</li>
+</ul>
+<p>对于污染过程 <span class="math inline">\(\tilde x\sim q(\tilde x\mid x)\)</span> 和自动生成的目标 <span class="math inline">\(t(x,\tilde x)\)</span>，预训练求解</p>
+<p><span class="math display">\[
+\min_{\theta,\phi}
+\mathbb E_{x,\tilde x}
+\left[\ell\!\left(t(x,\tilde x),g_\phi(f_\theta(\tilde x))\right)\right],
+\]</span></p>
+<p>其中 <span class="math inline">\(f_\theta\)</span> 是编码器，<span class="math inline">\(g_\phi\)</span> 是代理任务专用预测头。预训练完成后可以丢弃预测头，并在下游任务中复用编码器。代理目标必须迫使模型学习对下游有用的语义。如果旋转分类器只是通过插值伪影判断角度，即使代理任务准确率很高，所得表示也可能没有价值。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/self-supervised-objectives.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="使用自动派生目标进行自监督预训练。"><img src="assets/self-supervised-objectives.svg" class="img-fluid figure-img" alt="原始未标注数据被转换成掩码、预测、去噪、变换或对比目标，用于预训练编码器，最后在下游迁移任务中评估。"></a></p>
+<figcaption>使用自动派生目标进行自监督预训练。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：构造并求解旋转预测代理任务</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>images <span class="op">=</span> load_digits().images</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>image_ids <span class="op">=</span> np.arange(<span class="bu">len</span>(images))</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>train_ids, test_ids <span class="op">=</span> train_test_split(image_ids, test_size<span class="op">=</span><span class="fl">0.30</span>, random_state<span class="op">=</span><span class="dv">15</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rotation_dataset(source_images):</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    transformed, targets <span class="op">=</span> [], []</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> rotation <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">4</span>):</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># k=0,1,2,3 corresponds to 0, 90, 180, and 270 degrees.</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        rotated <span class="op">=</span> np.rot90(source_images, k<span class="op">=</span>rotation, axes<span class="op">=</span>(<span class="dv">1</span>, <span class="dv">2</span>))</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        transformed.append(rotated.reshape(<span class="bu">len</span>(rotated), <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        targets.append(np.full(<span class="bu">len</span>(rotated), rotation))</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.vstack(transformed), np.concatenate(targets)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Split original images before augmentation so rotated siblings never cross the split.</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>X_pretrain, y_pretrain <span class="op">=</span> rotation_dataset(images[train_ids])</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>X_pretest, y_pretest <span class="op">=</span> rotation_dataset(images[test_ids])</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>rotation_model <span class="op">=</span> LogisticRegression(max_iter<span class="op">=</span><span class="dv">2500</span>, C<span class="op">=</span><span class="fl">1.0</span>).fit(X_pretrain, y_pretrain)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>pretext_accuracy <span class="op">=</span> accuracy_score(y_pretest, rotation_model.predict(X_pretest))</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"pretext train examples:"</span>, <span class="bu">len</span>(X_pretrain))</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"held-out rotation accuracy:"</span>, <span class="bu">round</span>(pretext_accuracy, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个例子展示了自动生成目标以及避免数据泄漏的划分方式。完整的表示学习实验还需要暴露编码器层，在独立标注任务上冻结或微调该编码器，并在多个标签预算下与随机初始化比较。代理任务准确率本身不是最终评价标准。</p>
+</section>
+<section id="对比学习" class="level4">
+<h4 class="anchored" data-anchor-id="对比学习"><strong>对比学习</strong></h4>
+<p>对比学习把同一观测的两个变换视图定义为<strong>正样本对</strong>，把其他观测视为<strong>负样本</strong>。编码器与投影头把视图映射为归一化向量 <span class="math inline">\(z\)</span>。对于锚点 <span class="math inline">\(i\)</span> 及其正样本伙伴 <span class="math inline">\(j(i)\)</span>，常见 InfoNCE 损失为</p>
+<p><span class="math display">\[
+\ell_i
+=-\log
+\frac{\exp(\operatorname{sim}(z_i,z_{j(i)})/\tau)}
+{\sum_{k\ne i}\exp(\operatorname{sim}(z_i,z_k)/\tau)},
+\]</span></p>
+<p>其中 <span class="math inline">\(\operatorname{sim}\)</span> 通常是余弦相似度，<span class="math inline">\(\tau&gt;0\)</span> 是温度参数。分子把正视图拉近，分母则使锚点远离竞争视图。较小的 <span class="math inline">\(\tau\)</span> 会让 softmax 更集中于最难区分的竞争样本，并产生更尖锐的梯度。</p>
+<p>该方法同时学习<strong>对数据增强的不变性</strong>和<strong>实例之间的区分性</strong>，因此增强设计是核心。若裁剪后的两个视图不再包含同一物体，就会制造错误正样本；若把同一语义类别中的不同样本都当成负例，又会制造错误负样本。大批量、记忆库、动量编码器、聚类或无负样本目标分别处理采样与表示塌缩问题的不同部分。</p>
+<details>
+<summary>
+<strong>Python：计算对称 InfoNCE 损失</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> logsumexp</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">150</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>n_samples, dimension <span class="op">=</span> <span class="dv">64</span>, <span class="dv">32</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>latent <span class="op">=</span> rng.normal(size<span class="op">=</span>(n_samples, dimension))</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Two noisy views preserve the same latent instance identity.</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>view_a <span class="op">=</span> latent <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.15</span>, size<span class="op">=</span>latent.shape)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>view_b <span class="op">=</span> latent <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.15</span>, size<span class="op">=</span>latent.shape)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> normalize(rows):</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> rows <span class="op">/</span> np.linalg.norm(rows, axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> symmetric_info_nce(first, second, temperature<span class="op">=</span><span class="fl">0.2</span>):</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    z <span class="op">=</span> np.vstack([normalize(first), normalize(second)])</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    logits <span class="op">=</span> z <span class="op">@</span> z.T <span class="op">/</span> temperature</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    np.fill_diagonal(logits, <span class="op">-</span>np.inf)  <span class="co"># an embedding is not its own negative</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    n <span class="op">=</span> <span class="bu">len</span>(first)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    positive_index <span class="op">=</span> np.concatenate([np.arange(n, <span class="dv">2</span> <span class="op">*</span> n), np.arange(n)])</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    positive_logits <span class="op">=</span> logits[np.arange(<span class="dv">2</span> <span class="op">*</span> n), positive_index]</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(np.mean(<span class="op">-</span>positive_logits <span class="op">+</span> logsumexp(logits, axis<span class="op">=</span><span class="dv">1</span>)))</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>aligned_loss <span class="op">=</span> symmetric_info_nce(view_a, view_b)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>shuffled_loss <span class="op">=</span> symmetric_info_nce(view_a, view_b[rng.permutation(n_samples)])</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"loss with correct positive pairs:"</span>, <span class="bu">round</span>(aligned_loss, <span class="dv">3</span>))</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"loss with shuffled positive pairs:"</span>, <span class="bu">round</span>(shuffled_loss, <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>对齐正样本对的损失应明显更低，因为对应视图共享实例级信号。在真实模型中，这种关系并不是由合成潜向量直接给定，而是由梯度更新逐步塑造编码器。即使如此，表示质量仍应通过迁移表现、鲁棒性和子群行为评估，而不能只看对比损失。</p>
+</section>
+</section>
+<section id="主动学习" class="level3">
+<h3 class="anchored" data-anchor-id="主动学习"><strong>主动学习</strong></h3>
+<p>主动学习把数据收集从被动抽样改造成序贯决策。给定标注集 <span class="math inline">\(L_t\)</span>、未标注池 <span class="math inline">\(U_t\)</span>、一个模型和标注预算，查询策略选择一个批次 <span class="math inline">\(Q_t\subset U_t\)</span>，希望这些标签能最大程度改进系统。基本循环为</p>
+<p><span class="math display">\[
+L_t\;\longrightarrow\;\text{拟合模型}\;\longrightarrow\;\text{为 }U_t\text{ 评分}
+\;\longrightarrow\;\text{查询标注者}\;\longrightarrow\;L_{t+1}.
+\]</span></p>
+<p>当未标注池接近部署分布、模型不确定性确实包含信息、选中样本能够被可靠标注，并且重训练足够高效时，主动学习可以减少标注工作。它也可能反复选择离群点、真正模糊的样本、重复项或某一个密集子群，从而浪费预算。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/active-learning-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="基于样本池的主动学习与人工标注循环。"><img src="assets/active-learning-loop.svg" class="img-fluid figure-img" alt="少量干净种子标签训练模型，模型根据不确定性、多样性与成本为未标注池评分；选中样本经人工标注和审计后加入下一轮。"></a></p>
+<figcaption>基于样本池的主动学习与人工标注循环。</figcaption>
+</figure>
+</div>
+</div>
+<section id="不确定性多样性与查询策略" class="level4">
+<h4 class="anchored" data-anchor-id="不确定性多样性与查询策略"><strong>不确定性、多样性与查询策略</strong></h4>
+<p>对于多分类概率 <span class="math inline">\(p_c(x)\)</span>，常见不确定性分数包括：</p>
+<p><span class="math display">\[
+\begin{aligned}
+u_{\text{least}}(x)&amp;=1-\max_c p_c(x),\\
+u_{\text{margin}}(x)&amp;=1-\left(p_{(1)}(x)-p_{(2)}(x)\right),\\
+u_{\text{entropy}}(x)&amp;=-\sum_c p_c(x)\log p_c(x),
+\end{aligned}
+\]</span></p>
+<p>其中 <span class="math inline">\(p_{(1)}\ge p_{(2)}\)</span> 是最大的两个类别概率。最小置信度关注获胜类别是否足够强；间隔采样关注前两类是否接近；熵则衡量完整分布上的不确定性。这些分数会继承模型的校准误差，而且模型在远离训练数据的区域也可能过度自信。</p>
+<p>只根据不确定性容易选出一批几乎重复的样本。<strong>多样性感知</strong>策略会同时考虑信息量与覆盖，例如：对候选嵌入聚类，使用最远优先或 <span class="math inline">\(k\)</span>-center 规则，应用行列式点过程，或者优化次模目标。其他策略还包括模型委员会分歧（<strong>query by committee</strong>）、期望模型变化、期望误差下降、密度加权，以及显式标注成本。</p>
+<details>
+<summary>
+<strong>Python：比较不确定性采样与随机获取</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_classification</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_classification(</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">2400</span>, n_features<span class="op">=</span><span class="dv">16</span>, n_informative<span class="op">=</span><span class="dv">8</span>, n_redundant<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    class_sep<span class="op">=</span><span class="fl">1.0</span>, flip_y<span class="op">=</span><span class="fl">0.03</span>, random_state<span class="op">=</span><span class="dv">151</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>X_pool, X_test, y_pool, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.30</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">151</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_active_learning(strategy, seed, rounds<span class="op">=</span><span class="dv">8</span>, batch_size<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(seed)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    labeled <span class="op">=</span> np.concatenate([</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        rng.choice(np.flatnonzero(y_pool <span class="op">==</span> class_id), <span class="dv">5</span>, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> class_id <span class="kw">in</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    available <span class="op">=</span> np.setdiff1d(np.arange(<span class="bu">len</span>(X_pool)), labeled)</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    history <span class="op">=</span> []</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> round_id <span class="kw">in</span> <span class="bu">range</span>(rounds <span class="op">+</span> <span class="dv">1</span>):</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> make_pipeline(</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>            StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        ).fit(X_pool[labeled], y_pool[labeled])</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        history.append((<span class="bu">len</span>(labeled), accuracy_score(y_test, model.predict(X_test))))</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> round_id <span class="op">==</span> rounds:</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> strategy <span class="op">==</span> <span class="st">"uncertainty"</span>:</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>            probabilities <span class="op">=</span> model.predict_proba(X_pool[available])</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>            entropy <span class="op">=</span> <span class="op">-</span>(probabilities <span class="op">*</span> np.log(probabilities <span class="op">+</span> <span class="fl">1e-12</span>)).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>            chosen_local <span class="op">=</span> np.argsort(entropy)[<span class="op">-</span>batch_size:]</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>            chosen_local <span class="op">=</span> rng.choice(<span class="bu">len</span>(available), batch_size, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>        chosen <span class="op">=</span> available[chosen_local]</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>        labeled <span class="op">=</span> np.concatenate([labeled, chosen])</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>        available <span class="op">=</span> np.setdiff1d(available, chosen, assume_unique<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> history</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>records <span class="op">=</span> []</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>):</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> strategy <span class="kw">in</span> [<span class="st">"random"</span>, <span class="st">"uncertainty"</span>]:</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> budget, accuracy <span class="kw">in</span> run_active_learning(strategy, <span class="dv">1000</span> <span class="op">+</span> seed):</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>            records.append({<span class="st">"strategy"</span>: strategy, <span class="st">"labels"</span>: budget, <span class="st">"accuracy"</span>: accuracy})</span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> (</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>    pd.DataFrame(records)</span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"strategy"</span>, <span class="st">"labels"</span>])[<span class="st">"accuracy"</span>]</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"mean"</span>, <span class="st">"std"</span>])</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">round</span>(<span class="dv">3</span>)</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(summary)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>随机基线不可省略。种子标签极少时，主动策略方差很大；在一个样本池顺序上获胜的不确定性策略，换一个顺序就可能落后。横轴最好表示标注时间或资金成本，而不只是查询数量。</p>
+<details>
+<summary>
+<strong>Python：为高不确定候选批次加入多样性</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> pairwise_distances</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> uncertainty_diversity_batch(X_pool, uncertainty, batch_size, candidate_factor<span class="op">=</span><span class="dv">8</span>):</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Choose diverse points from the most uncertain candidate subset."""</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    candidate_count <span class="op">=</span> <span class="bu">min</span>(<span class="bu">len</span>(X_pool), candidate_factor <span class="op">*</span> batch_size)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    candidate_id <span class="op">=</span> np.argsort(uncertainty)[<span class="op">-</span>candidate_count:]</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    candidates <span class="op">=</span> X_pool[candidate_id]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Begin with the most uncertain point.</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    selected_local <span class="op">=</span> [<span class="bu">int</span>(np.argmax(uncertainty[candidate_id]))]</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    distance <span class="op">=</span> pairwise_distances(candidates, candidates[selected_local]).ravel()</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Farthest-first traversal discourages near-duplicate queries.</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="bu">len</span>(selected_local) <span class="op">&lt;</span> batch_size:</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        next_local <span class="op">=</span> <span class="bu">int</span>(np.argmax(distance))</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        selected_local.append(next_local)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        distance <span class="op">=</span> np.minimum(</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>            distance,</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>            pairwise_distances(candidates, candidates[[next_local]]).ravel(),</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> candidate_id[np.array(selected_local)]</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">152</span>)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>candidate_X <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">500</span>, <span class="dv">6</span>))</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>candidate_uncertainty <span class="op">=</span> rng.uniform(size<span class="op">=</span><span class="dv">500</span>)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> uncertainty_diversity_batch(candidate_X, candidate_uncertainty, batch_size<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected pool indexes:"</span>, batch.tolist())</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean selected uncertainty:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(candidate_uncertainty[batch].mean()), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个启发式方法先把范围限制在高不确定候选中，再最大化特征空间覆盖。生产系统中，应在经过验证的表示空间里计算距离，控制特征尺度，并考虑子群或地理覆盖约束；通用欧氏距离并不总能表达真正需要的多样性。</p>
+</section>
+<section id="人在回路的标注" class="level4">
+<h4 class="anchored" data-anchor-id="人在回路的标注"><strong>人在回路的标注</strong></h4>
+<p>标注者是学习系统的一部分，而不是永不出错的“预言机”。稳健的闭环应明确：</p>
+<ul>
+<li>包含正例、负例、边界例和可拒答情形的任务定义；</li>
+<li>标注者可以查看哪些上下文，哪些信息必须隐藏；</li>
+<li>重复样本与金标准检查，同时避免把质量控制变成不恰当的监控；</li>
+<li>对模糊和争议样本设置裁决路径；</li>
+<li>批次大小、预期耗时与界面可用性；</li>
+<li>标签来源、指南版本、标注者置信度与原因编码；</li>
+<li>根据单位成本的边际性能收益设定停止条件。</li>
+</ul>
+<p>查询策略会改变待标注样本的分布。高不确定样本通常确实更难，因此即使标注项目变得更有价值，原始标注者一致率也可能下降。训练数据也不再是 IID 样本。评估必须继续使用具有代表性、独立抽样且干净的集合；如果要从适应性选择的标签估计总体统计量，还可能需要倾向概率加权。</p>
+</section>
+</section>
+<section id="弱监督" class="level3">
+<h3 class="anchored" data-anchor-id="弱监督"><strong>弱监督</strong></h3>
+<p>弱监督使用更便宜但更嘈杂的来源，替代一部分人工逐样本标签。这些来源可能是领域启发式规则、模式匹配、外部数据库、远程监督、众包标注者、旧系统或模型预测。目标不是宣称这些标签正确，而是描述它们的覆盖范围、可靠性、冲突和依赖关系，再利用聚合信号训练一个直接处理原始输入的模型。</p>
+<section id="启发式规则远程监督与标签模型" class="level4">
+<h4 class="anchored" data-anchor-id="启发式规则远程监督与标签模型"><strong>启发式规则、远程监督与标签模型</strong></h4>
+<p><strong>标注函数（labeling function）</strong> <span class="math inline">\(\lambda_j(x)\)</span> 返回一个类别或选择弃权。对于 <span class="math inline">\(m\)</span> 个函数和 <span class="math inline">\(n\)</span> 个观测，标签矩阵为</p>
+<p><span class="math display">\[
+\Lambda_{ij}\in\{-1,0,\ldots,K-1\},
+\]</span></p>
+<p>其中 <span class="math inline">\(-1\)</span> 表示弃权。常用诊断量包括：</p>
+<p><span class="math display">\[
+\text{coverage}_j=\frac{1}{n}\sum_i\mathbf 1(\Lambda_{ij}\ne-1),
+\qquad
+\text{conflict}_{jk}=\frac{\sum_i\mathbf 1(\Lambda_{ij}\ne-1,\Lambda_{ik}\ne-1,\Lambda_{ij}\ne\Lambda_{ik})}
+{\sum_i\mathbf 1(\Lambda_{ij}\ne-1,\Lambda_{ik}\ne-1)}.
+\]</span></p>
+<p>多数投票假设每个来源同样准确且相互独立。<strong>标签模型（label model）</strong>则估计潜在的来源准确率以及可能的相关性，并产生概率目标 <span class="math inline">\(p(y_i\mid\Lambda_i)\)</span>。最终模型使用原始特征 <span class="math inline">\(x_i\)</span> 学习，因此在推断阶段能够超越规则的精确匹配范围进行泛化。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/weak-supervision-label-model.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="从标注函数到最终模型的弱监督管线。"><img src="assets/weak-supervision-label-model.svg" class="img-fluid figure-img" alt="启发式规则、模式、数据库匹配和众包投票构成一个允许弃权的投票矩阵；标签模型估计来源质量并生成概率目标，再训练最终模型。"></a></p>
+<figcaption>从标注函数到最终模型的弱监督管线。</figcaption>
+</figure>
+</div>
+</div>
+<p>可识别性是核心难点。如果三个关键词规则只是彼此略作改写，它们的一致并不代表三份独立证据。除非显式建模依赖关系，否则无监督标签模型可能高估这些规则。一个小规模干净开发集仍然很有价值：它可用于编写规则、发现标签极性错误、验证来源假设、校准概率标签并评估最终模型。</p>
+<details>
+<summary>
+<strong>Python：构造并审计简单标注函数</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>ABSTAIN, NEGATIVE, POSITIVE <span class="op">=</span> <span class="op">-</span><span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>texts <span class="op">=</span> [</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"claim your free cash prize now"</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"project meeting moved to Friday"</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"urgent winner click http offer"</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"thanks for the helpful review"</span>,</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    <span class="st">"limited discount available today"</span>,</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"team notes and sprint plan"</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"verify your account at http link"</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"the product failed after one day"</span>,</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"excellent service and fast delivery"</span>,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"free workshop for the research team"</span>,</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lf_promotional_terms(text):</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    terms <span class="op">=</span> {<span class="st">"free"</span>, <span class="st">"cash"</span>, <span class="st">"prize"</span>, <span class="st">"winner"</span>, <span class="st">"discount"</span>, <span class="st">"offer"</span>}</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> POSITIVE <span class="cf">if</span> terms.intersection(text.lower().split()) <span class="cf">else</span> ABSTAIN</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lf_link_and_urgency(text):</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    lowered <span class="op">=</span> text.lower()</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> POSITIVE <span class="cf">if</span> <span class="st">"http"</span> <span class="kw">in</span> lowered <span class="kw">and</span> (<span class="st">"urgent"</span> <span class="kw">in</span> lowered <span class="kw">or</span> <span class="st">"verify"</span> <span class="kw">in</span> lowered) <span class="cf">else</span> ABSTAIN</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lf_work_context(text):</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    terms <span class="op">=</span> {<span class="st">"project"</span>, <span class="st">"meeting"</span>, <span class="st">"team"</span>, <span class="st">"sprint"</span>, <span class="st">"research"</span>}</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> NEGATIVE <span class="cf">if</span> terms.intersection(text.lower().split()) <span class="cf">else</span> ABSTAIN</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>functions <span class="op">=</span> [lf_promotional_terms, lf_link_and_urgency, lf_work_context]</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>Lambda <span class="op">=</span> np.array([[function(text) <span class="cf">for</span> function <span class="kw">in</span> functions] <span class="cf">for</span> text <span class="kw">in</span> texts])</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>coverage <span class="op">=</span> (Lambda <span class="op">!=</span> ABSTAIN).mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>overlap <span class="op">=</span> ((Lambda <span class="op">!=</span> ABSTAIN).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>) <span class="op">&gt;</span> <span class="dv">1</span>).mean()</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>conflict <span class="op">=</span> np.array([</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>    <span class="bu">len</span>(<span class="bu">set</span>(row[row <span class="op">!=</span> ABSTAIN])) <span class="op">&gt;</span> <span class="dv">1</span> <span class="cf">for</span> row <span class="kw">in</span> Lambda</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>]).mean()</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a><span class="co"># A transparent weighted vote is a baseline, not a learned label model.</span></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> np.array([<span class="fl">0.8</span>, <span class="fl">0.9</span>, <span class="fl">0.75</span>])</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>signed_votes <span class="op">=</span> np.where(Lambda <span class="op">==</span> ABSTAIN, <span class="dv">0</span>, np.where(Lambda <span class="op">==</span> POSITIVE, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> signed_votes <span class="op">@</span> weights</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>weak_probability <span class="op">=</span> <span class="dv">1</span> <span class="op">/</span> (<span class="dv">1</span> <span class="op">+</span> np.exp(<span class="op">-</span>score))</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"vote matrix (rows=documents, columns=functions):</span><span class="ch">\n</span><span class="st">"</span>, Lambda)</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"coverage:"</span>, np.<span class="bu">round</span>(coverage, <span class="dv">2</span>).tolist())</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"overlap rate:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(overlap), <span class="dv">2</span>))</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"conflict rate:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(conflict), <span class="dv">2</span>))</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"weak positive probabilities:"</span>, np.<span class="bu">round</span>(weak_probability, <span class="dv">2</span>).tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码中的英文文本保持原样，因为关键词规则本身就是实验的一部分。部署前应按子群检查覆盖与冲突，像管理代码一样对规则进行版本控制，使用带标签的固定样例测试规则，并避免词典或数据库使用未来信息而造成训练-测试泄漏。</p>
+</section>
+<section id="正例-未标注学习" class="level4">
+<h4 class="anchored" data-anchor-id="正例-未标注学习"><strong>正例-未标注学习</strong></h4>
+<p>正例-未标注（positive-unlabeled, PU）学习只观测到一组经过选择的正例，而未标注集合中同时包含正例和负例。把所有未标注样本直接当作负例，会系统性地产生假负例。令 <span class="math inline">\(y\in\{0,1\}\)</span> 是真实目标，<span class="math inline">\(s=1\)</span> 表示样本被选入已标注正例集。在<strong>正例中完全随机选择</strong>（selected completely at random, SCAR）假设下，</p>
+<p><span class="math display">\[
+P(s=1\mid y=1,x)=c,
+\qquad
+P(s=1\mid y=0,x)=0.
+\]</span></p>
+<p>于是选择分类器学习到</p>
+<p><span class="math display">\[
+g(x)=P(s=1\mid x)=cP(y=1\mid x),
+\qquad
+P(y=1\mid x)=\frac{g(x)}{c}.
+\]</span></p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/pu-learning-mixture.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="SCAR 假设下的正例-未标注学习。"><img src="assets/pu-learning-mixture.svg" class="img-fluid figure-img" alt="被选中的正例与由隐藏正例和负例构成的未标注混合体训练选择分类器；在 SCAR 下，用选择概率除以正例选择率进行校正。"></a></p>
+<figcaption>SCAR 假设下的正例-未标注学习。</figcaption>
+</figure>
+</div>
+</div>
+<p>在 SCAR 下，可以利用留出的已知正例估计常数 <span class="math inline">\(c\)</span>。如果容易、近期、城市、高价值或病情严重的正例更容易被标注，那么选择机制属于给定特征条件下的 <strong>selected at random</strong>，或者存在其他偏差，此时单一常数不再有效。需要显式建模选择倾向，或补充额外标签。</p>
+<p>另一种风险表示使用正类先验 <span class="math inline">\(\pi=P(y=1)\)</span>：</p>
+<p><span class="math display">\[
+R(f)=\pi\,\mathbb E_P[\ell(f(x),1)]
++\mathbb E_U[\ell(f(x),0)]
+-\pi\,\mathbb E_P[\ell(f(x),0)].
+\]</span></p>
+<p>最后两项从未标注混合体中恢复负类风险。有限样本估计可能变成负数，因此非负 PU 目标会截断或以其他方式约束该分量。</p>
+<details>
+<summary>
+<strong>Python：在 SCAR 下应用 Elkan-Noto 概率校正</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_classification</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> brier_score_loss, roc_auc_score</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_classification(</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">5000</span>, n_features<span class="op">=</span><span class="dv">18</span>, n_informative<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    weights<span class="op">=</span>[<span class="fl">0.78</span>, <span class="fl">0.22</span>], class_sep<span class="op">=</span><span class="fl">1.1</span>, random_state<span class="op">=</span><span class="dv">153</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">153</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">153</span>)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Reveal each true training positive independently with probability c.</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>true_c <span class="op">=</span> <span class="fl">0.35</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> np.zeros_like(y_train)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>positive_index <span class="op">=</span> np.flatnonzero(y_train <span class="op">==</span> <span class="dv">1</span>)</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>revealed <span class="op">=</span> positive_index[rng.random(<span class="bu">len</span>(positive_index)) <span class="op">&lt;</span> true_c]</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>s[revealed] <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Hold some revealed positives out when estimating c.</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>rng.shuffle(revealed)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>c_validation <span class="op">=</span> revealed[: <span class="bu">max</span>(<span class="dv">20</span>, <span class="bu">len</span>(revealed) <span class="op">//</span> <span class="dv">5</span>)]</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>fit_mask <span class="op">=</span> np.ones(<span class="bu">len</span>(X_train), dtype<span class="op">=</span><span class="bu">bool</span>)</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>fit_mask[c_validation] <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>selection_model <span class="op">=</span> make_pipeline(</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>).fit(X_train[fit_mask], s[fit_mask])</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>estimated_c <span class="op">=</span> selection_model.predict_proba(X_train[c_validation])[:, <span class="dv">1</span>].mean()</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>selection_probability <span class="op">=</span> selection_model.predict_proba(X_test)[:, <span class="dv">1</span>]</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>pu_probability <span class="op">=</span> np.clip(selection_probability <span class="op">/</span> estimated_c, <span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"true c / estimated c:"</span>, <span class="bu">round</span>(true_c, <span class="dv">3</span>), <span class="bu">round</span>(<span class="bu">float</span>(estimated_c), <span class="dv">3</span>))</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selection AUC:"</span>, <span class="bu">round</span>(roc_auc_score(y_test, selection_probability), <span class="dv">3</span>))</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"raw selection Brier score:"</span>, <span class="bu">round</span>(brier_score_loss(y_test, selection_probability), <span class="dv">3</span>))</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"PU-corrected Brier score:"</span>, <span class="bu">round</span>(brier_score_loss(y_test, pu_probability), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>该校正改变概率尺度而不改变排序，因此 AUC 保持不变，而校准可能改善。截断只是实用的数值步骤，不能替代对 SCAR 假设的检查。最终评估必须使用同时包含真实正例与负例的干净样本。</p>
+</section>
+</section>
+<section id="噪声标签学习" class="level3">
+<h3 class="anchored" data-anchor-id="噪声标签学习"><strong>噪声标签学习</strong></h3>
+<p>标签噪声指记录目标 <span class="math inline">\(\tilde y\)</span> 与模型真正应该预测的目标 <span class="math inline">\(y\)</span> 不一致。它可能来自测量故障、含糊的指南、自动抽取、粗心标注、时间漂移，或数据收集后类别定义发生变化。<span class="math inline">\(x\)</span> 中的噪声与 <span class="math inline">\(y\)</span> 中的噪声是不同问题；类别不平衡也不等于标签噪声。</p>
+<section id="噪声模型与转移矩阵" class="level4">
+<h4 class="anchored" data-anchor-id="噪声模型与转移矩阵"><strong>噪声模型与转移矩阵</strong></h4>
+<p>常见噪声模型包括：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>噪声模型</th>
+<th>污染机制</th>
+<th>示例</th>
+<th>主要危险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>对称噪声</td>
+<td>任意类别以相同概率翻转</td>
+<td>随机替换标签</td>
+<td>简化基准可能远比真实噪声容易</td>
+</tr>
+<tr class="even">
+<td>类别条件噪声</td>
+<td>翻转率取决于真实类别</td>
+<td>一种疾病被误认成相似疾病</td>
+<td>需要能够估计类别转移矩阵</td>
+</tr>
+<tr class="odd">
+<td>样本条件噪声</td>
+<td>翻转率还取决于 <span class="math inline">\(x\)</span></td>
+<td>模糊图像或讽刺文本更容易被错标</td>
+<td>没有干净锚点或额外假设时很难识别</td>
+</tr>
+<tr class="even">
+<td>开集噪声</td>
+<td>一些观测不属于任何目标类别</td>
+<td>闭集数据中混入外部物体</td>
+<td>在已知类别间重新标注无法修复本体缺失</td>
+</tr>
+<tr class="odd">
+<td>结构化或群组条件噪声</td>
+<td>污染跟随来源、标注者、时间或子群</td>
+<td>某站点仍使用过期指南</td>
+<td>汇总噪声率会隐藏系统性伤害</td>
+</tr>
+</tbody>
+</table>
+<p>对于类别条件噪声，定义</p>
+<p><span class="math display">\[
+T_{ab}=P(\tilde y=b\mid y=a),
+\qquad
+\sum_b T_{ab}=1.
+\]</span></p>
+<p>如果 <span class="math inline">\(p(x)\)</span> 是干净类别概率的行向量，那么</p>
+<p><span class="math display">\[
+P(\tilde y\mid x)=p(x)T.
+\]</span></p>
+<p><strong>前向校正（forward correction）</strong>先让模型预测的干净概率通过 <span class="math inline">\(T\)</span>，再与观测标签比较；<strong>后向校正（backward correction）</strong>则利用 <span class="math inline">\(T^{-1}\)</span> 变换损失。前向校正通常在数值上更稳定，但两者都依赖足够准确且可识别的转移矩阵。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/noisy-label-defense-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="标签噪声通道与三类防御方法。"><img src="assets/noisy-label-defense-map.svg" class="img-fluid figure-img" alt="真实标签经过对称、类别条件或样本条件转移通道成为观测标签，之后可使用损失校正、样本选择或审计与重新标注。"></a></p>
+<figcaption>标签噪声通道与三类防御方法。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：模拟类别条件噪声并反演已知转移矩阵</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_blobs(</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">3600</span>,</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="fl">2.2</span>, <span class="op">-</span><span class="fl">1.2</span>), (<span class="fl">2.0</span>, <span class="op">-</span><span class="fl">0.7</span>), (<span class="fl">0.0</span>, <span class="fl">2.2</span>)],</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">1.35</span>, <span class="fl">1.25</span>, <span class="fl">1.30</span>],</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">154</span>,</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>X_train, X_test, y_train, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">154</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Rows are true classes; columns are observed classes.</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>T <span class="op">=</span> np.array([</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.82</span>, <span class="fl">0.14</span>, <span class="fl">0.04</span>],</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.08</span>, <span class="fl">0.78</span>, <span class="fl">0.14</span>],</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    [<span class="fl">0.18</span>, <span class="fl">0.05</span>, <span class="fl">0.77</span>],</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">154</span>)</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>y_noisy <span class="op">=</span> np.array([rng.choice(<span class="dv">3</span>, p<span class="op">=</span>T[class_id]) <span class="cf">for</span> class_id <span class="kw">in</span> y_train])</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_pipeline(</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    StandardScaler(),</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>    LogisticRegression(max_iter<span class="op">=</span><span class="dv">2500</span>),</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>).fit(X_train, y_noisy)</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a><span class="co"># The fitted probabilities approximate P(observed label | x).</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>noisy_probability <span class="op">=</span> model.predict_proba(X_test)</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>clean_probability <span class="op">=</span> noisy_probability <span class="op">@</span> np.linalg.inv(T)</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>clean_probability <span class="op">=</span> np.clip(clean_probability, <span class="dv">0</span>, <span class="va">None</span>)</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>clean_probability <span class="op">/=</span> clean_probability.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>raw_prediction <span class="op">=</span> noisy_probability.argmax(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a>corrected_prediction <span class="op">=</span> clean_probability.argmax(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"realized training noise rate:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.mean(y_noisy <span class="op">!=</span> y_train)), <span class="dv">3</span>))</span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"raw noisy-label accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, raw_prediction), <span class="dv">3</span>))</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"transition-corrected accuracy:"</span>, <span class="bu">round</span>(accuracy_score(y_test, corrected_prediction), <span class="dv">3</span>))</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"condition number of T:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.linalg.cond(T)), <span class="dv">2</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个受控示例知道 <span class="math inline">\(T\)</span>。现实中估计 <span class="math inline">\(T\)</span> 可能需要可信锚点、重复标注、干净子集或很强的可识别性假设。病态矩阵的反演会放大概率误差；转移矩阵也无法表示样本条件污染或缺失类别。</p>
+</section>
+<section id="鲁棒损失与样本重加权" class="level4">
+<h4 class="anchored" data-anchor-id="鲁棒损失与样本重加权"><strong>鲁棒损失与样本重加权</strong></h4>
+<p>当模型对观测标签的判断非常自信但方向相反时，交叉熵会给予很大的惩罚。高容量模型最终能够记住被污染的目标，因此早期训练动态有时可以区分较容易的干净模式与后期噪声。常见鲁棒方法包括：</p>
+<ul>
+<li>标签平滑、自举目标或软目标；</li>
+<li>影响有界的损失，例如平均绝对误差或广义交叉熵；</li>
+<li>提前停止与强正则化；</li>
+<li>根据折外标签质量、一致程度或来源生成样本权重；</li>
+<li>使用估计的转移模型进行损失校正；</li>
+<li>过滤或重新标注可疑观测。</li>
+</ul>
+<p>观测类别 <span class="math inline">\(\tilde y\)</span> 的广义交叉熵可以写成</p>
+<p><span class="math display">\[
+\mathcal L_q(p_{\tilde y})=\frac{1-p_{\tilde y}^{q}}{q},
+\qquad 0&lt;q\le1.
+\]</span></p>
+<p>当 <span class="math inline">\(q\to0\)</span> 时，它趋近交叉熵 <span class="math inline">\(-\log p_{\tilde y}\)</span>；当 <span class="math inline">\(q=1\)</span> 时，它变成 <span class="math inline">\(1-p_{\tilde y}\)</span>，类似影响有界的 MAE。更强的鲁棒性也可能削弱真正困难但干净的样本所提供的梯度。没有任何损失能够在所有场景中完美区分困难信号与污染。</p>
+<p>样本重加权面临相同风险。如果当前模型把少数类、新颖样本或边界样本判为低质量，那么按模型置信度降权可能恰好删去系统最需要学习的案例。质量估计应来自折外预测，按来源和子群分层，并接受人工审计。</p>
+</section>
+<section id="co-teaching-与置信学习" class="level4">
+<h4 class="anchored" data-anchor-id="co-teaching-与置信学习"><strong>Co-Teaching 与置信学习</strong></h4>
+<p><strong>Co-teaching</strong> 使用不同初始化或数据顺序同时训练两个模型。在每个 mini-batch 中，每个模型选择一组小损失样本，并把这组样本交给另一个模型更新。交叉更新降低了即时自我确认，而保留比例则根据假设或估计的噪声率逐渐调度。</p>
+<pre class="text"><code>for each mini-batch B:
+    losses_A = model_A.loss_per_example(B)
+    losses_B = model_B.loss_per_example(B)
+    clean_for_B = smallest_loss_examples(losses_A, remember_rate)
+    clean_for_A = smallest_loss_examples(losses_B, remember_rate)
+    update(model_A, clean_for_A)
+    update(model_B, clean_for_B)</code></pre>
+<p>小损失启发式依赖“先学习简单干净模式、后记忆噪声”的训练行为。当困难干净样本系统性地产生更大损失时，该假设会失败。两个模型也可能逐渐相关，并在相同错误上达成一致。</p>
+<p><strong>置信学习（confident learning）</strong>关注标签质量，而不只关注预测置信度。它使用样本外预测概率、类别特定阈值和置信联合事件计数来估计标签问题，并对可疑样本排序。最重要的实践规则是：训练样本的标签质量分数应来自没有在该样本上训练过的模型。</p>
+<details>
+<summary>
+<strong>Python：使用折外概率排序潜在标签问题</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_classification</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> StratifiedKFold, cross_val_predict</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>X, y_clean <span class="op">=</span> make_classification(</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">2500</span>, n_features<span class="op">=</span><span class="dv">14</span>, n_informative<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    class_sep<span class="op">=</span><span class="fl">1.2</span>, random_state<span class="op">=</span><span class="dv">155</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">155</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>y_observed <span class="op">=</span> y_clean.copy()</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Corrupt 18% of class 1 and 6% of class 0.</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>flip_1 <span class="op">=</span> rng.choice(np.flatnonzero(y_clean <span class="op">==</span> <span class="dv">1</span>), <span class="bu">int</span>(<span class="fl">0.18</span> <span class="op">*</span> np.<span class="bu">sum</span>(y_clean <span class="op">==</span> <span class="dv">1</span>)), replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>flip_0 <span class="op">=</span> rng.choice(np.flatnonzero(y_clean <span class="op">==</span> <span class="dv">0</span>), <span class="bu">int</span>(<span class="fl">0.06</span> <span class="op">*</span> np.<span class="bu">sum</span>(y_clean <span class="op">==</span> <span class="dv">0</span>)), replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>flipped <span class="op">=</span> np.concatenate([flip_1, flip_0])</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>y_observed[flipped] <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> y_observed[flipped]</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>estimator <span class="op">=</span> make_pipeline(</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>    StandardScaler(), LogisticRegression(max_iter<span class="op">=</span><span class="dv">2000</span>)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>cv <span class="op">=</span> StratifiedKFold(n_splits<span class="op">=</span><span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">155</span>)</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>oof_probability <span class="op">=</span> cross_val_predict(</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    estimator, X, y_observed, cv<span class="op">=</span>cv, method<span class="op">=</span><span class="st">"predict_proba"</span>, n_jobs<span class="op">=</span><span class="dv">1</span></span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Probability assigned to the provided label is a simple label-quality score.</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>label_quality <span class="op">=</span> oof_probability[np.arange(<span class="bu">len</span>(y_observed)), y_observed]</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>flagged <span class="op">=</span> np.argsort(label_quality)[: <span class="bu">len</span>(flipped)]</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>precision_at_known_noise_count <span class="op">=</span> np.mean(np.isin(flagged, flipped))</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"realized noise rate:"</span>, <span class="bu">round</span>(<span class="bu">len</span>(flipped) <span class="op">/</span> <span class="bu">len</span>(y_observed), <span class="dv">3</span>))</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"precision among lowest-quality labels:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(precision_at_known_noise_count), <span class="dv">3</span>))</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"ten most suspicious indexes:"</span>, flagged[:<span class="dv">10</span>].tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>只有在这个模拟中，真实翻转数量才是已知的。现实中应谨慎估计问题标签数量，并把排名靠前的案例交给人工复核，而不是自动用模型预测替换所有标签。一次高置信度分歧可能意味着标签错误，也可能暴露模型盲点、缺失类别或目标定义本身存在歧义。</p>
+</section>
+</section>
+<section id="类别不平衡与稀有事件" class="level3">
+<h3 class="anchored" data-anchor-id="类别不平衡与稀有事件"><strong>类别不平衡与稀有事件</strong></h3>
+<p>类别不平衡描述的是类别出现比例不相等，而不是标签错误。在欺诈检测、安全监控、诊断或故障预测中，正类可能极其稀少，却在业务上非常重要。一个只预测多数类的分类器可以拥有很高准确率，同时完全没有实际价值。</p>
+<p>该问题包含三个相互独立的层面：</p>
+<ol type="1">
+<li><strong>估计：</strong>学习器看到的少数类样本太少，因此可能无法正确拟合其结构。</li>
+<li><strong>评估：</strong>准确率或 ROC AUC 等指标可能隐藏真实流行率下极低的正类精确率。</li>
+<li><strong>决策：</strong>假负例与假正例的后果不同，而且人工复核容量可能有限。</li>
+</ol>
+<section id="重采样成本敏感学习与阈值调整" class="level4">
+<h4 class="anchored" data-anchor-id="重采样成本敏感学习与阈值调整"><strong>重采样、成本敏感学习与阈值调整</strong></h4>
+<p><strong>随机过采样</strong>重复少数类样本，提高它们在梯度中的出现频率，却不会创造新信息。<strong>随机欠采样</strong>降低多数类支配和计算量，但可能丢弃有用边界案例。SMOTE 等合成方法在少数类近邻之间插值；它们可以帮助表格任务，却也可能生成无效观测、连接原本分开的少数类模态，或在交叉验证前使用时造成数据泄漏。所有重采样操作都必须位于训练折内部。</p>
+<p><strong>成本敏感学习</strong>通过类别权重或样本权重改变训练目标。对于二元交叉熵，</p>
+<p><span class="math display">\[
+\mathcal L
+=-w_1y\log p-w_0(1-y)\log(1-p).
+\]</span></p>
+<p>权重会改变拟合得到的决策表面，也可能改变概率校准。<strong>阈值调整</strong>则是在估计分数后改变行动。若 <span class="math inline">\(p=P(y=1\mid x)\)</span> 已校准，假正例成本为 <span class="math inline">\(C_{FP}\)</span>、假负例成本为 <span class="math inline">\(C_{FN}\)</span>，则应在以下条件成立时预测正类：</p>
+<p><span class="math display">\[
+C_{FP}(1-p)\le C_{FN}p
+\quad\Longleftrightarrow\quad
+p\ge\frac{C_{FP}}{C_{FP}+C_{FN}}.
+\]</span></p>
+<p>实际策略还可能加入调查成本、容量约束、拒绝选项或类别相关收益，因此阈值必须根据真实效用函数验证。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/imbalance-thresholding.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="稀有事件得分分布与阈值权衡。"><img src="assets/imbalance-thresholding.svg" class="img-fluid figure-img" alt="多数类与稀有事件类别的重叠得分分布被高低两个阈值切分，展示召回率、精确率、漏报与复核工作量之间的权衡。"></a></p>
+<figcaption>稀有事件得分分布与阈值权衡。</figcaption>
+</figure>
+</div>
+</div>
+<p>严重不平衡时，精确率-召回率曲线尤其重要，因为精确率直接反映当前流行率下的假阳性负担。平均精确率总结排序质量，但不会替你选择工作点。还应报告混淆矩阵、给定工作量或精确率约束下的召回率、校准、子群表现和不确定性区间。</p>
+<details>
+<summary>
+<strong>Python：区分模型加权与基于成本的阈值选择</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_classification</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> (</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    average_precision_score,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    precision_score,</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    recall_score,</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    roc_auc_score,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_classification(</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">12000</span>, n_features<span class="op">=</span><span class="dv">20</span>, n_informative<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    weights<span class="op">=</span>[<span class="fl">0.98</span>, <span class="fl">0.02</span>], class_sep<span class="op">=</span><span class="fl">1.0</span>, flip_y<span class="op">=</span><span class="fl">0.005</span>, random_state<span class="op">=</span><span class="dv">156</span></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>X_train, X_temp, y_train, y_temp <span class="op">=</span> train_test_split(</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.40</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">156</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>X_valid, X_test, y_valid, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>    X_temp, y_temp, test_size<span class="op">=</span><span class="fl">0.50</span>, stratify<span class="op">=</span>y_temp, random_state<span class="op">=</span><span class="dv">156</span></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> fit_model(class_weight<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> make_pipeline(</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>        StandardScaler(),</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a>        LogisticRegression(class_weight<span class="op">=</span>class_weight, max_iter<span class="op">=</span><span class="dv">2500</span>),</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a>    ).fit(X_train, y_train)</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true" tabindex="-1"></a>plain <span class="op">=</span> fit_model()</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true" tabindex="-1"></a>balanced <span class="op">=</span> fit_model(<span class="st">"balanced"</span>)</span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a threshold on validation data using explicit business costs.</span></span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true" tabindex="-1"></a>valid_probability <span class="op">=</span> plain.predict_proba(X_valid)[:, <span class="dv">1</span>]</span>
+<span id="cb14-37"><a href="#cb14-37" aria-hidden="true" tabindex="-1"></a>false_positive_cost, false_negative_cost <span class="op">=</span> <span class="fl">1.0</span>, <span class="fl">25.0</span></span>
+<span id="cb14-38"><a href="#cb14-38" aria-hidden="true" tabindex="-1"></a>threshold_grid <span class="op">=</span> np.linspace(<span class="fl">0.001</span>, <span class="fl">0.999</span>, <span class="dv">999</span>)</span>
+<span id="cb14-39"><a href="#cb14-39" aria-hidden="true" tabindex="-1"></a>validation_cost <span class="op">=</span> []</span>
+<span id="cb14-40"><a href="#cb14-40" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> threshold <span class="kw">in</span> threshold_grid:</span>
+<span id="cb14-41"><a href="#cb14-41" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> valid_probability <span class="op">&gt;=</span> threshold</span>
+<span id="cb14-42"><a href="#cb14-42" aria-hidden="true" tabindex="-1"></a>    fp <span class="op">=</span> np.<span class="bu">sum</span>((prediction <span class="op">==</span> <span class="dv">1</span>) <span class="op">&amp;</span> (y_valid <span class="op">==</span> <span class="dv">0</span>))</span>
+<span id="cb14-43"><a href="#cb14-43" aria-hidden="true" tabindex="-1"></a>    fn <span class="op">=</span> np.<span class="bu">sum</span>((prediction <span class="op">==</span> <span class="dv">0</span>) <span class="op">&amp;</span> (y_valid <span class="op">==</span> <span class="dv">1</span>))</span>
+<span id="cb14-44"><a href="#cb14-44" aria-hidden="true" tabindex="-1"></a>    validation_cost.append(false_positive_cost <span class="op">*</span> fp <span class="op">+</span> false_negative_cost <span class="op">*</span> fn)</span>
+<span id="cb14-45"><a href="#cb14-45" aria-hidden="true" tabindex="-1"></a>selected_threshold <span class="op">=</span> threshold_grid[<span class="bu">int</span>(np.argmin(validation_cost))]</span>
+<span id="cb14-46"><a href="#cb14-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-47"><a href="#cb14-47" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> []</span>
+<span id="cb14-48"><a href="#cb14-48" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model, threshold <span class="kw">in</span> [</span>
+<span id="cb14-49"><a href="#cb14-49" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"plain @ 0.5"</span>, plain, <span class="fl">0.5</span>),</span>
+<span id="cb14-50"><a href="#cb14-50" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"balanced @ 0.5"</span>, balanced, <span class="fl">0.5</span>),</span>
+<span id="cb14-51"><a href="#cb14-51" aria-hidden="true" tabindex="-1"></a>    (<span class="st">"plain @ cost threshold"</span>, plain, selected_threshold),</span>
+<span id="cb14-52"><a href="#cb14-52" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb14-53"><a href="#cb14-53" aria-hidden="true" tabindex="-1"></a>    probability <span class="op">=</span> model.predict_proba(X_test)[:, <span class="dv">1</span>]</span>
+<span id="cb14-54"><a href="#cb14-54" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> probability <span class="op">&gt;=</span> threshold</span>
+<span id="cb14-55"><a href="#cb14-55" aria-hidden="true" tabindex="-1"></a>    rows.append({</span>
+<span id="cb14-56"><a href="#cb14-56" aria-hidden="true" tabindex="-1"></a>        <span class="st">"policy"</span>: name,</span>
+<span id="cb14-57"><a href="#cb14-57" aria-hidden="true" tabindex="-1"></a>        <span class="st">"threshold"</span>: threshold,</span>
+<span id="cb14-58"><a href="#cb14-58" aria-hidden="true" tabindex="-1"></a>        <span class="st">"roc_auc"</span>: roc_auc_score(y_test, probability),</span>
+<span id="cb14-59"><a href="#cb14-59" aria-hidden="true" tabindex="-1"></a>        <span class="st">"average_precision"</span>: average_precision_score(y_test, probability),</span>
+<span id="cb14-60"><a href="#cb14-60" aria-hidden="true" tabindex="-1"></a>        <span class="st">"precision"</span>: precision_score(y_test, prediction, zero_division<span class="op">=</span><span class="dv">0</span>),</span>
+<span id="cb14-61"><a href="#cb14-61" aria-hidden="true" tabindex="-1"></a>        <span class="st">"recall"</span>: recall_score(y_test, prediction),</span>
+<span id="cb14-62"><a href="#cb14-62" aria-hidden="true" tabindex="-1"></a>        <span class="st">"alerts"</span>: <span class="bu">int</span>(prediction.<span class="bu">sum</span>()),</span>
+<span id="cb14-63"><a href="#cb14-63" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb14-64"><a href="#cb14-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-65"><a href="#cb14-65" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(pd.DataFrame(rows).<span class="bu">round</span>(<span class="dv">3</span>).to_string(index<span class="op">=</span><span class="va">False</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>类别加权与阈值调整回答不同问题。加权模型改变参数估计，而验证集选择的阈值改变某一个概率模型的行动策略。使用加权或重采样后需要重新校准；当流行率、成本或系统容量变化时，也必须重新调节阈值。</p>
+</section>
+</section>
+<section id="不完美监督下的评估" class="level3">
+<h3 class="anchored" data-anchor-id="不完美监督下的评估"><strong>不完美监督下的评估</strong></h3>
+<p>当训练标签不可靠时，评估恰恰最困难。不能只拿模型预测与训练它的同一套启发式规则、伪标签或噪声来源比较，就宣称模型有效。最低限度的可信设计需要区分四种角色：</p>
+<ul>
+<li><strong>不完美训练证据：</strong>干净种子、未标注数据、弱来源投票或噪声标签；</li>
+<li><strong>干净验证数据：</strong>用于模型选择、校准、置信度阈值、标签模型设计与停止条件；</li>
+<li><strong>冻结的干净测试集：</strong>用于最终任务表现、子群分析与不确定性；</li>
+<li><strong>标注账本：</strong>记录标签数量、专家时间、争议裁决、来源版本与质量控制成本。</li>
+</ul>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/imperfect-supervision-evaluation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="不完美监督的评估架构。"><img src="assets/imperfect-supervision-evaluation.svg" class="img-fluid figure-img" alt="不完美训练证据经过训练和调参后，依次使用干净验证集与冻结测试集；图中强调伪标签和弱来源投票不能充当测试真值。"></a></p>
+<figcaption>不完美监督的评估架构。</figcaption>
+</figure>
+</div>
+</div>
+<p>评估协议应与学习场景匹配：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>场景</th>
+<th>必要基线</th>
+<th>横轴</th>
+<th>质量检查</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>半监督</td>
+<td>相同模型的纯标签基线</td>
+<td>干净标签数与未标注池规模</td>
+<td>标注子集种子、伪标签精度、校准</td>
+</tr>
+<tr class="even">
+<td>自监督</td>
+<td>随机初始化与监督预训练</td>
+<td>未标注计算量和下游标签数</td>
+<td>线性探测、微调曲线、增强消融</td>
+</tr>
+<tr class="odd">
+<td>主动学习</td>
+<td>随机采样与简单不确定性</td>
+<td>标注时间或成本</td>
+<td>重复样本池顺序、查询多样性、标注难度</td>
+</tr>
+<tr class="even">
+<td>弱监督</td>
+<td>最佳单一来源与多数投票</td>
+<td>规则开发成本与审计成本</td>
+<td>覆盖、冲突、依赖关系、来源消融</td>
+</tr>
+<tr class="odd">
+<td>PU 学习</td>
+<td>把未标注样本当负例的朴素基线</td>
+<td>已标注正例数和选择假设</td>
+<td>类别先验、SCAR/SAR 敏感性、校准</td>
+</tr>
+<tr class="even">
+<td>标签噪声</td>
+<td>普通 ERM 与干净数据上界</td>
+<td>噪声率和干净审计预算</td>
+<td>噪声类型、转移可识别性、问题标签查准率</td>
+</tr>
+<tr class="odd">
+<td>稀有事件</td>
+<td>未加权模型与流行率基线</td>
+<td>告警数、复核容量或成本</td>
+<td>精确率-召回率、校准、子群召回率</td>
+</tr>
+</tbody>
+</table>
+<p><strong>预算曲线、重复种子与干净测试数据。</strong></p>
+<p>单个最终分数掩盖了有限监督方法的真正目的。应把性能画成稀缺资源的函数，例如干净标签数、专家工时、弱来源开发时间或复核量。监督基线必须使用同一个标注子集和相同模型容量。由于小预算结果很容易被恰好选中了哪些样本主导，实验必须重复。</p>
+<details>
+<summary>
+<strong>Python：构造重复的干净标签预算曲线</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.base <span class="im">import</span> clone</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.linear_model <span class="im">import</span> LogisticRegression</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> accuracy_score</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.pipeline <span class="im">import</span> make_pipeline</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.semi_supervised <span class="im">import</span> SelfTrainingClassifier</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>X, y <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">2200</span>, noise<span class="op">=</span><span class="fl">0.24</span>, random_state<span class="op">=</span><span class="dv">157</span>)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>X_development, X_test, y_development, y_test <span class="op">=</span> train_test_split(</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    X, y, test_size<span class="op">=</span><span class="fl">0.35</span>, stratify<span class="op">=</span>y, random_state<span class="op">=</span><span class="dv">157</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> make_pipeline(StandardScaler(), LogisticRegression(C<span class="op">=</span><span class="fl">2.0</span>, max_iter<span class="op">=</span><span class="dv">2000</span>))</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>records <span class="op">=</span> []</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> budget <span class="kw">in</span> [<span class="dv">10</span>, <span class="dv">20</span>, <span class="dv">40</span>, <span class="dv">80</span>, <span class="dv">160</span>]:</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">12</span>):</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>        rng <span class="op">=</span> np.random.default_rng(<span class="dv">2000</span> <span class="op">+</span> <span class="dv">100</span> <span class="op">*</span> budget <span class="op">+</span> seed)</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        per_class <span class="op">=</span> budget <span class="op">//</span> <span class="dv">2</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>        labeled <span class="op">=</span> np.concatenate([</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>            rng.choice(np.flatnonzero(y_development <span class="op">==</span> class_id), per_class, replace<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> class_id <span class="kw">in</span> [<span class="dv">0</span>, <span class="dv">1</span>]</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>        ])</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>        y_semi <span class="op">=</span> np.full_like(y_development, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>        y_semi[labeled] <span class="op">=</span> y_development[labeled]</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>        supervised <span class="op">=</span> clone(base).fit(X_development[labeled], y_development[labeled])</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>        semi <span class="op">=</span> SelfTrainingClassifier(</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>            estimator<span class="op">=</span>clone(base), threshold<span class="op">=</span><span class="fl">0.90</span>, max_iter<span class="op">=</span><span class="dv">20</span></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>        ).fit(X_development, y_semi)</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> method, model <span class="kw">in</span> [(<span class="st">"label only"</span>, supervised), (<span class="st">"self-training"</span>, semi)]:</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>            records.append({</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>                <span class="st">"clean_labels"</span>: budget,</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>                <span class="st">"seed"</span>: seed,</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>                <span class="st">"method"</span>: method,</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>                <span class="st">"test_accuracy"</span>: accuracy_score(y_test, model.predict(X_test)),</span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a>            })</span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>summary <span class="op">=</span> (</span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>    pd.DataFrame(records)</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a>    .groupby([<span class="st">"method"</span>, <span class="st">"clean_labels"</span>])[<span class="st">"test_accuracy"</span>]</span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a>    .agg([<span class="st">"mean"</span>, <span class="st">"std"</span>, <span class="st">"min"</span>, <span class="st">"max"</span>])</span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a>    .<span class="bu">round</span>(<span class="dv">3</span>)</span>
+<span id="cb15-48"><a href="#cb15-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-49"><a href="#cb15-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(summary)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>由于每个随机种子下的所有方法都共享同一个标注子集，可以利用配对差异更有效地估计不确定性，而不必把各次运行当成彼此独立。</p>
+<details>
+<summary>
+<strong>Python：对不同标签种子上的配对性能差异进行 bootstrap</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Reuse the records DataFrame from the preceding example.</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>wide <span class="op">=</span> (</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    pd.DataFrame(records)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    .query(<span class="st">"clean_labels == 40"</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    .pivot(index<span class="op">=</span><span class="st">"seed"</span>, columns<span class="op">=</span><span class="st">"method"</span>, values<span class="op">=</span><span class="st">"test_accuracy"</span>)</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>paired_difference <span class="op">=</span> wide[<span class="st">"self-training"</span>] <span class="op">-</span> wide[<span class="st">"label only"</span>]</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">158</span>)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>bootstrap_mean <span class="op">=</span> np.array([</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    rng.choice(paired_difference.to_numpy(), size<span class="op">=</span><span class="bu">len</span>(paired_difference), replace<span class="op">=</span><span class="va">True</span>).mean()</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">5000</span>)</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean paired difference:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(paired_difference.mean()), <span class="dv">4</span>))</span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"95% bootstrap interval:"</span>, np.<span class="bu">round</span>(np.quantile(bootstrap_mean, [<span class="fl">0.025</span>, <span class="fl">0.975</span>]), <span class="dv">4</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里的重采样单位是标注子集种子，而不是单个测试预测，因为实验问题是“获取到不同标签时，方法性能会如何变化”。对于固定的部署测试集，可以另外在测试观测层面进行配对 bootstrap，以估计预测层面的不确定性。</p>
+<p><strong>审计问题与方法选择。</strong></p>
+<p>接受一次性能提升前，应回答：</p>
+<ol type="1">
+<li>测试真值是否独立于伪标签、弱来源和查询策略？</li>
+<li>比较是否使用了相同的干净标签、计算量和模型选择预算？</li>
+<li>置信度阈值、转移矩阵、类别权重与停止规则是否在完全不访问测试集的条件下选择？</li>
+<li>提升是否跨随机种子、子群和真实分布变化成立，还是只改善总体平均值？</li>
+<li>概率是否在部署流行率下得到校准？</li>
+<li>弱标签或伪标签中有多少被覆盖、冲突、弃权、校正或人工审计？</li>
+<li>方法是否可能压制困难干净样本、稀有类别或真实标注者分歧？</li>
+<li>收益是否足以抵偿标注基础设施和运行复杂度？</li>
+</ol>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>情形</th>
+<th>优先考虑</th>
+<th>不应单独依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>大量未标注样本具有可信几何结构</td>
+<td>半监督学习</td>
+<td>未经校准的置信度</td>
+</tr>
+<tr class="even">
+<td>大规模原始语料可用于学习可复用表示</td>
+<td>自监督预训练</td>
+<td>用代理损失证明下游价值</td>
+</tr>
+<tr class="odd">
+<td>专家可用但非常昂贵</td>
+<td>主动学习</td>
+<td>用查询数量代表全部成本</td>
+</tr>
+<tr class="even">
+<td>领域规则或外部来源丰富</td>
+<td>弱监督</td>
+<td>对高度相关规则进行多数投票</td>
+</tr>
+<tr class="odd">
+<td>只知道经过选择的正例</td>
+<td>PU 学习</td>
+<td>把未标注样本当作负例</td>
+</tr>
+<tr class="even">
+<td>现有标签具有可识别的污染过程</td>
+<td>转移感知或鲁棒学习</td>
+<td>只测试合成对称噪声</td>
+</tr>
+<tr class="odd">
+<td>正确但稀少的类别对应不对称决策后果</td>
+<td>成本敏感训练与阈值调整</td>
+<td>准确率或通用固定阈值</td>
+</tr>
+</tbody>
+</table>
+<p>最强的实践方案通常是混合式的：自监督预训练降低表示学习成本，主动学习建立小规模干净集合，弱来源扩大覆盖，鲁棒训练限制噪声标签伤害，而独立干净评估集保证每个阶段都不会自我证明。只有当简单监督基线与标签质量审计已经揭示真实瓶颈后，才应该增加额外复杂度。</p>
+<p>官方与原始资料包括 <a href="https://scikit-learn.org/stable/modules/semi_supervised.html">scikit-learn 半监督学习指南</a>、<a href="https://research.google/pubs/a-simple-framework-for-contrastive-learning-of-visual-representations/">SimCLR 论文</a>、<a href="https://research.cs.wisc.edu/techreports/2009/TR1648.pdf">主动学习综述</a>、<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5951191/">Snorkel 弱监督论文</a>、<a href="https://doi.org/10.1145/1401890.1401920">正例-未标注学习论文</a>、<a href="https://papers.nips.cc/paper/2018/hash/a19744e268754fb0148b017647355b7b-Abstract.html">Co-teaching 论文</a>、<a href="https://research.google/pubs/confident-learning-estimating-uncertainty-in-dataset-labels/">置信学习论文</a> 与 <a href="https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html">scikit-learn 精确率-召回率示例</a>。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","closeEffect":"zoom","descPosition":"bottom","openEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

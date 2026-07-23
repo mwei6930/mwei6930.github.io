@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>机器学习：聚类、密度估计与异常检测</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="13-clustering-density-anomaly.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="13-clustering-density-anomaly.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#聚类密度估计与异常检测" id="toc-聚类密度估计与异常检测" class="nav-link active" data-scroll-target="#聚类密度估计与异常检测"><strong>聚类、密度估计与异常检测</strong></a>
+  <ul>
+  <li><a href="#什么是簇" id="toc-什么是簇" class="nav-link" data-scroll-target="#什么是簇"><strong>什么是簇？</strong></a>
+  <ul>
+  <li><a href="#相似性紧凑性连通性与密度" id="toc-相似性紧凑性连通性与密度" class="nav-link" data-scroll-target="#相似性紧凑性连通性与密度"><strong>相似性、紧凑性、连通性与密度</strong></a></li>
+  </ul></li>
+  <li><a href="#k-means-聚类" id="toc-k-means-聚类" class="nav-link" data-scroll-target="#k-means-聚类"><strong>K-Means 聚类</strong></a>
+  <ul>
+  <li><a href="#目标函数与-lloyd-算法" id="toc-目标函数与-lloyd-算法" class="nav-link" data-scroll-target="#目标函数与-lloyd-算法"><strong>目标函数与 Lloyd 算法</strong></a></li>
+  <li><a href="#初始化与-k-means" id="toc-初始化与-k-means" class="nav-link" data-scroll-target="#初始化与-k-means"><strong>初始化与 K-Means++</strong></a></li>
+  <li><a href="#失效模式" id="toc-失效模式" class="nav-link" data-scroll-target="#失效模式"><strong>失效模式</strong></a></li>
+  </ul></li>
+  <li><a href="#层次聚类" id="toc-层次聚类" class="nav-link" data-scroll-target="#层次聚类"><strong>层次聚类</strong></a>
+  <ul>
+  <li><a href="#凝聚式与分裂式方法" id="toc-凝聚式与分裂式方法" class="nav-link" data-scroll-target="#凝聚式与分裂式方法"><strong>凝聚式与分裂式方法</strong></a></li>
+  <li><a href="#链接准则与树状图" id="toc-链接准则与树状图" class="nav-link" data-scroll-target="#链接准则与树状图"><strong>链接准则与树状图</strong></a></li>
+  </ul></li>
+  <li><a href="#基于密度的聚类" id="toc-基于密度的聚类" class="nav-link" data-scroll-target="#基于密度的聚类"><strong>基于密度的聚类</strong></a>
+  <ul>
+  <li><a href="#dbscan" id="toc-dbscan" class="nav-link" data-scroll-target="#dbscan"><strong>DBSCAN</strong></a></li>
+  <li><a href="#hdbscan-与可变密度" id="toc-hdbscan-与可变密度" class="nav-link" data-scroll-target="#hdbscan-与可变密度"><strong>HDBSCAN 与可变密度</strong></a></li>
+  </ul></li>
+  <li><a href="#谱聚类" id="toc-谱聚类" class="nav-link" data-scroll-target="#谱聚类"><strong>谱聚类</strong></a></li>
+  <li><a href="#混合模型与-em" id="toc-混合模型与-em" class="nav-link" data-scroll-target="#混合模型与-em"><strong>混合模型与 EM</strong></a>
+  <ul>
+  <li><a href="#gaussian-mixture-model" id="toc-gaussian-mixture-model" class="nav-link" data-scroll-target="#gaussian-mixture-model"><strong>Gaussian Mixture Model</strong></a></li>
+  <li><a href="#expectation-maximization" id="toc-expectation-maximization" class="nav-link" data-scroll-target="#expectation-maximization"><strong>Expectation-Maximization</strong></a></li>
+  <li><a href="#软簇成员关系" id="toc-软簇成员关系" class="nav-link" data-scroll-target="#软簇成员关系"><strong>软簇成员关系</strong></a></li>
+  </ul></li>
+  <li><a href="#密度估计" id="toc-密度估计" class="nav-link" data-scroll-target="#密度估计"><strong>密度估计</strong></a>
+  <ul>
+  <li><a href="#参数密度模型" id="toc-参数密度模型" class="nav-link" data-scroll-target="#参数密度模型"><strong>参数密度模型</strong></a></li>
+  <li><a href="#kernel-density-estimation" id="toc-kernel-density-estimation" class="nav-link" data-scroll-target="#kernel-density-estimation"><strong>Kernel Density Estimation</strong></a></li>
+  </ul></li>
+  <li><a href="#异常检测与新颖性检测" id="toc-异常检测与新颖性检测" class="nav-link" data-scroll-target="#异常检测与新颖性检测"><strong>异常检测与新颖性检测</strong></a>
+  <ul>
+  <li><a href="#统计分数与-local-outlier-factor" id="toc-统计分数与-local-outlier-factor" class="nav-link" data-scroll-target="#统计分数与-local-outlier-factor"><strong>统计分数与 Local Outlier Factor</strong></a></li>
+  <li><a href="#isolation-forest-与-one-class-svm" id="toc-isolation-forest-与-one-class-svm" class="nav-link" data-scroll-target="#isolation-forest-与-one-class-svm"><strong>Isolation Forest 与 One-Class SVM</strong></a></li>
+  </ul></li>
+  <li><a href="#评估无监督结构" id="toc-评估无监督结构" class="nav-link" data-scroll-target="#评估无监督结构"><strong>评估无监督结构</strong></a>
+  <ul>
+  <li><a href="#内部外部与稳定性标准" id="toc-内部外部与稳定性标准" class="nav-link" data-scroll-target="#内部外部与稳定性标准"><strong>内部、外部与稳定性标准</strong></a></li>
+  </ul></li>
+  <li><a href="#选择无监督方法" id="toc-选择无监督方法" class="nav-link" data-scroll-target="#选择无监督方法"><strong>选择无监督方法</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">机器学习：聚类、密度估计与异常检测</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="../../Machine-Learning/13-clustering-density-anomaly.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<p><a href="Machine%20Learning.html">返回机器学习总览</a></p>
+<section id="聚类密度估计与异常检测" class="level2">
+<h2 class="anchored" data-anchor-id="聚类密度估计与异常检测"><strong>聚类、密度估计与异常检测</strong></h2>
+<p>监督学习要求模型预测训练时提供的目标变量。本章讨论的任务面对一种更困难的科学情境：数据中没有目标列告诉我们正确答案是什么，模型需要描述观测数据本身的分布结构。</p>
+<p>以下三个任务彼此相关，但不能视为同义词：</p>
+<ul>
+<li><strong>聚类（clustering）</strong>构造划分、层次结构或软分配，用于概括哪些观测应当归在一起。</li>
+<li><strong>密度估计（density estimation）</strong>通过估计概率密度 <span class="math inline">\(p(\mathbf{x})\)</span>，描述观测更可能出现在哪些区域。</li>
+<li><strong>异常检测（anomaly detection）</strong>依据某种明确的“正常性”定义，对不符合主要结构的观测进行排序。</li>
+</ul>
+<p>无监督结果从来不是由数据单独产生的，而是下列因素共同作用的结果：</p>
+<p><span class="math display">\[
+\text{结果}
+=f(\text{表示},\text{度量},\text{模型假设},\text{超参数},\text{样本}).
+\]</span></p>
+<p>即使数据行完全不变，只要改变某个特征的单位、把欧氏距离替换为余弦距离，或调整邻域半径，就可能得到不同答案。因此，没有标签并不意味着没有假设。恰恰因为无法直接用目标变量的预测误差揭示错误，这些假设更需要被明确说明。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>分析问题</th>
+<th>常见输出</th>
+<th>核心风险</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据中是否存在有用的群组？</td>
+<td>硬标签、成员概率或层次结构</td>
+<td>算法可能强行构造并无实际意义的群组</td>
+</tr>
+<tr class="even">
+<td>概率质量集中在哪里？</td>
+<td>拟合密度或对数密度分数</td>
+<td>高维密度估计可能不稳定且校准较差</td>
+</tr>
+<tr class="odd">
+<td>哪些观测值得进一步调查？</td>
+<td>异常分数与告警阈值</td>
+<td>稀有并不必然意味着错误、有害或有价值</td>
+</tr>
+</tbody>
+</table>
+<p>本章将从质心、连通性、密度、图结构和概率模型五个角度理解无监督结构。目标不是寻找一个普遍最优的方法，而是理解每种方法如何定义相似性、能够表达什么结构、应当怎样诊断输出，以及何时“没有发现令人信服的结构”才是最可靠的结论。</p>
+<section id="什么是簇" class="level3">
+<h3 class="anchored" data-anchor-id="什么是簇"><strong>什么是簇？</strong></h3>
+<p><strong>簇（cluster）</strong>是一组被认为彼此关系更强、而与集合外观测关系较弱的数据点。这个定义有意保留了不完整性，因为“关系更强”可以表示靠近同一个质心、能够通过近邻链条相互到达、位于同一个高密度区域、由同一概率成分生成，或在图中具有较强连接。</p>
+<p>假设用年度消费额和购买次数描述客户。一项分析可能希望得到围绕典型客户画像的紧凑群组；另一项分析可能希望找到从偶尔购买到频繁购买的细长轨迹；第三项分析可能希望识别高密度社区，并把少数特殊客户保留为未分配状态。这些问题对应不同的数学结构，因此得出不同的簇完全合理。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/cluster-definitions.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="通过紧凑性、连通性、密度和概率分布定义簇。"><img src="assets/cluster-definitions.svg" class="img-fluid figure-img" alt="四个面板分别展示由到质心的距离、近邻连接链、高密度区域以及重叠概率成分定义的簇。"></a></p>
+<figcaption>通过紧凑性、连通性、密度和概率分布定义簇。</figcaption>
+</figure>
+</div>
+</div>
+<section id="相似性紧凑性连通性与密度" class="level4">
+<h4 class="anchored" data-anchor-id="相似性紧凑性连通性与密度"><strong>相似性、紧凑性、连通性与密度</strong></h4>
+<p>选择算法之前，首先需要定义<strong>观测单位</strong>、<strong>数据表示</strong>和<strong>不相似度度量</strong>。对于数值向量，欧氏距离为</p>
+<p><span class="math display">\[
+d_2(\mathbf{x}_i,\mathbf{x}_j)
+=\sqrt{\sum_{r=1}^{d}(x_{ir}-x_{jr})^2}.
+\]</span></p>
+<p>每个特征都按其数值单位参与计算。相差 10,000 美元可能完全压过相差 20 次购买，即使购买频率在业务上更重要。标准化把特征 <span class="math inline">\(r\)</span> 变换为 <span class="math inline">\((x_{ir}-\bar{x}_r)/s_r\)</span>，使一个标准差的变化可以跨特征比较。但这是一项建模选择，而不是普遍正确的预处理规则：标准化也可能放大方差较小但噪声很强的特征。</p>
+<p>余弦相似度比较的是方向：</p>
+<p><span class="math display">\[
+\operatorname{cos}(\mathbf{x}_i,\mathbf{x}_j)
+=\frac{\mathbf{x}_i^\top\mathbf{x}_j}
+{\lVert\mathbf{x}_i\rVert_2\lVert\mathbf{x}_j\rVert_2}.
+\]</span></p>
+<p>在稀疏文本向量中，当词语的相对构成比文档长度更重要时，余弦相似度通常更合适。曼哈顿距离对单个坐标上的巨大差异可能更稳健；Hamming 或 Jaccard 不相似度适用于二元属性；同时包含数值和类别特征的数据可能需要 Gower 距离等混合类型度量。只有度量本身具有可解释含义，聚类结论才具有可解释性。</p>
+<p>主要的簇概念如下：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>簇的概念</th>
+<th>操作性含义</th>
+<th>代表方法</th>
+<th>典型限制</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>紧凑性</td>
+<td>簇内观测靠近某个代表点</td>
+<td>K-Means、K-Medoids</td>
+<td>偏好近似凸形的群组</td>
+</tr>
+<tr class="even">
+<td>连通性</td>
+<td>成员能够通过近邻成员逐步到达</td>
+<td>单链接层次聚类、谱方法</td>
+<td>可能通过细小桥梁错误连接两个群组</td>
+</tr>
+<tr class="odd">
+<td>密度</td>
+<td>高密度区域被低密度区域隔开</td>
+<td>DBSCAN、HDBSCAN</td>
+<td>依赖邻域尺度</td>
+</tr>
+<tr class="even">
+<td>分布</td>
+<td>成员在某个潜在概率成分下具有较高概率</td>
+<td>Gaussian mixture model</td>
+<td>依赖选定的概率分布族</td>
+</tr>
+</tbody>
+</table>
+<p>不同方法的输出也不相同。<strong>硬划分</strong>要求每个观测恰好属于一个簇；<strong>软分配</strong>给出成员概率或责任度；层次结构提供多个分辨率下的嵌套群组；密度方法还可以把部分点标记为噪声。没有哪一种输出天然更真实，它们表达的是不同类型的主张。</p>
+<details>
+<summary>
+<strong>Python：观察特征缩放如何改变最近邻</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> pairwise_distances</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Columns are annual spending in dollars and visits per year.</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>customers <span class="op">=</span> np.array([</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">20_000</span>, <span class="dv">4</span>],</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">21_500</span>, <span class="dv">16</span>],</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">42_000</span>, <span class="dv">5</span>],</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">43_000</span>, <span class="dv">18</span>],</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>], dtype<span class="op">=</span><span class="bu">float</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>names <span class="op">=</span> np.array([<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span>, <span class="st">"D"</span>])</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>raw_distances <span class="op">=</span> pairwise_distances(customers)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>scaled_customers <span class="op">=</span> StandardScaler().fit_transform(customers)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>scaled_distances <span class="op">=</span> pairwise_distances(scaled_customers)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> nearest_other(distance_matrix, index):</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    row <span class="op">=</span> distance_matrix[index].copy()</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    row[index] <span class="op">=</span> np.inf</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> names[np.argmin(row)]</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> index, name <span class="kw">in</span> <span class="bu">enumerate</span>(names):</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">"nearest before scaling:"</span>, nearest_other(raw_distances, index),</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| after scaling:"</span>, nearest_other(scaled_distances, index),</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>在原始表示中，消费额主导了几何关系。标准化后，购买频率可能改变某位客户的最近邻。这个例子并不能证明标准化一定正确，它证明的是：预处理方式本身就是簇定义的一部分。</p>
+</section>
+</section>
+<section id="k-means-聚类" class="level3">
+<h3 class="anchored" data-anchor-id="k-means-聚类"><strong>K-Means 聚类</strong></h3>
+<p>K-Means 使用每个簇的算术平均值，即<strong>质心（centroid）</strong>，来表示该簇。当目标群组在欧氏空间中较为紧凑，而且均值能够作为有意义的摘要时，K-Means 很合适。它之所以流行，是因为目标函数简单、迭代高效，并且能扩展到大型数值数据集。但这些优点并不意味着所有数据都包含符合 K-Means 假设的簇。</p>
+<section id="目标函数与-lloyd-算法" class="level4">
+<h4 class="anchored" data-anchor-id="目标函数与-lloyd-算法"><strong>目标函数与 Lloyd 算法</strong></h4>
+<p>令 <span class="math inline">\(z_i\in\{1,\ldots,K\}\)</span> 表示观测 <span class="math inline">\(\mathbf{x}_i\)</span> 的簇分配，<span class="math inline">\(\boldsymbol\mu_k\)</span> 表示第 <span class="math inline">\(k\)</span> 个质心。K-Means 最小化<strong>簇内平方距离之和</strong>：</p>
+<p><span class="math display">\[
+J(\mathbf z,\boldsymbol\mu)
+=\sum_{i=1}^{n}\left\lVert
+\mathbf{x}_i-\boldsymbol\mu_{z_i}
+\right\rVert_2^2.
+\]</span></p>
+<p>这个表达式可以逐项理解：对于每个观测，取出由 <span class="math inline">\(z_i\)</span> 指定的质心，计算二者残差的平方欧氏长度，最后对全部观测求和。平方会加重远距离观测的影响，同时使得在分配固定时，算术平均值成为最优代表点。</p>
+<p>Lloyd 算法交替执行两个条件最优化步骤：</p>
+<pre class="text"><code>Choose K initial centroids.
+repeat
+    Assignment step:
+        assign every observation to its nearest centroid
+    Update step:
+        replace every centroid by the mean of its assigned observations
+until assignments stop changing or the objective improvement is negligible</code></pre>
+<p>分配步骤在质心固定时最小化 <span class="math inline">\(J\)</span>；更新步骤在分配固定时最小化 <span class="math inline">\(J\)</span>。因此目标函数不会增加。然而，联合问题是非凸的：单调改进只能保证到达一个<strong>局部最优解</strong>，不能保证全局最优。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kmeans-lloyd-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Lloyd K-Means 算法中的分配与质心更新阶段。"><img src="assets/kmeans-lloyd-loop.svg" class="img-fluid figure-img" alt="流程图展示初始化之后反复把观测分配给最近质心，再将质心移动到所属观测均值，直至收敛。"></a></p>
+<figcaption>Lloyd K-Means 算法中的分配与质心更新阶段。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：从基本步骤实现 Lloyd 算法</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">240</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">4</span>, <span class="op">-</span><span class="dv">2</span>), (<span class="dv">0</span>, <span class="dv">4</span>), (<span class="dv">4</span>, <span class="op">-</span><span class="dv">1</span>)],</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.8</span>, <span class="fl">1.0</span>, <span class="fl">0.9</span>],</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">7</span>,</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> lloyd_kmeans(X, n_clusters, seed<span class="op">=</span><span class="dv">0</span>, max_iter<span class="op">=</span><span class="dv">100</span>):</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    rng <span class="op">=</span> np.random.default_rng(seed)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Start from distinct observations so each centroid is in data space.</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    centroids <span class="op">=</span> X[rng.choice(<span class="bu">len</span>(X), size<span class="op">=</span>n_clusters, replace<span class="op">=</span><span class="va">False</span>)].copy()</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    inertia_history <span class="op">=</span> []</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(max_iter):</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Assignment: squared distances from every row to every centroid.</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        squared_distances <span class="op">=</span> ((X[:, <span class="va">None</span>, :] <span class="op">-</span> centroids[<span class="va">None</span>, :, :]) <span class="op">**</span> <span class="dv">2</span>).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        labels <span class="op">=</span> squared_distances.argmin(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        inertia <span class="op">=</span> squared_distances[np.arange(<span class="bu">len</span>(X)), labels].<span class="bu">sum</span>()</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        inertia_history.append(<span class="bu">float</span>(inertia))</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Update: each non-empty cluster is represented by its arithmetic mean.</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        new_centroids <span class="op">=</span> centroids.copy()</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> cluster <span class="kw">in</span> <span class="bu">range</span>(n_clusters):</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            members <span class="op">=</span> X[labels <span class="op">==</span> cluster]</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(members) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>                new_centroids[cluster] <span class="op">=</span> members.mean(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> np.allclose(new_centroids, centroids):</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>            centroids <span class="op">=</span> new_centroids</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>        centroids <span class="op">=</span> new_centroids</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> labels, centroids, np.array(inertia_history)</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>labels, centroids, history <span class="op">=</span> lloyd_kmeans(X, n_clusters<span class="op">=</span><span class="dv">3</span>, seed<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"iterations:"</span>, <span class="bu">len</span>(history))</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"objective never increased:"</span>, <span class="bu">bool</span>(np.<span class="bu">all</span>(np.diff(history) <span class="op">&lt;=</span> <span class="fl">1e-9</span>)))</span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"final inertia:"</span>, <span class="bu">round</span>(history[<span class="op">-</span><span class="dv">1</span>], <span class="dv">2</span>))</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"centroids:</span><span class="ch">\n</span><span class="st">"</span>, np.<span class="bu">round</span>(centroids, <span class="dv">2</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>输出的 <strong>inertia</strong> 就是目标函数 <span class="math inline">\(J\)</span>。它可以比较相同数据表示和相同 <span class="math inline">\(K\)</span> 下的不同运行，但随着 <span class="math inline">\(K\)</span> 增大一定不会上升，因此不能单独证明正确的簇数。</p>
+</section>
+<section id="初始化与-k-means" class="level4">
+<h4 class="anchored" data-anchor-id="初始化与-k-means"><strong>初始化与 K-Means++</strong></h4>
+<p>较差的初始质心可能使 Lloyd 算法落入较差的局部最优。执行多次随机初始化，并保留 inertia 最小的结果，可以降低这种风险。<strong>K-Means++</strong>通过把初始质心分散到数据的不同区域来改进起点：</p>
+<ol type="1">
+<li>从观测中均匀随机选择第一个质心；</li>
+<li>计算每个观测到当前最近已选质心的距离 <span class="math inline">\(D(\mathbf{x})\)</span>；</li>
+<li>按照与 <span class="math inline">\(D(\mathbf{x})^2\)</span> 成正比的概率选择下一个质心；</li>
+<li>重复直至选出 <span class="math inline">\(K\)</span> 个质心，然后运行 Lloyd 算法。</li>
+</ol>
+<p>距离现有质心较远的点更可能成为新区域的种子，但这个过程仍具有随机性。实践中应把 K-Means++、多次初始化和明确记录随机种子结合使用。</p>
+<details>
+<summary>
+<strong>Python：比较随机初始化与 K-Means++</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">700</span>,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span><span class="dv">6</span>,</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.8</span>, <span class="fl">0.6</span>, <span class="fl">1.2</span>, <span class="fl">0.8</span>, <span class="fl">1.5</span>],</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> inertias_for(initialization):</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    scores <span class="op">=</span> []</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> seed <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">20</span>):</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># n_init=1 exposes the variability of one initialization.</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        model <span class="op">=</span> KMeans(</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            n_clusters<span class="op">=</span><span class="dv">6</span>,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>            init<span class="op">=</span>initialization,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            n_init<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>            random_state<span class="op">=</span>seed,</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        model.fit(X)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        scores.append(model.inertia_)</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.array(scores)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>random_scores <span class="op">=</span> inertias_for(<span class="st">"random"</span>)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>plus_scores <span class="op">=</span> inertias_for(<span class="st">"k-means++"</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, scores <span class="kw">in</span> [(<span class="st">"random"</span>, random_scores), (<span class="st">"k-means++"</span>, plus_scores)]:</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:11s}</span><span class="ss">"</span>,</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">"best="</span>, <span class="bu">round</span>(scores.<span class="bu">min</span>(), <span class="dv">1</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"median="</span>, <span class="bu">round</span>(np.median(scores), <span class="dv">1</span>),</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"worst="</span>, <span class="bu">round</span>(scores.<span class="bu">max</span>(), <span class="dv">1</span>),</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="失效模式" class="level4">
+<h4 class="anchored" data-anchor-id="失效模式"><strong>失效模式</strong></h4>
+<p>K-Means 隐含地偏好近似凸形、离散程度相近且能由均值良好表示的簇。对于弯曲流形、不等密度、规模差异很大的群组、非欧氏相似性、类别数据，以及包含强影响离群点的数据，它可能失败。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kmeans-failure-modes.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="K-Means 可能强行产生误导性划分的情形。"><img src="assets/kmeans-failure-modes.svg" class="img-fluid figure-img" alt="四个面板分别展示适合 K-Means 的紧凑簇，以及新月形、不等密度和离群点拉动质心时的失效情况。"></a></p>
+<figcaption>K-Means 可能强行产生误导性划分的情形。</figcaption>
+</figure>
+</div>
+</div>
+<p>由于目标函数使用平方距离，特征缩放尤其关键。离群点会产生平方级影响，并可能把质心从高密度核心区域拉走。K-Medoids 用真实观测替代均值作为代表点，稳健性更强，但计算成本通常更高。对于几何结构合适的超大样本，Mini-Batch K-Means 用近似随机更新换取更快速度。</p>
+<details>
+<summary>
+<strong>Python：比较 K-Means 在紧凑 blobs 与弯曲 moons 上的表现</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs, make_moons</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score, silhouette_score</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>datasets <span class="op">=</span> {</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"compact blobs"</span>: make_blobs(n_samples<span class="op">=</span><span class="dv">500</span>, centers<span class="op">=</span><span class="dv">2</span>, cluster_std<span class="op">=</span><span class="fl">0.8</span>, random_state<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">"curved moons"</span>: make_moons(n_samples<span class="op">=</span><span class="dv">500</span>, noise<span class="op">=</span><span class="fl">0.07</span>, random_state<span class="op">=</span><span class="dv">4</span>),</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, (X, synthetic_truth) <span class="kw">in</span> datasets.items():</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">4</span>).fit_predict(X)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| silhouette:"</span>, <span class="bu">round</span>(silhouette_score(X, labels), <span class="dv">3</span>),</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里使用合成标签，只是因为数据生成器明确提供了预期几何结构。在真实无监督任务中，这些标签通常不存在。实验说明：即使紧凑性分数看起来合理，也不能据此证明该划分符合应用真正关心的结构。</p>
+</section>
+</section>
+<section id="层次聚类" class="level3">
+<h3 class="anchored" data-anchor-id="层次聚类"><strong>层次聚类</strong></h3>
+<p>层次聚类在多个分辨率下表示群组，而不是立刻固定为一个平面划分。结果是一棵由嵌套集合构成的树：相近观测在树的低处合并，更广泛的群组只会在较高的不相似度处汇合。当领域中自然存在“大类内部包含子类型”的结构，或尚不清楚合适簇数时，这种表示很有价值。</p>
+<section id="凝聚式与分裂式方法" class="level4">
+<h4 class="anchored" data-anchor-id="凝聚式与分裂式方法"><strong>凝聚式与分裂式方法</strong></h4>
+<p><strong>凝聚式（agglomerative）</strong>聚类从每个观测单独成簇开始，不断合并最接近的两个簇。<strong>分裂式（divisive）</strong>聚类从全部观测属于一个簇开始，再递归拆分。凝聚式方法更常用，因为合并操作较为简单，而且已有成熟实现。</p>
+<p>凝聚式过程可以写成：</p>
+<pre class="text"><code>Start with n singleton clusters.
+Compute dissimilarities between all current clusters.
+repeat until only one cluster remains
+    merge the pair with the smallest linkage dissimilarity
+    update dissimilarities between the new cluster and all others
+    record the merge dissimilarity</code></pre>
+<p>其中<strong>链接准则（linkage）</strong>至关重要。点与点之间的距离并不能自动定义两个集合之间的距离。不同链接规则表达了不同的“群组一致性”含义，因此同一个距离矩阵可以产生截然不同的层次结构。</p>
+</section>
+<section id="链接准则与树状图" class="level4">
+<h4 class="anchored" data-anchor-id="链接准则与树状图"><strong>链接准则与树状图</strong></h4>
+<p>对于簇 <span class="math inline">\(A\)</span> 和 <span class="math inline">\(B\)</span>，令点间距离为 <span class="math inline">\(d(\mathbf{x}_i,\mathbf{x}_j)\)</span>。单链接、全链接和平均链接分别为</p>
+<p><span class="math display">\[
+d_{\text{single}}(A,B)=\min_{i\in A,j\in B}d(\mathbf{x}_i,\mathbf{x}_j),
+\]</span></p>
+<p><span class="math display">\[
+d_{\text{complete}}(A,B)=\max_{i\in A,j\in B}d(\mathbf{x}_i,\mathbf{x}_j),
+\]</span></p>
+<p><span class="math display">\[
+d_{\text{average}}(A,B)
+=\frac{1}{|A||B|}\sum_{i\in A}\sum_{j\in B}d(\mathbf{x}_i,\mathbf{x}_j).
+\]</span></p>
+<p>单链接只要求两个簇中<strong>存在任意一对</strong>相近点，因此能够恢复细长形状，但也可能通过狭窄桥梁产生链式误连。全链接控制最远点对的距离，倾向形成紧凑群组，但容易受到极端点影响。平均链接位于二者之间。Ward 链接专门用于平方欧氏几何，每一步选择使簇内平方和增加最少的合并：</p>
+<p><span class="math display">\[
+\Delta(A,B)
+=\frac{|A||B|}{|A|+|B|}
+\left\lVert\boldsymbol\mu_A-\boldsymbol\mu_B\right\rVert_2^2.
+\]</span></p>
+<p>其中规模因子保证合并决策不只取决于质心距离。Ward 方法与 K-Means 相似，偏好紧凑群组；单链接则表达连通性。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/linkage-dendrogram.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="链接准则以及树状图切割的含义。"><img src="assets/linkage-dendrogram.svg" class="img-fluid figure-img" alt="图中比较单链接、全链接、平均链接和 Ward 链接，并展示如何用水平切线把树状图转换成平面划分。"></a></p>
+<figcaption>链接准则以及树状图切割的含义。</figcaption>
+</figure>
+</div>
+</div>
+<p><strong>树状图（dendrogram）</strong>记录合并序列。叶节点对应观测或初始群组，合并的垂直位置表示链接不相似度。用水平线切割树即可得到平面划分。叶节点的左右顺序不是一维数值测量，合并高度也不是概率或置信度。较大的垂直间隔可以提示相对稳定的分辨率，但不能证明相应群组在现实中必然存在。</p>
+<p>直接实现通常需要保存 <span class="math inline">\(n\times n\)</span> 不相似度结构，因此内存可能达到 <span class="math inline">\(O(n^2)\)</span>。层次聚类适合探索中等规模样本，但面对数百万观测时，需要近似方法、连通性约束或预先压缩。</p>
+<details>
+<summary>
+<strong>Python：比较不同链接方法的合并历史</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.cluster.hierarchy <span class="im">import</span> linkage, fcluster</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_blobs(</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">60</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">3</span>, <span class="dv">0</span>), (<span class="dv">0</span>, <span class="dv">0</span>), (<span class="dv">3</span>, <span class="dv">0</span>)],</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.35</span>, <span class="fl">0.85</span>, <span class="fl">0.35</span>],</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> method <span class="kw">in</span> [<span class="st">"single"</span>, <span class="st">"complete"</span>, <span class="st">"average"</span>, <span class="st">"ward"</span>]:</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Each row of Z is: left child, right child, merge height, merged size.</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    Z <span class="op">=</span> linkage(X, method<span class="op">=</span>method, metric<span class="op">=</span><span class="st">"euclidean"</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> fcluster(Z, t<span class="op">=</span><span class="dv">3</span>, criterion<span class="op">=</span><span class="st">"maxclust"</span>) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    last_merges <span class="op">=</span> np.<span class="bu">round</span>(Z[<span class="op">-</span><span class="dv">3</span>:, <span class="dv">2</span>], <span class="dv">3</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>method<span class="sc">:8s}</span><span class="ss">"</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        <span class="st">"last merge heights:"</span>, last_merges.tolist(),</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个受控实验使用外部合成标签来展示链接规则的差异。在无标签应用中，应比较树状图结构、缩放与链接选择的敏感性、簇稳定性和领域解释，而不是选择视觉上最漂亮的一棵树。</p>
+</section>
+</section>
+<section id="基于密度的聚类" class="level3">
+<h3 class="anchored" data-anchor-id="基于密度的聚类"><strong>基于密度的聚类</strong></h3>
+<p>基于密度的方法把簇定义为包含大量近邻观测的区域，并要求不同簇之间存在稀疏空间。它们能够恢复非凸群组，也可以把部分观测保留为未分配噪声。相应代价是：密度必须相对于邻域尺度和最小局部支持量来定义。</p>
+<section id="dbscan" class="level4">
+<h4 class="anchored" data-anchor-id="dbscan"><strong>DBSCAN</strong></h4>
+<p>DBSCAN 使用两个核心超参数：</p>
+<ul>
+<li><span class="math inline">\(\varepsilon\)</span>（<code>eps</code>）是邻域半径；</li>
+<li><code>min_samples</code> 是形成稠密邻域所需的最少观测数，其中包含该点自身。</li>
+</ul>
+<p>点 <span class="math inline">\(\mathbf{x}_i\)</span> 的 <span class="math inline">\(\varepsilon\)</span> 邻域为</p>
+<p><span class="math display">\[
+N_{\varepsilon}(\mathbf{x}_i)
+=\{\mathbf{x}_j:d(\mathbf{x}_i,\mathbf{x}_j)\leq\varepsilon\}.
+\]</span></p>
+<p>若 <span class="math inline">\(|N_{\varepsilon}(\mathbf{x}_i)|\geq m\)</span>，其中 <span class="math inline">\(m\)</span> 为 <code>min_samples</code>，该点是<strong>核心点（core point）</strong>。<strong>边界点（border point）</strong>自身邻居不足，但位于某个核心点的邻域中。<strong>噪声点（noise point）</strong>既不是核心点，也不能由核心点通过密度关系到达。一个簇是通过核心邻域链条相连的最大点集，并附带在扩展过程中到达的边界点。</p>
+<pre class="text"><code>Mark every observation unvisited.
+For each unvisited observation x:
+    find its epsilon-neighbourhood
+    if x is not a core point, provisionally mark it as noise
+    otherwise start a new cluster and expand it through core neighbours
+        add every density-reachable core point
+        attach border points encountered during expansion</code></pre>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dbscan-core-border-noise.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="DBSCAN 中的核心点、边界点与噪声点。"><img src="assets/dbscan-core-border-noise.svg" class="img-fluid figure-img" alt="邻域圆展示拥有足够邻居的核心点、可从稠密区域到达的边界点，以及一个孤立噪声点。"></a></p>
+<figcaption>DBSCAN 中的核心点、边界点与噪声点。</figcaption>
+</figure>
+</div>
+</div>
+<p>较小的 <code>eps</code> 会拆碎簇并产生更多噪声；较大的 <code>eps</code> 会连接区域，甚至把不同簇桥接在一起。增大 <code>min_samples</code> 表示要求更强的密度支持。把每个点到第 <span class="math inline">\(k\)</span> 个最近邻的距离排序，有时能提示候选尺度，但所谓“肘部”只是诊断线索，而且在密度变化时可能根本不存在。</p>
+<p>低维情况下，空间索引可以加速邻域查询。高维空间中距离趋于集中，树索引性能下降，DBSCAN 的计算或内存成本可能接近平方级。特征缩放、度量选择、重复观测和采样密度都会影响结果。</p>
+<details>
+<summary>
+<strong>Python：用 DBSCAN 恢复弯曲簇并识别噪声</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">500</span>, noise<span class="op">=</span><span class="fl">0.065</span>, random_state<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">13</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>background_noise <span class="op">=</span> rng.uniform(low<span class="op">=</span>[<span class="op">-</span><span class="fl">1.5</span>, <span class="op">-</span><span class="fl">1.0</span>], high<span class="op">=</span>[<span class="fl">2.5</span>, <span class="fl">1.5</span>], size<span class="op">=</span>(<span class="dv">35</span>, <span class="dv">2</span>))</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.vstack([X, background_noise])</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> DBSCAN(eps<span class="op">=</span><span class="fl">0.18</span>, min_samples<span class="op">=</span><span class="dv">8</span>).fit_predict(X)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>core_mask <span class="op">=</span> labels <span class="op">!=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>cluster_count <span class="op">=</span> <span class="bu">len</span>(<span class="bu">set</span>(labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> labels <span class="cf">else</span> <span class="dv">0</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"clusters:"</span>, cluster_count)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"noise observations:"</span>, <span class="bu">int</span>((labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()))</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="co"># ARI is calculated only on the generated moon observations.</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>    <span class="st">"synthetic moon ARI:"</span>,</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels[: <span class="bu">len</span>(synthetic_truth)]), <span class="dv">3</span>),</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"assigned fraction:"</span>, <span class="bu">round</span>(core_mask.mean(), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>标签 <code>-1</code> 表示噪声，但不等于错误数据。稀有但有效的事件、状态转换点和测量错误都可能获得这个标签，必须回到原始记录进行解释。</p>
+</section>
+<section id="hdbscan-与可变密度" class="level4">
+<h4 class="anchored" data-anchor-id="hdbscan-与可变密度"><strong>HDBSCAN 与可变密度</strong></h4>
+<p>单一的全局 <span class="math inline">\(\varepsilon\)</span> 往往无法同时保留稀疏簇，并避免稠密簇与周围区域被合并。HDBSCAN 不在一开始固定一个半径，而是在多个密度尺度上建立层次结构。</p>
+<p>给定 <code>min_samples</code>，点 <span class="math inline">\(\mathbf{x}\)</span> 的<strong>核心距离</strong>是它到第 <code>min_samples</code> 个最近邻的距离。HDBSCAN 定义互达距离：</p>
+<p><span class="math display">\[
+d_{\text{mr}}(\mathbf{x}_i,\mathbf{x}_j)
+=\max\left\{
+d_{\text{core}}(\mathbf{x}_i),
+d_{\text{core}}(\mathbf{x}_j),
+d(\mathbf{x}_i,\mathbf{x}_j)
+\right\}.
+\]</span></p>
+<p>它会拉大孤立点周围的距离，同时保留稠密区域内部的距离。随后，HDBSCAN：</p>
+<ol type="1">
+<li>在互达距离下构造最小生成树；</li>
+<li>根据不同密度层级上的边移除过程形成簇层次；</li>
+<li>压缩规模小于 <code>min_cluster_size</code> 的分支；</li>
+<li>选择在较大密度区间内持续存在的稳定簇。</li>
+</ol>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/hdbscan-stability-tree.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="HDBSCAN 如何把可变密度数据转换为稳定性层次结构。"><img src="assets/hdbscan-stability-tree.svg" class="img-fluid figure-img" alt="流程图依次展示核心距离、互达边、最小生成树、压缩层次结构和稳定簇选择。"></a></p>
+<figcaption>HDBSCAN 如何把可变密度数据转换为稳定性层次结构。</figcaption>
+</figure>
+</div>
+</div>
+<p><code>min_cluster_size</code> 表达值得保留的最小群组规模。<code>min_samples</code> 控制密度估计的保守程度，数值越大通常会把更多点标记为噪声。HDBSCAN 降低了对单一半径的依赖，但并没有消除建模选择，也不能保证恢复每一种可变密度结构。</p>
+<details>
+<summary>
+<strong>Python：比较单尺度 DBSCAN 与层次密度聚类</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN, HDBSCAN</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="co"># The left group is dense; the right group is much more diffuse.</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_blobs(</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span>[<span class="dv">260</span>, <span class="dv">340</span>],</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="fl">3.0</span>, <span class="fl">0.0</span>), (<span class="fl">3.0</span>, <span class="fl">0.0</span>)],</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.22</span>, <span class="fl">1.15</span>],</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">21</span>,</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> eps <span class="kw">in</span> [<span class="fl">0.10</span>, <span class="fl">0.18</span>, <span class="fl">0.30</span>]:</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> DBSCAN(eps<span class="op">=</span>eps, min_samples<span class="op">=</span><span class="dv">10</span>).fit_predict(X)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    clusters <span class="op">=</span> <span class="bu">len</span>(<span class="bu">set</span>(labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> labels <span class="cf">else</span> <span class="dv">0</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"DBSCAN eps=</span><span class="sc">{</span>eps<span class="sc">:.2f}</span><span class="ss">"</span>,</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"clusters="</span>, clusters,</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"noise="</span>, <span class="bu">int</span>((labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()),</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"ARI="</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>hdbscan_labels <span class="op">=</span> HDBSCAN(min_cluster_size<span class="op">=</span><span class="dv">35</span>, min_samples<span class="op">=</span><span class="dv">10</span>).fit_predict(X)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"HDBSCAN       "</span>,</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"clusters="</span>, <span class="bu">len</span>(<span class="bu">set</span>(hdbscan_labels)) <span class="op">-</span> (<span class="dv">1</span> <span class="cf">if</span> <span class="op">-</span><span class="dv">1</span> <span class="kw">in</span> hdbscan_labels <span class="cf">else</span> <span class="dv">0</span>),</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"noise="</span>, <span class="bu">int</span>((hdbscan_labels <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>).<span class="bu">sum</span>()),</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"ARI="</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, hdbscan_labels), <span class="dv">3</span>),</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当一个密度尺度具有明确含义时，DBSCAN 仍是优秀且可解释的基线。当有意义的群组在不同密度层级持续存在，并且层次结构与噪声分配有用时，HDBSCAN 更合适。</p>
+</section>
+</section>
+<section id="谱聚类" class="level3">
+<h3 class="anchored" data-anchor-id="谱聚类"><strong>谱聚类</strong></h3>
+<p>谱聚类首先把观测转换为加权图。每个观测是一个节点，边权 <span class="math inline">\(w_{ij}\)</span> 表示相似性；随后算法寻找连接较弱的图区域，而不是围绕欧氏质心的紧凑区域。合适的图嵌入能够把原空间中的非凸结构转换为容易划分的结构。</p>
+<p>令 <span class="math inline">\(\mathbf W\)</span> 为对称 affinity matrix，度矩阵为对角矩阵，且</p>
+<p><span class="math display">\[
+D_{ii}=\sum_j W_{ij}.
+\]</span></p>
+<p>非归一化图拉普拉斯为 <span class="math inline">\(\mathbf L=\mathbf D-\mathbf W\)</span>。一种常用的对称归一化形式为</p>
+<p><span class="math display">\[
+\mathbf L_{\text{sym}}
+=\mathbf I-\mathbf D^{-1/2}\mathbf W\mathbf D^{-1/2}.
+\]</span></p>
+<p>与较小特征值对应的特征向量沿强图边变化缓慢。把多个这样的特征向量作为坐标后，连接较强的节点会被映射到相近位置。随后在这个<strong>谱嵌入</strong>中运行 K-Means，就能近似实现一个在原始坐标中具有非线性边界的 graph cut。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/spectral-graph-embedding.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="谱聚类中的图构造、拉普拉斯嵌入与最终划分。"><img src="assets/spectral-graph-embedding.svg" class="img-fluid figure-img" alt="四个阶段依次展示非凸观测、局部 affinity graph、拉普拉斯低频特征向量，以及谱坐标中的简单划分。"></a></p>
+<figcaption>谱聚类中的图构造、拉普拉斯嵌入与最终划分。</figcaption>
+</figure>
+</div>
+</div>
+<p>算法流程为：</p>
+<pre class="text"><code>Construct an affinity graph W from observations.
+Compute a graph Laplacian L from W and its degree matrix D.
+Extract eigenvectors associated with the smallest relevant eigenvalues.
+Treat each row of those eigenvectors as an embedded observation.
+Cluster the embedded rows, commonly with K-Means.</code></pre>
+<p>affinity graph 是最关键的建模选择。RBF affinity</p>
+<p><span class="math display">\[
+w_{ij}=\exp(-\gamma\lVert\mathbf{x}_i-\mathbf{x}_j\rVert_2^2)
+\]</span></p>
+<p>连接所有点对，但权重随距离快速衰减。<span class="math inline">\(k\)</span>-nearest-neighbour graph 是稀疏图，更强调局部结构。如果图不连通、过于稠密，或者由噪声特征主导，那么特征向量只会忠实地编码一个错误的图。</p>
+<p>存储稠密 affinity matrix 需要 <span class="math inline">\(O(n^2)\)</span> 内存，特征分解也可能成为主要计算瓶颈。稀疏近邻图和近似特征求解器能够缓解问题，但谱聚类通常仍不如 K-Means 易于扩展。它还需要指定簇数，除非 eigengap 或下游标准能够提供合理选择。</p>
+<details>
+<summary>
+<strong>Python：在 two moons 数据上比较质心聚类与图聚类</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans, SpectralClustering</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">600</span>, noise<span class="op">=</span><span class="fl">0.07</span>, random_state<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>kmeans_labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">8</span>).fit_predict(X)</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>spectral_labels <span class="op">=</span> SpectralClustering(</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    n_clusters<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    affinity<span class="op">=</span><span class="st">"nearest_neighbors"</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    n_neighbors<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    assign_labels<span class="op">=</span><span class="st">"kmeans"</span>,</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    n_init<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>).fit_predict(X)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"K-Means synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, kmeans_labels), <span class="dv">3</span>))</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Spectral synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, spectral_labels), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>谱聚类在这里成功，是因为局部连通性与生成器的弯曲几何一致。这并不表示它普遍更优：面对大型紧凑 blobs，K-Means 更简单、更快，通常也是更合理的工程选择。</p>
+</section>
+<section id="混合模型与-em" class="level3">
+<h3 class="anchored" data-anchor-id="混合模型与-em"><strong>混合模型与 EM</strong></h3>
+<p>混合模型假设每个观测由若干潜在概率成分之一生成。与 K-Means 不同，它显式描述概率密度，并且能够给出成分成员关系的不确定性。概率成分是密度模型中的数学对象，只有经过额外领域验证后，才能把它称为真实世界的簇。</p>
+<section id="gaussian-mixture-model" class="level4">
+<h4 class="anchored" data-anchor-id="gaussian-mixture-model"><strong>Gaussian Mixture Model</strong></h4>
+<p>包含 <span class="math inline">\(K\)</span> 个成分的 Gaussian mixture model（GMM）具有密度</p>
+<p><span class="math display">\[
+p(\mathbf{x})
+=\sum_{k=1}^{K}\pi_k
+\,\mathcal N(\mathbf{x}\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k),
+\]</span></p>
+<p>其中 <span class="math inline">\(\pi_k\geq0\)</span>、<span class="math inline">\(\sum_k\pi_k=1\)</span>，每个成分具有均值 <span class="math inline">\(\boldsymbol\mu_k\)</span> 和协方差 <span class="math inline">\(\boldsymbol\Sigma_k\)</span>。混合权重 <span class="math inline">\(\pi_k\)</span> 是选择成分 <span class="math inline">\(k\)</span> 的先验概率。协方差控制方向、尺度和相关性，因此 full-covariance GMM 能表达 K-Means 无法表示的椭圆群组。</p>
+<p>协方差约束在灵活性、统计稳定性与计算成本之间权衡：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>协方差类型</th>
+<th>假设</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Spherical</td>
+<td>每个成分只有一个方差</td>
+<td>圆形成分，参数较少</td>
+</tr>
+<tr class="even">
+<td>Diagonal</td>
+<td>成分内部特征独立</td>
+<td>与坐标轴对齐的椭圆</td>
+</tr>
+<tr class="odd">
+<td>Tied</td>
+<td>所有成分共享一个完整协方差</td>
+<td>均值不同但形状相同</td>
+</tr>
+<tr class="even">
+<td>Full</td>
+<td>每个成分拥有独立完整协方差</td>
+<td>灵活，但需要更多数据</td>
+</tr>
+</tbody>
+</table>
+<p>K-Means 可以看作一个极限情形：各成分权重相同、具有共同球形方差、方差趋近于零，并采用硬分配。GMM 更灵活，但额外自由度也提高了对初始化和过拟合的敏感性。</p>
+</section>
+<section id="expectation-maximization" class="level4">
+<h4 class="anchored" data-anchor-id="expectation-maximization"><strong>Expectation-Maximization</strong></h4>
+<p>如果潜在成分标签 <span class="math inline">\(z_i\)</span> 已知，参数估计很直接；如果参数已知，成分概率也很直接。<strong>Expectation-Maximization（EM）</strong>在这两个较简单的问题之间交替迭代。</p>
+<p>E-step 计算成分 <span class="math inline">\(k\)</span> 对观测 <span class="math inline">\(i\)</span> 的责任度：</p>
+<p><span class="math display">\[
+\gamma_{ik}
+=P(z_i=k\mid\mathbf{x}_i)
+=\frac{\pi_k\mathcal N(\mathbf{x}_i\mid\boldsymbol\mu_k,\boldsymbol\Sigma_k)}
+{\sum_{j=1}^{K}\pi_j\mathcal N(\mathbf{x}_i\mid\boldsymbol\mu_j,\boldsymbol\Sigma_j)}.
+\]</span></p>
+<p>分母对成分分数进行归一化，因此 <span class="math inline">\(\sum_k\gamma_{ik}=1\)</span>。在 M-step 中，令 <span class="math inline">\(N_k=\sum_i\gamma_{ik}\)</span>，更新</p>
+<p><span class="math display">\[
+\pi_k=\frac{N_k}{n},
+\qquad
+\boldsymbol\mu_k
+=\frac{1}{N_k}\sum_i\gamma_{ik}\mathbf{x}_i,
+\]</span></p>
+<p><span class="math display">\[
+\boldsymbol\Sigma_k
+=\frac{1}{N_k}\sum_i\gamma_{ik}
+(\mathbf{x}_i-\boldsymbol\mu_k)(\mathbf{x}_i-\boldsymbol\mu_k)^\top.
+\]</span></p>
+<p>这些都是加权估计：每个观测按照责任度对所有成分作出贡献。EM 不会降低观测数据对数似然，但可能收敛到局部最优，因此多次初始化、协方差正则化和留出评估很重要。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/gmm-em-soft-membership.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="Gaussian mixture model 中的软成员关系和 E-step/M-step 循环。"><img src="assets/gmm-em-soft-membership.svg" class="img-fluid figure-img" alt="重叠 Gaussian 成分让一个模糊点同时拥有两个责任度，右侧循环交替计算责任度并执行加权参数更新。"></a></p>
+<figcaption>Gaussian mixture model 中的软成员关系和 E-step/M-step 循环。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：为一维 Gaussian mixture 实现 EM</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.special <span class="im">import</span> logsumexp</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">5</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">2.0</span>, <span class="fl">0.65</span>, size<span class="op">=</span><span class="dv">220</span>),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">2.5</span>, <span class="fl">1.10</span>, size<span class="op">=</span><span class="dv">280</span>),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>means <span class="op">=</span> np.array([<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>])</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>variances <span class="op">=</span> np.array([<span class="fl">1.0</span>, <span class="fl">1.0</span>])</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> np.array([<span class="fl">0.5</span>, <span class="fl">0.5</span>])</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>log_likelihoods <span class="op">=</span> []</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">100</span>):</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># E-step in log space prevents numerical underflow.</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>    log_components <span class="op">=</span> []</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> weight, mean, variance <span class="kw">in</span> <span class="bu">zip</span>(weights, means, variances):</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        log_density <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>            np.log(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> variance) <span class="op">+</span> (X <span class="op">-</span> mean) <span class="op">**</span> <span class="dv">2</span> <span class="op">/</span> variance</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        log_components.append(np.log(weight) <span class="op">+</span> log_density)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>    log_components <span class="op">=</span> np.column_stack(log_components)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a>    log_normalizer <span class="op">=</span> logsumexp(log_components, axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>    responsibilities <span class="op">=</span> np.exp(log_components <span class="op">-</span> log_normalizer)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>    log_likelihoods.append(<span class="bu">float</span>(log_normalizer.<span class="bu">sum</span>()))</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>    <span class="co"># M-step: update parameters with responsibility-weighted statistics.</span></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a>    effective_counts <span class="op">=</span> responsibilities.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a>    weights <span class="op">=</span> effective_counts <span class="op">/</span> <span class="bu">len</span>(X)</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a>    means <span class="op">=</span> (responsibilities <span class="op">*</span> X[:, <span class="va">None</span>]).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>) <span class="op">/</span> effective_counts</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a>    variances <span class="op">=</span> (</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>        responsibilities <span class="op">*</span> (X[:, <span class="va">None</span>] <span class="op">-</span> means) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a>    ).<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">0</span>) <span class="op">/</span> effective_counts</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true" tabindex="-1"></a>    variances <span class="op">=</span> np.maximum(variances, <span class="fl">1e-6</span>)</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"weights:"</span>, np.<span class="bu">round</span>(weights, <span class="dv">3</span>))</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"means:"</span>, np.<span class="bu">round</span>(means, <span class="dv">3</span>))</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"standard deviations:"</span>, np.<span class="bu">round</span>(np.sqrt(variances), <span class="dv">3</span>))</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"likelihood never decreased:"</span>, <span class="bu">bool</span>(np.<span class="bu">all</span>(np.diff(log_likelihoods) <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-8</span>)))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</section>
+<section id="软簇成员关系" class="level4">
+<h4 class="anchored" data-anchor-id="软簇成员关系"><strong>软簇成员关系</strong></h4>
+<p>责任度量化了拟合模型下的模糊性。靠近某个成分中心的点可能拥有 <span class="math inline">\((0.99,0.01)\)</span> 的成员关系，而重叠区域中的点可能为 <span class="math inline">\((0.52,0.48)\)</span>。它能够支持风险敏感决策，并揭示硬标签隐藏的边界不确定性。</p>
+<p>成分数量可以通过留出对数似然或信息准则比较。Bayesian information criterion 为</p>
+<p><span class="math display">\[
+\operatorname{BIC}
+=-2\log p(\mathbf X\mid\widehat\theta)+q\log n,
+\]</span></p>
+<p>其中 <span class="math inline">\(q\)</span> 是自由参数数量。较低 BIC 在拟合程度与复杂度之间权衡。它是在模型假设下选择有用的密度模型，并不是在发现社会、行为或生物意义上唯一真实的群组数量。</p>
+<details>
+<summary>
+<strong>Python：检查软成员关系并用 BIC 选择成分数量</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.mixture <span class="im">import</span> GaussianMixture</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">700</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span>[(<span class="op">-</span><span class="dv">3</span>, <span class="dv">0</span>), (<span class="dv">0</span>, <span class="fl">0.5</span>), (<span class="dv">3</span>, <span class="dv">0</span>)],</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.25</span>, <span class="fl">0.8</span>],</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> []</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> components <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, <span class="dv">7</span>):</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> GaussianMixture(</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>        n_components<span class="op">=</span>components,</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>        covariance_type<span class="op">=</span><span class="st">"full"</span>,</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>        n_init<span class="op">=</span><span class="dv">10</span>,</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>        reg_covar<span class="op">=</span><span class="fl">1e-6</span>,</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">16</span>,</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    ).fit(X)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    candidates.append((model.bic(X), model))</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a>best_bic, best_model <span class="op">=</span> <span class="bu">min</span>(candidates, key<span class="op">=</span><span class="kw">lambda</span> item: item[<span class="dv">0</span>])</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a>probabilities <span class="op">=</span> best_model.predict_proba(X)</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>uncertainty <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> probabilities.<span class="bu">max</span>(axis<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>most_ambiguous <span class="op">=</span> np.argsort(uncertainty)[<span class="op">-</span><span class="dv">5</span>:][::<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected components:"</span>, best_model.n_components)</span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"BIC:"</span>, <span class="bu">round</span>(best_bic, <span class="dv">1</span>))</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"five largest uncertainties:"</span>, np.<span class="bu">round</span>(uncertainty[most_ambiguous], <span class="dv">3</span>))</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"their memberships:</span><span class="ch">\n</span><span class="st">"</span>, np.<span class="bu">round</span>(probabilities[most_ambiguous], <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>混合成分的编号不是稳定的语义名称：在不改变密度的情况下，成分标签可以任意置换；一个形状不规则的真实群组也可能需要多个 Gaussian 成分才能表示。因此，应把输出解释为模型责任度，而不是 ground-truth 类别概率。</p>
+</section>
+</section>
+<section id="密度估计" class="level3">
+<h3 class="anchored" data-anchor-id="密度估计"><strong>密度估计</strong></h3>
+<p>密度估计寻找函数 <span class="math inline">\(\widehat p(\mathbf{x})\)</span>，用于描述概率质量如何分布在特征空间中。它可以支持似然比较、数据模拟、缺失数据模型、异常评分和概率成分建模。它与聚类的目标不同：一个平滑单峰密度可能没有任何有意义的划分，而一个具有实质意义的群组也可能需要多峰密度才能描述。</p>
+<p>密度值并不是恰好观察到 <span class="math inline">\(\mathbf{x}\)</span> 的概率。对于连续数据，这个点概率为零。区域 <span class="math inline">\(A\)</span> 的概率需要通过积分获得：</p>
+<p><span class="math display">\[
+P(\mathbf X\in A)=\int_A p(\mathbf{x})\,d\mathbf{x}.
+\]</span></p>
+<p>密度还依赖测量单位。把米改成厘米会改变密度数值，因为体积微元发生了改变，但对应物理区域的概率不会变化。因此，对数密度只能在数据表示和测度一致时比较。</p>
+<section id="参数密度模型" class="level4">
+<h4 class="anchored" data-anchor-id="参数密度模型"><strong>参数密度模型</strong></h4>
+<p>参数模型假设密度属于由固定维度参数 <span class="math inline">\(\theta\)</span> 索引的分布族。例如，多元 Gaussian distribution 使用均值向量和协方差矩阵：</p>
+<p><span class="math display">\[
+p(\mathbf{x})
+=\frac{1}{(2\pi)^{d/2}|\boldsymbol\Sigma|^{1/2}}
+\exp\left[-\frac{1}{2}
+(\mathbf{x}-\boldsymbol\mu)^\top
+\boldsymbol\Sigma^{-1}
+(\mathbf{x}-\boldsymbol\mu)
+\right].
+\]</span></p>
+<p>二次项是 squared Mahalanobis distance，行列式 <span class="math inline">\(|\boldsymbol\Sigma|\)</span> 根据协方差椭球的体积和方向进行归一化。当形状假设合理时，单个 Gaussian model 的统计效率很高，但它无法表达彼此分离的多个 mode 或强非椭圆支持集。Gaussian mixture 可以增加 mode，但需要更多参数和局部优化。</p>
+<p>最大似然选择使下式最大的参数：</p>
+<p><span class="math display">\[
+\ell(\theta)=\sum_{i=1}^{n}\log p(\mathbf{x}_i\mid\theta).
+\]</span></p>
+<p>密度模型应在留出观测上评估。训练似然总会奖励额外灵活性；如果没有协方差正则化，某个 Gaussian 成分甚至可能坍缩在单个点附近。</p>
+</section>
+<section id="kernel-density-estimation" class="level4">
+<h4 class="anchored" data-anchor-id="kernel-density-estimation"><strong>Kernel Density Estimation</strong></h4>
+<p>Kernel density estimation（KDE）在每个观测附近放置一个平滑 kernel，然后取平均：</p>
+<p><span class="math display">\[
+\widehat p_h(\mathbf{x})
+=\frac{1}{nh^d}\sum_{i=1}^{n}
+K\left(\frac{\mathbf{x}-\mathbf{x}_i}{h}\right).
+\]</span></p>
+<p>其中 <span class="math inline">\(K\)</span> 是积分为一的非负 kernel，<span class="math inline">\(h&gt;0\)</span> 是 bandwidth，<span class="math inline">\(h^d\)</span> 用于校正经过缩放的 <span class="math inline">\(d\)</span> 维体积。使用 Gaussian kernel 时，KDE 相当于以每个观测为中心、协方差相同的 Gaussian mixture。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/kde-bandwidth-bias-variance.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="KDE bandwidth 如何控制欠平滑与过度平滑。"><img src="assets/kde-bandwidth-bias-variance.svg" class="img-fluid figure-img" alt="同一批样本分别使用小 bandwidth 产生噪声尖峰、中等 bandwidth 保留总体 mode，以及大 bandwidth 合并结构。"></a></p>
+<figcaption>KDE bandwidth 如何控制欠平滑与过度平滑。</figcaption>
+</figure>
+</div>
+</div>
+<p>相较于具体 kernel 形状，bandwidth 的影响要大得多。较小的 <span class="math inline">\(h\)</span> 具有低偏差和高方差，可能把采样噪声解释为 mode；较大的 <span class="math inline">\(h\)</span> 更稳定但偏差较高，可能抹去有意义的 mode。当目标是预测密度时，cross-validated held-out log-likelihood 是合理的选择标准。</p>
+<p>KDE 严重受到<strong>维度灾难</strong>影响。邻域体积按 <span class="math inline">\(h^d\)</span> 增长，维度增加后若想保持局部分辨率，就需要指数增长的观测数量。无关特征还会进一步稀释邻域。只有在降维保留任务相关密度结构，并且正确处理变换影响时，降维才能缓解问题。</p>
+<details>
+<summary>
+<strong>Python：在双峰数据上比较单 Gaussian model 与 KDE</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> KernelDensity</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">14</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">2.2</span>, <span class="fl">0.45</span>, size<span class="op">=</span><span class="dv">450</span>),</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">2.0</span>, <span class="fl">0.85</span>, size<span class="op">=</span><span class="dv">550</span>),</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>])[:, <span class="va">None</span>]</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>X_train, X_test <span class="op">=</span> train_test_split(X, test_size<span class="op">=</span><span class="fl">0.35</span>, random_state<span class="op">=</span><span class="dv">14</span>)</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Maximum-likelihood parameters for one univariate Gaussian.</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>mean <span class="op">=</span> X_train.mean()</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>variance <span class="op">=</span> X_train.var()</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>gaussian_log_density <span class="op">=</span> <span class="op">-</span><span class="fl">0.5</span> <span class="op">*</span> (</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    np.log(<span class="dv">2</span> <span class="op">*</span> np.pi <span class="op">*</span> variance) <span class="op">+</span> (X_test[:, <span class="dv">0</span>] <span class="op">-</span> mean) <span class="op">**</span> <span class="dv">2</span> <span class="op">/</span> variance</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>kde <span class="op">=</span> KernelDensity(kernel<span class="op">=</span><span class="st">"gaussian"</span>, bandwidth<span class="op">=</span><span class="fl">0.35</span>).fit(X_train)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>kde_log_density <span class="op">=</span> kde.score_samples(X_test)</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"single Gaussian mean test log density:"</span>, <span class="bu">round</span>(gaussian_log_density.mean(), <span class="dv">3</span>))</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"KDE mean test log density:"</span>, <span class="bu">round</span>(kde_log_density.mean(), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<details>
+<summary>
+<strong>Python：用交叉验证似然选择 KDE bandwidth</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> GridSearchCV, KFold</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> KernelDensity</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">30</span>)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> np.concatenate([</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="op">-</span><span class="fl">1.5</span>, <span class="fl">0.35</span>, size<span class="op">=</span><span class="dv">220</span>),</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(<span class="fl">1.3</span>, <span class="fl">0.70</span>, size<span class="op">=</span><span class="dv">280</span>),</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>])[:, <span class="va">None</span>]</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>bandwidths <span class="op">=</span> np.geomspace(<span class="fl">0.05</span>, <span class="fl">1.5</span>, <span class="dv">18</span>)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>search <span class="op">=</span> GridSearchCV(</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a>    KernelDensity(kernel<span class="op">=</span><span class="st">"gaussian"</span>),</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a>    param_grid<span class="op">=</span>{<span class="st">"bandwidth"</span>: bandwidths},</span>
+<span id="cb16-15"><a href="#cb16-15" aria-hidden="true" tabindex="-1"></a>    cv<span class="op">=</span>KFold(n_splits<span class="op">=</span><span class="dv">5</span>, shuffle<span class="op">=</span><span class="va">True</span>, random_state<span class="op">=</span><span class="dv">30</span>),</span>
+<span id="cb16-16"><a href="#cb16-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb16-17"><a href="#cb16-17" aria-hidden="true" tabindex="-1"></a>search.fit(X)</span>
+<span id="cb16-18"><a href="#cb16-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-19"><a href="#cb16-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"selected bandwidth:"</span>, <span class="bu">round</span>(search.best_params_[<span class="st">"bandwidth"</span>], <span class="dv">3</span>))</span>
+<span id="cb16-20"><a href="#cb16-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean validation log-likelihood:"</span>, <span class="bu">round</span>(search.best_score_, <span class="dv">2</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><code>GridSearchCV</code> 的分数是验证折上的总对数似然，因此其数值大小取决于折中的样本量。它适合在同一切分下对 bandwidth 排序，不适合直接比较任意不同的数据集。</p>
+</section>
+</section>
+<section id="异常检测与新颖性检测" class="level3">
+<h3 class="anchored" data-anchor-id="异常检测与新颖性检测"><strong>异常检测与新颖性检测</strong></h3>
+<p><strong>异常分数（anomaly score）</strong>按照“正常到异常”的程度对观测排序。把连续分数转化为二元告警还需要阈值。二者必须分开理解：检测器可能很好地排出了稀有事件，但不合理的阈值仍可能产生大量误报，使调查人员无法处理。</p>
+<p>应区分两种部署情境：</p>
+<ul>
+<li><strong>Outlier detection</strong> 在可能已经包含异常的训练集上拟合，因此对污染的稳健性很重要。</li>
+<li><strong>Novelty detection</strong> 只在或主要在具有代表性的正常数据上拟合，然后为未来观测评分；训练异常可能扭曲所学的正常区域。</li>
+</ul>
+<p>异常可以是<strong>全局异常</strong>（相对整个样本极端）、<strong>局部异常</strong>（只相对附近观测异常）、<strong>上下文异常</strong>（在特定时间、地点或子群条件下异常），也可以是<strong>集合异常</strong>（单个值正常，但整个序列异常）。任何一种点级检测器都无法自动覆盖全部四类。</p>
+<section id="统计分数与-local-outlier-factor" class="level4">
+<h4 class="anchored" data-anchor-id="统计分数与-local-outlier-factor"><strong>统计分数与 Local Outlier Factor</strong></h4>
+<p>对于近似椭圆分布的数据，squared Mahalanobis distance 可以作为统计异常分数：</p>
+<p><span class="math display">\[
+s(\mathbf{x})
+=(\mathbf{x}-\widehat{\boldsymbol\mu})^\top
+\widehat{\boldsymbol\Sigma}^{-1}
+(\mathbf{x}-\widehat{\boldsymbol\mu}).
+\]</span></p>
+<p>与原始欧氏距离不同，它会校正特征尺度和相关性。但经典均值和协方差估计本身容易受异常影响，因此可能需要 robust covariance estimator。Gaussian 假设形成的是单个全局椭圆，也不适合多峰正常数据。</p>
+<p>Local Outlier Factor（LOF）判断一个点的局部密度是否显著低于其邻居。对于邻居 <span class="math inline">\(o\)</span>，定义 reachability distance：</p>
+<p><span class="math display">\[
+\operatorname{reach\_dist}_k(p,o)
+=\max\{d_k(o),d(p,o)\},
+\]</span></p>
+<p>其中 <span class="math inline">\(d_k(o)\)</span> 是 <span class="math inline">\(o\)</span> 到第 <span class="math inline">\(k\)</span> 个邻居的距离。局部可达密度是 <span class="math inline">\(p\)</span> 到邻居集合 <span class="math inline">\(N_k(p)\)</span> 的平均 reachability distance 的倒数：</p>
+<p><span class="math display">\[
+\operatorname{lrd}_k(p)
+=\left(
+\frac{1}{|N_k(p)|}
+\sum_{o\in N_k(p)}\operatorname{reach\_dist}_k(p,o)
+\right)^{-1}.
+\]</span></p>
+<p>LOF 再把邻居密度与该点密度进行比较：</p>
+<p><span class="math display">\[
+\operatorname{LOF}_k(p)
+=\frac{1}{|N_k(p)|}
+\sum_{o\in N_k(p)}
+\frac{\operatorname{lrd}_k(o)}{\operatorname{lrd}_k(p)}.
+\]</span></p>
+<p>接近一表示其局部密度与邻居相当，较大的值提示局部离群点。邻居数量 <span class="math inline">\(k\)</span> 决定检测尺度，高维距离集中则可能削弱这种比较。</p>
+</section>
+<section id="isolation-forest-与-one-class-svm" class="level4">
+<h4 class="anchored" data-anchor-id="isolation-forest-与-one-class-svm"><strong>Isolation Forest 与 One-Class SVM</strong></h4>
+<p>Isolation Forest 使用随机、与坐标轴平行的切分。异常观测通常只需较少切分就能被孤立，而位于稠密区域的点需要更长路径。对多棵随机树的路径长度取平均即可得到可扩展的异常分数，无需显式估计密度。它在许多表格数据中表现良好，但如果异常依赖斜向边界、序列结构或上下文，它可能不合适。</p>
+<p>One-Class SVM 在 kernel feature space 中学习正常观测的边界。RBF kernel 能够形成非线性正常区域。参数 <span class="math inline">\(\nu\)</span> 控制与训练错误和 support vector 有关的界，<span class="math inline">\(\gamma\)</span> 控制 kernel scale。数据表示和特征缩放都非常关键；在大样本上，该方法的计算成本也可能较高。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/anomaly-method-map.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="从全局、局部密度、孤立和学习边界四个角度定义异常。"><img src="assets/anomaly-method-map.svg" class="img-fluid figure-img" alt="四个面板分别比较类似 Mahalanobis 的全局距离、Local Outlier Factor、Isolation Forest 随机切分和 One-Class SVM 边界。"></a></p>
+<figcaption>从全局、局部密度、孤立和学习边界四个角度定义异常。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：在 novelty 模式下比较 LOF、Isolation Forest 与 One-Class SVM</strong>
+</summary>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.ensemble <span class="im">import</span> IsolationForest</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> roc_auc_score</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.neighbors <span class="im">import</span> LocalOutlierFactor</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.svm <span class="im">import</span> OneClassSVM</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">44</span>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit only on representative normal observations.</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>normal_train <span class="op">=</span> rng.normal(loc<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>], scale<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">0.45</span>], size<span class="op">=</span>(<span class="dv">700</span>, <span class="dv">2</span>))</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>normal_test <span class="op">=</span> rng.normal(loc<span class="op">=</span>[<span class="dv">0</span>, <span class="dv">0</span>], scale<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">0.45</span>], size<span class="op">=</span>(<span class="dv">300</span>, <span class="dv">2</span>))</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>anomaly_test <span class="op">=</span> rng.uniform(low<span class="op">=</span>[<span class="op">-</span><span class="dv">6</span>, <span class="op">-</span><span class="dv">4</span>], high<span class="op">=</span>[<span class="dv">6</span>, <span class="dv">4</span>], size<span class="op">=</span>(<span class="dv">70</span>, <span class="dv">2</span>))</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>X_test <span class="op">=</span> np.vstack([normal_test, anomaly_test])</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>y_test <span class="op">=</span> np.r_[np.zeros(<span class="bu">len</span>(normal_test)), np.ones(<span class="bu">len</span>(anomaly_test))]</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> StandardScaler().fit(normal_train)</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a>X_train_scaled <span class="op">=</span> scaler.transform(normal_train)</span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>X_test_scaled <span class="op">=</span> scaler.transform(X_test)</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> {</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>    <span class="st">"LOF"</span>: LocalOutlierFactor(n_neighbors<span class="op">=</span><span class="dv">30</span>, novelty<span class="op">=</span><span class="va">True</span>).fit(X_train_scaled),</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Isolation Forest"</span>: IsolationForest(</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>        n_estimators<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">44</span>,</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>    ).fit(X_train_scaled),</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"One-Class SVM"</span>: OneClassSVM(kernel<span class="op">=</span><span class="st">"rbf"</span>, gamma<span class="op">=</span><span class="st">"scale"</span>, nu<span class="op">=</span><span class="fl">0.05</span>).fit(X_train_scaled),</span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> models.items():</span>
+<span id="cb17-31"><a href="#cb17-31" aria-hidden="true" tabindex="-1"></a>    <span class="co"># sklearn scores are larger for more normal observations, so negate them.</span></span>
+<span id="cb17-32"><a href="#cb17-32" aria-hidden="true" tabindex="-1"></a>    anomaly_score <span class="op">=</span> <span class="op">-</span>model.score_samples(X_test_scaled)</span>
+<span id="cb17-33"><a href="#cb17-33" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="st">"ROC AUC:"</span>, <span class="bu">round</span>(roc_auc_score(y_test, anomaly_score), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>ROC AUC 衡量这个合成实验中的排序能力，并且与阈值无关。在真实部署中，告警 precision、调查容量、漏报成本和延迟标签通常比 ROC AUC 单独一个指标更重要。</p>
+<details>
+<summary>
+<strong>Python：把告警阈值校准与模型拟合分开</strong>
+</summary>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.ensemble <span class="im">import</span> IsolationForest</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">52</span>)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>train_normal <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">1000</span>, <span class="dv">4</span>))</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>calibration_normal <span class="op">=</span> rng.normal(size<span class="op">=</span>(<span class="dv">500</span>, <span class="dv">4</span>))</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>future_batch <span class="op">=</span> np.vstack([</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    rng.normal(size<span class="op">=</span>(<span class="dv">195</span>, <span class="dv">4</span>)),</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    rng.normal(loc<span class="op">=</span><span class="fl">5.0</span>, scale<span class="op">=</span><span class="fl">0.5</span>, size<span class="op">=</span>(<span class="dv">5</span>, <span class="dv">4</span>)),</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a>detector <span class="op">=</span> IsolationForest(n_estimators<span class="op">=</span><span class="dv">300</span>, random_state<span class="op">=</span><span class="dv">52</span>).fit(train_normal)</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>calibration_scores <span class="op">=</span> <span class="op">-</span>detector.score_samples(calibration_normal)</span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>future_scores <span class="op">=</span> <span class="op">-</span>detector.score_samples(future_batch)</span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a><span class="co"># This threshold targets a 1% alert rate on representative normal calibration data.</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>threshold <span class="op">=</span> np.quantile(calibration_scores, <span class="fl">0.99</span>)</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>alerts <span class="op">=</span> future_scores <span class="op">&gt;=</span> threshold</span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"calibrated threshold:"</span>, <span class="bu">round</span>(threshold, <span class="dv">3</span>))</span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"future alerts:"</span>, <span class="bu">int</span>(alerts.<span class="bu">sum</span>()), <span class="st">"of"</span>, <span class="bu">len</span>(alerts))</span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"indices of largest scores:"</span>, np.argsort(future_scores)[<span class="op">-</span><span class="dv">8</span>:][::<span class="op">-</span><span class="dv">1</span>].tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里的 quantile 是一项运营选择，并不保证未来数据中恰好有百分之一是真异常。分布漂移会改变告警率，因此需要持续监控分数分布、告警量和人工调查结果。</p>
+</section>
+</section>
+<section id="评估无监督结构" class="level3">
+<h3 class="anchored" data-anchor-id="评估无监督结构"><strong>评估无监督结构</strong></h3>
+<p>无监督评估之所以困难，是因为不存在定义“正确答案”的目标变量。因此，可靠评估需要结合多个相互独立的观察角度，而不能把一个标量指标当作 ground truth。</p>
+<section id="内部外部与稳定性标准" class="level4">
+<h4 class="anchored" data-anchor-id="内部外部与稳定性标准"><strong>内部、外部与稳定性标准</strong></h4>
+<p><strong>内部标准</strong>使用拟合时的数据表示、度量和分配。对于观测 <span class="math inline">\(i\)</span>，令 <span class="math inline">\(a(i)\)</span> 为它到同簇观测的平均距离，<span class="math inline">\(b(i)\)</span> 为它到最近其他簇的最小平均距离。silhouette 为</p>
+<p><span class="math display">\[
+s(i)=\frac{b(i)-a(i)}{\max\{a(i),b(i)\}},
+\qquad -1\leq s(i)\leq1.
+\]</span></p>
+<p>较高数值表示该观测到所属簇明显比到最近替代簇更近。平均 silhouette 奖励所选距离下紧凑且分离的簇，因此倾向于凸形划分，也可能惩罚科学上合理的弯曲结构或密度结构。</p>
+<p>Calinski-Harabasz index 比较簇间离散与簇内离散，越大越好。Davies-Bouldin index 对每个簇计算它与最相似其他簇的关系并取平均，越小越好。这些指标都继承了质心与距离假设，只能作为诊断，不能作为普遍真值检验。</p>
+<p><strong>外部标准</strong>把分配结果与未参与拟合的标签比较。Adjusted Rand Index（ARI）衡量经过随机一致性校正后的点对分配一致程度；Normalized Mutual Information（NMI）衡量共享信息。在模拟数据或存在独立专家分类时，它们很有价值。如果不断使用这些标签选择预处理、超参数和算法，那么任务已经变成监督式模型选择，需要保留一个完全未使用的测试集。</p>
+<p><strong>稳定性标准</strong>检查结论能否经受合理扰动，包括随机初始化、bootstrap 或 subsampling、测量噪声和小幅超参数变化。由于簇名称可以置换，应使用 ARI 等标签置换不变的比较，或比较 co-clustering matrix。稳定划分仍可能建立在错误度量上，但不稳定划分明确说明其实质解释非常脆弱。</p>
+<p>密度模型还应通过留出对数似然、模拟摘要的校准或任务相关 predictive check 评估。存在标签的异常检测任务需要 precision-recall curve、调查容量下的 recall、time-aware validation 和告警后复核。最终，<strong>领域有效性和下游用途</strong>始终独立于几何结构是否整齐。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unsupervised-evaluation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="评估无监督结果的四视角框架。"><img src="assets/unsupervised-evaluation.svg" class="img-fluid figure-img" alt="候选结构同时通过内部几何、外部一致性、扰动稳定性，以及领域或下游用途四个角度接受评估。"></a></p>
+<figcaption>评估无监督结果的四视角框架。</figcaption>
+</figure>
+</div>
+</div>
+<details>
+<summary>
+<strong>Python：展示内部指标可能偏好错误的几何结构</strong>
+</summary>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans, SpectralClustering</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score, silhouette_score</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>X, synthetic_truth <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">700</span>, noise<span class="op">=</span><span class="fl">0.08</span>, random_state<span class="op">=</span><span class="dv">61</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>models <span class="op">=</span> {</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"K-Means"</span>: KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">20</span>, random_state<span class="op">=</span><span class="dv">61</span>),</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"Spectral"</span>: SpectralClustering(</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>        n_clusters<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        affinity<span class="op">=</span><span class="st">"nearest_neighbors"</span>,</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        n_neighbors<span class="op">=</span><span class="dv">14</span>,</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>        n_init<span class="op">=</span><span class="dv">20</span>,</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>        random_state<span class="op">=</span><span class="dv">61</span>,</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> models.items():</span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> model.fit_predict(X)</span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>        name,</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| Euclidean silhouette:"</span>, <span class="bu">round</span>(silhouette_score(X, labels), <span class="dv">3</span>),</span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"| synthetic ARI:"</span>, <span class="bu">round</span>(adjusted_rand_score(synthetic_truth, labels), <span class="dv">3</span>),</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Euclidean silhouette 在原始坐标中评估紧凑性，而合成标签编码沿每个月牙的连通性。两个分数不一致是合理的，因为它们回答的是不同问题。</p>
+<details>
+<summary>
+<strong>Python：检验小幅测量扰动下的分配稳定性</strong>
+</summary>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> KMeans</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_blobs</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> adjusted_rand_score</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_blobs(</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    n_samples<span class="op">=</span><span class="dv">600</span>,</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    centers<span class="op">=</span><span class="dv">4</span>,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>    cluster_std<span class="op">=</span>[<span class="fl">0.7</span>, <span class="fl">1.0</span>, <span class="fl">0.8</span>, <span class="fl">1.2</span>],</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">71</span>,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>base_labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">4</span>, n_init<span class="op">=</span><span class="dv">30</span>, random_state<span class="op">=</span><span class="dv">71</span>).fit_predict(X)</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">71</span>)</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true" tabindex="-1"></a>stabilities <span class="op">=</span> []</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> repeat <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">30</span>):</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true" tabindex="-1"></a>    perturbed <span class="op">=</span> X <span class="op">+</span> rng.normal(scale<span class="op">=</span><span class="fl">0.03</span>, size<span class="op">=</span>X.shape)</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> KMeans(n_clusters<span class="op">=</span><span class="dv">4</span>, n_init<span class="op">=</span><span class="dv">10</span>, random_state<span class="op">=</span>repeat).fit_predict(perturbed)</span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true" tabindex="-1"></a>    stabilities.append(adjusted_rand_score(base_labels, labels))</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean perturbation stability:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.mean(stabilities)), <span class="dv">3</span>))</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"minimum perturbation stability:"</span>, <span class="bu">round</span>(<span class="bu">float</span>(np.<span class="bu">min</span>(stabilities)), <span class="dv">3</span>))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>扰动尺度应反映合理的测量不确定性，而不是在看到结果后随意选择。报告时应给出稳定性分布以及哪些观测发生了分配改变，不能只报告均值。</p>
+</section>
+</section>
+<section id="选择无监督方法" class="level3">
+<h3 class="anchored" data-anchor-id="选择无监督方法"><strong>选择无监督方法</strong></h3>
+<p>方法选择应从科学问题或运营问题出发。“运行聚类”还不是一个完整的问题。需要明确什么是一条观测、哪些变化应被视为相似、是否要求每个观测都属于某个群组，以及结果将如何被使用。</p>
+<div class="diagram-scroll">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/unsupervised-method-selection.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="选择聚类、密度与异常方法的决策图。"><img src="assets/unsupervised-method-selection.svg" class="img-fluid figure-img" alt="决策流程从期望输出出发，根据质心、连通性、密度、图、概率和异常假设路由到适当方法族，最后进入验证阶段。"></a></p>
+<figcaption>选择聚类、密度与异常方法的决策图。</figcaption>
+</figure>
+</div>
+</div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>情境</th>
+<th>合理起点</th>
+<th>原因</th>
+<th>诊断重点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>大型数值数据，预期群组紧凑</td>
+<td>K-Means 或 Mini-Batch K-Means</td>
+<td>快速且质心基线易解释</td>
+<td>缩放、多次初始化、不同 <span class="math inline">\(K\)</span> 下的稳定性</td>
+</tr>
+<tr class="even">
+<td>中等规模数据，需要嵌套结构</td>
+<td>Agglomerative clustering</td>
+<td>同时展示多个分辨率</td>
+<td>链接敏感性和树状图切割</td>
+</tr>
+<tr class="odd">
+<td>不规则群组，并可能存在噪声</td>
+<td>DBSCAN</td>
+<td>直接编码密度连通性</td>
+<td><code>eps</code>、<code>min_samples</code> 和噪声解释</td>
+</tr>
+<tr class="even">
+<td>群组具有不同密度</td>
+<td>HDBSCAN</td>
+<td>选择跨尺度持续存在的分支</td>
+<td>最小簇规模和稳定性</td>
+</tr>
+<tr class="odd">
+<td>相似关系天然构成图</td>
+<td>Spectral clustering</td>
+<td>使用连通性而非质心几何</td>
+<td>affinity 构造和可扩展性</td>
+</tr>
+<tr class="even">
+<td>需要软分配或生成式密度</td>
+<td>Gaussian mixture</td>
+<td>概率成员关系与协方差结构</td>
+<td>初始化、协方差类型、留出似然</td>
+</tr>
+<tr class="odd">
+<td>需要平滑的低维密度</td>
+<td>KDE</td>
+<td>灵活的非参数估计</td>
+<td>bandwidth 和留出似然</td>
+</tr>
+<tr class="even">
+<td>需要对异常观测排序</td>
+<td>LOF、Isolation Forest 或 One-Class SVM</td>
+<td>分别表达局部、孤立和边界假设</td>
+<td>time-aware validation 与阈值成本</td>
+</tr>
+</tbody>
+</table>
+<p>一个实用工作流是：</p>
+<ol type="1">
+<li><strong>定义观测单位与用途。</strong> 明确每行是人、会话、文档、设备还是时间窗口，以及输出要支持什么决策。</li>
+<li><strong>构造可辩护的数据表示。</strong> 处理单位、偏态、缺失值、混合类型和无关特征；选择其变化具有领域意义的度量。</li>
+<li><strong>检查简单基线。</strong> 在引入复杂方法前，先比较 K-Means、层次结构或单 Gaussian density。</li>
+<li><strong>有目的地改变假设。</strong> 调整尺度、链接、邻域大小、成分数量、随机种子和合理的预处理方式。</li>
+<li><strong>从多个角度评估。</strong> 结合内部几何、稳定性、留出密度、合理使用的独立标签和领域复核。</li>
+<li><strong>检查原始记录，而不只看图。</strong> 二维投影可能扭曲高维邻域，因此必须回到原始特征和代表性样本。</li>
+<li><strong>记录不确定性与噪声。</strong> 不要把每个算法成分都强行解释成确定的语义类别。</li>
+</ol>
+<details>
+<summary>
+<strong>Python：生成简洁且明确假设的模型比较报告</strong>
+</summary>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.cluster <span class="im">import</span> DBSCAN, KMeans</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> make_moons</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.metrics <span class="im">import</span> silhouette_score</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.mixture <span class="im">import</span> GaussianMixture</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.preprocessing <span class="im">import</span> StandardScaler</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>X, _ <span class="op">=</span> make_moons(n_samples<span class="op">=</span><span class="dv">650</span>, noise<span class="op">=</span><span class="fl">0.08</span>, random_state<span class="op">=</span><span class="dv">90</span>)</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>X <span class="op">=</span> StandardScaler().fit_transform(X)</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>candidate_labels <span class="op">=</span> {</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"K-Means"</span>: KMeans(n_clusters<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">30</span>, random_state<span class="op">=</span><span class="dv">90</span>).fit_predict(X),</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"DBSCAN"</span>: DBSCAN(eps<span class="op">=</span><span class="fl">0.20</span>, min_samples<span class="op">=</span><span class="dv">9</span>).fit_predict(X),</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>    <span class="st">"GMM"</span>: GaussianMixture(n_components<span class="op">=</span><span class="dv">2</span>, n_init<span class="op">=</span><span class="dv">10</span>, random_state<span class="op">=</span><span class="dv">90</span>).fit_predict(X),</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, labels <span class="kw">in</span> candidate_labels.items():</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    assigned <span class="op">=</span> labels <span class="op">!=</span> <span class="op">-</span><span class="dv">1</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>    unique_assigned <span class="op">=</span> np.unique(labels[assigned])</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Silhouette requires at least two assigned groups and excludes DBSCAN noise here.</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">len</span>(unique_assigned) <span class="op">&gt;=</span> <span class="dv">2</span> <span class="kw">and</span> assigned.<span class="bu">sum</span>() <span class="op">&gt;</span> <span class="bu">len</span>(unique_assigned):</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>        silhouette <span class="op">=</span> silhouette_score(X[assigned], labels[assigned])</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>        silhouette <span class="op">=</span> np.nan</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:8s}</span><span class="ss">"</span>,</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"clusters="</span>, <span class="bu">len</span>(unique_assigned),</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">"noise_fraction="</span>, <span class="bu">round</span>(<span class="bu">float</span>((<span class="op">~</span>assigned).mean()), <span class="dv">3</span>),</span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">"assigned_silhouette="</span>, <span class="bu">round</span>(<span class="bu">float</span>(silhouette), <span class="dv">3</span>),</span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个报告有意不宣布“获胜者”。silhouette 使用欧氏紧凑性，而且这里排除了 DBSCAN 噪声，因此必须与方法假设和未分配记录一起阅读。公平的报告应明确写出这些选择。</p>
+<p>无监督分析最重要的习惯是保持克制。即使样本中的结构微弱、不稳定或与任务无关，算法仍会输出簇、分数和密度曲线。分析者的职责不是从每个输出中强行构造故事，而是确定哪些结论能够经受替代表示、不同方法、不同样本和领域审查。</p>
+<p>官方实现与对比示例可参考 <a href="https://scikit-learn.org/stable/modules/clustering.html">scikit-learn clustering guide</a>、<a href="https://scikit-learn.org/stable/modules/density.html">density-estimation guide</a> 和 <a href="https://scikit-learn.org/stable/modules/outlier_detection.html">novelty and outlier detection guide</a>。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","loop":false});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
