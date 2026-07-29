@@ -8,6 +8,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $quarto = Get-Command quarto -ErrorAction SilentlyContinue
 $sharedCss = Join-Path $root "blog-images.css"
 $lightboxFilter = Join-Path $root "lightbox-all.lua"
+$navigationSync = Join-Path $root "sync-page-navigation.ps1"
 
 if (-not $quarto) {
     throw "quarto was not found in PATH. Install Quarto or add it to PATH before running this script."
@@ -19,6 +20,10 @@ if (-not (Test-Path -LiteralPath $sharedCss -PathType Leaf)) {
 
 if (-not (Test-Path -LiteralPath $lightboxFilter -PathType Leaf)) {
     throw "Shared Lightbox filter was not found: $lightboxFilter"
+}
+
+if (-not (Test-Path -LiteralPath $navigationSync -PathType Leaf)) {
+    throw "Navigation sync script was not found: $navigationSync"
 }
 
 $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
@@ -159,6 +164,8 @@ foreach ($notebook in $notebooks) {
 
     $rendered += 1
 }
+
+& $navigationSync -Root $root
 
 Write-Host ""
 Write-Host "Done. Rendered: $rendered; skipped: $skipped."
