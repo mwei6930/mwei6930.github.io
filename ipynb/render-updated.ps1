@@ -9,6 +9,8 @@ $quarto = Get-Command quarto -ErrorAction SilentlyContinue
 $sharedCss = Join-Path $root "blog-images.css"
 $lightboxFilter = Join-Path $root "lightbox-all.lua"
 $navigationSync = Join-Path $root "sync-page-navigation.ps1"
+$readingCss = Join-Path $root "reading-toolbar.css"
+$readingJs = Join-Path $root "reading-toolbar.js"
 
 if (-not $quarto) {
     throw "quarto was not found in PATH. Install Quarto or add it to PATH before running this script."
@@ -26,9 +28,18 @@ if (-not (Test-Path -LiteralPath $navigationSync -PathType Leaf)) {
     throw "Navigation sync script was not found: $navigationSync"
 }
 
+if (-not (Test-Path -LiteralPath $readingCss -PathType Leaf)) {
+    throw "Shared reading-navigation stylesheet was not found: $readingCss"
+}
+
+if (-not (Test-Path -LiteralPath $readingJs -PathType Leaf)) {
+    throw "Shared reading-navigation script was not found: $readingJs"
+}
+
 $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
     Where-Object {
         $_.FullName -notmatch "\\.ipynb_checkpoints\\" -and
+        $_.FullName -notmatch "\\.translation-work\\" -and
         $_.Name -notlike "*-full.ipynb"
     } |
     Sort-Object FullName

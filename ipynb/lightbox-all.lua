@@ -77,6 +77,9 @@ local function first_link(block)
   return nil
 end
 
+local chinese_overview = utf8.char(0x603B, 0x89C8)
+local chinese_guideline = utf8.char(0x6307, 0x5357)
+
 local function is_guideline_link(block)
   local link = first_link(block)
   if not link then
@@ -86,15 +89,19 @@ local function is_guideline_link(block)
   local label = pandoc.utils.stringify(block):lower()
   return label:find("guideline", 1, true)
       or label:find("overview", 1, true)
-      or label:find("总览", 1, true)
-      or label:find("指南", 1, true)
+      or label:find(chinese_overview, 1, true)
+      or label:find(chinese_guideline, 1, true)
 end
 
 local function page_navigation(existing_block, chinese)
-  local home_label = chinese and "博客首页" or "Hexo Home"
-  local navigation_label = chinese and "页面导航" or "Page navigation"
+  local home_label = chinese
+      and utf8.char(0x535A, 0x5BA2, 0x9996, 0x9875)
+      or "Hexo Home"
+  local navigation_label = chinese
+      and utf8.char(0x9875, 0x9762, 0x5BFC, 0x822A)
+      or "Page navigation"
   local inlines = {
-    -- Raw HTML keeps the root URL as "/" instead of Pandoc normalizing it to ".".
+    -- Raw HTML keeps the root URL as "/" instead of Pandoc normalizing it.
     pandoc.RawInline("html", '<a href="/">' .. home_label .. "</a>"),
   }
 
@@ -104,7 +111,11 @@ local function page_navigation(existing_block, chinese)
       inlines,
       pandoc.Span(
         { pandoc.Str("/") },
-        pandoc.Attr("", { "blog-page-nav-separator" }, { ["aria-hidden"] = "true" })
+        pandoc.Attr(
+          "",
+          { "blog-page-nav-separator" },
+          { ["aria-hidden"] = "true" }
+        )
       )
     )
     table.insert(inlines, pandoc.Space())
@@ -136,7 +147,8 @@ function Pandoc(document)
     if block.t == "Div" and has_class(block, "blog-language-switch") then
       local following = document.blocks[index + 1]
 
-      if following and following.t == "Div"
+      if following
+          and following.t == "Div"
           and has_class(following, "blog-page-nav") then
         -- Keep an explicitly authored navigation block unchanged.
       elseif following and is_guideline_link(following) then
