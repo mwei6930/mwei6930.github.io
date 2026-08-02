@@ -40,6 +40,7 @@ $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
     Where-Object {
         $_.FullName -notmatch "\\.ipynb_checkpoints\\" -and
         $_.FullName -notmatch "\\.translation-work\\" -and
+        $_.Name -notlike "*.zh-CN.ipynb" -and
         $_.Name -notlike "*-full.ipynb"
     } |
     Sort-Object FullName

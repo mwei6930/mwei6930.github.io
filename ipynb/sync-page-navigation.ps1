@@ -8,12 +8,20 @@ $rootPath = (Resolve-Path -LiteralPath $Root).Path
 $sharedCss = Join-Path $rootPath "blog-images.css"
 $readingCss = Join-Path $rootPath "reading-toolbar.css"
 $readingJs = Join-Path $rootPath "reading-toolbar.js"
+$libraryOptimizer = Join-Path $rootPath "deduplicate-quarto-libs.ps1"
+$translatedAssetOptimizer = Join-Path $rootPath "deduplicate-translated-assets.ps1"
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $singleline = [System.Text.RegularExpressions.RegexOptions]::Singleline
 $ignoreCase = [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 $regexOptions = $singleline -bor $ignoreCase
 
-foreach ($requiredFile in @($sharedCss, $readingCss, $readingJs)) {
+foreach ($requiredFile in @(
+    $sharedCss,
+    $readingCss,
+    $readingJs,
+    $libraryOptimizer,
+    $translatedAssetOptimizer
+)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Shared notebook asset was not found: $requiredFile"
     }
@@ -438,3 +446,6 @@ Write-Host (
     "Navigation sync complete. Processed: $processed; updated: $updated; " +
     "unchanged: $unchanged; CSS copies: $($cssCopies.Count)."
 )
+
+& $libraryOptimizer -Root $rootPath
+& $translatedAssetOptimizer -Root $rootPath
