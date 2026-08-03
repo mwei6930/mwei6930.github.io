@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：Tensor、计算图与 PyTorch</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../shared/quarto-libs/clipboard/clipboard.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/quarto.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/popper.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/anchor.min.js"></script>
+<link href="../../shared/quarto-libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../shared/quarto-libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../shared/quarto-libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="../../shared/quarto-libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../../shared/quarto-libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#tensors-computation-graphs-pytorch" id="toc-tensors-computation-graphs-pytorch" class="nav-link active" data-scroll-target="#tensors-computation-graphs-pytorch"><strong>Tensor、计算图与 PyTorch</strong></a>
+  <ul>
+  <li><a href="#scalars-vectors-matrices-tensors" id="toc-scalars-vectors-matrices-tensors" class="nav-link" data-scroll-target="#scalars-vectors-matrices-tensors"><strong>标量、向量、矩阵与 Tensor</strong></a></li>
+  <li><a href="#tensor-shape-axes-layout" id="toc-tensor-shape-axes-layout" class="nav-link" data-scroll-target="#tensor-shape-axes-layout"><strong>Tensor Shape、轴与布局</strong></a></li>
+  <li><a href="#indexing-reshaping-broadcasting" id="toc-indexing-reshaping-broadcasting" class="nav-link" data-scroll-target="#indexing-reshaping-broadcasting"><strong>索引、重塑与广播</strong></a></li>
+  <li><a href="#matrix-multiplication-einstein-summation" id="toc-matrix-multiplication-einstein-summation" class="nav-link" data-scroll-target="#matrix-multiplication-einstein-summation"><strong>矩阵乘法与爱因斯坦求和</strong></a></li>
+  <li><a href="#computation-graphs" id="toc-computation-graphs" class="nav-link" data-scroll-target="#computation-graphs"><strong>计算图</strong></a></li>
+  <li><a href="#automatic-differentiation-pytorch" id="toc-automatic-differentiation-pytorch" class="nav-link" data-scroll-target="#automatic-differentiation-pytorch"><strong>PyTorch 中的自动微分</strong></a></li>
+  <li><a href="#parameters-modules-model-composition" id="toc-parameters-modules-model-composition" class="nav-link" data-scroll-target="#parameters-modules-model-composition"><strong>参数、Module 与模型组合</strong></a></li>
+  <li><a href="#datasets-dataloaders-mini-batches" id="toc-datasets-dataloaders-mini-batches" class="nav-link" data-scroll-target="#datasets-dataloaders-mini-batches"><strong>Dataset、DataLoader 与 Mini-Batch</strong></a></li>
+  <li><a href="#devices-data-types-numerical-precision" id="toc-devices-data-types-numerical-precision" class="nav-link" data-scroll-target="#devices-data-types-numerical-precision"><strong>设备、数据类型与数值精度</strong></a></li>
+  <li><a href="#randomness-checkpoints-reproducibility" id="toc-randomness-checkpoints-reproducibility" class="nav-link" data-scroll-target="#randomness-checkpoints-reproducibility"><strong>随机性、Checkpoint 与可复现性</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>本章对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：Tensor、计算图与 PyTorch</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/02-tensors-computation-graphs-pytorch.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="tensors-computation-graphs-pytorch" class="level2">
+<h2 class="anchored" data-anchor-id="tensors-computation-graphs-pytorch"><strong>Tensor、计算图与 PyTorch</strong></h2>
+<p>一个深度学习模型可能包含数百万个参数与数百次运算，但它的执行过程建立在一组很小的基本词汇上：Tensor 保存数值状态，Tensor 运算转换这些状态，计算图记录输出如何依赖前面的数值。因此，大多数实现错误都可以追溯到以下三个问题之一：</p>
+<ul>
+<li>每个 Tensor 轴分别表示什么？</li>
+<li>当前运算是否组合了预期的元素？</li>
+<li>PyTorch 是否记录了梯度计算、序列化和设备迁移所需要的依赖关系？</li>
+</ul>
+<p>本章将建立一种在模型变得庞大之前回答这些问题的方法。目标并不是记住所有 PyTorch 方法，而是学会按照<strong>语义 -&gt; shape -&gt; 运算 -&gt; 计算图 -&gt; 系统状态</strong>的顺序推理。后续章节会在这个基础上继续加入神经网络组件、反向传播理论、优化方法和可扩展执行。</p>
+<section id="scalars-vectors-matrices-tensors" class="level3">
+<h3 class="anchored" data-anchor-id="scalars-vectors-matrices-tensors"><strong>标量、向量、矩阵与 Tensor</strong></h3>
+<p><strong>Tensor</strong> 是具有统一数据类型的规则多维数组。在深度学习软件中，这个术语也包含我们熟悉的低阶对象：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>对象</th>
+<th style="text-align: right;">阶数</th>
+<th>Shape 示例</th>
+<th>典型含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>标量</td>
+<td style="text-align: right;">0</td>
+<td><code>[]</code></td>
+<td>一个损失、概率或学习率</td>
+</tr>
+<tr class="even">
+<td>向量</td>
+<td style="text-align: right;">1</td>
+<td><code>[D]</code></td>
+<td>一个特征向量或类别 logit 向量</td>
+</tr>
+<tr class="odd">
+<td>矩阵</td>
+<td style="text-align: right;">2</td>
+<td><code>[B, D]</code></td>
+<td>一批特征向量或一个权重矩阵</td>
+</tr>
+<tr class="even">
+<td>三阶 Tensor</td>
+<td style="text-align: right;">3</td>
+<td><code>[B, L, D]</code></td>
+<td>一批 token 表示序列</td>
+</tr>
+<tr class="odd">
+<td>四阶 Tensor</td>
+<td style="text-align: right;">4</td>
+<td><code>[B, C, H, W]</code></td>
+<td>一批 channel-first 图像</td>
+</tr>
+</tbody>
+</table>
+<p>对于 Tensor <span class="math inline">\(X \in \mathbb{R}^{d_1 \times d_2 \times \cdots \times d_k}\)</span>：</p>
+<ul>
+<li><span class="math inline">\(k\)</span> 是它的<strong>阶数</strong>，也就是轴的数量；</li>
+<li><span class="math inline">\((d_1,d_2,\ldots,d_k)\)</span> 是它的 <strong>shape</strong>；</li>
+<li><span class="math inline">\(d_j\)</span> 是第 <span class="math inline">\(j\)</span> 个轴的长度；</li>
+<li><span class="math inline">\(\prod_{j=1}^{k} d_j\)</span> 是元素总数。</li>
+</ul>
+<p>这里的阶数并不是矩阵的秩。Tensor 的阶数统计轴的数量；矩阵的秩衡量线性无关性。Shape 为 <code>[2, 3]</code> 的 Tensor 始终是二阶 Tensor，但根据具体数值，其矩阵秩可能是 1 或 2。</p>
+<p>只有数值还不足以完整描述一个 Tensor。在实际系统中，Tensor 还包含：</p>
+<ul>
+<li><strong>dtype</strong>，例如 <code>float32</code>、<code>bfloat16</code> 或 <code>int64</code>；</li>
+<li><strong>device</strong>，例如 CPU、CUDA GPU 或 Apple MPS；</li>
+<li><strong>layout 与 stride</strong>，决定逻辑索引如何映射到存储空间；</li>
+<li>可选的 autograd 元数据，包括是否需要追踪相关运算。</li>
+</ul>
+<p>因此，两个数值完全相同的 Tensor 也可能表现不同：一个可能是位于 CPU 上的整数标签，另一个可能是位于 GPU 上、启用了梯度追踪的浮点激活值。</p>
+<details>
+<summary>
+<strong>PyTorch：构造 Tensor 并检查其元数据</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>scalar <span class="op">=</span> torch.tensor(<span class="fl">2.5</span>)                         <span class="co"># shape []</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>vector <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">1.0</span>, <span class="fl">0.5</span>])           <span class="co"># shape [3]</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>matrix <span class="op">=</span> torch.arange(<span class="dv">12</span>, dtype<span class="op">=</span>torch.float32).reshape(<span class="dv">3</span>, <span class="dv">4</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>image_batch <span class="op">=</span> torch.zeros(<span class="dv">8</span>, <span class="dv">3</span>, <span class="dv">32</span>, <span class="dv">32</span>)            <span class="co"># [B, C, H, W]</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>token_batch <span class="op">=</span> torch.zeros(<span class="dv">8</span>, <span class="dv">128</span>, <span class="dv">768</span>)             <span class="co"># [B, L, D]</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> describe(name: <span class="bu">str</span>, tensor: torch.Tensor) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Print the metadata needed for basic tensor debugging."""</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"</span><span class="sc">{</span>name<span class="sc">:12s}</span><span class="ss">"</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"shape=</span><span class="sc">{</span><span class="bu">tuple</span>(tensor.shape)<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"rank=</span><span class="sc">{</span>tensor<span class="sc">.</span>ndim<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"elements=</span><span class="sc">{</span>tensor<span class="sc">.</span>numel()<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"dtype=</span><span class="sc">{</span>tensor<span class="sc">.</span>dtype<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        <span class="ss">f"device=</span><span class="sc">{</span>tensor<span class="sc">.</span>device<span class="sc">}</span><span class="ss">"</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> tensor_name, value <span class="kw">in</span> {</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    <span class="st">"scalar"</span>: scalar,</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="st">"vector"</span>: vector,</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    <span class="st">"matrix"</span>: matrix,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"images"</span>: image_batch,</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"tokens"</span>: token_batch,</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>}.items():</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>    describe(tensor_name, value)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这些示例使用了两组常见符号：<span class="math inline">\(B\)</span> 表示批量大小，<span class="math inline">\(C\)</span> 表示通道数，<span class="math inline">\(H \times W\)</span> 表示空间尺寸，<span class="math inline">\(L\)</span> 表示序列长度，<span class="math inline">\(D\)</span> 表示特征宽度。这些字母并不是 Tensor 中保存的属性。PyTorch 只能看到各个轴的长度，程序员必须维护它们的含义。</p>
+<p><strong>应用场景。</strong> 一批 8 张 RGB 图像和一批 8 个 token 序列，在预处理后都可能成为三阶或四阶 Tensor，但各个轴支持的操作并不相同。将通道轴与空间轴交换，仍然可能得到一个语法上合法的 Tensor，却悄悄改变了模型的语义。</p>
+<p><strong>对比总结。</strong> Python 数字表示一个数值；Tensor 表示数值以及结构和执行元数据。阶数说明需要多少个索引，shape 说明索引的合法范围，轴语义则说明这些索引在问题中代表什么。</p>
+</section>
+<section id="tensor-shape-axes-layout" class="level3">
+<h3 class="anchored" data-anchor-id="tensor-shape-axes-layout"><strong>Tensor Shape、轴与布局</strong></h3>
+<p>Tensor 的 <strong>shape</strong> 是由各轴长度组成的元组。<strong>轴</strong>是一条坐标方向，而轴的<strong>语义角色</strong>解释了沿该坐标变化意味着什么。考虑图像批量 <span class="math inline">\(X \in \mathbb{R}^{B \times C \times H \times W}\)</span>：</p>
+<p><span class="math display">\[
+X[b,c,h,w]
+\]</span></p>
+<p>选取的是批量中第 <span class="math inline">\(b\)</span> 个样本、通道 <span class="math inline">\(c\)</span>、第 <span class="math inline">\(h\)</span> 行和第 <span class="math inline">\(w\)</span> 列位置上的一个标量。Shape <code>[32, 3, 224, 224]</code> 只有与 <code>[batch, channel, height, width]</code> 的解释结合起来才真正有用。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/tf-tensor-axis-order.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="四阶 Tensor 可以为每个轴赋予独立含义，例如 batch、width、height 与 feature。"><img src="../../Deep-Learning/assets/tf-tensor-axis-order.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="一个四阶 Tensor 图，标注了 batch、width、height 和 feature 轴。"></a></p>
+</figure>
+</div>
+<figcaption>四阶 Tensor 可以为每个轴赋予独立含义，例如 batch、width、height 与 feature。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：TensorFlow Core，<a href="https://www.tensorflow.org/guide/tensor">Introduction to Tensors</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 许可。该 TensorFlow 图展示的是与框架无关的 Tensor 概念；本章代码使用 PyTorch。</em></p>
+<p>不同库和计算内核可能选择不同约定。PyTorch 视觉模型通常采用 channel-first 的 <code>[B, C, H, W]</code>，而一些系统使用 channel-last 的 <code>[B, H, W, C]</code>。序列模型通常使用 <code>[B, L, D]</code>，一些较早的循环网络接口则使用 <code>[L, B, D]</code>。可以通过轴置换在约定之间转换：</p>
+<p><span class="math display">\[
+[B,H,W,C] \xrightarrow{\operatorname{permute}(0,3,1,2)} [B,C,H,W].
+\]</span></p>
+<p>逻辑 shape 并不能完整描述物理存储。一个稠密 Tensor 具有底层的一维存储空间，并为每个轴保存一个 <strong>stride</strong>。如果 stride 元组是 <span class="math inline">\((s_1,\ldots,s_k)\)</span>，那么逻辑索引 <span class="math inline">\((i_1,\ldots,i_k)\)</span> 对应的存储偏移量与下面的表达式成比例：</p>
+<p><span class="math display">\[
+\operatorname{offset}
+= i_1s_1+i_2s_2+\cdots+i_ks_k.
+\]</span></p>
+<p>对于 shape 为 <code>[2, 3, 4]</code>、按行优先连续存储的 Tensor，stride 通常为 <code>[12, 4, 1]</code>：沿最后一个轴移动一步会前进一个存储元素，沿中间轴移动一步会前进四个元素，沿第一个轴移动一步会前进十二个元素。</p>
+<p><code>transpose</code> 与 <code>permute</code> 等操作通常不会复制数值，而是利用新的 shape 和 stride 元数据创建一个共享存储的 <strong>view</strong>。结果可能不连续。这种机制很高效，但后续如果某个运算假设连续存储，就可能需要 <code>.contiguous()</code>，或者由 <code>.reshape()</code> 隐式创建副本。</p>
+<details>
+<summary>
+<strong>PyTorch：检查 stride、view、轴置换与复制</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.arange(<span class="dv">24</span>).reshape(<span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> x.permute(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">1</span>)  <span class="co"># [2, 4, 3], metadata changes; storage is shared.</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"x:"</span>, x.shape, x.stride(), x.is_contiguous())</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"y:"</span>, y.shape, y.stride(), y.is_contiguous())</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"shared storage:"</span>, x.untyped_storage().data_ptr() <span class="op">==</span> y.untyped_storage().data_ptr())</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># view() requires a compatible stride pattern. Flattening this permutation fails.</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    y.view(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">RuntimeError</span> <span class="im">as</span> error:</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="st">"view failed:"</span>, <span class="bu">str</span>(error).split(<span class="st">"."</span>)[<span class="dv">0</span>])</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co"># reshape() returns a view when possible and otherwise creates a contiguous copy.</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>y_flat <span class="op">=</span> y.reshape(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"reshape is contiguous:"</span>, y_flat.is_contiguous())</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">"reshape shares storage:"</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    y_flat.untyped_storage().data_ptr() <span class="op">==</span> y.untyped_storage().data_ptr(),</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Make the copy explicit when a downstream kernel requires contiguous storage.</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>y_contiguous <span class="op">=</span> y.contiguous()</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> y_contiguous.shape <span class="op">==</span> (<span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">3</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> y_contiguous.is_contiguous()</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这种差异同时影响正确性和性能。<code>permute</code> 改变索引对应的轴；<code>reshape</code> 改变已有元素的分组方式；不应使用其中一个来模拟另一个。即使元素总数符合预期，错误 reshape 后的 Tensor 在语义上仍可能完全错误。</p>
+<p>一种有效做法是在模块边界维护 <strong>shape 不变量</strong>：</p>
+<pre class="text"><code>input images:       [B, C, H, W]
+patch embeddings:   [B, L, D]
+class logits:       [B, K]
+targets:            [B]</code></pre>
+<p>使用 <code>assert logits.shape == (targets.shape[0], number_of_classes)</code> 之类的断言，可以把悄无声息的语义错误变成立即出现的失败。</p>
+<p><strong>对比总结。</strong> Shape 描述逻辑网格，stride 描述如何在存储空间中移动，轴名称描述其含义。<code>permute</code> 重排轴，<code>reshape</code> 重新组织元素，而 <code>.contiguous()</code> 会在必要时物化出兼容的内存顺序。</p>
+</section>
+<section id="indexing-reshaping-broadcasting" class="level3">
+<h3 class="anchored" data-anchor-id="indexing-reshaping-broadcasting"><strong>索引、重塑与广播</strong></h3>
+<p>索引回答<strong>保留哪些元素</strong>；重塑回答<strong>如何组织相同元素</strong>；广播回答<strong>具有兼容 shape 的 Tensor 如何参与逐元素运算</strong>。三者相互关联，但不能彼此替代。</p>
+<p>对于 shape 为 <code>[B, L, D]</code> 的 Tensor <code>x</code>：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>表达式</th>
+<th>输出 shape</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>x[0]</code></td>
+<td><code>[L, D]</code></td>
+<td>删除 batch 轴并选取一个样本</td>
+</tr>
+<tr class="even">
+<td><code>x[0:1]</code></td>
+<td><code>[1, L, D]</code></td>
+<td>保留长度为 1 的 batch 轴</td>
+</tr>
+<tr class="odd">
+<td><code>x[:, -1]</code></td>
+<td><code>[B, D]</code></td>
+<td>选取每个样本的最后一个位置</td>
+</tr>
+<tr class="even">
+<td><code>x[..., 0]</code></td>
+<td><code>[B, L]</code></td>
+<td>选取最后一个轴上的第一个特征</td>
+</tr>
+<tr class="odd">
+<td><code>x.unsqueeze(1)</code></td>
+<td><code>[B, 1, L, D]</code></td>
+<td>插入一个长度为 1 的轴</td>
+</tr>
+<tr class="even">
+<td><code>x.flatten(0, 1)</code></td>
+<td><code>[B L, D]</code></td>
+<td>合并相邻的 batch 与 sequence 轴</td>
+</tr>
+</tbody>
+</table>
+<p>基础切片通常创建 view。布尔索引或整数数组高级索引可能分配新的 Tensor。对 view 进行原地修改也可能改变其底层 Tensor；这种行为在明确使用时很方便，在隐藏发生时则很危险。</p>
+<p>重塑必须保持元素总数：</p>
+<p><span class="math display">\[
+\prod_j d_j = \prod_m d'_m.
+\]</span></p>
+<p>例如 <code>[B, L, H, d_h]</code> 可以变为 <code>[B, L, H d_h]</code>，但只有在最后两个轴确实分别表示注意力头和每个头的特征，并且存储顺序符合预期时，这个转换才有意义。</p>
+<p>广播从<strong>最后一个轴</strong>开始对齐 shape。当两个对齐维度相等、其中一个为 1，或者其中一个维度不存在时，它们可以兼容。如果 <span class="math inline">\(X\)</span> 的 shape 为 <code>[B, L, D]</code>，<span class="math inline">\(b\)</span> 的 shape 为 <code>[D]</code>，那么：</p>
+<p><span class="math display">\[
+X + b:
+[B,L,D] + [D]
+\longrightarrow [B,L,D],
+\]</span></p>
+<p>因为 <code>[D]</code> 会表现得像 <code>[1, 1, D]</code>。扩展后的数值通常通过 stride 元数据表达，而不会真的复制到新的存储空间。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/tf-broadcasting.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="广播将 shape 为 3 乘 1 的列 Tensor 与 shape 为 1 乘 4 的行 Tensor 组合，产生 3 乘 4 的结果。"><img src="../../Deep-Learning/assets/tf-broadcasting.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:68.0%" alt="一个广播图，将三元素列向量与四元素行向量相乘，形成三乘四矩阵。"></a></p>
+</figure>
+</div>
+<figcaption>广播将 shape 为 3 乘 1 的列 Tensor 与 shape 为 1 乘 4 的行 Tensor 组合，产生 3 乘 4 的结果。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：TensorFlow Core，<a href="https://www.tensorflow.org/guide/tensor#broadcasting">Introduction to Tensors: Broadcasting</a>，采用 <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a> 许可。PyTorch 遵循相同的 NumPy 风格尾部轴规则，参见官方 <a href="https://docs.pytorch.org/docs/stable/notes/broadcasting.html">PyTorch broadcasting semantics</a>。</em></p>
+<p>广播的优势是能够消除显式循环，但它也可能生成合法却并非预期的输出。一个经典案例是把 <code>[B, 1]</code> 与 <code>[B]</code> 相加：按照尾部轴对齐，结果是 <code>[B, B]</code>，而不是 <code>[B, 1]</code>。</p>
+<details>
+<summary>
+<strong>PyTorch：按通道归一化并暴露一个静默 broadcasting 错误</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Four RGB images: [batch, channel, height, width].</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>images <span class="op">=</span> torch.randn(<span class="dv">4</span>, <span class="dv">3</span>, <span class="dv">16</span>, <span class="dv">16</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="co"># keepdim=True preserves [1, C, 1, 1], so every semantic axis remains visible.</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>channel_mean <span class="op">=</span> images.mean(dim<span class="op">=</span>(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">3</span>), keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>channel_std <span class="op">=</span> images.std(dim<span class="op">=</span>(<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">3</span>), keepdim<span class="op">=</span><span class="va">True</span>).clamp_min(<span class="fl">1e-6</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>normalized <span class="op">=</span> (images <span class="op">-</span> channel_mean) <span class="op">/</span> channel_std</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> channel_mean.shape <span class="op">==</span> (<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">1</span>, <span class="dv">1</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> normalized.shape <span class="op">==</span> images.shape</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a><span class="co"># A legal but incorrect broadcast: [B, 1] + [B] -&gt; [B, B].</span></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> torch.randn(<span class="dv">4</span>, <span class="dv">1</span>)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>offsets <span class="op">=</span> torch.arange(<span class="dv">4</span>, dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>wrong <span class="op">=</span> scores <span class="op">+</span> offsets</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"wrong shape:"</span>, wrong.shape)  <span class="co"># torch.Size([4, 4])</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Insert the intended singleton feature axis: [B] -&gt; [B, 1].</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>correct <span class="op">=</span> scores <span class="op">+</span> offsets.unsqueeze(<span class="dv">1</span>)</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> correct.shape <span class="op">==</span> scores.shape</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="co"># torch.broadcast_shapes can validate a planned elementwise operation explicitly.</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.broadcast_shapes(images.shape, channel_mean.shape) <span class="op">==</span> images.shape</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>对于 <code>sum</code>、<code>mean</code> 或 <code>max</code> 等归约操作，是否保留被归约的轴同样重要。<code>keepdim=True</code> 通常能让后续广播更安全，因为轴的语义位置仍然清晰可见。</p>
+<p><strong>应用场景。</strong> 广播可用于逐通道图像归一化、逐特征仿射变换、attention mask 和偏置相加。每一种用法都应该能够逐轴解释。如果输出意外增加了维度，应当先打印两个操作数的 shape，再检查具体数值。</p>
+<p><strong>对比总结。</strong> 索引选择数据，重塑重新组织索引系统，广播为逐元素运算虚拟扩展 singleton 维度。合法 shape 只能保证运算可以执行，不能保证它表达了预期语义。</p>
+</section>
+<section id="matrix-multiplication-einstein-summation" class="level3">
+<h3 class="anchored" data-anchor-id="matrix-multiplication-einstein-summation"><strong>矩阵乘法与爱因斯坦求和</strong></h3>
+<p>逐元素乘法和矩阵乘法回答的是不同问题。对于矩阵 <span class="math inline">\(A,B \in \mathbb{R}^{M \times N}\)</span>，Hadamard 乘积保持 shape 不变：</p>
+<p><span class="math display">\[
+(A \odot B)_{ij}=A_{ij}B_{ij}.
+\]</span></p>
+<p>矩阵乘法则会收缩一个轴。如果 <span class="math inline">\(A \in \mathbb{R}^{M \times K}\)</span>，<span class="math inline">\(B \in \mathbb{R}^{K \times N}\)</span>，那么：</p>
+<p><span class="math display">\[
+C=AB \in \mathbb{R}^{M \times N},
+\qquad
+C_{ij}=\sum_{k=1}^{K}A_{ik}B_{kj}.
+\]</span></p>
+<p>共享的 <span class="math inline">\(K\)</span> 轴会消失，因为它的贡献被求和。这个<strong>收缩轴</strong>概念是线性层、点积注意力、卷积实现和许多损失函数的核心。</p>
+<p>PyTorch 的 <code>torch.matmul</code> 与 <code>@</code> 对矩阵乘法进行了推广：</p>
+<ul>
+<li>向量 <code>@</code> 向量返回标量点积；</li>
+<li>矩阵 <code>@</code> 矩阵执行普通矩阵乘法；</li>
+<li>对更高阶输入，把最后两个轴视为矩阵，并对前面的 batch 轴进行广播。</li>
+</ul>
+<p>对于序列投影：</p>
+<p><span class="math display">\[
+X \in \mathbb{R}^{B \times L \times D_{in}},
+\quad
+W \in \mathbb{R}^{D_{in} \times D_{out}},
+\quad
+XW \in \mathbb{R}^{B \times L \times D_{out}}.
+\]</span></p>
+<p>每个 token 向量都会与同一个权重矩阵相乘。前面的 <code>[B, L]</code> 轴得到保留，<span class="math inline">\(D_{in}\)</span> 被收缩并替换为 <span class="math inline">\(D_{out}\)</span>。</p>
+<p><strong>爱因斯坦求和</strong>可以显式表达这种轴逻辑。在下面的等式中：</p>
+<p><span class="math display">\[
+Y_{bld}=\sum_k X_{blk}W_{kd},
+\]</span></p>
+<p>只出现在输入而没有出现在输出中的索引会被求和；出现在输出中的索引会被保留。PyTorch 使用 <code>torch.einsum("blk,kd-&gt;bld", x, weight)</code> 表达相同运算。</p>
+<details>
+<summary>
+<strong>PyTorch：比较逐元素、矩阵、批量与 einsum 运算</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>B, L, D_IN, D_OUT <span class="op">=</span> <span class="dv">2</span>, <span class="dv">5</span>, <span class="dv">4</span>, <span class="dv">6</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(B, L, D_IN)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>weight <span class="op">=</span> torch.randn(D_IN, D_OUT)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># The final input-feature axis is contracted with weight axis 0.</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>projected_matmul <span class="op">=</span> x <span class="op">@</span> weight</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>projected_einsum <span class="op">=</span> torch.einsum(<span class="st">"blk,kd-&gt;bld"</span>, x, weight)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> projected_matmul.shape <span class="op">==</span> (B, L, D_OUT)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(projected_matmul, projected_einsum)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Attention scores contract the per-head feature axis d.</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>HEADS, HEAD_DIM <span class="op">=</span> <span class="dv">3</span>, <span class="dv">8</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>queries <span class="op">=</span> torch.randn(B, HEADS, L, HEAD_DIM)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>keys <span class="op">=</span> torch.randn(B, HEADS, L, HEAD_DIM)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> torch.einsum(<span class="st">"bhid,bhjd-&gt;bhij"</span>, queries, keys) <span class="op">/</span> math.sqrt(HEAD_DIM)</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> scores.shape <span class="op">==</span> (B, HEADS, L, L)</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Elementwise multiplication does not contract an axis.</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>gated_queries <span class="op">=</span> queries <span class="op">*</span> torch.sigmoid(keys)</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> gated_queries.shape <span class="op">==</span> queries.shape</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当 <code>einsum</code> 能够澄清复杂收缩关系时最有价值，而不是仅仅用于缩短熟悉的代码。索引标签应遵循明确记录的约定，并通过断言检查重复维度。一个语法合法的等式仍然可能收缩错误的轴。</p>
+<p>复杂度由收缩维度决定。执行 <code>[M, K] @ [K, N]</code> 大约需要 <span class="math inline">\(MKN\)</span> 组乘加运算，输出存储 <span class="math inline">\(MN\)</span> 个数值。前面的批量轴会成倍增加计算量，但不会改变收缩规则。</p>
+<p><strong>应用场景。</strong> 线性分类器把特征宽度收缩为类别 logits；注意力把 query 和 key 的特征收缩为位置两两之间的分数；双线性模型可以围绕可学习关系矩阵收缩两个特征轴。在编写代码前先写索引等式，通常能够立即暴露 shape 错误。</p>
+<p><strong>对比总结。</strong> 逐元素运算对齐并保留轴；矩阵乘法收缩一对轴；<code>einsum</code> 使用命名索引描述任意轴的保留与收缩。因此，shape 推理也是一种简洁的算法推理。</p>
+</section>
+<section id="computation-graphs" class="level3">
+<h3 class="anchored" data-anchor-id="computation-graphs"><strong>计算图</strong></h3>
+<p><strong>计算图</strong>把数值程序表示为一组依赖关系。Tensor 数值沿边流动，运算节点把输入转换为输出。如果标量目标是：</p>
+<p><span class="math display">\[
+q=3a^3-b^2,
+\]</span></p>
+<p>那么前向计算包含幂、乘法与减法运算。计算图记录足够的局部信息，从而回答改变 <span class="math inline">\(a\)</span> 或 <span class="math inline">\(b\)</span> 会如何改变 <span class="math inline">\(q\)</span>。</p>
+<p>一次模型调用的前馈执行通常形成一个<strong>有向无环图（DAG）</strong>：边从较早数值指向较晚数值，在前向时间上不存在输出通过循环依赖自身。循环神经网络在有限序列上重复状态转换后展开，仍然会形成 DAG。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/pytorch-autograd-dag.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="PyTorch 会为创建输出 Tensor 的运算记录对应的反向函数节点。"><img src="../../Deep-Learning/assets/pytorch-autograd-dag.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:48.0%" alt="一个 PyTorch autograd 图，其中包含幂、乘法与减法的反向节点。"></a></p>
+</figure>
+</div>
+<figcaption>PyTorch 会为创建输出 Tensor 的运算记录对应的反向函数节点。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：PyTorch Tutorials，<a href="https://docs.pytorch.org/tutorials/beginner/blitz/autograd_tutorial.html#computational-graph">A Gentle Introduction to <code>torch.autograd</code></a>。</em></p>
+<p>在 PyTorch 中，eager 运算会立即执行，同时 autograd 动态记录可微依赖。在一次前向传播中，它会：</p>
+<ol type="1">
+<li>计算每个请求的 Tensor 结果；</li>
+<li>当需要追踪梯度时，为非叶子输出附加 <code>grad_fn</code>；</li>
+<li>保存反向公式所需的部分数值或元数据。</li>
+</ol>
+<p>这个图是<strong>动态的</strong>：Python 控制流可以在不同调用中选择不同运算。一次普通反向传播结束后，保存的计算图状态会被释放；下一次前向传播会重新建立新图。这与静态源代码图不同：autograd 图描述的是针对具体 Tensor 数值真正执行过的运算。</p>
+<p>PyTorch 会区分：</p>
+<ul>
+<li><strong>叶子 Tensor</strong>：不是由被追踪运算产生的 Tensor，通常包括可训练参数；</li>
+<li><strong>非叶子 Tensor</strong>：具有 <code>grad_fn</code> 的中间结果；</li>
+<li><strong>根节点</strong>：反向遍历开始的位置，通常是一个标量损失。</li>
+</ul>
+<details>
+<summary>
+<strong>PyTorch：检查叶子 Tensor 与动态计算图</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> torch.tensor([<span class="fl">2.0</span>, <span class="fl">3.0</span>], requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> torch.tensor([<span class="fl">6.0</span>, <span class="fl">4.0</span>], requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>q <span class="op">=</span> <span class="dv">3</span> <span class="op">*</span> a<span class="op">**</span><span class="dv">3</span> <span class="op">-</span> b<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> q.<span class="bu">sum</span>()</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"a is leaf:"</span>, a.is_leaf, <span class="st">"grad_fn:"</span>, a.grad_fn)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"q is leaf:"</span>, q.is_leaf, <span class="st">"grad_fn:"</span>, <span class="bu">type</span>(q.grad_fn).<span class="va">__name__</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"loss grad_fn:"</span>, <span class="bu">type</span>(loss.grad_fn).<span class="va">__name__</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co"># dq/da = 9a^2 and dq/db = -2b.</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(a.grad, <span class="dv">9</span> <span class="op">*</span> a.detach() <span class="op">**</span> <span class="dv">2</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(b.grad, <span class="op">-</span><span class="dv">2</span> <span class="op">*</span> b.detach())</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"gradient for a:"</span>, a.grad)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"gradient for b:"</span>, b.grad)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>计算图与 <code>nn.Module</code> 树并不是同一个概念。Module 树描述注册的组件与参数；计算图描述某一次执行过程，并且可以多次调用同一模块、跳过某个分支，或者让一个 Tensor 沿多条路径被复用。</p>
+<p>计算图记录机制也解释了为什么某些原地运算不安全。反向传播可能需要较早的 Tensor 数值。如果该数值被覆盖，PyTorch 会抛出版本检查错误；在隔离不充分的自定义代码中，预期导数甚至可能无法重建。</p>
+<p><strong>对比总结。</strong> 源代码描述可能的执行过程，Module 树描述拥有的组件，计算图描述真正发生的数值依赖。计算图把前向数值与稍后需要的局部导数规则连接起来。</p>
+</section>
+<section id="automatic-differentiation-pytorch" class="level3">
+<h3 class="anchored" data-anchor-id="automatic-differentiation-pytorch"><strong>PyTorch 中的自动微分</strong></h3>
+<p><strong>自动微分（AD）</strong>通过把精确的导数规则应用于已执行的基本运算来计算导数。它不是操作代数表达式的符号微分，也不是通过扰动输入估计斜率的有限差分。</p>
+<p>深度学习通常包含大量参数和一个标量损失。<strong>反向模式自动微分</strong>很适合这种多输入、单输出结构。假设中间状态满足：</p>
+<p><span class="math display">\[
+\mathbf{h}^{(0)}=\mathbf{x},
+\qquad
+\mathbf{h}^{(\ell)}=f^{(\ell)}(\mathbf{h}^{(\ell-1)}),
+\qquad
+\mathcal{L}=g(\mathbf{h}^{(L)}),
+\]</span></p>
+<p>反向模式利用向量-Jacobian 乘积把上游敏感度向后传播：</p>
+<p><span class="math display">\[
+\mathbf{v}_{\ell-1}
+=
+\left(\frac{\partial \mathbf{h}^{(\ell)}}
+{\partial \mathbf{h}^{(\ell-1)}}\right)^{\!T}
+\mathbf{v}_{\ell}.
+\]</span></p>
+<p>系统通常不会真的物化完整 Jacobian。每个运算接收一个上游向量，并返回其输入需要的梯度贡献。第 04 章会详细推导这一机制与反向传播；本节重点说明 PyTorch 的接口契约。</p>
+<p>在叶子 Tensor 上设置 <code>requires_grad=True</code>，表示 autograd 应追踪能够影响它的运算。对标量输出调用 <code>.backward()</code> 会开始反向遍历。梯度会累加到符合条件的叶子 Tensor 的 <code>.grad</code> 中，因此训练代码必须使用 <code>optimizer.zero_grad()</code> 清理梯度，或者把它们设为 <code>None</code>。</p>
+<p>几个重要接口具有不同用途：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>接口</th>
+<th>效果</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>tensor.detach()</code></td>
+<td>返回与当前计算图断开的 Tensor</td>
+<td>阻断梯度路径或记录数值</td>
+</tr>
+<tr class="even">
+<td><code>torch.no_grad()</code></td>
+<td>在代码块中禁止记录计算图</td>
+<td>参数更新或评估代码</td>
+</tr>
+<tr class="odd">
+<td><code>torch.inference_mode()</code></td>
+<td>更强的仅推理优化模式</td>
+<td>部署或评估前向传播</td>
+</tr>
+<tr class="even">
+<td><code>torch.autograd.grad()</code></td>
+<td>返回指定梯度，而不仅依赖 <code>.grad</code></td>
+<td>惩罚项、分析或高阶方法</td>
+</tr>
+<tr class="odd">
+<td><code>retain_graph=True</code></td>
+<td>在反向传播后保留图状态</td>
+<td>少数需要重复遍历的情况，但会增加内存</td>
+</tr>
+</tbody>
+</table>
+<p>广播也会影响反向规则。如果偏置 <span class="math inline">\(b \in \mathbb{R}^{D}\)</span> 被广播到批量 <span class="math inline">\(X \in \mathbb{R}^{B \times D}\)</span> 上，那么 <span class="math inline">\(b\)</span> 的梯度会对被扩展的 batch 轴求和：</p>
+<p><span class="math display">\[
+\frac{\partial \mathcal{L}}{\partial b_d}
+=
+\sum_{i=1}^{B}
+\frac{\partial \mathcal{L}}{\partial Y_{id}}.
+\]</span></p>
+<details>
+<summary>
+<strong>PyTorch：使用有限差分验证 autograd 梯度</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># float64 makes the numerical finite-difference comparison more precise.</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.tensor([<span class="fl">1.5</span>, <span class="op">-</span><span class="fl">2.0</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> torch.tensor(<span class="fl">0.4</span>, dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>w <span class="op">=</span> torch.tensor([<span class="fl">0.3</span>, <span class="op">-</span><span class="fl">0.7</span>], dtype<span class="op">=</span>torch.float64, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> objective(weights: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> (x <span class="op">*</span> weights).<span class="bu">sum</span>()</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (prediction <span class="op">-</span> target) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> objective(w)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>autograd_gradient <span class="op">=</span> w.grad.detach().clone()</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Central finite differences are a diagnostic, not the training algorithm.</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">1e-6</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>finite_difference <span class="op">=</span> torch.empty_like(w)</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> index <span class="kw">in</span> <span class="bu">range</span>(w.numel()):</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        plus <span class="op">=</span> w.detach().clone()</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>        minus <span class="op">=</span> w.detach().clone()</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        plus[index] <span class="op">+=</span> epsilon</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>        minus[index] <span class="op">-=</span> epsilon</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        finite_difference[index] <span class="op">=</span> (</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>            objective(plus) <span class="op">-</span> objective(minus)</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        ) <span class="op">/</span> (<span class="dv">2</span> <span class="op">*</span> epsilon)</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"autograd:"</span>, autograd_gradient)</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"finite difference:"</span>, finite_difference)</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"maximum error:"</span>, (autograd_gradient <span class="op">-</span> finite_difference).<span class="bu">abs</span>().<span class="bu">max</span>().item())</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(autograd_gradient, finite_difference, atol<span class="op">=</span><span class="fl">1e-8</span>, rtol<span class="op">=</span><span class="fl">1e-6</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>有限差分适合检查小型自定义运算，但它扩展性差，并且会受到截断误差和浮点误差影响。自动微分复用真正执行的程序，在基本运算可微且数值行为合理的前提下，以工作精度计算导数。</p>
+<p>常见 autograd 错误包括：过早 detach 数值、在数值参与损失前使用 <code>.item()</code> 转为 Python 数字、原地修改被保存的 Tensor、忘记梯度会累加，或者期望非叶子 Tensor 的 <code>.grad</code> 自动得到保留。</p>
+<p><strong>对比总结。</strong> 有限差分通过重复评估估计导数；符号微分变换公式；自动微分沿已执行计算图组合局部导数规则。PyTorch 默认的反向模式非常适合标量损失训练。</p>
+</section>
+<section id="parameters-modules-model-composition" class="level3">
+<h3 class="anchored" data-anchor-id="parameters-modules-model-composition"><strong>参数、Module 与模型组合</strong></h3>
+<p><code>nn.Module</code> 不仅是一个 Python 函数。它是一个所有权边界，用于注册可训练参数、持久 buffer 和嵌套模块。注册机制让 PyTorch 能够发现优化、设备迁移、序列化和模式切换所需要的系统状态。</p>
+<p>当一个 <code>nn.Parameter</code> 被赋值为模块属性时，它就会成为模块参数集合的一部分。<strong>Buffer</strong> 是应当随模块迁移和序列化、但默认不参与优化的持久 Tensor 状态，例如归一化统计量、mask 或固定位置数值。</p>
+<p>调用 <code>model(inputs)</code> 会先执行模块的 <code>__call__</code> 机制，再调用 <code>forward</code>；直接调用 <code>model.forward(inputs)</code> 会绕过 hook，通常不应这样使用。嵌套模块会形成树结构，而一次沿该树执行的 forward 调用会建立前面讨论的动态计算图。</p>
+<p><code>state_dict</code> 把注册状态名称映射到 Tensor。它通常包含参数与持久 buffer，却不包含任意 Python 属性。因此，可以直接观察注册行为：</p>
+<details>
+<summary>
+<strong>PyTorch：注册参数、buffer 与嵌套模块</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StandardizedRegressor(nn.Module):</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, feature_mean: torch.Tensor, feature_std: torch.Tensor):</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Buffers move with .to(device) and appear in state_dict,</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="co"># but an optimizer will not update them.</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.register_buffer(<span class="st">"feature_mean"</span>, feature_mean)</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.register_buffer(<span class="st">"feature_std"</span>, feature_std.clamp_min(<span class="fl">1e-6</span>))</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Assigning nn.Modules registers their Parameters recursively.</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.predictor <span class="op">=</span> nn.Sequential(</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>            nn.Linear(feature_mean.numel(), <span class="dv">8</span>),</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>            nn.ReLU(),</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>            nn.Linear(<span class="dv">8</span>, <span class="dv">1</span>),</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, features: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> features.shape[<span class="op">-</span><span class="dv">1</span>] <span class="op">==</span> <span class="va">self</span>.feature_mean.numel()</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        standardized <span class="op">=</span> (features <span class="op">-</span> <span class="va">self</span>.feature_mean) <span class="op">/</span> <span class="va">self</span>.feature_std</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.predictor(standardized).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> StandardizedRegressor(</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    feature_mean<span class="op">=</span>torch.tensor([<span class="fl">10.0</span>, <span class="fl">2.0</span>, <span class="op">-</span><span class="fl">1.0</span>]),</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    feature_std<span class="op">=</span>torch.tensor([<span class="fl">2.0</span>, <span class="fl">0.5</span>, <span class="fl">4.0</span>]),</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> torch.tensor([[<span class="fl">12.0</span>, <span class="fl">2.5</span>, <span class="fl">3.0</span>], [<span class="fl">8.0</span>, <span class="fl">1.5</span>, <span class="op">-</span><span class="fl">5.0</span>]])</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>predictions <span class="op">=</span> model(batch)</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"output shape:"</span>, predictions.shape)</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"parameter names:"</span>, [name <span class="cf">for</span> name, _ <span class="kw">in</span> model.named_parameters()])</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"buffer names:"</span>, [name <span class="cf">for</span> name, _ <span class="kw">in</span> model.named_buffers()])</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"state keys:"</span>, <span class="bu">list</span>(model.state_dict()))</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> predictions.shape <span class="op">==</span> (<span class="dv">2</span>,)</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">"feature_mean"</span> <span class="kw">in</span> model.state_dict()</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">"predictor.0.weight"</span> <span class="kw">in</span> model.state_dict()</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><code>model.train()</code> 和 <code>model.eval()</code> 会改变 dropout 与 batch normalization 等模块的行为；它们不会打开或关闭梯度记录。评估通常同时需要 <code>model.eval()</code> 与 <code>torch.inference_mode()</code>，因为二者控制的是不同机制。</p>
+<p>模块组合应维护清晰的接口契约。一个模块应说明预期 shape、dtype、数值范围与输出含义。小模块更容易测试，但过度拆分也会隐藏主要数据流。合适的边界通常应当拥有一个内聚的转换过程及其状态。</p>
+<p><strong>对比总结。</strong> Tensor 保存数值状态，<code>Parameter</code> 标记可优化状态，buffer 标记持久但不优化的 Tensor 状态，<code>Module</code> 则拥有并组合这些状态。Module 树是持久结构，计算图是每次执行产生的行为。</p>
+</section>
+<section id="datasets-dataloaders-mini-batches" class="level3">
+<h3 class="anchored" data-anchor-id="datasets-dataloaders-mini-batches"><strong>Dataset、DataLoader 与 Mini-Batch</strong></h3>
+<p>模型消费的是 Tensor，但真实数据最初可能表现为文件、记录、序列、标签和转换规则。PyTorch 把输入系统拆分为不同职责：</p>
+<ul>
+<li><strong>Dataset</strong> 定义如何识别和获取一个样本；</li>
+<li><strong>Sampler</strong> 定义请求哪些样本索引以及请求顺序；</li>
+<li><strong>collate function</strong> 把取出的样本组合成 batch；</li>
+<li><strong>DataLoader</strong> 协调分批、迭代、worker 与内存传输选项。</li>
+</ul>
+<p>Map-style <code>Dataset</code> 通常实现 <code>__len__</code> 与 <code>__getitem__</code>。<code>IterableDataset</code> 则逐个产生数据流，更适合无法或不希望随机索引的场景，例如日志、远程数据流或动态生成的样本。这种选择会改变 shuffle 和多 worker 分区的实现方式。</p>
+<p>Mini-batch 同时具有统计与系统意义。对于逐样本损失 <span class="math inline">\(\ell_i(\theta)\)</span>，大小为 <span class="math inline">\(B\)</span> 的 batch 使用下面的表达式估计完整数据梯度：</p>
+<p><span class="math display">\[
+\widehat{\mathbf{g}}_B
+=
+\frac{1}{B}\sum_{i \in \mathcal{B}}
+\nabla_{\theta}\ell_i(\theta).
+\]</span></p>
+<p>更大的 batch 通常会降低采样噪声并提升硬件利用率，直到内存或通信成为瓶颈。它不会自动改善泛化，而且会改变每个 epoch 的优化器更新次数。因此，需要同时解释 batch size、学习率、归一化行为与 scheduler 的计数单位。</p>
+<p>Collate 阶段定义 batch 契约。固定尺寸图像可以直接堆叠为 <code>[B, C, H, W]</code>。变长序列如果没有 padding、packing、truncation 或 nested/ragged representation 等策略，就无法直接堆叠。Padding 还需要 mask，让后续运算能够区分真实位置和占位符。</p>
+<details>
+<summary>
+<strong>PyTorch：构建变长 Dataset 与支持 mask 的 collate function</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn.utils.rnn <span class="im">import</span> pad_sequence</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.utils.data <span class="im">import</span> DataLoader, Dataset</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SequenceDataset(Dataset):</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.examples <span class="op">=</span> [</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>            (torch.tensor([<span class="dv">4</span>, <span class="dv">8</span>, <span class="dv">2</span>, <span class="dv">9</span>]), <span class="dv">1</span>),</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>            (torch.tensor([<span class="dv">3</span>, <span class="dv">5</span>]), <span class="dv">0</span>),</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>            (torch.tensor([<span class="dv">7</span>, <span class="dv">1</span>, <span class="dv">6</span>]), <span class="dv">1</span>),</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>            (torch.tensor([<span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">8</span>, <span class="dv">5</span>]), <span class="dv">0</span>),</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        ]</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>) <span class="op">-&gt;</span> <span class="bu">int</span>:</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.examples)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, index: <span class="bu">int</span>):</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>        tokens, label <span class="op">=</span> <span class="va">self</span>.examples[index]</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> tokens, torch.tensor(label, dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pad_collate(batch):</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Convert a list of variable-length examples into dense tensors."""</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    token_sequences, labels <span class="op">=</span> <span class="bu">zip</span>(<span class="op">*</span>batch)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    lengths <span class="op">=</span> torch.tensor([sequence.numel() <span class="cf">for</span> sequence <span class="kw">in</span> token_sequences])</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    padded <span class="op">=</span> pad_sequence(token_sequences, batch_first<span class="op">=</span><span class="va">True</span>, padding_value<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># True marks a real token; False marks padding.</span></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    positions <span class="op">=</span> torch.arange(padded.shape[<span class="dv">1</span>]).unsqueeze(<span class="dv">0</span>)</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    attention_mask <span class="op">=</span> positions <span class="op">&lt;</span> lengths.unsqueeze(<span class="dv">1</span>)</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"tokens"</span>: padded,                  <span class="co"># [B, L_max]</span></span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"attention_mask"</span>: attention_mask,  <span class="co"># [B, L_max]</span></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">"lengths"</span>: lengths,                <span class="co"># [B]</span></span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"labels"</span>: torch.stack(labels),     <span class="co"># [B]</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">7</span>)</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>loader <span class="op">=</span> DataLoader(</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    SequenceDataset(),</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>    batch_size<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>    collate_fn<span class="op">=</span>pad_collate,</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>    num_workers<span class="op">=</span><span class="dv">0</span>,</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a>    generator<span class="op">=</span>generator,</span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a>batch <span class="op">=</span> <span class="bu">next</span>(<span class="bu">iter</span>(loader))</span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, value <span class="kw">in</span> batch.items():</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(name, <span class="bu">tuple</span>(value.shape), value.dtype)</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> batch[<span class="st">"tokens"</span>].shape <span class="op">==</span> batch[<span class="st">"attention_mask"</span>].shape</span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.equal(batch[<span class="st">"attention_mask"</span>].<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">1</span>), batch[<span class="st">"lengths"</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>对于彼此独立的训练样本，通常应启用 shuffle；为了确定性评估，则应关闭 shuffle。<code>drop_last=True</code> 会丢弃较小的最后一个 batch，这可能适合对 shape 敏感的训练，却会改变实际参与训练的样本数。多个 worker 可以让数据加载与计算重叠，但每个 worker 必须得到合理的随机种子，并且不能重复同一段 iterable 数据流。</p>
+<p>锁页主机内存与异步设备复制能够改善部分 GPU pipeline，但前提是完整传输路径都支持这些机制。更多 worker 并不总是更快：对于小型内存数据集，进程协调成本可能高于数据准备成本。官方 <a href="https://docs.pytorch.org/tutorials/beginner/basics/data_tutorial.html">Datasets &amp; DataLoaders tutorial</a> 给出了核心 API 行为。</p>
+<p><strong>应用场景。</strong> 数据边界是 tokenization、augmentation、padding、标签转换和样本元数据变为 Tensor 的位置。独立测试 Dataset 与 collate function，可以避免模型代码掩盖格式错误的样本或不一致的 shape。</p>
+<p><strong>对比总结。</strong> Dataset 定义样本，Sampler 定义顺序，collate 定义 batch 结构，DataLoader 组织迭代。Mini-batch 既是梯度估计器，也是硬件工作单元。</p>
+</section>
+<section id="devices-data-types-numerical-precision" class="level3">
+<h3 class="anchored" data-anchor-id="devices-data-types-numerical-precision"><strong>设备、数据类型与数值精度</strong></h3>
+<p>只有操作数满足计算内核的 device 与 dtype 要求，Tensor 运算才能执行。PyTorch 不会在算术运算时悄悄把 CPU Tensor 移到 GPU，因为隐式传输代价高昂而且难以推理。模型状态与输入 batch 必须显式迁移。</p>
+<p>常见设备选择包括：</p>
+<ul>
+<li><code>cpu</code>：适合可移植性、预处理、小模型和包含大量控制流的工作；</li>
+<li><code>cuda</code>：用于 NVIDIA 加速器；</li>
+<li><code>mps</code>：用于受支持的 Apple Silicon 加速；</li>
+<li>其他后端，例如可用时的 XPU 或专用加速器。</li>
+</ul>
+<p>设备放置不仅涉及计算速度。一个训练步骤可能受到 host-to-device 传输、加速器内存、kernel launch 开销或同步的限制。在紧密循环中调用 <code>.item()</code>、打印 GPU Tensor，或者把数据移回 CPU，都可能强制同步并降低吞吐量。</p>
+<p><strong>Dtype</strong> 控制数值范围、精度、存储大小和可用计算内核：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Dtype</th>
+<th style="text-align: right;">每元素字节数</th>
+<th>典型用途</th>
+<th>主要注意点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>float64</code></td>
+<td style="text-align: right;">8</td>
+<td>科学计算检查、高精度诊断</td>
+<td>在许多加速器上更慢且更占空间</td>
+</tr>
+<tr class="even">
+<td><code>float32</code></td>
+<td style="text-align: right;">4</td>
+<td>标准训练与稳定累加</td>
+<td>比低精度占用更多内存</td>
+</tr>
+<tr class="odd">
+<td><code>bfloat16</code></td>
+<td style="text-align: right;">2</td>
+<td>具有近似 float32 指数范围的混合精度训练</td>
+<td>尾数位更少</td>
+</tr>
+<tr class="even">
+<td><code>float16</code></td>
+<td style="text-align: right;">2</td>
+<td>加速混合精度与推理</td>
+<td>指数范围更窄，存在上溢/下溢风险</td>
+</tr>
+<tr class="odd">
+<td><code>int64</code></td>
+<td style="text-align: right;">8</td>
+<td>许多 API 需要的类别标签与索引</td>
+<td>不可微</td>
+</tr>
+<tr class="even">
+<td><code>bool</code></td>
+<td style="text-align: right;">1</td>
+<td>Mask 与逻辑选择</td>
+<td>算术含义必须明确</td>
+</tr>
+</tbody>
+</table>
+<p>一个稠密 Tensor 的数据载荷内存大约为：</p>
+<p><span class="math display">\[
+\text{bytes}
+=
+\operatorname{numel}(X)
+\times
+\operatorname{element\_size}(X).
+\]</span></p>
+<p>这个估计不包含 allocator 开销，也不包含梯度、优化器状态、保存的激活值和临时 workspace。一个配合 Adam 使用的模型参数，通常会在参数本身之外产生多个额外 Tensor。</p>
+<p>低精度可以加速许多工作负载并节省内存，但不是所有运算都应使用同一个 dtype。混合精度系统通常会使用 autocast、较高精度累加，并在必要时进行 gradient scaling。第 19 章会详细讨论该训练系统。</p>
+<p>数值稳定性不仅取决于 dtype，也取决于算法形式。朴素 softmax：</p>
+<p><span class="math display">\[
+p_i=\frac{e^{z_i}}{\sum_j e^{z_j}}
+\]</span></p>
+<p>在 logits 很大时可能上溢。减去最大值在数学上等价，而且数值更加稳定：</p>
+<p><span class="math display">\[
+p_i
+=
+\frac{e^{z_i-m}}{\sum_j e^{z_j-m}},
+\qquad
+m=\max_j z_j.
+\]</span></p>
+<p>生产级 <code>torch.softmax</code> 使用稳定实现；手动展开熟悉公式可能失去这种保护。</p>
+<details>
+<summary>
+<strong>PyTorch：选择设备、估算 Tensor 内存并检查数值稳定性</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> available_device() <span class="op">-&gt;</span> torch.device:</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> torch.cuda.is_available():</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> torch.device(<span class="st">"cuda"</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">hasattr</span>(torch.backends, <span class="st">"mps"</span>) <span class="kw">and</span> torch.backends.mps.is_available():</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> torch.device(<span class="st">"mps"</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.device(<span class="st">"cpu"</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> available_device()</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> nn.Linear(<span class="dv">768</span>, <span class="dv">10</span>).to(device)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(<span class="dv">32</span>, <span class="dv">128</span>, <span class="dv">768</span>, device<span class="op">=</span>device)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> model(features)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> logits.shape <span class="op">==</span> (<span class="dv">32</span>, <span class="dv">128</span>, <span class="dv">10</span>)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>payload_mebibytes <span class="op">=</span> features.numel() <span class="op">*</span> features.element_size() <span class="op">/</span> <span class="dv">2</span><span class="op">**</span><span class="dv">20</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"device:"</span>, device)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"activation payload MiB:"</span>, <span class="bu">round</span>(payload_mebibytes, <span class="dv">2</span>))</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="co"># A direct exponential overflows even though the probability is well defined.</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>large_logits <span class="op">=</span> torch.tensor([<span class="fl">1000.0</span>, <span class="fl">1001.0</span>])</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>naive <span class="op">=</span> torch.exp(large_logits) <span class="op">/</span> torch.exp(large_logits).<span class="bu">sum</span>()</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>stable <span class="op">=</span> torch.softmax(large_logits, dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"naive softmax:"</span>, naive)</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"stable softmax:"</span>, stable)</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isnan(naive).<span class="bu">any</span>()</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(stable).<span class="bu">all</span>()</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码会把模型和特征移动到同一个可用设备。Target 还必须符合损失函数契约：对于 <code>CrossEntropyLoss</code>，类别索引 target 通常为 <code>int64</code>，模型 logits 则是浮点数。把所有 Tensor 都转换为同一个 dtype 并不是正确的设备策略。</p>
+<p><strong>对比总结。</strong> Device 决定在哪里执行计算，dtype 决定表示范围、精度与内存，算法形式决定如何遇到舍入误差和指数范围限制。性能与稳定性需要同时设计这三个方面。</p>
+</section>
+<section id="randomness-checkpoints-reproducibility" class="level3">
+<h3 class="anchored" data-anchor-id="randomness-checkpoints-reproducibility"><strong>随机性、Checkpoint 与可复现性</strong></h3>
+<p>深度学习实验包含多种状态。模型参数只是其中一部分：</p>
+<ul>
+<li>Python、NumPy 与 PyTorch 随机数生成器状态；</li>
+<li>数据划分标识、样本顺序与数据增强随机性；</li>
+<li>优化器的动量和方差估计；</li>
+<li>Scheduler、gradient scaler 和 early stopping 状态；</li>
+<li>训练 step、epoch、配置、代码版本与运行环境；</li>
+<li>模型参数与持久 buffer。</li>
+</ul>
+<p>设置随机种子可以让运行过程更可控，但不能保证在不同 PyTorch 版本、平台、设备或 kernel 上实现逐 bit 相同。一些加速器算法本身具有非确定性，而确定性替代方案可能更慢。因此，可复现性声明必须说明环境和所追求的等价层级：精确重放、统计一致的结果，或者科学结论的再现。官方 <a href="https://docs.pytorch.org/docs/stable/notes/randomness.html">PyTorch reproducibility notes</a> 明确说明了这一限制。</p>
+<p><strong>Checkpoint</strong> 是继续运行或检查实验所需状态的序列化结果。如果架构与预处理方式已知，只保存 <code>model.state_dict()</code> 就足以用于推理。想要精确恢复训练，通常还需要优化器状态、进度计数器、随机状态和数据顺序状态。</p>
+<details>
+<summary>
+<strong>PyTorch：创建并恢复完整训练 checkpoint</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> io</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>SEED <span class="op">=</span> <span class="dv">23</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>random.seed(SEED)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>np.random.seed(SEED)</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(SEED)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">3</span>, <span class="dv">5</span>), nn.Tanh(), nn.Linear(<span class="dv">5</span>, <span class="dv">1</span>))</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">1e-2</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(<span class="dv">6</span>, <span class="dv">3</span>)</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.randn(<span class="dv">6</span>, <span class="dv">1</span>)</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Perform one update so the optimizer also contains nontrivial state.</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> nn.functional.mse_loss(model(features), targets)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>optimizer.zero_grad()</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>optimizer.step()</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>reference_prediction <span class="op">=</span> model(features).detach().clone()</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>data_generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">99</span>)</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>checkpoint <span class="op">=</span> {</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"model_state"</span>: model.state_dict(),</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"optimizer_state"</span>: optimizer.state_dict(),</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>    <span class="st">"epoch"</span>: <span class="dv">1</span>,</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>    <span class="st">"config"</span>: {<span class="st">"input_width"</span>: <span class="dv">3</span>, <span class="st">"hidden_width"</span>: <span class="dv">5</span>, <span class="st">"learning_rate"</span>: <span class="fl">1e-2</span>},</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>    <span class="st">"python_rng_state"</span>: random.getstate(),</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>    <span class="st">"numpy_rng_state"</span>: np.random.get_state(),</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>    <span class="st">"torch_rng_state"</span>: torch.get_rng_state(),</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>    <span class="st">"data_generator_state"</span>: data_generator.get_state(),</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a><span class="co"># BytesIO keeps this example self-contained; a real run writes an atomic file.</span></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a><span class="bu">buffer</span> <span class="op">=</span> io.BytesIO()</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>torch.save(checkpoint, <span class="bu">buffer</span>)</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a><span class="bu">buffer</span>.seek(<span class="dv">0</span>)</span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a><span class="co"># weights_only=False is appropriate only for a trusted full-state checkpoint.</span></span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>loaded <span class="op">=</span> torch.load(<span class="bu">buffer</span>, map_location<span class="op">=</span><span class="st">"cpu"</span>, weights_only<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>restored_model <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">3</span>, <span class="dv">5</span>), nn.Tanh(), nn.Linear(<span class="dv">5</span>, <span class="dv">1</span>))</span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>restored_optimizer <span class="op">=</span> torch.optim.AdamW(restored_model.parameters(), lr<span class="op">=</span><span class="fl">1e-2</span>)</span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>restored_model.load_state_dict(loaded[<span class="st">"model_state"</span>])</span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>restored_optimizer.load_state_dict(loaded[<span class="st">"optimizer_state"</span>])</span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>random.setstate(loaded[<span class="st">"python_rng_state"</span>])</span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>np.random.set_state(loaded[<span class="st">"numpy_rng_state"</span>])</span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a>torch.set_rng_state(loaded[<span class="st">"torch_rng_state"</span>])</span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a>data_generator.set_state(loaded[<span class="st">"data_generator_state"</span>])</span>
+<span id="cb11-53"><a href="#cb11-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-54"><a href="#cb11-54" aria-hidden="true" tabindex="-1"></a>restored_prediction <span class="op">=</span> restored_model(features).detach()</span>
+<span id="cb11-55"><a href="#cb11-55" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(reference_prediction, restored_prediction)</span>
+<span id="cb11-56"><a href="#cb11-56" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"restored epoch:"</span>, loaded[<span class="st">"epoch"</span>])</span>
+<span id="cb11-57"><a href="#cb11-57" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"predictions restored:"</span>, <span class="va">True</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>完整 checkpoint 使用 Python 序列化，只能从可信来源加载。分发模型权重时，应优先使用 state dictionary 和当前可用的最安全加载模式。Checkpoint 也不会自动保存外部依赖：数据文件、词表版本、预处理代码和架构定义必须单独进行版本控制。</p>
+<p>在工程上，checkpoint 写入应当是原子的：先写临时文件并 flush，只有成功后才进行重命名。最新的可恢复 checkpoint 应与最佳验证 checkpoint 分开保存，因为二者解决不同需求。损坏或只写入一部分的“最佳”文件不应成为唯一恢复路径。</p>
+<p><strong>应用场景。</strong> 可复现性不仅服务于论文，也服务于调试。当损失在第 18,400 个 step 突然升高时，完整 checkpoint 与配置能够帮助区分数据相关故障、偶发硬件问题和数值问题。</p>
+<p><strong>对比总结。</strong> Seed 控制初始随机流，确定性设置限制算法选择，checkpoint 捕获执行状态，实验记录解释运行环境与决策。它们无法相互替代。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>本章对比与总结</strong></h3>
+<p>当数值始终与接口契约结合时，Tensor 编程才会可靠。执行运算前，应识别每个轴；执行后，应预测输出 shape；进行训练时，应验证计算图连通性；进行系统工作时，应考虑 dtype、device、数据顺序与持久状态。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>首要问题</th>
+<th>常见错误</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>阶数与 shape</td>
+<td>有多少个轴，每个轴有多长？</td>
+<td>混淆 Tensor 阶数与矩阵秩</td>
+</tr>
+<tr class="even">
+<td>轴语义</td>
+<td>沿每个轴移动会改变什么？</td>
+<td>轴置换合法但语义错误</td>
+</tr>
+<tr class="odd">
+<td>Stride 与 layout</td>
+<td>逻辑索引如何映射到存储？</td>
+<td>假设所有 view 都连续</td>
+</tr>
+<tr class="even">
+<td>索引与 reshape</td>
+<td>保留哪些数值，它们如何分组？</td>
+<td>删除或合并错误的语义轴</td>
+</tr>
+<tr class="odd">
+<td>Broadcasting</td>
+<td>哪些 singleton 轴被虚拟扩展？</td>
+<td>产生合法却并非预期的更大 Tensor</td>
+</tr>
+<tr class="even">
+<td>矩阵收缩</td>
+<td>哪些轴得到保留，哪些轴被求和？</td>
+<td>错误收缩 feature、token 或 head 轴</td>
+</tr>
+<tr class="odd">
+<td>计算图</td>
+<td>哪些实际执行的运算把损失连接到参数？</td>
+<td>Detach 或覆盖反向传播需要的数值</td>
+</tr>
+<tr class="even">
+<td>Autograd</td>
+<td>反向模式敏感度应在哪里累加？</td>
+<td>使用旧的累积梯度或没有启用追踪</td>
+</tr>
+<tr class="odd">
+<td>Module 状态</td>
+<td>哪些状态需要共同优化、迁移和序列化？</td>
+<td>未注册 Tensor 或直接调用 <code>forward</code></td>
+</tr>
+<tr class="even">
+<td>数据 pipeline</td>
+<td>样本如何变成合法 batch？</td>
+<td>Padding 没有 mask，或 worker 重复数据流</td>
+</tr>
+<tr class="odd">
+<td>Device 与 dtype</td>
+<td>Kernel 在哪里、以何种表示运行？</td>
+<td>设备不匹配、上溢或不恰当类型转换</td>
+</tr>
+<tr class="even">
+<td>可复现性</td>
+<td>解释或恢复运行需要哪些状态？</td>
+<td>只保存权重，丢失优化器与数据顺序</td>
+</tr>
+</tbody>
+</table>
+<p>本章的主要结论是：</p>
+<ol type="1">
+<li>Tensor 是数值数据以及 shape、dtype、device、layout 和可选 autograd 元数据的组合。</li>
+<li>Shape 兼容只是必要条件；轴语义决定运算是否有意义。</li>
+<li>View 可以利用不同 stride 共享存储，而 reshape 有时必须创建副本。</li>
+<li>Broadcasting 从尾部维度开始对齐，并可能悄悄扩展输出 shape。</li>
+<li>理解矩阵乘法与 <code>einsum</code> 的最佳方式，是区分哪些轴被保留、哪些轴被收缩。</li>
+<li>PyTorch 根据真正执行的运算建立动态计算图。</li>
+<li>反向模式 autograd 组合局部向量-Jacobian 乘积，并在被追踪的叶子 Tensor 中累加梯度。</li>
+<li>Module 注册参数、buffer 与子模块，使状态能够得到一致的优化、迁移与序列化。</li>
+<li>Dataset、采样、collation 与设备传输共同构成模型行为契约的一部分。</li>
+<li>Seed、确定性设置、checkpoint 与环境记录分别解决可复现性的不同部分。</li>
+</ol>
+<p>下一章会利用这些契约构造神经网络基本组件：线性转换、激活函数、embedding、残差路径、门控、归一化与可复用模块。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","loop":false,"openEffect":"zoom","closeEffect":"zoom","descPosition":"bottom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

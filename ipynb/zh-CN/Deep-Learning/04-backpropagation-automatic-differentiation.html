@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：反向传播与自动微分</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../shared/quarto-libs/clipboard/clipboard.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/quarto.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/popper.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../shared/quarto-libs/quarto-html/anchor.min.js"></script>
+<link href="../../shared/quarto-libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../shared/quarto-libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../shared/quarto-libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="../../shared/quarto-libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="../../shared/quarto-libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="../../shared/quarto-libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="..\blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#backpropagation-automatic-differentiation" id="toc-backpropagation-automatic-differentiation" class="nav-link active" data-scroll-target="#backpropagation-automatic-differentiation"><strong>反向传播与自动微分</strong></a>
+  <ul>
+  <li><a href="#learning-credit-assignment" id="toc-learning-credit-assignment" class="nav-link" data-scroll-target="#learning-credit-assignment"><strong>作为信用分配的学习</strong></a></li>
+  <li><a href="#chain-rule-computation-graphs" id="toc-chain-rule-computation-graphs" class="nav-link" data-scroll-target="#chain-rule-computation-graphs"><strong>计算图上的链式法则</strong></a></li>
+  <li><a href="#forward-pass-local-derivatives" id="toc-forward-pass-local-derivatives" class="nav-link" data-scroll-target="#forward-pass-local-derivatives"><strong>前向传播与局部导数</strong></a></li>
+  <li><a href="#reverse-mode-backpropagation" id="toc-reverse-mode-backpropagation" class="nav-link" data-scroll-target="#reverse-mode-backpropagation"><strong>反向模式的反向传播</strong></a></li>
+  <li><a href="#jacobians-vjp-jvp" id="toc-jacobians-vjp-jvp" class="nav-link" data-scroll-target="#jacobians-vjp-jvp"><strong>Jacobian、向量-Jacobian 积与 Jacobian-向量积</strong></a></li>
+  <li><a href="#forward-mode-vs-reverse-mode" id="toc-forward-mode-vs-reverse-mode" class="nav-link" data-scroll-target="#forward-mode-vs-reverse-mode"><strong>前向模式与反向模式微分</strong></a></li>
+  <li><a href="#gradients-common-neural-network-layers" id="toc-gradients-common-neural-network-layers" class="nav-link" data-scroll-target="#gradients-common-neural-network-layers"><strong>常见神经网络层的梯度</strong></a></li>
+  <li><a href="#micro-autograd-engine" id="toc-micro-autograd-engine" class="nav-link" data-scroll-target="#micro-autograd-engine"><strong>从零实现微型自动微分引擎</strong></a></li>
+  <li><a href="#gradient-checking" id="toc-gradient-checking" class="nav-link" data-scroll-target="#gradient-checking"><strong>梯度检查</strong></a></li>
+  <li><a href="#vanishing-exploding-gradients" id="toc-vanishing-exploding-gradients" class="nav-link" data-scroll-target="#vanishing-exploding-gradients"><strong>梯度消失与梯度爆炸</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>本章对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：反向传播与自动微分</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/04-backpropagation-automatic-differentiation.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="backpropagation-automatic-differentiation" class="level2">
+<h2 class="anchored" data-anchor-id="backpropagation-automatic-differentiation"><strong>反向传播与自动微分</strong></h2>
+<p>只有当最终目标能够沿依赖关系回溯到所有曾影响它的参数时，神经网络才有可能学习。<strong>反向传播（backpropagation）</strong>是在这张依赖图上反向遍历，并高效应用链式法则的过程。<strong>自动微分（automatic differentiation, AD）</strong>则是一种更广义的软件技术：它把程序分解成可微的基本操作，再机械地组合这些操作的导数规则。在常规深度学习训练中，框架使用反向模式自动微分，从标量损失出发完成反向传播。</p>
+<p>这些术语彼此相关，但并不完全等价。反向传播描述梯度如何穿过分层模型或图结构模型；反向模式自动微分是一种通用算法模式；PyTorch autograd 则是它的一种具体实现，并明确规定了计算图构建、保存张量、梯度累加和高阶微分等行为。</p>
+<p>本章将深入 <code>.backward()</code> 之下，回答五个实际问题：</p>
+<ol type="1">
+<li>梯度能够说明参数的什么性质，又不能说明什么？</li>
+<li>当计算图发生分支并再次汇合时，局部导数规则如何组合？</li>
+<li>为什么反向模式不需要构造巨大的 Jacobian 矩阵？</li>
+<li>前向传播中必须保留哪些信息？</li>
+<li>如何发现错误、消失、爆炸或断开的梯度？</li>
+</ol>
+<p>第 05 章将讨论如何用这些梯度进行优化。本章关注的是梯度本身是否正确，以及它在数值计算中的行为。</p>
+<section id="learning-credit-assignment" class="level3">
+<h3 class="anchored" data-anchor-id="learning-credit-assignment"><strong>作为信用分配的学习</strong></h3>
+<p>设参数为 <span class="math inline">\(\theta \in \mathbb{R}^{P}\)</span> 的模型产生预测 <span class="math inline">\(f_\theta(X)\)</span>，并由一个标量损失度量预测与目标之间的差异：</p>
+<p><span class="math display">\[
+\mathcal{L}(\theta)=\ell(f_\theta(X),Y).
+\]</span></p>
+<p><strong>信用分配问题（credit-assignment problem）</strong>询问：每个参数对当前损失贡献了多少，以及沿哪个局部方向改变该参数会使损失发生怎样的变化。答案由梯度给出：</p>
+<p><span class="math display">\[
+\nabla_\theta \mathcal{L}
+=
+\begin{bmatrix}
+\partial \mathcal{L}/\partial \theta_1 &amp; \cdots &amp; \partial \mathcal{L}/\partial \theta_P
+\end{bmatrix}^{\top}.
+\]</span></p>
+<p>对于一个很小的扰动 <span class="math inline">\(\Delta\theta\)</span>，一阶 Taylor 展开给出</p>
+<p><span class="math display">\[
+\mathcal{L}(\theta+\Delta\theta)
+\approx
+\mathcal{L}(\theta)
++
+\nabla_\theta\mathcal{L}^{\top}\Delta\theta.
+\]</span></p>
+<p>因此，在 Euclidean 范数下，梯度指向局部上升最快的方向；当梯度非零时，<span class="math inline">\(-\nabla_\theta\mathcal{L}\)</span> 是一个局部下降方向。某个梯度分量为正，并不表示相应参数“有问题”。它只表示：在其他坐标保持不变时，增大这个坐标会使当前损失在局部增大。若重新参数化、改变尺度、换一个批次或更换目标函数，这种解释也会随之改变。</p>
+<p>信用分配也不等于因果解释。参数梯度描述的是指定计算过程的局部敏感度。它本身不能证明某个输入特征导致了真实世界中的结果，也不能证明某个参数具有明确语义，更不能保证一次有限幅度的更新一定产生线性近似所预测的效果。</p>
+<details>
+<summary>
+<strong>PyTorch：用梯度检验局部下降方向</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">31</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">3</span>, <span class="dv">5</span>), nn.Tanh(), nn.Linear(<span class="dv">5</span>, <span class="dv">1</span>))</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(<span class="dv">8</span>, <span class="dv">3</span>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.randn(<span class="dv">8</span>, <span class="dv">1</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>loss_before <span class="op">=</span> F.mse_loss(model(features), targets)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>model.zero_grad()</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>loss_before.backward()</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Every trainable parameter should receive a finite gradient from this loss.</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, parameter <span class="kw">in</span> model.named_parameters():</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> parameter.grad <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>, <span class="ss">f"missing gradient: </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> torch.isfinite(parameter.grad).<span class="bu">all</span>(), <span class="ss">f"non-finite gradient: </span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Take a deliberately small step along the negative gradient.</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>step_size <span class="op">=</span> <span class="fl">1e-3</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> parameter <span class="kw">in</span> model.parameters():</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>        parameter.add_(parameter.grad, alpha<span class="op">=-</span>step_size)</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>loss_after <span class="op">=</span> F.mse_loss(model(features), targets)</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"loss before:"</span>, <span class="bu">float</span>(loss_before.detach()))</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"loss after: "</span>, <span class="bu">float</span>(loss_after.detach()))</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> loss_after <span class="op">&lt;</span> loss_before</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个实验验证的是一个局部命题，而不是一种完整的训练策略。更大的步长可能越过合适区域；在一个 mini-batch 上计算的梯度，也未必降低总体损失。动量、自适应缩放、学习率调度和随机性都会改变“信用”如何转化为参数更新；这些机制属于优化，而不是微分本身。</p>
+<p><strong>应用。</strong> 梯度可用于训练参数、发现与损失断开的模块、进行敏感度分析，并为对抗扰动、影响近似、元学习和可微模拟等方法提供基础组件。</p>
+<p><strong>对比总结。</strong> 损失为完整预测分配一个标量分数；梯度把局部敏感度分配给各个参数；优化器决定如何把这种敏感度转化为有限幅度的更新。三者都不能单独提供因果解释。</p>
+</section>
+<section id="chain-rule-computation-graphs" class="level3">
+<h3 class="anchored" data-anchor-id="chain-rule-computation-graphs"><strong>计算图上的链式法则</strong></h3>
+<p>复杂模型的求导可以通过把它分解成简单操作来完成。若</p>
+<p><span class="math display">\[
+u=g(x), \qquad y=f(u),
+\]</span></p>
+<p>则标量链式法则为</p>
+<p><span class="math display">\[
+\frac{dy}{dx}
+=
+\frac{dy}{du}\frac{du}{dx}.
+\]</span></p>
+<p>因子 <span class="math inline">\(du/dx\)</span> 是操作 <span class="math inline">\(g\)</span> 已知的<strong>局部导数（local derivative）</strong>；<span class="math inline">\(dy/du\)</span> 是从计算图后续部分传来的<strong>上游梯度（upstream gradient）</strong>。二者的乘积就是继续传给 <span class="math inline">\(x\)</span> 的梯度。每个操作都不需要理解整个网络，只需要知道自身的局部导数规则和收到的上游敏感度。</p>
+<p>计算图通常是有向无环图，而不是一条简单链。考虑</p>
+<p><span class="math display">\[
+a=xy, \qquad b=x+y, \qquad f=ab.
+\]</span></p>
+<p>变量 <span class="math inline">\(x\)</span> 同时通过 <span class="math inline">\(a\)</span> 和 <span class="math inline">\(b\)</span> 两条路径影响 <span class="math inline">\(f\)</span>。多元链式法则会把不同路径的贡献相加：</p>
+<p><span class="math display">\[
+\frac{\partial f}{\partial x}
+=
+\frac{\partial f}{\partial a}\frac{\partial a}{\partial x}
++
+\frac{\partial f}{\partial b}\frac{\partial b}{\partial x}
+=by+a.
+\]</span></p>
+<p>同理，<span class="math inline">\(\partial f/\partial y=bx+a\)</span>。这正是梯度实现必须在分支处使用 <code>+=</code> 的原因。若直接覆盖梯度，就只保留其中一条路径，并且会在没有明显报错的情况下得到错误结果。</p>
+<p>计算图结构还解释了三种反复出现的求导模式：</p>
+<ul>
+<li>加法节点把上游梯度原样传给两个输入；</li>
+<li>乘法节点用前向传播中另一个输入的值缩放各自的输入梯度；</li>
+<li>广播操作需要沿前向传播中被虚拟扩展的所有轴对梯度求和。</li>
+</ul>
+<details>
+<summary>
+<strong>PyTorch：将逐路径链式法则计算与 autograd 对照</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>x_value, y_value <span class="op">=</span> <span class="fl">2.0</span>, <span class="op">-</span><span class="fl">3.0</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Forward pass through a graph with two paths from each input to f.</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>a <span class="op">=</span> x_value <span class="op">*</span> y_value</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>b <span class="op">=</span> x_value <span class="op">+</span> y_value</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>f <span class="op">=</span> a <span class="op">*</span> b</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Reverse pass: f = a * b.</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>df_da <span class="op">=</span> b</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>df_db <span class="op">=</span> a</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Accumulate contributions through a = x*y and b = x+y.</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>manual_df_dx <span class="op">=</span> df_da <span class="op">*</span> y_value <span class="op">+</span> df_db <span class="op">*</span> <span class="fl">1.0</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>manual_df_dy <span class="op">=</span> df_da <span class="op">*</span> x_value <span class="op">+</span> df_db <span class="op">*</span> <span class="fl">1.0</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.tensor(x_value, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> torch.tensor(y_value, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> (x <span class="op">*</span> y) <span class="op">*</span> (x <span class="op">+</span> y)</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>output.backward()</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> output.item() <span class="op">==</span> f</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> x.grad.item() <span class="op">==</span> manual_df_dx</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> y.grad.item() <span class="op">==</span> manual_df_dy</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"df/dx:"</span>, x.grad.item(), <span class="st">"df/dy:"</span>, y.grad.item())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>计算图必须按与依赖关系一致的顺序遍历。前向计算采用从输入到输出的拓扑顺序；反向传播则使用相反顺序，从而保证每个节点在继续向前驱传播之前，已经收到所有下游路径的贡献。</p>
+<p><strong>应用。</strong> 同一规则可处理残差分支、共享参数、绑定嵌入、循环展开和多任务输出头。只要一个张量通过多条路径影响损失，它的最终梯度就是所有路径贡献之和。</p>
+<p><strong>对比总结。</strong> 链式结构会连乘局部导数；分叉会产生多条路径，而路径贡献需要相加；计算图记录了应采用哪种组合规则。反向传播是在这张图上执行动态规划，它复用中间敏感度，而不是分别枚举每一条路径。</p>
+</section>
+<section id="forward-pass-local-derivatives" class="level3">
+<h3 class="anchored" data-anchor-id="forward-pass-local-derivatives"><strong>前向传播与局部导数</strong></h3>
+<p><strong>前向传播（forward pass）</strong>按照依赖顺序计算模型。在启用梯度记录时，它还会保存足够的信息，以便随后执行各个操作的局部反向规则。对于一个两层 MLP，</p>
+<p><span class="math display">\[
+Z_1=XW_1^{\top}+b_1,
+\qquad
+H=\operatorname{ReLU}(Z_1),
+\qquad
+\widehat{Y}=HW_2^{\top}+b_2,
+\qquad
+\mathcal{L}=\ell(\widehat{Y},Y).
+\]</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/dl04-forward-computation-graph.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="前向计算图按照依赖顺序，把输入与参数经过一系列操作连接到最终目标。"><img src="../../Deep-Learning/assets/dl04-forward-computation-graph.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:78.0%" alt="一张前向计算图，展示输入与模型参数如何依次经过矩阵乘法、激活、正则化并到达最终目标。"></a></p>
+</figure>
+</div>
+<figcaption>前向计算图按照依赖顺序，把输入与参数经过一系列操作连接到最终目标。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_multilayer-perceptrons/backprop.html">Dive into Deep Learning, Forward Propagation, Backward Propagation, and Computational Graphs</a>，采用 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 许可。</em></p>
+<p>不同操作在反向传播中需要不同的已保存信息：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>前向操作</th>
+<th>输出</th>
+<th>反向传播通常需要的信息</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(y=x_1+x_2\)</span></td>
+<td>和</td>
+<td>用于还原广播的输入形状</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(y=x_1x_2\)</span></td>
+<td>积</td>
+<td>两个输入值</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(Y=XW^{\top}+b\)</span></td>
+<td>仿射输出</td>
+<td><span class="math inline">\(X\)</span>、<span class="math inline">\(W\)</span> 以及 <span class="math inline">\(b\)</span> 的广播形状</td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(y=\operatorname{ReLU}(x)\)</span></td>
+<td>阈值化后的值</td>
+<td>例如 <span class="math inline">\(x&gt;0\)</span> 的掩码</td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(y=\tanh(x)\)</span></td>
+<td>有界激活值</td>
+<td><span class="math inline">\(x\)</span>，或已经算出的输出 <span class="math inline">\(y\)</span></td>
+</tr>
+<tr class="even">
+<td>归一化</td>
+<td>归一化张量</td>
+<td>统计量、尺度倒数，有时还包括归一化后的激活值</td>
+</tr>
+</tbody>
+</table>
+<p>保存下来的对象通常称为<strong>缓存（cache）</strong>或<strong>上下文（context）</strong>。保存所有内容可以减少重算，却会增加激活内存；减少保存内容，则可能要求在反向传播时重新执行一部分前向计算。激活检查点（activation checkpointing）正是通过只保留部分边界，并在之后重放内部操作，用额外计算换取更低内存占用。</p>
+<p>前向值还决定了当前应启用哪条局部规则。ReLU 的导数取决于输入是否为正；最大池化必须记住获胜索引；对于数据依赖分支，eager 动态图只会记录实际执行过的操作。</p>
+<details>
+<summary>
+<strong>PyTorch：显式构建前向缓存并统计其中张量</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> mlp_forward_with_cache(x, weight_1, bias_1, weight_2, bias_2):</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Return predictions plus exactly the values used by a manual backward pass."""</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    pre_activation <span class="op">=</span> x <span class="op">@</span> weight_1.T <span class="op">+</span> bias_1</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> F.relu(pre_activation)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> hidden <span class="op">@</span> weight_2.T <span class="op">+</span> bias_2</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    cache <span class="op">=</span> {</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"x"</span>: x,</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"weight_1"</span>: weight_1,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"pre_activation"</span>: pre_activation,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"hidden"</span>: hidden,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"weight_2"</span>: weight_2,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> prediction, cache</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">37</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(<span class="dv">16</span>, <span class="dv">8</span>)</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>weight_1 <span class="op">=</span> torch.randn(<span class="dv">12</span>, <span class="dv">8</span>)</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>bias_1 <span class="op">=</span> torch.randn(<span class="dv">12</span>)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>weight_2 <span class="op">=</span> torch.randn(<span class="dv">4</span>, <span class="dv">12</span>)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>bias_2 <span class="op">=</span> torch.randn(<span class="dv">4</span>)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>prediction, cache <span class="op">=</span> mlp_forward_with_cache(x, weight_1, bias_1, weight_2, bias_2)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>cache_bytes <span class="op">=</span> <span class="bu">sum</span>(tensor.numel() <span class="op">*</span> tensor.element_size() <span class="cf">for</span> tensor <span class="kw">in</span> cache.values())</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> prediction.shape <span class="op">==</span> (<span class="dv">16</span>, <span class="dv">4</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cache[<span class="st">"pre_activation"</span>].shape <span class="op">==</span> (<span class="dv">16</span>, <span class="dv">12</span>)</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"cached tensors:"</span>, {name: <span class="bu">tuple</span>(value.shape) <span class="cf">for</span> name, value <span class="kw">in</span> cache.items()})</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"cache payload bytes:"</span>, cache_bytes)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个字节数包含了已经由其他对象持有的张量，因此不能把它当作峰值内存分析器。不过，它清楚揭示了反向公式依赖哪些信息。框架可能保存视图、压缩掩码、融合后的中间量或可重算元数据，而不一定采用这里展示的 Python 字典形式。</p>
+<p><strong>应用。</strong> 理解保存张量可以解释：为什么训练比推理更占内存，为什么原地修改可能破坏反向传播，以及检查点技术或融合自定义 kernel 如何改变内存与计算之间的权衡。</p>
+<p><strong>对比总结。</strong> 普通前向计算负责得到数值；启用梯度的前向计算还会构建导数历史并保留上下文。缓存减少反向计算量但消耗内存；重算降低内存，却需要再执行一次部分前向传播。</p>
+</section>
+<section id="reverse-mode-backpropagation" class="level3">
+<h3 class="anchored" data-anchor-id="reverse-mode-backpropagation"><strong>反向模式的反向传播</strong></h3>
+<p>对于每个中间变量 <span class="math inline">\(v\)</span>，定义它的<strong>伴随量（adjoint）</strong>或反向敏感度：</p>
+<p><span class="math display">\[
+\bar{v}=\frac{\partial \mathcal{L}}{\partial v}.
+\]</span></p>
+<p>反向模式从标量损失开始，以 <span class="math inline">\(\bar{\mathcal{L}}=1\)</span> 作为种子，并按逆拓扑顺序访问操作。若一个节点计算 <span class="math inline">\(v=f(u_1,\ldots,u_k)\)</span>，它的 pullback 执行</p>
+<p><span class="math display">\[
+\bar{u}_i
+\mathrel{+}=
+\left(\frac{\partial v}{\partial u_i}\right)^{\top}\bar{v}.
+\]</span></p>
+<p>对于向量中间量，转置符号非常重要。从概念上看，节点接收一个位于输出空间中的敏感度，并把它拉回到每个输入空间。算法可概括为：</p>
+<pre class="text"><code>1. Execute the forward graph and retain required contexts.
+2. Topologically order nodes from leaves to the scalar loss.
+3. Initialize every adjoint to zero and set loss.adjoint = 1.
+4. Visit nodes in reverse topological order.
+5. Apply each node's local pullback and accumulate into parent adjoints.
+6. Read the adjoints of parameters and requested inputs.</code></pre>
+<p>对上一节的 MLP 和均方误差，令 <span class="math inline">\(G_{\widehat{Y}}=\partial\mathcal{L}/\partial\widehat{Y}\)</span>，反向方程为</p>
+<p><span class="math display">\[
+G_{W_2}=G_{\widehat{Y}}^{\top}H,
+\quad
+G_{b_2}=\sum_{b=1}^{B}G_{\widehat{Y},b},
+\quad
+G_H=G_{\widehat{Y}}W_2,
+\]</span></p>
+<p><span class="math display">\[
+G_{Z_1}=G_H\odot\mathbf{1}[Z_1&gt;0],
+\quad
+G_{W_1}=G_{Z_1}^{\top}X,
+\quad
+G_{b_1}=\sum_{b=1}^{B}G_{Z_1,b}.
+\]</span></p>
+<p>每个梯度的形状都与被求导对象一致：<span class="math inline">\(G_{W_1}\)</span> 的形状是 <code>[H, D_in]</code>，<span class="math inline">\(G_{b_1}\)</span> 的形状是 <code>[H]</code>，<span class="math inline">\(G_X\)</span> 的形状是 <code>[B, D_in]</code>。检查形状是排查手动反向推导错误的最快方法之一。</p>
+<details>
+<summary>
+<strong>PyTorch：手动推导完整的两层 MLP 反向传播</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">41</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>B, D_IN, HIDDEN, D_OUT <span class="op">=</span> <span class="dv">5</span>, <span class="dv">3</span>, <span class="dv">7</span>, <span class="dv">2</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(B, D_IN)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>target <span class="op">=</span> torch.randn(B, D_OUT)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>weight_1 <span class="op">=</span> torch.randn(HIDDEN, D_IN)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>bias_1 <span class="op">=</span> torch.randn(HIDDEN)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>weight_2 <span class="op">=</span> torch.randn(D_OUT, HIDDEN)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>bias_2 <span class="op">=</span> torch.randn(D_OUT)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Forward pass.</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>z_1 <span class="op">=</span> x <span class="op">@</span> weight_1.T <span class="op">+</span> bias_1</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>hidden <span class="op">=</span> F.relu(z_1)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>prediction <span class="op">=</span> hidden <span class="op">@</span> weight_2.T <span class="op">+</span> bias_2</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> F.mse_loss(prediction, target, reduction<span class="op">=</span><span class="st">"mean"</span>)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Reverse pass. MSE averages over every prediction element.</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>grad_prediction <span class="op">=</span> <span class="fl">2.0</span> <span class="op">*</span> (prediction <span class="op">-</span> target) <span class="op">/</span> prediction.numel()</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>grad_weight_2 <span class="op">=</span> grad_prediction.T <span class="op">@</span> hidden</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>grad_bias_2 <span class="op">=</span> grad_prediction.<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>grad_hidden <span class="op">=</span> grad_prediction <span class="op">@</span> weight_2</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>grad_z_1 <span class="op">=</span> grad_hidden <span class="op">*</span> (z_1 <span class="op">&gt;</span> <span class="dv">0</span>)</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>grad_weight_1 <span class="op">=</span> grad_z_1.T <span class="op">@</span> x</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>grad_bias_1 <span class="op">=</span> grad_z_1.<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>grad_x <span class="op">=</span> grad_z_1 <span class="op">@</span> weight_1</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="co"># Rebuild the same graph with tracked leaves and compare against autograd.</span></span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> x.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>w1_ref <span class="op">=</span> weight_1.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>b1_ref <span class="op">=</span> bias_1.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>w2_ref <span class="op">=</span> weight_2.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a>b2_ref <span class="op">=</span> bias_2.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a>prediction_ref <span class="op">=</span> F.relu(x_ref <span class="op">@</span> w1_ref.T <span class="op">+</span> b1_ref) <span class="op">@</span> w2_ref.T <span class="op">+</span> b2_ref</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>loss_ref <span class="op">=</span> F.mse_loss(prediction_ref, target)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>loss_ref.backward()</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a>comparisons <span class="op">=</span> [</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a>    (grad_x, x_ref.grad),</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>    (grad_weight_1, w1_ref.grad),</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    (grad_bias_1, b1_ref.grad),</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>    (grad_weight_2, w2_ref.grad),</span>
+<span id="cb5-45"><a href="#cb5-45" aria-hidden="true" tabindex="-1"></a>    (grad_bias_2, b2_ref.grad),</span>
+<span id="cb5-46"><a href="#cb5-46" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb5-47"><a href="#cb5-47" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(torch.allclose(manual, automatic, atol<span class="op">=</span><span class="fl">1e-6</span>) <span class="cf">for</span> manual, automatic <span class="kw">in</span> comparisons)</span>
+<span id="cb5-48"><a href="#cb5-48" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"manual backward matches autograd:"</span>, <span class="va">True</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>反向传播之后，许多 eager 框架会释放已保存的计算图状态，因为这些状态可能非常大。<code>retain_graph=True</code> 会保留计算图以便再次反向遍历；<code>create_graph=True</code> 则记录导数计算本身，使其还能继续求高阶导数。两者解决的问题不同，也都会增加内存占用。</p>
+<p><strong>应用。</strong> 反向模式支撑常规神经网络训练、显著性梯度、基于梯度的输入优化，以及任何“标量目标对大量参数求导”的任务。</p>
+<p><strong>对比总结。</strong> 前向计算把数值从输入推向损失；反向模式把一个损失敏感度拉回到所有祖先节点。梯度累加处理共享路径，缓存的局部上下文则避免重复进行符号展开。</p>
+</section>
+<section id="jacobians-vjp-jvp" class="level3">
+<h3 class="anchored" data-anchor-id="jacobians-vjp-jvp"><strong>Jacobian、向量-Jacobian 积与 Jacobian-向量积</strong></h3>
+<p>对于向量函数 <span class="math inline">\(f:\mathbb{R}^{n}\rightarrow\mathbb{R}^{m}\)</span>，Jacobian 定义为</p>
+<p><span class="math display">\[
+J_f(x)
+=
+\frac{\partial f}{\partial x}
+\in\mathbb{R}^{m\times n},
+\qquad
+[J_f]_{ij}=\frac{\partial f_i}{\partial x_j}.
+\]</span></p>
+<p>显式构造 <span class="math inline">\(J_f\)</span> 往往非常浪费。若某层把一百万维激活映射到另一个一百万维激活，其形式上的 Jacobian 将包含 <span class="math inline">\(10^{12}\)</span> 个元素，即使矩阵本身具有稀疏结构，或其作用可以被廉价计算。自动微分系统因此通常暴露 Jacobian 的<strong>乘积</strong>，而不是完整矩阵。</p>
+<p><strong>Jacobian-向量积（Jacobian-vector product, JVP）</strong>把输入切向量 <span class="math inline">\(u\in\mathbb{R}^{n}\)</span> 向前推送：</p>
+<p><span class="math display">\[
+J_f(x)u\in\mathbb{R}^{m}.
+\]</span></p>
+<p>它就是 <span class="math inline">\(f\)</span> 沿 <span class="math inline">\(u\)</span> 方向的方向导数：</p>
+<p><span class="math display">\[
+J_f(x)u
+=
+\left.\frac{d}{d\epsilon}f(x+\epsilon u)\right|_{\epsilon=0}.
+\]</span></p>
+<p><strong>向量-Jacobian 积（vector-Jacobian product, VJP）</strong>把输出余切向量 <span class="math inline">\(v\in\mathbb{R}^{m}\)</span> 向后拉回：</p>
+<p><span class="math display">\[
+v^{\top}J_f(x)\in\mathbb{R}^{n}.
+\]</span></p>
+<p>当 <span class="math inline">\(m=1\)</span> 且 <span class="math inline">\(v=1\)</span> 时，VJP 就是熟悉的标量输出梯度。对非标量输出调用 PyTorch 的 <code>.backward(gradient=...)</code> 同样是在计算 VJP：传入的张量就是输出端的余切种子。</p>
+<details>
+<summary>
+<strong>PyTorch：在不显式构造 Jacobian 的情况下验证 JVP 与 VJP</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.func <span class="im">import</span> jacrev, jvp, vjp</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> vector_function(x: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.stack(</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        (</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            x[<span class="dv">0</span>] <span class="op">*</span> x[<span class="dv">1</span>] <span class="op">+</span> torch.sin(x[<span class="dv">2</span>]),</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>            x[<span class="dv">0</span>].square() <span class="op">+</span> torch.exp(x[<span class="dv">1</span>]),</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.tensor([<span class="fl">0.7</span>, <span class="op">-</span><span class="fl">0.4</span>, <span class="fl">1.2</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>input_tangent <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="fl">2.0</span>, <span class="op">-</span><span class="fl">1.0</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>output_cotangent <span class="op">=</span> torch.tensor([<span class="fl">0.5</span>, <span class="op">-</span><span class="fl">1.5</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>output, jvp_result <span class="op">=</span> jvp(vector_function, (x,), (input_tangent,))</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>output_again, pullback <span class="op">=</span> vjp(vector_function, x)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>vjp_result <span class="op">=</span> pullback(output_cotangent)[<span class="dv">0</span>]</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># The full Jacobian is formed only as a small reference check.</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>jacobian <span class="op">=</span> jacrev(vector_function)(x)</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> jacobian.shape <span class="op">==</span> (<span class="dv">2</span>, <span class="dv">3</span>)</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(jvp_result, jacobian <span class="op">@</span> input_tangent)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(vjp_result, output_cotangent <span class="op">@</span> jacobian)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(output, output_again)</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"JVP shape:"</span>, <span class="bu">tuple</span>(jvp_result.shape))</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"VJP shape:"</span>, <span class="bu">tuple</span>(vjp_result.shape))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>术语 <em>tangent</em> 与 <em>cotangent</em> 描述这些对象在数学上如何变换。在代码中，两者都表现为与相应 primal 变量形状一致的张量；但在推导转置、批处理导数变换或组合自定义规则时，这一区分非常重要。</p>
+<p><strong>应用。</strong> JVP 可用于方向敏感度、隐式模型、微分方程，以及 forward-over-reverse 的 Hessian 乘积；VJP 可用于标量损失训练、伴随方法，以及对选定输出加权组合求梯度。</p>
+<p><strong>对比总结。</strong> 完整 Jacobian 以高存储成本回答所有输入-输出偏导；JVP 询问输出沿一个输入方向如何变化；VJP 询问一个加权输出敏感度如何映射回输入。现代自动微分通常只计算任务真正需要的乘积。</p>
+</section>
+<section id="forward-mode-vs-reverse-mode" class="level3">
+<h3 class="anchored" data-anchor-id="forward-mode-vs-reverse-mode"><strong>前向模式与反向模式微分</strong></h3>
+<p>前向模式与反向模式沿相反的计算方向应用同一链式法则。假设计算 <span class="math inline">\(f:\mathbb{R}^{n}\to\mathbb{R}^{m}\)</span> 的代价为 <span class="math inline">\(C\)</span>。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 30%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>模式</th>
+<th>传播的量</th>
+<th style="text-align: right;">构造完整 Jacobian 所需的近似遍历次数</th>
+<th>最适合的问题形状</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>前向模式</td>
+<td>通过 JVP 传播一个输入切向量</td>
+<td style="text-align: right;"><span class="math inline">\(n\)</span></td>
+<td>输入少、输出多</td>
+</tr>
+<tr class="even">
+<td>反向模式</td>
+<td>通过 VJP 传播一个输出余切向量</td>
+<td style="text-align: right;"><span class="math inline">\(m\)</span></td>
+<td>输入多、输出少</td>
+</tr>
+</tbody>
+</table>
+<p>一次前向模式遍历能计算一个输入方向对全部输出的影响；一次反向模式遍历则能计算所有输入对一个加权输出方向的影响。神经网络训练通常拥有数百万个参数输入，却只有一个标量损失，因此反向模式大约只需一次前向和一次同量级反向计算，就能获得全部参数梯度，而不必为每个参数分别遍历。</p>
+<p>相应代价是内存。前向模式可让切向量与 primal 值一起传播，而无需保存完整的反向 tape；反向模式通常必须保留或重算中间上下文，直到反向传播使用它们。实际成本取决于基本操作结构、批处理、编译器融合和检查点策略，但输入与输出维度仍是选择模式时最重要的第一判断。</p>
+<p>不同微分模式还可以组合。对于标量函数 <span class="math inline">\(g:\mathbb{R}^{n}\to\mathbb{R}\)</span>，其 Hessian <span class="math inline">\(H_g\in\mathbb{R}^{n\times n}\)</span> 往往大到无法构造。Hessian-向量积</p>
+<p>$$ H_g(x)u</p>
+<p>$$</p>
+<p>可以通过对反向模式产生的梯度函数执行一次 JVP 来获得。这种 <strong>forward-over-reverse</strong> 组合可用于二阶优化、曲率诊断、影响方法和隐式微分。</p>
+<details>
+<summary>
+<strong>PyTorch：通过组合变换计算 Hessian-向量积</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.func <span class="im">import</span> grad, hessian, jvp</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> scalar_objective(x: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    interaction <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> x.<span class="bu">sum</span>().square()</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (torch.sin(x) <span class="op">*</span> x.square()).<span class="bu">sum</span>() <span class="op">+</span> interaction</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.tensor([<span class="fl">0.2</span>, <span class="op">-</span><span class="fl">0.7</span>, <span class="fl">1.1</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>direction <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="fl">0.5</span>, <span class="op">-</span><span class="fl">2.0</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>gradient_function <span class="op">=</span> grad(scalar_objective)  <span class="co"># reverse mode: R^n -&gt; R^n</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>gradient_value, hessian_vector <span class="op">=</span> jvp(gradient_function, (x,), (direction,))</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co"># Construct the tiny full Hessian only to verify the product.</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>full_hessian <span class="op">=</span> hessian(scalar_objective)(x)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> gradient_value.shape <span class="op">==</span> x.shape</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(hessian_vector, full_hessian <span class="op">@</span> direction, atol<span class="op">=</span><span class="fl">1e-10</span>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Hessian-vector product:"</span>, hessian_vector)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>在常规 autograd 代码中，若返回的梯度本身还需要继续可微，就必须设置 <code>create_graph=True</code>。<code>retain_graph=True</code> 仅仅保留现有 tape 以便再次遍历，并不会自动让导数操作变得可微。混淆这两个标志既会导致正确性问题，也会造成不必要的内存增长。</p>
+<p><strong>应用。</strong> 反向模式是标量损失模型训练的默认方案；前向模式适合低维参数敏感度或宽输出模拟器；混合模式则让高级优化和科学机器学习无需显式构造完整 Hessian 或 Jacobian。</p>
+<p><strong>对比总结。</strong> 模式选择主要由输入与输出维度决定。反向模式并非始终更快；高阶导数最好表示为 JVP 与 VJP 变换的组合，而不是显式导数矩阵。</p>
+</section>
+<section id="gradients-common-neural-network-layers" class="level3">
+<h3 class="anchored" data-anchor-id="gradients-common-neural-network-layers"><strong>常见神经网络层的梯度</strong></h3>
+<p>反向传播之所以实用，是因为框架为可复用的基本操作实现了局部 pullback。不同架构中会反复出现以下模式。</p>
+<p>对于仿射层</p>
+<p><span class="math display">\[
+Y=XW^{\top}+b,
+\quad
+X\in\mathbb{R}^{B\times D_{in}},
+\quad
+W\in\mathbb{R}^{D_{out}\times D_{in}},
+\]</span></p>
+<p>以及上游梯度 <span class="math inline">\(G=\partial\mathcal{L}/\partial Y\)</span>，</p>
+<p><span class="math display">\[
+\frac{\partial\mathcal{L}}{\partial X}=GW,
+\qquad
+\frac{\partial\mathcal{L}}{\partial W}=G^{\top}X,
+\qquad
+\frac{\partial\mathcal{L}}{\partial b}=\sum_{i=1}^{B}G_i.
+\]</span></p>
+<p>偏置梯度需要归约，是因为前向传播把一个偏置向量广播到了整个 batch。</p>
+<p>逐元素激活函数会把上游梯度与局部导数逐元素相乘：</p>
+<p><span class="math display">\[
+G_x=G_y\odot\phi'(x).
+\]</span></p>
+<p>对于 ReLU，在常用的零点约定下，<span class="math inline">\(\phi'(x)=\mathbf{1}[x&gt;0]\)</span>。对于 sigmoid 输出 <span class="math inline">\(s=\sigma(x)\)</span>，<span class="math inline">\(\phi'(x)=s(1-s)\)</span>；对于 <span class="math inline">\(t=\tanh(x)\)</span>，<span class="math inline">\(\phi'(x)=1-t^2\)</span>。复用前向输出可以避免再次计算非线性函数。</p>
+<p>softmax 与 cross-entropy 最适合视为一个融合表达式来求导。对 logits <span class="math inline">\(z\)</span>、one-hot 目标 <span class="math inline">\(q\)</span> 以及概率 <span class="math inline">\(p=\operatorname{softmax}(z)\)</span>，</p>
+<p><span class="math display">\[
+\ell=-\sum_{k=1}^{K}q_k\log p_k,
+\qquad
+\frac{\partial\ell}{\partial z}=p-q.
+\]</span></p>
+<p>这个紧凑结果避免了显式保存稠密 softmax Jacobian。若对 <span class="math inline">\(B\)</span> 个样本取平均，还需除以 <span class="math inline">\(B\)</span>。</p>
+<p>其他层遵循结构化的累加规则。embedding 的反向传播把梯度 scatter-add 到每个被引用的行，因此重复 ID 会发生累加；卷积的反向传播是另一种类似卷积或相关的操作，并把不同位置对共享权重的贡献累加；归一化的反向传播会耦合共享同一均值和方差的数值，因此不能把它视为相互独立的逐元素缩放。</p>
+<details>
+<summary>
+<strong>PyTorch：推导 softmax-cross-entropy 与仿射层梯度</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">43</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>B, D_IN, K <span class="op">=</span> <span class="dv">6</span>, <span class="dv">4</span>, <span class="dv">3</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(B, D_IN, dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>weight <span class="op">=</span> torch.randn(K, D_IN, dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>bias <span class="op">=</span> torch.randn(K, dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.tensor([<span class="dv">0</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">2</span>])</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> x <span class="op">@</span> weight.T <span class="op">+</span> bias</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>probabilities <span class="op">=</span> logits.softmax(dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Fused cross-entropy derivative: (probability - one_hot_target) / B.</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>grad_logits <span class="op">=</span> probabilities.clone()</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>grad_logits[torch.arange(B), targets] <span class="op">-=</span> <span class="fl">1.0</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>grad_logits <span class="op">/=</span> B</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>manual_grad_weight <span class="op">=</span> grad_logits.T <span class="op">@</span> x</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>manual_grad_bias <span class="op">=</span> grad_logits.<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>manual_grad_x <span class="op">=</span> grad_logits <span class="op">@</span> weight</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>x_ref <span class="op">=</span> x.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>weight_ref <span class="op">=</span> weight.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>bias_ref <span class="op">=</span> bias.clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> F.cross_entropy(x_ref <span class="op">@</span> weight_ref.T <span class="op">+</span> bias_ref, targets)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(manual_grad_weight, weight_ref.grad, atol<span class="op">=</span><span class="fl">1e-10</span>)</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(manual_grad_bias, bias_ref.grad, atol<span class="op">=</span><span class="fl">1e-10</span>)</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(manual_grad_x, x_ref.grad, atol<span class="op">=</span><span class="fl">1e-10</span>)</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"fused derivative matches autograd:"</span>, <span class="va">True</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>自定义 kernel 必须为每个可微输入返回一个梯度，正确归约广播维度，并维持 dtype 与 device 约定。即使局部导数看似合理，只要形状或累加语义错误，整体梯度仍然会出错。</p>
+<p><strong>应用。</strong> 熟悉这些规则有助于推导自定义层、审计融合 kernel、估算反向计算成本，并判断为什么某些张量必须保存；在调试时，autograd 的输出也会因此不再像黑箱。</p>
+<p><strong>对比总结。</strong> 逐元素层会掩蔽或缩放上游梯度；仿射层使用矩阵收缩；广播参数需要归约扩展轴；共享参数会累加每次使用的贡献；融合损失利用代数化简避免完整 Jacobian。</p>
+</section>
+<section id="micro-autograd-engine" class="level3">
+<h3 class="anchored" data-anchor-id="micro-autograd-engine"><strong>从零实现微型自动微分引擎</strong></h3>
+<p>一个最小反向模式引擎只需要四个核心概念：</p>
+<ol type="1">
+<li>一个 value 保存前向数值和累积梯度；</li>
+<li>每个操作创建一个与其父节点相连的输出节点；</li>
+<li>输出节点拥有局部 <code>_backward</code> 函数，用于更新父节点梯度；</li>
+<li><code>.backward()</code> 构建拓扑顺序，把最终梯度设为 1，再按相反顺序执行局部规则。</li>
+</ol>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/micrograd-neuron-graph.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Micrograd 把一个标量神经元可视化为动态图，其中节点同时保存前向数值与反向梯度。"><img src="../../Deep-Learning/assets/micrograd-neuron-graph.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:100.0%" alt="一个较宽的 Micrograd 双输入神经元计算图，展示标量操作、前向数值和梯度。"></a></p>
+</figure>
+</div>
+<figcaption>Micrograd 把一个标量神经元可视化为动态图，其中节点同时保存前向数值与反向梯度。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：Andrej Karpathy，<a href="https://github.com/karpathy/micrograd">Micrograd</a> 的 <code>gout.svg</code>，MIT License。</em></p>
+<p>下面的引擎只处理标量，因此每个局部导数都清晰可见。张量框架采用相同架构，只是它们的向量化 kernel 会在 pullback 中执行矩阵、归约、scatter 或卷积操作。</p>
+<details>
+<summary>
+<strong>Python：实现标量反向模式自动微分</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Value:</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""A scalar value with a dynamically constructed reverse-mode graph."""</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, data, children<span class="op">=</span>(), operation<span class="op">=</span><span class="st">""</span>, label<span class="op">=</span><span class="st">""</span>):</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.data <span class="op">=</span> <span class="bu">float</span>(data)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.grad <span class="op">=</span> <span class="fl">0.0</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.parents <span class="op">=</span> <span class="bu">tuple</span>(children)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.operation <span class="op">=</span> operation</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.label <span class="op">=</span> label</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>._backward <span class="op">=</span> <span class="kw">lambda</span>: <span class="va">None</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">@staticmethod</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> _coerce(other):</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> other <span class="cf">if</span> <span class="bu">isinstance</span>(other, Value) <span class="cf">else</span> Value(other)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__add__</span>(<span class="va">self</span>, other):</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>        other <span class="op">=</span> <span class="va">self</span>._coerce(other)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> Value(<span class="va">self</span>.data <span class="op">+</span> other.data, (<span class="va">self</span>, other), <span class="st">"+"</span>)</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> backward():</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.grad <span class="op">+=</span> output.grad</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>            other.grad <span class="op">+=</span> output.grad</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>        output._backward <span class="op">=</span> backward</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__mul__</span>(<span class="va">self</span>, other):</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a>        other <span class="op">=</span> <span class="va">self</span>._coerce(other)</span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> Value(<span class="va">self</span>.data <span class="op">*</span> other.data, (<span class="va">self</span>, other), <span class="st">"*"</span>)</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> backward():</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.grad <span class="op">+=</span> other.data <span class="op">*</span> output.grad</span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>            other.grad <span class="op">+=</span> <span class="va">self</span>.data <span class="op">*</span> output.grad</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a>        output._backward <span class="op">=</span> backward</span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__pow__</span>(<span class="va">self</span>, exponent):</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> Value(<span class="va">self</span>.data<span class="op">**</span>exponent, (<span class="va">self</span>,), <span class="ss">f"**</span><span class="sc">{</span>exponent<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> backward():</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.grad <span class="op">+=</span> exponent <span class="op">*</span> <span class="va">self</span>.data <span class="op">**</span> (exponent <span class="op">-</span> <span class="dv">1</span>) <span class="op">*</span> output.grad</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a>        output._backward <span class="op">=</span> backward</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output</span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> tanh(<span class="va">self</span>):</span>
+<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>        value <span class="op">=</span> math.tanh(<span class="va">self</span>.data)</span>
+<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a>        output <span class="op">=</span> Value(value, (<span class="va">self</span>,), <span class="st">"tanh"</span>)</span>
+<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> backward():</span>
+<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>            <span class="va">self</span>.grad <span class="op">+=</span> (<span class="fl">1.0</span> <span class="op">-</span> value<span class="op">**</span><span class="dv">2</span>) <span class="op">*</span> output.grad</span>
+<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a>        output._backward <span class="op">=</span> backward</span>
+<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> output</span>
+<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__neg__</span>(<span class="va">self</span>):</span>
+<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span> <span class="op">*</span> <span class="op">-</span><span class="fl">1.0</span></span>
+<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__sub__</span>(<span class="va">self</span>, other):</span>
+<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span> <span class="op">+</span> (<span class="op">-</span><span class="va">self</span>._coerce(other))</span>
+<span id="cb9-66"><a href="#cb9-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-67"><a href="#cb9-67" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__radd__</span>(<span class="va">self</span>, other):</span>
+<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span> <span class="op">+</span> other</span>
+<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__rmul__</span>(<span class="va">self</span>, other):</span>
+<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span> <span class="op">*</span> other</span>
+<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> backward(<span class="va">self</span>):</span>
+<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>        topological_order <span class="op">=</span> []</span>
+<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>        visited <span class="op">=</span> <span class="bu">set</span>()</span>
+<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> build(node):</span>
+<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> node <span class="kw">not</span> <span class="kw">in</span> visited:</span>
+<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>                visited.add(node)</span>
+<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a>                <span class="cf">for</span> parent <span class="kw">in</span> node.parents:</span>
+<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a>                    build(parent)</span>
+<span id="cb9-82"><a href="#cb9-82" aria-hidden="true" tabindex="-1"></a>                topological_order.append(node)</span>
+<span id="cb9-83"><a href="#cb9-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a>        build(<span class="va">self</span>)</span>
+<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.grad <span class="op">=</span> <span class="fl">1.0</span></span>
+<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> node <span class="kw">in</span> <span class="bu">reversed</span>(topological_order):</span>
+<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>            node._backward()</span>
+<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a><span class="co"># A two-input tanh neuron: y = tanh(x1*w1 + x2*w2 + b).</span></span>
+<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>x_1 <span class="op">=</span> Value(<span class="fl">1.5</span>, label<span class="op">=</span><span class="st">"x1"</span>)</span>
+<span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a>x_2 <span class="op">=</span> Value(<span class="op">-</span><span class="fl">2.0</span>, label<span class="op">=</span><span class="st">"x2"</span>)</span>
+<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>w_1 <span class="op">=</span> Value(<span class="fl">0.7</span>, label<span class="op">=</span><span class="st">"w1"</span>)</span>
+<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a>w_2 <span class="op">=</span> Value(<span class="op">-</span><span class="fl">0.3</span>, label<span class="op">=</span><span class="st">"w2"</span>)</span>
+<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a>bias <span class="op">=</span> Value(<span class="fl">0.2</span>, label<span class="op">=</span><span class="st">"b"</span>)</span>
+<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a>output <span class="op">=</span> (x_1 <span class="op">*</span> w_1 <span class="op">+</span> x_2 <span class="op">*</span> w_2 <span class="op">+</span> bias).tanh()</span>
+<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a>output.backward()</span>
+<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-99"><a href="#cb9-99" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare all leaf gradients against the equivalent PyTorch graph.</span></span>
+<span id="cb9-100"><a href="#cb9-100" aria-hidden="true" tabindex="-1"></a>torch_leaves <span class="op">=</span> [torch.tensor(v.data, requires_grad<span class="op">=</span><span class="va">True</span>) <span class="cf">for</span> v <span class="kw">in</span> (x_1, x_2, w_1, w_2, bias)]</span>
+<span id="cb9-101"><a href="#cb9-101" aria-hidden="true" tabindex="-1"></a>tx1, tx2, tw1, tw2, tbias <span class="op">=</span> torch_leaves</span>
+<span id="cb9-102"><a href="#cb9-102" aria-hidden="true" tabindex="-1"></a>torch_output <span class="op">=</span> torch.tanh(tx1 <span class="op">*</span> tw1 <span class="op">+</span> tx2 <span class="op">*</span> tw2 <span class="op">+</span> tbias)</span>
+<span id="cb9-103"><a href="#cb9-103" aria-hidden="true" tabindex="-1"></a>torch_output.backward()</span>
+<span id="cb9-104"><a href="#cb9-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-105"><a href="#cb9-105" aria-hidden="true" tabindex="-1"></a>micrograd_leaves <span class="op">=</span> (x_1, x_2, w_1, w_2, bias)</span>
+<span id="cb9-106"><a href="#cb9-106" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(<span class="bu">abs</span>(value.grad <span class="op">-</span> tensor.grad.item()) <span class="op">&lt;</span> <span class="fl">1e-6</span> <span class="cf">for</span> value, tensor <span class="kw">in</span> <span class="bu">zip</span>(micrograd_leaves, torch_leaves))</span>
+<span id="cb9-107"><a href="#cb9-107" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"output:"</span>, <span class="bu">round</span>(output.data, <span class="dv">6</span>))</span>
+<span id="cb9-108"><a href="#cb9-108" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"leaf gradients:"</span>, [<span class="bu">round</span>(value.grad, <span class="dv">6</span>) <span class="cf">for</span> value <span class="kw">in</span> micrograd_leaves])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里有两个容易遗漏的实现细节。第一，梯度必须使用 <code>+=</code>，因为同一节点可能被重复使用。第二，拓扑排序保证节点的 pullback 执行前，它的输出梯度已经收齐所有贡献。对于包含共享子表达式的图，若不使用记忆机制而递归展开表达式，计算量可能呈指数增长。</p>
+<p>生产级引擎还需要处理张量形状、device、dtype 提升、view、修改与版本检查、并行调度、自定义 kernel、图剪枝、saved-tensor hook、编译执行和高阶微分。这个小型引擎并不是替代品；它只是把这些系统背后的不变量单独呈现出来。</p>
+<p><strong>应用。</strong> 从零构建标量引擎，可以把 autograd 从一个不透明服务转化为具体的图算法。实现自定义 <code>autograd.Function</code> 或排查梯度漏累加时，它也可作为简洁的参照实现。</p>
+<p><strong>对比总结。</strong> 手动微分要为一个具体模型编写一套反向程序；微型引擎把可复用的 pullback 绑定到基本操作；生产级张量引擎则用向量化 kernel 和系统级状态管理实现同一套图逻辑。</p>
+</section>
+<section id="gradient-checking" class="level3">
+<h3 class="anchored" data-anchor-id="gradient-checking"><strong>梯度检查</strong></h3>
+<p>梯度检查把解析梯度或自动微分梯度与数值近似进行比较。对于标量函数 <span class="math inline">\(f\)</span> 和坐标 <span class="math inline">\(i\)</span>，中心差分为</p>
+<p><span class="math display">\[
+\frac{\partial f}{\partial x_i}
+\approx
+\frac{f(x+\epsilon e_i)-f(x-\epsilon e_i)}{2\epsilon}.
+\]</span></p>
+<p>中心差分的截断误差阶为 <span class="math inline">\(O(\epsilon^2)\)</span>，但把 <span class="math inline">\(\epsilon\)</span> 设得任意小会加剧浮点相消。可靠的检查通常使用 <code>float64</code>、如 <span class="math inline">\(10^{-6}\)</span> 的适中 epsilon、确定性计算，同时检查相对误差和绝对误差：</p>
+<p><span class="math display">\[
+\operatorname{relative\ error}
+=
+\frac{|g_{analytic}-g_{numeric}|}
+{\max(1,|g_{analytic}|,|g_{numeric}|)}.
+\]</span></p>
+<p>对于高维输入，逐坐标检查的成本很高。方向检查比较</p>
+<p><span class="math display">\[
+\nabla f(x)^{\top}u
+\quad\text{与}\quad
+\frac{f(x+\epsilon u)-f(x-\epsilon u)}{2\epsilon},
+\]</span></p>
+<p>它只用两次函数求值，就能沿一个随机方向同时检验全部坐标。不过，某个与该方向特殊对齐的错误可能被漏掉，因此使用多个方向或抽样多个坐标会更可靠。</p>
+<p>检查时应避开不可微边界。ReLU 在零点、max 的并列值、离散索引决策、裁剪阈值和随机采样，都可能产生合理但依赖约定的差异。dropout 与随机增强则应关闭或固定随机状态。</p>
+<details>
+<summary>
+<strong>PyTorch：用 gradcheck 和方向导数验证自定义反向规则</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.autograd <span class="im">import</span> Function, gradcheck</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CubicWithBias(Function):</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">@staticmethod</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(ctx, x, bias):</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        ctx.save_for_backward(x)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x<span class="op">**</span><span class="dv">3</span> <span class="op">+</span> bias</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">@staticmethod</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> backward(ctx, grad_output):</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        (x,) <span class="op">=</span> ctx.saved_tensors</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        grad_x <span class="op">=</span> grad_output <span class="op">*</span> <span class="fl">3.0</span> <span class="op">*</span> x.square()</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        grad_bias <span class="op">=</span> grad_output.<span class="bu">sum</span>()  <span class="co"># bias was broadcast over x</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> grad_x, grad_bias</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> objective(x, bias):</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.sin(CubicWithBias.<span class="bu">apply</span>(x, bias)).<span class="bu">sum</span>()</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.tensor([<span class="fl">0.2</span>, <span class="op">-</span><span class="fl">0.8</span>, <span class="fl">1.3</span>], dtype<span class="op">=</span>torch.float64, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>bias <span class="op">=</span> torch.tensor(<span class="fl">0.15</span>, dtype<span class="op">=</span>torch.float64, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="co"># gradcheck perturbs each double-precision input and compares Jacobian entries.</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> gradcheck(CubicWithBias.<span class="bu">apply</span>, (x, bias), eps<span class="op">=</span><span class="fl">1e-6</span>, atol<span class="op">=</span><span class="fl">1e-5</span>, rtol<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="co"># A separate directional check validates the complete scalar objective.</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>direction <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="op">-</span><span class="fl">0.5</span>, <span class="fl">2.0</span>], dtype<span class="op">=</span>torch.float64)</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>analytical_gradient <span class="op">=</span> torch.autograd.grad(objective(x, bias), x)[<span class="dv">0</span>]</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>analytical_directional <span class="op">=</span> analytical_gradient <span class="op">@</span> direction</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">1e-6</span></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>    numerical_directional <span class="op">=</span> (</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>        objective(x <span class="op">+</span> epsilon <span class="op">*</span> direction, bias)</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>        <span class="op">-</span> objective(x <span class="op">-</span> epsilon <span class="op">*</span> direction, bias)</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">/</span> (<span class="fl">2.0</span> <span class="op">*</span> epsilon)</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(analytical_directional, numerical_directional, atol<span class="op">=</span><span class="fl">1e-7</span>, rtol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"directional derivative error:"</span>, <span class="bu">float</span>((analytical_directional <span class="op">-</span> numerical_directional).<span class="bu">abs</span>()))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>数值检查通过会提高我们对局部导数规则的信心，但不能证明模型在语义上正确。损失函数可能用了错误标签，张量可能沿错误轴对齐，甚至解析与数值代码可能共同继承了同一个上游错误。</p>
+<p><strong>应用。</strong> 梯度检查最适合新的自定义操作、非常规广播、隐式求解器、可微渲染和手动推导损失。它应在测试中使用极小且确定性的输入运行，而不应放入常规训练循环。</p>
+<p><strong>对比总结。</strong> autograd 根据局部规则高效计算导数；有限差分通过重复求值近似导数；梯度检查比较二者。数值一致性验证局部微积分，形状与模型语义则必须由其他测试验证。</p>
+</section>
+<section id="vanishing-exploding-gradients" class="level3">
+<h3 class="anchored" data-anchor-id="vanishing-exploding-gradients"><strong>梯度消失与梯度爆炸</strong></h3>
+<p>在深层复合函数</p>
+<p><span class="math display">\[
+h^{(l)}=f_l(h^{(l-1)}),
+\]</span></p>
+<p>中，从第 <span class="math inline">\(L\)</span> 层到较早第 <span class="math inline">\(l\)</span> 层的敏感度包含一串 Jacobian 乘积：</p>
+<p><span class="math display">\[
+\frac{\partial h^{(L)}}{\partial h^{(l)}}
+=
+J_LJ_{L-1}\cdots J_{l+1}.
+\]</span></p>
+<p>若相关奇异值反复小于 1，梯度范数往往指数衰减；若反复大于 1，梯度则可能指数增长。方向与大小同样重要，所以只用特征值或标量来理解只是近似，但反复相乘的机制是根本原因。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="../../Deep-Learning/assets/dl04-sigmoid-gradient.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="sigmoid 只有在零附近具有明显导数，在两侧饱和区域中的导数都接近零。"><img src="../../Deep-Learning/assets/dl04-sigmoid-gradient.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:68.0%" alt="对比 sigmoid 函数值与其导数的曲线，展示输入为较大正值或负值时导数趋近于零。"></a></p>
+</figure>
+</div>
+<figcaption>sigmoid 只有在零附近具有明显导数，在两侧饱和区域中的导数都接近零。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_multilayer-perceptrons/numerical-stability-and-init.html">Dive into Deep Learning, Numerical Stability and Initialization</a>，采用 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 许可。</em></p>
+<p>sigmoid 清楚展示了激活函数带来的影响：<span class="math inline">\(\sigma'(x)=\sigma(x)(1-\sigma(x))\leq 1/4\)</span>，并且导数在两侧饱和区域都趋近于零。反复乘上这类因子，会阻止信用传到较早层。权重矩阵还可能进一步放大或收缩信号。循环网络在许多时间步重复使用同一个状态转移，因此同一种不稳定性可能连续重复数百次。</p>
+<p>不同问题具有不同症状：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>问题</th>
+<th>可观察症状</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>梯度消失</td>
+<td>早期层范数接近零；特征几乎不变</td>
+<td>长程依赖学习缓慢或完全失败</td>
+</tr>
+<tr class="even">
+<td>梯度爆炸</td>
+<td>范数突然增大、损失尖峰、出现 Inf/NaN</td>
+<td>更新破坏模型并导致数值溢出</td>
+</tr>
+<tr class="odd">
+<td>死亡或断开路径</td>
+<td>梯度严格为零或 <code>None</code></td>
+<td>参数无法从目标获得信用</td>
+</tr>
+<tr class="even">
+<td>条件不良</td>
+<td>不同方向或层的范数差异很大</td>
+<td>训练不稳定且对步长敏感</td>
+</tr>
+</tbody>
+</table>
+<p>不同缓解方法针对不同原因。Xavier 或 He 初始化控制初始方差；非饱和激活保留有效局部斜率；残差连接增加恒等路径；归一化调节激活尺度；LSTM/GRU 门控建立可控记忆路径；梯度裁剪限制爆炸更新；更短的有效路径则减少连续乘积次数。裁剪只处理幅值症状，无法修复根本性的梯度消失或图路径断开。</p>
+<details>
+<summary>
+<strong>PyTorch：观察普通标量链和残差标量链中的梯度乘积</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> plain_chain_gradient(scale: <span class="bu">float</span>, depth: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> torch.tensor(<span class="fl">1.0</span>, dtype<span class="op">=</span>torch.float64, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> x</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(depth):</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>        hidden <span class="op">=</span> scale <span class="op">*</span> hidden</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.autograd.grad(hidden, x)[<span class="dv">0</span>].item()</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> residual_chain_gradient(scale: <span class="bu">float</span>, depth: <span class="bu">int</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> torch.tensor(<span class="fl">0.5</span>, dtype<span class="op">=</span>torch.float64, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>    hidden <span class="op">=</span> x</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(depth):</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Each local derivative contains an identity contribution of 1.</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>        hidden <span class="op">=</span> hidden <span class="op">+</span> scale <span class="op">*</span> torch.tanh(hidden)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.autograd.grad(hidden, x)[<span class="dv">0</span>].item()</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>depth <span class="op">=</span> <span class="dv">40</span></span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>vanishing <span class="op">=</span> plain_chain_gradient(scale<span class="op">=</span><span class="fl">0.5</span>, depth<span class="op">=</span>depth)</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>exploding <span class="op">=</span> plain_chain_gradient(scale<span class="op">=</span><span class="fl">1.2</span>, depth<span class="op">=</span>depth)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>residual <span class="op">=</span> residual_chain_gradient(scale<span class="op">=</span><span class="fl">0.01</span>, depth<span class="op">=</span>depth)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(vanishing <span class="op">-</span> <span class="fl">0.5</span><span class="op">**</span>depth) <span class="op">&lt;</span> <span class="fl">1e-15</span></span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(exploding <span class="op">-</span> <span class="fl">1.2</span><span class="op">**</span>depth) <span class="op">&lt;</span> <span class="fl">1e-8</span></span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="fl">1.0</span> <span class="op">&lt;</span> residual <span class="op">&lt;</span> <span class="fl">2.0</span></span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"plain scale 0.5:"</span>, <span class="ss">f"</span><span class="sc">{</span>vanishing<span class="sc">:.3e}</span><span class="ss">"</span>)</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"plain scale 1.2:"</span>, <span class="ss">f"</span><span class="sc">{</span>exploding<span class="sc">:.3e}</span><span class="ss">"</span>)</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"small residual updates:"</span>, <span class="ss">f"</span><span class="sc">{</span>residual<span class="sc">:.3f}</span><span class="ss">"</span>)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>真实网络需要测量，而不能只根据损失曲线猜测。应监控逐层梯度范数、参数与更新的比例、激活分布和非有限值，并比较多个训练步骤与随机种子。ReLU 或 masking 后偶尔出现一个零值可能完全正常；若整层长期接近零，才更可能表示结构性问题。</p>
+<p><strong>应用。</strong> 对非常深的网络、循环与状态空间模型、长上下文系统、混合精度训练，以及缺乏成熟初始化方案的自定义架构而言，梯度流诊断都是必需环节。</p>
+<p><strong>对比总结。</strong> 梯度消失与爆炸源于反复的 Jacobian 乘积；断开梯度来自计算图结构；非有限梯度还可能来自不稳定数值运算。初始化、架构、归一化、裁剪和数值精度分别解决问题的不同部分。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>本章对比与总结</strong></h3>
+<p>理解反向传播的最佳方式，是把它看作运输局部敏感度的图算法，而不是一个庞大的符号导数。前向执行产生数值和导数上下文；反向执行接收一个输出敏感度，并把贡献累加到每个祖先节点。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>核心对象</th>
+<th>方向</th>
+<th>主要资源成本</th>
+<th>常见错误</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>链式法则</td>
+<td>局部导数与上游梯度</td>
+<td>沿依赖关系组合</td>
+<td>每条图边上的算术运算</td>
+<td>忘记累加分支贡献</td>
+</tr>
+<tr class="even">
+<td>前向传播</td>
+<td>primal 值与已保存上下文</td>
+<td>输入到输出</td>
+<td>激活计算与存储</td>
+<td>丢弃或修改反向所需数值</td>
+</tr>
+<tr class="odd">
+<td>反向模式</td>
+<td>伴随量 / VJP</td>
+<td>输出到输入</td>
+<td>保存的激活与 pullback</td>
+<td>错误的种子、形状或累加</td>
+</tr>
+<tr class="even">
+<td>前向模式</td>
+<td>切向量 / JVP</td>
+<td>输入到输出</td>
+<td>每个方向执行一次切向传播</td>
+<td>对数百万个独立输入使用该模式</td>
+</tr>
+<tr class="odd">
+<td>完整 Jacobian</td>
+<td>全部输出-输入偏导</td>
+<td>同时暴露两个维度</td>
+<td>可能需要 <span class="math inline">\(O(mn)\)</span> 存储</td>
+<td>只需矩阵乘积时仍显式构造矩阵</td>
+</tr>
+<tr class="even">
+<td>微型 autograd</td>
+<td>动态 DAG 与局部闭包</td>
+<td>逆拓扑</td>
+<td>每个基本操作对应一个标量节点</td>
+<td>忘记拓扑顺序或 <code>+=</code></td>
+</tr>
+<tr class="odd">
+<td>梯度检查</td>
+<td>有限差分估计</td>
+<td>重复前向求值</td>
+<td>昂贵但简单</td>
+<td>在随机或不可微点上检查</td>
+</tr>
+<tr class="even">
+<td>梯度流诊断</td>
+<td>范数与有限值检查</td>
+<td>跨层或跨时间</td>
+<td>监控开销</td>
+<td>把裁剪当成万能修复方法</td>
+</tr>
+</tbody>
+</table>
+<p>本章的主要结论是：</p>
+<ol type="1">
+<li>梯度是指定标量目标的局部敏感度，不是因果解释，也不保证一次有限更新必然改善目标。</li>
+<li>局部导数沿路径相乘；多个分支共享同一祖先时，路径贡献相加。</li>
+<li>反向模式把标量损失的种子设为 1，并按逆拓扑顺序传播 VJP。</li>
+<li>前向缓存减少重算，却使训练内存高于推理内存。</li>
+<li>JVP 与 VJP 无需显式构造完整 Jacobian，就能计算它对向量的作用。</li>
+<li>反向模式适合多参数、标量损失训练；前向模式适合低输入维、宽输出敏感度；混合模式可计算高阶乘积。</li>
+<li>层的 pullback 必须准确复现前向传播中的广播、参数共享和归约行为。</li>
+<li>小型 autograd 引擎需要图构建、局部闭包、拓扑排序、梯度种子和梯度累加。</li>
+<li>有限差分是一种诊断参照，其可靠性取决于精度、epsilon、确定性和求值点的平滑性。</li>
+<li>梯度消失、爆炸、断开和非有限值具有不同原因，必须采用不同干预方式。</li>
+</ol>
+<p>第 05 章将把正确梯度转化为完整学习过程：它会定义损失函数、初始化与更新规则、优化器状态、学习率调度、混合精度，以及决定重复更新能否收敛的训练动态。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","selector":".lightbox","openEffect":"zoom","loop":false});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
