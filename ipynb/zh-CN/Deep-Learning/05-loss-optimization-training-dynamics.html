@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：损失函数、优化与训练动态</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="05-loss-optimization-training-dynamics.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#loss-optimization-training-dynamics" id="toc-loss-optimization-training-dynamics" class="nav-link active" data-scroll-target="#loss-optimization-training-dynamics"><strong>损失函数、优化与训练动态</strong></a>
+  <ul>
+  <li><a href="#objectives-empirical-risk-learning-signals" id="toc-objectives-empirical-risk-learning-signals" class="nav-link" data-scroll-target="#objectives-empirical-risk-learning-signals"><strong>目标函数、经验风险与学习信号</strong></a></li>
+  <li><a href="#regression-classification-losses" id="toc-regression-classification-losses" class="nav-link" data-scroll-target="#regression-classification-losses"><strong>回归与分类损失</strong></a></li>
+  <li><a href="#sequence-metric-imbalanced-losses" id="toc-sequence-metric-imbalanced-losses" class="nav-link" data-scroll-target="#sequence-metric-imbalanced-losses"><strong>序列、度量与类别不平衡损失</strong></a></li>
+  <li><a href="#gradient-descent-stochastic-gradients" id="toc-gradient-descent-stochastic-gradients" class="nav-link" data-scroll-target="#gradient-descent-stochastic-gradients"><strong>梯度下降与随机梯度</strong></a></li>
+  <li><a href="#momentum-nesterov-acceleration" id="toc-momentum-nesterov-acceleration" class="nav-link" data-scroll-target="#momentum-nesterov-acceleration"><strong>动量与 Nesterov 加速</strong></a></li>
+  <li><a href="#adaptive-optimizers" id="toc-adaptive-optimizers" class="nav-link" data-scroll-target="#adaptive-optimizers"><strong>自适应优化器</strong></a></li>
+  <li><a href="#adamw-decoupled-weight-decay" id="toc-adamw-decoupled-weight-decay" class="nav-link" data-scroll-target="#adamw-decoupled-weight-decay"><strong>AdamW 与解耦的 Weight Decay</strong></a></li>
+  <li><a href="#learning-rate-schedules-warmup" id="toc-learning-rate-schedules-warmup" class="nav-link" data-scroll-target="#learning-rate-schedules-warmup"><strong>学习率调度与 Warmup</strong></a></li>
+  <li><a href="#batch-size-accumulation-clipping-mixed-precision" id="toc-batch-size-accumulation-clipping-mixed-precision" class="nav-link" data-scroll-target="#batch-size-accumulation-clipping-mixed-precision"><strong>Batch Size、梯度累积与梯度裁剪</strong></a></li>
+  <li><a href="#initialization-early-training-dynamics" id="toc-initialization-early-training-dynamics" class="nav-link" data-scroll-target="#initialization-early-training-dynamics"><strong>初始化与早期训练动态</strong></a></li>
+  <li><a href="#loss-landscapes-optimization-diagnostics" id="toc-loss-landscapes-optimization-diagnostics" class="nav-link" data-scroll-target="#loss-landscapes-optimization-diagnostics"><strong>损失曲面与优化诊断</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>本章对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：损失函数、优化与训练动态</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/05-loss-optimization-training-dynamics.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="loss-optimization-training-dynamics" class="level2">
+<h2 class="anchored" data-anchor-id="loss-optimization-training-dynamics"><strong>损失函数、优化与训练动态</strong></h2>
+<p>第 04 章解释了反向模式自动微分如何把一个标量目标转化为梯度。训练还剩下两个关键决定：<strong>什么样的标量目标才代表有用的行为</strong>，以及<strong>这些梯度应如何在大量带噪步骤中改变参数</strong>。损失函数规定学习信号，优化器规定更新动态。二者彼此耦合：即使优化器实现完全正确，也可能在优化不合适的目标；即使损失设计良好，也可能因不稳定的学习率、较差的初始化或不匹配的 batch 方案而训练失败。</p>
+<p>本章沿着一次训练更新，从目标设计一直走到诊断。它区分数据拟合与正则化，推导 SGD、动量、自适应方法和 AdamW 背后的更新规则，并把这些方程连接到实际 PyTorch 训练中真正重要的选择：学习率调度、warmup、梯度累积、裁剪、混合精度、初始化和测量。</p>
+<section id="objectives-empirical-risk-learning-signals" class="level3">
+<h3 class="anchored" data-anchor-id="objectives-empirical-risk-learning-signals"><strong>目标函数、经验风险与学习信号</strong></h3>
+<p>对于数据集 <span class="math inline">\(\mathcal{D}=\{(x_i,y_i)\}_{i=1}^{N}\)</span>，监督训练通常最小化一个带正则的经验目标：</p>
+<p><span class="math display">\[
+J(\theta)
+=
+\underbrace{\frac{1}{N}\sum_{i=1}^{N}\ell(f_\theta(x_i),y_i)}_{\text{data fit / empirical risk}}
++
+\underbrace{\lambda\,\Omega(\theta)}_{\text{regularization or prior preference}}.
+\]</span></p>
+<p>损失 <span class="math inline">\(\ell\)</span> 将一个预测-目标对转化为标量差异。数据集平均值是在已观测数据分布上对期望风险的估计。正则项表达的是单个样本无法提供的偏好，例如更小的权重、更平滑的函数、稀疏特征或增强视图之间的一致性。在概率模型中，最小化负对数似然等价于最大化赋给观测数据的概率；在判别式训练中，同一个标量也可以更直接地理解为改变参数的梯度信号。</p>
+<p>目标函数是代理指标，而不是最终产品目标。cross-entropy 会奖励给标注类别分配经过校准的概率，但它并不直接编码公平性、延迟、拒答、排序效用，或某一类错误的成本。在改变优化器之前，应先验证标量目标是否确实表达了所关心的行为。训练损失持续下降，只能证明这个特定代理指标正在已观测样本上被优化。</p>
+<p>归约方式本身也是目标设计的一部分。使用 <code>mean</code> 归约时，复制数据集中的每个样本不会改变参数梯度；使用 <code>sum</code> 归约时，梯度会乘以复制次数。因此，学习率、梯度累积和分布式数据并行中的平均行为，都必须结合损失归约方式来理解。</p>
+<details>
+<summary>
+<strong>PyTorch：观察经验风险归约与 L2 偏好</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">51</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>x <span class="op">=</span> torch.randn(<span class="dv">6</span>, <span class="dv">3</span>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.tensor([<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">2</span>])</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>template <span class="op">=</span> nn.Linear(<span class="dv">3</span>, <span class="dv">3</span>, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parameter_gradient(reduction: <span class="bu">str</span>, repeats: <span class="bu">int</span>) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> copy.deepcopy(template)</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    logits <span class="op">=</span> model(x.repeat((repeats, <span class="dv">1</span>)))</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    repeated_targets <span class="op">=</span> targets.repeat(repeats)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    data_fit <span class="op">=</span> F.cross_entropy(logits, repeated_targets, reduction<span class="op">=</span>reduction)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    l2_preference <span class="op">=</span> <span class="fl">0.05</span> <span class="op">*</span> model.weight.square().<span class="bu">sum</span>()</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    objective <span class="op">=</span> data_fit <span class="op">+</span> l2_preference</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    objective.backward()</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model.weight.grad.detach()</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>mean_once <span class="op">=</span> parameter_gradient(<span class="st">"mean"</span>, repeats<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>mean_twice <span class="op">=</span> parameter_gradient(<span class="st">"mean"</span>, repeats<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>sum_once <span class="op">=</span> parameter_gradient(<span class="st">"sum"</span>, repeats<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>sum_twice <span class="op">=</span> parameter_gradient(<span class="st">"sum"</span>, repeats<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>l2_gradient <span class="op">=</span> <span class="fl">0.1</span> <span class="op">*</span> template.weight.detach()</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="co"># The regularizer is unchanged, so compare the data term separately below.</span></span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(mean_once <span class="op">-</span> l2_gradient, mean_twice <span class="op">-</span> l2_gradient)</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(sum_twice <span class="op">-</span> l2_gradient, <span class="fl">2.0</span> <span class="op">*</span> (sum_once <span class="op">-</span> l2_gradient))</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"mean-reduced data-gradient norm:"</span>, <span class="bu">float</span>((mean_once <span class="op">-</span> l2_gradient).norm()))</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"sum-reduced data-gradient ratio:"</span>, <span class="bu">float</span>((sum_twice <span class="op">-</span> l2_gradient).norm() <span class="op">/</span> (sum_once <span class="op">-</span> l2_gradient).norm()))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>示例中的 L2 梯度为 <span class="math inline">\(2\lambda W\)</span>，因此即使数据梯度为零，它仍然存在。优化器不应暗中决定哪些行为更可取：损失定义目标，优化器只决定接近目标的路径。</p>
+<p><strong>应用。</strong> 这一框架适用于分类器、回归器、语言模型、检索系统、扩散模型和强化学习目标。对于每一类任务，都应先写清楚究竟是哪一个标量被平均、掩蔽、加权或正则化。</p>
+<p><strong>对比总结。</strong> 单样本损失规定何为错误；经验风险聚合已观测错误；正则化加入单个样本之外的偏好；优化器只对最终得到的梯度采取行动。</p>
+</section>
+<section id="regression-classification-losses" class="level3">
+<h3 class="anchored" data-anchor-id="regression-classification-losses"><strong>回归与分类损失</strong></h3>
+<p>对于回归目标 <span class="math inline">\(y\in\mathbb{R}\)</span> 与预测 <span class="math inline">\(\hat y\)</span>，常见损失函数对噪声和离群点做出不同假设：</p>
+<p><span class="math display">\[
+\ell_{\mathrm{MSE}}=(\hat y-y)^2,
+\qquad
+\ell_{\mathrm{MAE}}=|\hat y-y|,
+\]</span></p>
+<p><span class="math display">\[
+\ell_{\mathrm{Huber},\delta}(r)=
+\begin{cases}
+\frac{1}{2}r^2, &amp; |r|\leq\delta,\\
+\delta\left(|r|-\frac{1}{2}\delta\right), &amp; |r|&gt;\delta,
+\end{cases}
+\qquad r=\hat y-y.
+\]</span></p>
+<p>MSE 是固定方差 Gaussian 观测噪声下的负对数似然目标。它的梯度随残差大小线性增长，因此较大的错误会获得不成比例的影响力。MAE 对离群点更稳健，但在零点不可微，并且在零点以外梯度幅值恒定。Huber 损失在拟合较好时为二次形式，在残差很大时为线性形式；当大多数标签可靠、但偶尔会出现较大误差时，它是很有用的折中方案。</p>
+<p>对于分类，应在 <strong>logits</strong> 上训练，而不是在已经归一化的概率上训练。在二分类中，logit <span class="math inline">\(z\)</span> 变为 <span class="math inline">\(p=\sigma(z)\)</span>，binary cross-entropy 为</p>
+<p><span class="math display">\[
+\ell_{\mathrm{BCE}}(z,y)
+=-\left[y\log\sigma(z)+(1-y)\log(1-\sigma(z))\right].
+\]</span></p>
+<p>对于 <span class="math inline">\(K\)</span> 类，softmax cross-entropy 为</p>
+<p><span class="math display">\[
+p_k=\frac{e^{z_k}}{\sum_j e^{z_j}},
+\qquad
+\ell_{\mathrm{CE}}(z,y)=-\log p_y.
+\]</span></p>
+<p>实际 API <code>binary_cross_entropy_with_logits</code> 或 <code>cross_entropy</code> 会通过稳定的 <code>logsumexp</code> 代数把归一化与对数损失融合起来。若先应用 <code>sigmoid</code> 或 <code>softmax</code> 再取对数，当模型自信地犯错时就可能下溢或上溢。有效导数仍然很简洁：对于 one-hot 目标 <span class="math inline">\(q\)</span>，softmax cross-entropy 向 logits 传回 <span class="math inline">\(p-q\)</span>。</p>
+<details>
+<summary>
+<strong>PyTorch：比较离群点梯度与稳定的 logit 损失</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>predictions <span class="op">=</span> torch.tensor([<span class="fl">0.2</span>, <span class="op">-</span><span class="fl">0.5</span>, <span class="fl">5.0</span>], requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.zeros(<span class="dv">3</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>mse <span class="op">=</span> F.mse_loss(predictions, targets, reduction<span class="op">=</span><span class="st">"none"</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>mae <span class="op">=</span> F.l1_loss(predictions, targets, reduction<span class="op">=</span><span class="st">"none"</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>huber <span class="op">=</span> F.huber_loss(predictions, targets, delta<span class="op">=</span><span class="fl">1.0</span>, reduction<span class="op">=</span><span class="st">"none"</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>mse.mean().backward(retain_graph<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>mse_gradient <span class="op">=</span> predictions.grad.detach().clone()</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>predictions.grad.zero_()</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>huber.mean().backward()</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>huber_gradient <span class="op">=</span> predictions.grad.detach().clone()</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="co"># The outlier's MSE gradient grows with its residual; Huber's is capped here.</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> mse_gradient[<span class="op">-</span><span class="dv">1</span>].<span class="bu">abs</span>() <span class="op">&gt;</span> huber_gradient[<span class="op">-</span><span class="dv">1</span>].<span class="bu">abs</span>()</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(huber_gradient[<span class="op">-</span><span class="dv">1</span>], torch.tensor(<span class="fl">1.0</span> <span class="op">/</span> <span class="fl">3.0</span>))</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>extreme_logits <span class="op">=</span> torch.tensor([<span class="op">-</span><span class="fl">100.0</span>, <span class="fl">100.0</span>])</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>binary_targets <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="fl">0.0</span>])</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>stable_bce <span class="op">=</span> F.binary_cross_entropy_with_logits(extreme_logits, binary_targets)</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>probabilities <span class="op">=</span> extreme_logits.sigmoid()</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>naive_bce <span class="op">=</span> <span class="op">-</span>(binary_targets <span class="op">*</span> probabilities.log() <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> binary_targets) <span class="op">*</span> (<span class="dv">1</span> <span class="op">-</span> probabilities).log()).mean()</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(stable_bce)</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> torch.isfinite(naive_bce)</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"per-example MSE:  "</span>, mse.detach().tolist())</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"per-example Huber:"</span>, huber.detach().tolist())</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"stable BCE:"</span>, <span class="bu">float</span>(stable_bce))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 当大偏差应受到强烈惩罚且 Gaussian 噪声假设合理时，选择 MSE；对稳健数值预测选择 Huber；对独立二元标签选择 BCE-with-logits；对每个样本只有一个互斥标签的任务选择 multiclass cross-entropy。多标签分类对每一个标签使用一个二元损失，而不是在标签之间使用 softmax cross-entropy。</p>
+<p><strong>对比总结。</strong> 损失函数是建模选择。MSE 强调大残差，MAE 限制大残差的影响，Huber 在两者间折中，而基于 logit 的 cross-entropy 将概率分类错误转化为稳定且有信息量的梯度。</p>
+</section>
+<section id="sequence-metric-imbalanced-losses" class="level3">
+<h3 class="anchored" data-anchor-id="sequence-metric-imbalanced-losses"><strong>序列、度量与类别不平衡损失</strong></h3>
+<p>许多深度学习任务并不是把一个输入映射为一个独立标签。语言模型或序列标注器会产生 logits <span class="math inline">\(Z\in\mathbb{R}^{B\times T\times V}\)</span>：其中 <span class="math inline">\(B\)</span> 是序列数，<span class="math inline">\(T\)</span> 是位置数，<span class="math inline">\(V\)</span> 是词表或标签集合大小。token 负对数似然必须忽略 padding 位置，并且通常应按有效 token 数量归一化，而不是按 <span class="math inline">\(B\times T\)</span> 归一化：</p>
+<p><span class="math display">\[
+\mathcal{L}_{\mathrm{token}}
+=-\frac{1}{\sum_{b,t}m_{bt}}
+\sum_{b,t}m_{bt}\log p_\theta(y_{bt}\mid x_b,y_{b,&lt;t}),
+\]</span></p>
+<p>其中 <span class="math inline">\(m_{bt}\in\{0,1\}\)</span> 是 attention 或 loss mask。若不做 masking，额外 padding 会改变目标函数，并让模型因预测 padding token 而获得奖励，而不是因预测有用内容而获益。</p>
+<p>Label smoothing 会将 one-hot 目标 <span class="math inline">\(q\)</span> 替换为略微平滑的分布，从而减小模型必须对每个训练样本做出无限自信预测的压力。Focal loss 通常以 <span class="math inline">\((1-p_t)^\gamma\ell_{\mathrm{CE}}\)</span> 下调简单样本的权重，而 class-weighted cross-entropy 会提高在欠代表类别上犯错的成本。这些工具针对的症状不同：smoothing 主要涉及置信度与正则化；focal loss 改变哪些样本主导梯度；class weights 则编码不对称的类别重要性。</p>
+<p>重新加权也会改变总体目标。使用类别频率倒数作为权重训练的分类器，若不做适当修正，估计的不再是原始类别分布下的概率。它可能改善稀有类别的排序能力，却让原始概率失去良好校准。因此，应在未加权的验证分布上检查目标工作阈值、每类 precision/recall 与 calibration，而不能假设 weighted loss 更低就一定对应更好的部署决策。</p>
+<p>度量学习目标定义的是样本之间的关系，而不只是类别标签。对于正样本对 <span class="math inline">\((a,p)\)</span> 和负样本 <span class="math inline">\(n\)</span>，triplet 风格目标要求正样本距离至少以一个 margin 小于负样本距离：</p>
+<p><span class="math display">\[
+\ell_{\mathrm{triplet}}
+=\max\bigl(0, d(h_a,h_p)-d(h_a,h_n)+m\bigr).
+\]</span></p>
+<p>InfoNCE 等 contrastive 目标则让匹配表示的相似度高于 batch 中其他候选项。其效果高度依赖数据增强、负样本选择、temperature 与 batch 构造，因此不能脱离数据管道独立选择损失函数。</p>
+<details>
+<summary>
+<strong>PyTorch：计算带掩码 token 损失、label smoothing 与 focal weighting</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">53</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>B, T, V <span class="op">=</span> <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">5</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> torch.randn(B, T, V)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.tensor([[<span class="dv">1</span>, <span class="dv">3</span>, <span class="dv">0</span>, <span class="op">-</span><span class="dv">100</span>], [<span class="dv">2</span>, <span class="dv">4</span>, <span class="op">-</span><span class="dv">100</span>, <span class="op">-</span><span class="dv">100</span>]])</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>valid_tokens <span class="op">=</span> targets.ne(<span class="op">-</span><span class="dv">100</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="co"># PyTorch flattens token positions and ignores padding through ignore_index.</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>masked_ce <span class="op">=</span> F.cross_entropy(</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    logits.reshape(<span class="op">-</span><span class="dv">1</span>, V),</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    targets.reshape(<span class="op">-</span><span class="dv">1</span>),</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    ignore_index<span class="op">=-</span><span class="dv">100</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    label_smoothing<span class="op">=</span><span class="fl">0.1</span>,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>safe_targets <span class="op">=</span> targets.masked_fill(<span class="op">~</span>valid_tokens, <span class="dv">0</span>)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>per_token_ce <span class="op">=</span> F.cross_entropy(logits.transpose(<span class="dv">1</span>, <span class="dv">2</span>), safe_targets, reduction<span class="op">=</span><span class="st">"none"</span>)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>probability_of_target <span class="op">=</span> logits.softmax(dim<span class="op">=-</span><span class="dv">1</span>).gather(<span class="op">-</span><span class="dv">1</span>, safe_targets.unsqueeze(<span class="op">-</span><span class="dv">1</span>)).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>focal_weight <span class="op">=</span> (<span class="fl">1.0</span> <span class="op">-</span> probability_of_target).square()</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>masked_focal <span class="op">=</span> (per_token_ce <span class="op">*</span> focal_weight <span class="op">*</span> valid_tokens).<span class="bu">sum</span>() <span class="op">/</span> valid_tokens.<span class="bu">sum</span>()</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(masked_ce)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(masked_focal)</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">int</span>(valid_tokens.<span class="bu">sum</span>()) <span class="op">==</span> <span class="dv">5</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"smoothed masked token loss:"</span>, <span class="bu">float</span>(masked_ce))</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"focal-style masked loss:   "</span>, <span class="bu">float</span>(masked_focal))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 对 padding 后的语言、语音、视觉和图批次使用 mask；只有在数据分布与评估指标确实支持不对称处理时，才使用 weighted 或 focal 目标；对检索、验证、聚类和表示学习使用 metric loss。</p>
+<p><strong>对比总结。</strong> 序列损失决定哪些位置计入目标，类别不平衡损失决定哪些样本计入更多权重，度量损失决定样本之间应保留哪些关系。三者改变的都是梯度分布，而不只是最终标量数值。</p>
+</section>
+<section id="gradient-descent-stochastic-gradients" class="level3">
+<h3 class="anchored" data-anchor-id="gradient-descent-stochastic-gradients"><strong>梯度下降与随机梯度</strong></h3>
+<p>对于可微目标 <span class="math inline">\(J(\theta)\)</span>，梯度下降应用</p>
+<p><span class="math display">\[
+\theta_{t+1}=\theta_t-\eta_t\nabla J(\theta_t),
+\]</span></p>
+<p>其中 <span class="math inline">\(\eta_t\)</span> 是学习率。Full-batch gradient descent 在每次更新前计算全部 <span class="math inline">\(N\)</span> 个样本的平均梯度。它在概念上清晰，但对大型数据集开销高，并且每完整遍历一次数据只能进行一次更新。</p>
+<p>学习率必须结合曲率来解释。对于正定 Hessian 为 <span class="math inline">\(H\)</span> 的二次目标 <span class="math inline">\(J(\theta)=\frac{1}{2}\theta^\top H\theta\)</span>，固定步长梯度下降仅在下列范围内稳定：</p>
+<p><span class="math display">\[
+0&lt;\eta&lt;\frac{2}{\lambda_{\max}(H)}.
+\]</span></p>
+<p>沿特征值为 <span class="math inline">\(\lambda_i\)</span> 的特征向量方向，每一步误差都会乘以 <span class="math inline">\(1-\eta\lambda_i\)</span>。学习率超过上界时，至少有一个方向会发散；学习率很小时虽稳定，却收敛缓慢。较大的条件数 <span class="math inline">\(\kappa=\lambda_{\max}/\lambda_{\min}\)</span> 会产生熟悉的锯齿路径：学习率必须服从陡峭方向的限制，而沿平缓方向的进展仍然很小。Momentum 与自适应预条件化在一定程度上正是为了改善这种几何结构。</p>
+<p>Stochastic gradient descent（SGD）改用一个样本或一个小 minibatch <span class="math inline">\(\mathcal{B}_t\)</span>：</p>
+<p><span class="math display">\[
+g_t=
+\frac{1}{|\mathcal{B}_t|}\sum_{i\in\mathcal{B}_t}
+\nabla_\theta\ell_i(\theta_t),
+\qquad
+\theta_{t+1}=\theta_t-\eta_tg_t.
+\]</span></p>
+<p>当 batch 以合适方式采样时，<span class="math inline">\(g_t\)</span> 是完整经验梯度的无偏估计，但它具有方差。这种噪声不仅仅是实现缺陷：它使频繁且成本较低的更新成为可能，能够帮助优化跨越浅层势垒，并与泛化相互作用。同时，它也意味着单个带噪损失值或一次更新方向，都是训练是否健康的很弱证据。</p>
+<p>Minibatch 是实践中的折中。它们降低梯度估计器的方差，能高效利用矩阵硬件，同时仍比 full-batch 优化更频繁地更新。增大 batch size 同时改变统计估计和系统行为，不能把它当成无害的速度设置。</p>
+<details>
+<summary>
+<strong>PyTorch：测量随机梯度方差，并使用 minibatch 训练</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">57</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">256</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(N)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> <span class="fl">2.5</span> <span class="op">*</span> features</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> batch_gradient(weight: torch.Tensor, indices: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    prediction <span class="op">=</span> weight <span class="op">*</span> features[indices]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="fl">2.0</span> <span class="op">*</span> features[indices] <span class="op">*</span> (prediction <span class="op">-</span> targets[indices])).mean()</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>weight_at_start <span class="op">=</span> torch.tensor(<span class="fl">0.0</span>)</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">58</span>)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>single_estimates <span class="op">=</span> torch.stack([</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    batch_gradient(weight_at_start, torch.randint(N, (<span class="dv">1</span>,), generator<span class="op">=</span>generator))</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">400</span>)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>minibatch_estimates <span class="op">=</span> torch.stack([</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    batch_gradient(weight_at_start, torch.randint(N, (<span class="dv">32</span>,), generator<span class="op">=</span>generator))</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">400</span>)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> train_with_batch_size(batch_size: <span class="bu">int</span>) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    weight <span class="op">=</span> torch.tensor(<span class="fl">0.0</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    local_generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">59</span> <span class="op">+</span> batch_size)</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">80</span>):</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>        indices <span class="op">=</span> torch.randint(N, (batch_size,), generator<span class="op">=</span>local_generator)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        weight <span class="op">-=</span> <span class="fl">0.1</span> <span class="op">*</span> batch_gradient(weight, indices)</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> weight</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>single_solution <span class="op">=</span> train_with_batch_size(<span class="dv">1</span>)</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>minibatch_solution <span class="op">=</span> train_with_batch_size(<span class="dv">32</span>)</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> minibatch_estimates.var() <span class="op">&lt;</span> single_estimates.var()</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">abs</span>(minibatch_solution <span class="op">-</span> <span class="fl">2.5</span>) <span class="op">&lt;</span> <span class="fl">0.1</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"single-example gradient variance:"</span>, <span class="bu">float</span>(single_estimates.var()))</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"minibatch gradient variance:     "</span>, <span class="bu">float</span>(minibatch_estimates.var()))</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"learned weights (SGD, minibatch):"</span>, <span class="bu">float</span>(single_solution), <span class="bu">float</span>(minibatch_solution))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 几乎所有大型神经网络都使用 minibatch stochastic gradient。相同原则也出现在在线学习、流式适应与联邦优化中，只是它们的采样假设和噪声来源有所不同。</p>
+<p><strong>对比总结。</strong> Full-batch descent 使用精确的数据集梯度，但更新很少；SGD 使用高方差、成本低的估计；minibatch SGD 则用部分随机性换取更稳定且更适合硬件的更新。</p>
+</section>
+<section id="momentum-nesterov-acceleration" class="level3">
+<h3 class="anchored" data-anchor-id="momentum-nesterov-acceleration"><strong>动量与 Nesterov 加速</strong></h3>
+<p>普通 SGD 只对当前 minibatch 梯度做出反应。在狭窄且弯曲的谷地中，它可能沿陡峭方向剧烈振荡，却沿平缓方向前进缓慢。<strong>Momentum</strong> 保留一个类似速度的梯度指数移动平均：</p>
+<p><span class="math display">\[
+v_t=\beta v_{t-1}+g_t,
+\qquad
+\theta_{t+1}=\theta_t-\eta v_t,
+\]</span></p>
+<p>其中 <span class="math inline">\(\beta\in[0,1)\)</span> 控制记忆长度。使用该约定时，近期且一致的梯度会逐渐积累速度，而快速变化、有噪声的方向会部分相互抵消。有些库会把新梯度乘以 <span class="math inline">\((1-\beta)\)</span>；这会改变 <span class="math inline">\(v_t\)</span> 的数值尺度，但不会改变更新保存递减历史这一核心思想。</p>
+<p><strong>Nesterov accelerated gradient（NAG）</strong>在预期位置而非当前位置计算梯度。一种常见形式是</p>
+<p><span class="math display">\[
+g_t=\nabla J(\theta_t-\eta\beta v_{t-1}),
+\qquad
+v_t=\beta v_{t-1}+g_t,
+\qquad
+\theta_{t+1}=\theta_t-\eta v_t.
+\]</span></p>
+<p>这个 lookahead 本质上在询问：当前速度是否将要越过合适区域。它可以比普通动量更早开始修正，但仍需要合适的学习率，也不能消除所有不稳定性。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl05-momentum-trajectory.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Momentum 会在时间上聚合梯度，比未加速更新更直接地到达条件不良二次函数的最小值。"><img src="assets/dl05-momentum-trajectory.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="一个二维二次优化问题的等高线图，其中 momentum 轨迹逐步逼近最小值。"></a></p>
+</figure>
+</div>
+<figcaption>Momentum 会在时间上聚合梯度，比未加速更新更直接地到达条件不良二次函数的最小值。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_optimization/momentum.html">Dive into Deep Learning, Momentum</a>，采用 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 许可。</em></p>
+<details>
+<summary>
+<strong>PyTorch：在条件不良二次函数上比较 SGD、momentum 和 Nesterov</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>curvature <span class="op">=</span> torch.tensor([<span class="fl">1.0</span>, <span class="fl">30.0</span>])</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> quadratic(theta: torch.Tensor) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">0.5</span> <span class="op">*</span> (curvature <span class="op">*</span> theta.square()).<span class="bu">sum</span>()</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> optimize(method: <span class="bu">str</span>, steps: <span class="bu">int</span> <span class="op">=</span> <span class="dv">80</span>, lr: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.02</span>, beta: <span class="bu">float</span> <span class="op">=</span> <span class="fl">0.9</span>):</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    theta <span class="op">=</span> torch.tensor([<span class="fl">4.0</span>, <span class="fl">4.0</span>])</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    velocity <span class="op">=</span> torch.zeros_like(theta)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    losses <span class="op">=</span> []</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(steps):</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> method <span class="op">==</span> <span class="st">"nesterov"</span>:</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            gradient <span class="op">=</span> curvature <span class="op">*</span> (theta <span class="op">-</span> lr <span class="op">*</span> beta <span class="op">*</span> velocity)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>            gradient <span class="op">=</span> curvature <span class="op">*</span> theta</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> method <span class="op">==</span> <span class="st">"sgd"</span>:</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>            theta <span class="op">=</span> theta <span class="op">-</span> lr <span class="op">*</span> gradient</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>            velocity <span class="op">=</span> beta <span class="op">*</span> velocity <span class="op">+</span> gradient</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>            theta <span class="op">=</span> theta <span class="op">-</span> lr <span class="op">*</span> velocity</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>        losses.append(quadratic(theta))</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.stack(losses)</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>sgd_losses <span class="op">=</span> optimize(<span class="st">"sgd"</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>momentum_losses <span class="op">=</span> optimize(<span class="st">"momentum"</span>)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>nesterov_losses <span class="op">=</span> optimize(<span class="st">"nesterov"</span>)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(torch.stack((sgd_losses[<span class="op">-</span><span class="dv">1</span>], momentum_losses[<span class="op">-</span><span class="dv">1</span>], nesterov_losses[<span class="op">-</span><span class="dv">1</span>]))).<span class="bu">all</span>()</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> momentum_losses[<span class="op">-</span><span class="dv">1</span>] <span class="op">&lt;</span> sgd_losses[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> nesterov_losses[<span class="op">-</span><span class="dv">1</span>] <span class="op">&lt;</span> sgd_losses[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"final losses:"</span>, {<span class="st">"sgd"</span>: <span class="bu">float</span>(sgd_losses[<span class="op">-</span><span class="dv">1</span>]), <span class="st">"momentum"</span>: <span class="bu">float</span>(momentum_losses[<span class="op">-</span><span class="dv">1</span>]), <span class="st">"nesterov"</span>: <span class="bu">float</span>(nesterov_losses[<span class="op">-</span><span class="dv">1</span>])})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 在精心调优后，momentum SGD 仍是视觉训练中常见且强大的 baseline。当实现直接支持 Nesterov momentum 时，它也很有用，但它的增益取决于曲率、batch 噪声、调度策略和其他选择。</p>
+<p><strong>对比总结。</strong> SGD 只跟随当前梯度；momentum 通过速度状态过滤梯度；Nesterov momentum 计算 lookahead gradient。两种加速方法都以额外状态和超参数，换取沿持续方向更快的移动。</p>
+</section>
+<section id="adaptive-optimizers" class="level3">
+<h3 class="anchored" data-anchor-id="adaptive-optimizers"><strong>自适应优化器</strong></h3>
+<p>优化器不仅可以在时间上平均梯度，还可以对不同坐标进行重缩放。当不同参数收到的梯度幅值相差很大时，这一点特别有用。<strong>AdaGrad</strong> 为每个坐标累积一个非负二阶矩估计：</p>
+<p><span class="math display">\[
+s_t=s_{t-1}+g_t\odot g_t,
+\qquad
+\theta_{t+1}=\theta_t-\eta\frac{g_t}{\sqrt{s_t}+\epsilon}.
+\]</span></p>
+<p>频繁活跃的坐标会获得逐渐变小的步长。这对稀疏特征可能很有价值，但分母只增不减，因此学习最终可能变得过慢。</p>
+<p><strong>RMSProp</strong> 使用指数移动平均替代无界累积和：</p>
+<p><span class="math display">\[
+s_t=\rho s_{t-1}+(1-\rho)g_t\odot g_t,
+\qquad
+\theta_{t+1}=\theta_t-\eta\frac{g_t}{\sqrt{s_t}+\epsilon}.
+\]</span></p>
+<p>该分母相当于一个对角预条件器：持续出现的大幅、带噪坐标会比小坐标受到更强抑制。它不是完整的曲率矩阵，也不保证带来更好的泛化。自适应重缩放改变了优化几何，这正是学习率和 weight decay 设置不应盲目从 SGD 复制过来的原因。</p>
+<details>
+<summary>
+<strong>PyTorch：观察 AdaGrad 与 RMSProp 的逐坐标缩放</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>gradient <span class="op">=</span> torch.tensor([<span class="fl">100.0</span>, <span class="fl">1.0</span>])</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>learning_rate <span class="op">=</span> <span class="fl">0.1</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>epsilon <span class="op">=</span> <span class="fl">1e-8</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>sgd_update <span class="op">=</span> learning_rate <span class="op">*</span> gradient</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>adagrad_state <span class="op">=</span> gradient.square()</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>adagrad_update <span class="op">=</span> learning_rate <span class="op">*</span> gradient <span class="op">/</span> (adagrad_state.sqrt() <span class="op">+</span> epsilon)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>rho <span class="op">=</span> <span class="fl">0.9</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>rmsprop_state <span class="op">=</span> (<span class="fl">1.0</span> <span class="op">-</span> rho) <span class="op">*</span> gradient.square()</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>rmsprop_update <span class="op">=</span> learning_rate <span class="op">*</span> gradient <span class="op">/</span> (rmsprop_state.sqrt() <span class="op">+</span> epsilon)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> sgd_update[<span class="dv">0</span>] <span class="op">/</span> sgd_update[<span class="dv">1</span>] <span class="op">==</span> <span class="fl">100.0</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(adagrad_update, torch.tensor([<span class="fl">0.1</span>, <span class="fl">0.1</span>]), atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(rmsprop_update[<span class="dv">0</span>], rmsprop_update[<span class="dv">1</span>], atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"SGD update:    "</span>, sgd_update.tolist())</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"AdaGrad update:"</span>, adagrad_update.tolist())</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"RMSProp update:"</span>, rmsprop_update.tolist())</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 自适应方法常被用作 transformer、语言模型、稀疏问题和快速原型的便捷默认选择。当梯度尺度在坐标之间差异很大时，它们尤其有帮助；但获得好结果仍需配合调度、合理正则化，并使用任务指标验证。</p>
+<p><strong>对比总结。</strong> Momentum 平均梯度的一阶矩；AdaGrad 累积全部平方梯度；RMSProp 对平方梯度做指数平均。这些方法解决的是不同的条件数与噪声问题，也可以像 Adam 一样被组合使用。</p>
+</section>
+<section id="adamw-decoupled-weight-decay" class="level3">
+<h3 class="anchored" data-anchor-id="adamw-decoupled-weight-decay"><strong>AdamW 与解耦的 Weight Decay</strong></h3>
+<p>Adam 将一阶矩 momentum 与 RMSProp 风格的二阶矩结合起来。给定梯度 <span class="math inline">\(g_t\)</span>，它形成</p>
+<p><span class="math display">\[
+m_t=\beta_1m_{t-1}+(1-\beta_1)g_t,
+\qquad
+v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2,
+\]</span></p>
+<p>然后对从零开始的估计进行 bias correction：</p>
+<p><span class="math display">\[
+\hat m_t=\frac{m_t}{1-\beta_1^t},
+\qquad
+\hat v_t=\frac{v_t}{1-\beta_2^t},
+\qquad
+\theta_{t+1}=\theta_t-\eta\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}.
+\]</span></p>
+<p>通常的默认值 <span class="math inline">\(\beta_1=0.9\)</span>、<span class="math inline">\(\beta_2=0.999\)</span> 和 <span class="math inline">\(\epsilon=10^{-8}\)</span> 只是起点，并不是定律。由于每个坐标都有自己的分母，把 L2 penalty 梯度 <span class="math inline">\(\lambda\theta\)</span> 加入 Adam 通常并不等价于按固定衰减因子缩小参数；自适应分母也会重缩放正则化信号。</p>
+<p><strong>AdamW</strong> 将这两个操作解耦：</p>
+<p><span class="math display">\[
+\theta'_{t}= (1-\eta\lambda)\theta_t,
+\qquad
+\theta_{t+1}=\theta'_t-\eta\frac{\hat m_t}{\sqrt{\hat v_t}+\epsilon}.
+\]</span></p>
+<p>不同实现的操作顺序可能略有差异，但关键性质是：weight decay 直接作用于参数值，而不是进入 Adam 的自适应 moment estimate。除非有明确理由，否则应将 bias 向量和 normalization 的 scale/shift 排除在 decay 之外。</p>
+<p>优化器状态也是一项内存决策。对于以 FP32 存储的 <span class="math inline">\(P\)</span> 个可训练标量参数，下列粗略估算不包含 activation、临时缓冲区、内存分配器开销和分布式副本：</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>优化器</th>
+<th style="text-align: right;">每个参数的持久状态</th>
+<th style="text-align: right;">参数 + 梯度 + 优化器状态的近似大小</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SGD</td>
+<td style="text-align: right;">无</td>
+<td style="text-align: right;"><span class="math inline">\(8P\)</span> bytes</td>
+</tr>
+<tr class="even">
+<td>Momentum SGD</td>
+<td style="text-align: right;">一个 velocity</td>
+<td style="text-align: right;"><span class="math inline">\(12P\)</span> bytes</td>
+</tr>
+<tr class="odd">
+<td>AdaGrad / RMSProp</td>
+<td style="text-align: right;">一个平方梯度累加器</td>
+<td style="text-align: right;"><span class="math inline">\(12P\)</span> bytes</td>
+</tr>
+<tr class="even">
+<td>Adam / AdamW</td>
+<td style="text-align: right;">一阶矩和二阶矩</td>
+<td style="text-align: right;"><span class="math inline">\(16P\)</span> bytes</td>
+</tr>
+</tbody>
+</table>
+<p>带 momentum 的 RMSProp 还需要一个 velocity tensor。一些混合精度实现还会为低精度参数保留 FP32 master copy，额外增加约 <span class="math inline">\(4P\)</span> bytes。这解释了为什么即使前向架构完全不变，从 SGD 改成 AdamW 也可能明显缩小能够放入显存的模型或 batch size。</p>
+<details>
+<summary>
+<strong>PyTorch：在零数据梯度下观察耦合 L2 正则与 AdamW decay 的区别</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>learning_rate <span class="op">=</span> <span class="fl">0.1</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>weight_decay <span class="op">=</span> <span class="fl">0.1</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>adam_parameter <span class="op">=</span> torch.nn.Parameter(torch.tensor([<span class="fl">1.0</span>]))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>adamw_parameter <span class="op">=</span> torch.nn.Parameter(torch.tensor([<span class="fl">1.0</span>]))</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>adam <span class="op">=</span> torch.optim.Adam([adam_parameter], lr<span class="op">=</span>learning_rate, weight_decay<span class="op">=</span>weight_decay)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>adamw <span class="op">=</span> torch.optim.AdamW([adamw_parameter], lr<span class="op">=</span>learning_rate, weight_decay<span class="op">=</span>weight_decay)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co"># There is no data gradient. Any movement comes from regularization/decay.</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>adam_parameter.grad <span class="op">=</span> torch.zeros_like(adam_parameter)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>adamw_parameter.grad <span class="op">=</span> torch.zeros_like(adamw_parameter)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>adam.step()</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>adamw.step()</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(adamw_parameter.detach(), torch.tensor([<span class="fl">0.99</span>]), atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> adam_parameter.detach() <span class="op">&lt;</span> adamw_parameter.detach()</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Adam with coupled L2: "</span>, <span class="bu">float</span>(adam_parameter.detach()))</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"AdamW decay:          "</span>, <span class="bu">float</span>(adamw_parameter.detach()))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> AdamW 是 transformer 风格模型与许多现代预训练网络的常用优化器 baseline。实际配置是一组相互联系的选择：学习率、weight decay、parameter groups、warmup、总更新数、gradient clipping、精度和有效 batch size 都会相互作用。</p>
+<p><strong>对比总结。</strong> Adam 使用两个 moment estimate 自适应方向和尺度；AdamW 在保留该自适应更新的同时，对选定 parameter groups 施加独立且可预测的收缩。</p>
+</section>
+<section id="learning-rate-schedules-warmup" class="level3">
+<h3 class="anchored" data-anchor-id="learning-rate-schedules-warmup"><strong>学习率调度与 Warmup</strong></h3>
+<p>学习率控制梯度转化为参数变化的尺度。一个在训练早期有用的固定学习率，靠近解时可能过大并导致持续振荡；一个适合后期精细收敛的学习率，又会让早期进展过慢。因此，<strong>learning-rate schedule</strong> 会让 <span class="math inline">\(\eta_t\)</span> 成为更新次数、epoch、验证表现或训练阶段的有意函数。</p>
+<p>常见调度包括 step decay、linear decay、cosine decay，以及由验证集触发的降低。Cosine decay 在 <span class="math inline">\(T\)</span> 次更新内把学习率从 <span class="math inline">\(\eta_{max}\)</span> 平滑降低到 <span class="math inline">\(\eta_{min}\)</span>：</p>
+<p><span class="math display">\[
+\eta_t=\eta_{min}+\frac{1}{2}(\eta_{max}-\eta_{min})
+\left(1+\cos\left(\pi\frac{t}{T}\right)\right).
+\]</span></p>
+<p><strong>Warmup</strong> 从较小的学习率开始，并在前 <span class="math inline">\(W\)</span> 次更新内逐步提高，通常是线性提高。当随机初始化、大有效 batch、自适应优化器状态、normalization statistics 或预训练模型适应使前几次大更新不可靠时，它尤其有价值。一个简单的 warmup 后接 cosine decay 的形式为</p>
+<p><span class="math display">\[
+\eta_t=
+\begin{cases}
+\eta_{max}\frac{t+1}{W}, &amp; t&lt;W,\\
+\eta_{min}+\frac{1}{2}(\eta_{max}-\eta_{min})
+\left[1+\cos\left(\pi\frac{t-W+1}{T-W}\right)\right], &amp; t\geq W.
+\end{cases}
+\]</span></p>
+<p>计量单位很重要。若调度按 <em>optimizer updates</em> 定义，当梯度累积、数据并行 world size、数据集大小或 batch size 改变时，调度也会改变。应明确记录总更新数与 warmup 更新数，而不是只用 epoch 描述调度。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl05-warmup-cosine-schedule.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Warmup 会逐渐升高学习率，随后 cosine schedule 使学习率降低，以便在训练后期进行精细优化。"><img src="assets/dl05-warmup-cosine-schedule.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="一张折线图，展示短暂的线性学习率 warmup，之后是平缓的 cosine 形下降。"></a></p>
+</figure>
+</div>
+<figcaption>Warmup 会逐渐升高学习率，随后 cosine schedule 使学习率降低，以便在训练后期进行精细优化。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_optimization/lr-scheduler.html">Dive into Deep Learning, Learning Rate Scheduling</a>，采用 <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> 许可。</em></p>
+<details>
+<summary>
+<strong>PyTorch：构造并检查 warmup 加 cosine 的更新调度</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> warmup_cosine_lr(step: <span class="bu">int</span>, total_updates: <span class="bu">int</span>, warmup_updates: <span class="bu">int</span>, base_lr: <span class="bu">float</span>, final_lr: <span class="bu">float</span>) <span class="op">-&gt;</span> <span class="bu">float</span>:</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> <span class="dv">0</span> <span class="op">&lt;=</span> step <span class="op">&lt;</span> total_updates:</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"step must be inside the training schedule"</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> step <span class="op">&lt;</span> warmup_updates:</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> base_lr <span class="op">*</span> (step <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> warmup_updates</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    progress <span class="op">=</span> (step <span class="op">-</span> warmup_updates <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> (total_updates <span class="op">-</span> warmup_updates)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    cosine <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (<span class="fl">1.0</span> <span class="op">+</span> math.cos(math.pi <span class="op">*</span> progress))</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> final_lr <span class="op">+</span> (base_lr <span class="op">-</span> final_lr) <span class="op">*</span> cosine</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>total_updates, warmup_updates <span class="op">=</span> <span class="dv">20</span>, <span class="dv">4</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>base_lr, final_lr <span class="op">=</span> <span class="fl">3e-3</span>, <span class="fl">1e-4</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>learning_rates <span class="op">=</span> [warmup_cosine_lr(step, total_updates, warmup_updates, base_lr, final_lr) <span class="cf">for</span> step <span class="kw">in</span> <span class="bu">range</span>(total_updates)]</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="co"># LambdaLR can use the same update-indexed function in a real optimizer.</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>parameter <span class="op">=</span> torch.nn.Parameter(torch.tensor(<span class="fl">1.0</span>))</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.SGD([parameter], lr<span class="op">=</span>base_lr)</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>scheduler <span class="op">=</span> torch.optim.lr_scheduler.LambdaLR(</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    optimizer,</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    lr_lambda<span class="op">=</span><span class="kw">lambda</span> step: warmup_cosine_lr(step, total_updates, warmup_updates, base_lr, final_lr) <span class="op">/</span> base_lr,</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Exercise the scheduler at optimizer-update granularity, not merely construct it.</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>observed_rates <span class="op">=</span> [optimizer.param_groups[<span class="dv">0</span>][<span class="st">"lr"</span>]]</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">1</span>, total_updates):</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>    parameter.grad <span class="op">=</span> torch.zeros_like(parameter)</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>    optimizer.step()</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    scheduler.step()</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>    observed_rates.append(optimizer.param_groups[<span class="dv">0</span>][<span class="st">"lr"</span>])</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> learning_rates[<span class="dv">0</span>] <span class="op">&lt;</span> learning_rates[warmup_updates <span class="op">-</span> <span class="dv">1</span>] <span class="op">==</span> base_lr</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> learning_rates[<span class="op">-</span><span class="dv">1</span>] <span class="op">==</span> final_lr</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(left <span class="op">&gt;=</span> right <span class="cf">for</span> left, right <span class="kw">in</span> <span class="bu">zip</span>(learning_rates[warmup_updates <span class="op">-</span> <span class="dv">1</span> :], learning_rates[warmup_updates:]))</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(torch.tensor(observed_rates), torch.tensor(learning_rates), atol<span class="op">=</span><span class="fl">1e-9</span>)</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"first six learning rates:"</span>, [<span class="bu">round</span>(rate, <span class="dv">6</span>) <span class="cf">for</span> rate <span class="kw">in</span> learning_rates[:<span class="dv">6</span>]])</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"last learning rate:      "</span>, learning_rates[<span class="op">-</span><span class="dv">1</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> Warmup 加 cosine decay 是许多 transformer 与视觉训练的强大显式 baseline。Step decay 对成熟 recipe 仍然有效，而 plateau scheduling 在训练进度由验证反馈而不是固定更新预算决定时更有用。</p>
+<p><strong>对比总结。</strong> 优化器决定梯度如何被预条件化；调度决定该变换后梯度在每个阶段推动参数多远。Warmup 保护早期动态，decay 支持后期精细优化。</p>
+</section>
+<section id="batch-size-accumulation-clipping-mixed-precision" class="level3">
+<h3 class="anchored" data-anchor-id="batch-size-accumulation-clipping-mixed-precision"><strong>Batch Size、梯度累积与梯度裁剪</strong></h3>
+<p><strong>有效 batch size（effective batch size）</strong>是一次优化器更新中贡献梯度的样本数量。若每个设备使用 microbatch <span class="math inline">\(b\)</span>，梯度累积 <span class="math inline">\(a\)</span> 次，数据并行使用 <span class="math inline">\(w\)</span> 个 worker，则</p>
+<p><span class="math display">\[
+B_{\mathrm{effective}}=b\times a\times w.
+\]</span></p>
+<p>当一个 microbatch 已经占满显存时，梯度累积可以实现更大的有效 batch。对于 mean-reduced loss，应在 <code>.backward()</code> 前将每个 microbatch loss 除以 <span class="math inline">\(a\)</span>，使累积梯度与拼接后完整 batch 的梯度一致。只有在有效 batch 完成后，才执行 optimizer 和 scheduler step；在 microbatch 之间调用 <code>zero_grad()</code> 会丢掉部分梯度和。</p>
+<p>增大有效 batch 通常会降低梯度噪声，但也会减少每个 epoch 的更新次数。常见的线性缩放启发式，即 batch size 增大 <span class="math inline">\(k\)</span> 倍时令 <span class="math inline">\(\eta'\approx k\eta\)</span>，只是依赖具体 recipe 的起点，并不是定律；曲率、优化器、normalization、数据冗余和训练更新数都可能使它失效。大 batch 训练常把重新调优的学习率与 warmup 配合使用，但只有同时说明更新预算和数据暴露量，这种比较才有意义。</p>
+<p><strong>Gradient clipping</strong> 会限制异常大的更新。全局范数裁剪将梯度向量 <span class="math inline">\(g\)</span> 替换为</p>
+<p><span class="math display">\[
+g\leftarrow g\min\left(1,\frac{c}{\lVert g\rVert_2+\epsilon}\right),
+\]</span></p>
+<p>其中 <span class="math inline">\(c\)</span> 是 <code>max_norm</code>。它尤其适用于循环、生成式和早期不稳定训练。裁剪是一种安全机制，而不是有效损失、稳定初始化或合适学习率的替代品。若它几乎每一步都被触发，应诊断根因，而不是仅仅降低阈值。</p>
+<p><strong>Automatic mixed precision（AMP）</strong>使用较低精度执行选定操作，在保留敏感计算较安全精度的同时降低内存并提高加速器吞吐。使用 FP16 时，小梯度可能下溢为零。<code>torch.amp.GradScaler</code> 会在反向传播前放大损失，并在 optimizer step 前取消放大；它还可以跳过包含非有限梯度的更新。关键点是：检查或裁剪梯度之前必须先 unscale。BF16 与 FP32 有相同的 exponent range，通常不需要 gradient scaling，不过它仍会改变精度。</p>
+<p>对于使用 FP16 的梯度累积，操作顺序应为：每个有效 batch 只执行一次 <code>zero_grad</code> <span class="math inline">\(\rightarrow\)</span> 在 autocast 中执行 forward 与 loss <span class="math inline">\(\rightarrow\)</span> 对每个 microbatch 缩放 loss 并调用 <code>backward</code> <span class="math inline">\(\rightarrow\)</span> 只 unscale 一次 <span class="math inline">\(\rightarrow\)</span> 检查或裁剪梯度 <span class="math inline">\(\rightarrow\)</span> <code>scaler.step</code> <span class="math inline">\(\rightarrow\)</span> <code>scaler.update</code> <span class="math inline">\(\rightarrow\)</span> 推进按 update 计数的 scheduler。在同一份累积梯度仍未形成完毕时，不应反复更新 scale 或重复 unscale。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl05-pytorch-amp-speedup.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="不同神经网络工作负载中，AMP 相对 FP32 的实测加速差异明显。"><img src="assets/dl05-pytorch-amp-speedup.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="一张柱状图，对比 BERT、GNMT、NCF、ResNet、SSD、Tacotron、Transformer XL 和 WaveGlow 工作负载中混合精度相对 FP32 的加速比。"></a></p>
+</figure>
+</div>
+<figcaption>不同神经网络工作负载中，AMP 相对 FP32 的实测加速差异明显。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://pytorch.org/blog/what-every-user-should-know-about-mixed-precision-training-in-pytorch/">PyTorch, What Every User Should Know About Mixed Precision Training in PyTorch</a>。该 benchmark 说明 AMP 是需要实测的系统优化，而不是固定加速倍数的保证。</em></p>
+<p>Distributed data parallelism 会贡献另一份经平均的梯度，因此会改变有效 batch size。其系统实现将在第 19 章的可扩展训练中展开；在这里，应把 world size 视为更新定义的一部分，而不是仅仅视为部署细节。</p>
+<details>
+<summary>
+<strong>PyTorch：让梯度累积匹配大 batch，然后使用 AMP 安全的裁剪顺序</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">61</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(<span class="dv">8</span>, <span class="dv">3</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.randn(<span class="dv">8</span>, <span class="dv">2</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>template <span class="op">=</span> nn.Linear(<span class="dv">3</span>, <span class="dv">2</span>)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>large_batch_model <span class="op">=</span> copy.deepcopy(template)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>accumulated_model <span class="op">=</span> copy.deepcopy(template)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>large_optimizer <span class="op">=</span> torch.optim.SGD(large_batch_model.parameters(), lr<span class="op">=</span><span class="fl">0.05</span>)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>accumulated_optimizer <span class="op">=</span> torch.optim.SGD(accumulated_model.parameters(), lr<span class="op">=</span><span class="fl">0.05</span>)</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="co"># One full batch and two microbatches should produce the same clipped update.</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>large_optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>large_loss <span class="op">=</span> F.mse_loss(large_batch_model(features), targets)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>large_loss.backward()</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>torch.nn.utils.clip_grad_norm_(large_batch_model.parameters(), max_norm<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>large_optimizer.step()</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>accumulated_optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> micro_features, micro_targets <span class="kw">in</span> <span class="bu">zip</span>(features.chunk(<span class="dv">2</span>), targets.chunk(<span class="dv">2</span>)):</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    micro_loss <span class="op">=</span> F.mse_loss(accumulated_model(micro_features), micro_targets)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    (micro_loss <span class="op">/</span> <span class="dv">2</span>).backward()  <span class="co"># Divide by accumulation steps for mean-reduced loss.</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>torch.nn.utils.clip_grad_norm_(accumulated_model.parameters(), max_norm<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>accumulated_optimizer.step()</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(torch.allclose(a, b, atol<span class="op">=</span><span class="fl">1e-6</span>) <span class="cf">for</span> a, b <span class="kw">in</span> <span class="bu">zip</span>(large_batch_model.parameters(), accumulated_model.parameters()))</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="co"># The same ordering is safe with AMP. It runs as ordinary FP32 when CUDA is unavailable.</span></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>device <span class="op">=</span> torch.device(<span class="st">"cuda"</span> <span class="cf">if</span> torch.cuda.is_available() <span class="cf">else</span> <span class="st">"cpu"</span>)</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>amp_model <span class="op">=</span> nn.Linear(<span class="dv">3</span>, <span class="dv">2</span>).to(device)</span>
+<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a>amp_optimizer <span class="op">=</span> torch.optim.AdamW(amp_model.parameters(), lr<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a>amp_enabled <span class="op">=</span> device.<span class="bu">type</span> <span class="op">==</span> <span class="st">"cuda"</span></span>
+<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> torch.amp.GradScaler(device.<span class="bu">type</span>, enabled<span class="op">=</span>amp_enabled)</span>
+<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a>amp_optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.autocast(device_type<span class="op">=</span>device.<span class="bu">type</span>, dtype<span class="op">=</span>torch.float16, enabled<span class="op">=</span>amp_enabled):</span>
+<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a>    amp_loss <span class="op">=</span> F.mse_loss(amp_model(features.to(device)), targets.to(device))</span>
+<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a>scaler.scale(amp_loss).backward()</span>
+<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a>scaler.unscale_(amp_optimizer)  <span class="co"># Gradients must be unscaled before clipping.</span></span>
+<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a>unscaled_norm <span class="op">=</span> torch.nn.utils.clip_grad_norm_(amp_model.parameters(), max_norm<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a>scaler.step(amp_optimizer)</span>
+<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>scaler.update()</span>
+<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.isfinite(torch.stack([parameter.detach().<span class="bu">abs</span>().<span class="bu">max</span>().cpu() <span class="cf">for</span> parameter <span class="kw">in</span> amp_model.parameters()])).<span class="bu">all</span>()</span>
+<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"accumulation matches full batch:"</span>, <span class="va">True</span>)</span>
+<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"pre-clipping AMP gradient norm:"</span>, <span class="bu">float</span>(unscaled_norm))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 梯度累积常见于显存受限的语言、视觉和多模态训练。AMP 是现代加速器上的标准性能技术。二者都要求仔细记账：loss reduction、缩放因子、裁剪位置、scheduler step 与 optimizer step 必须共同对应同一次有效更新。</p>
+<p><strong>对比总结。</strong> Batch size 控制一次估计背后的数据量；累积在时间上模拟更大的 batch；裁剪为异常梯度设定上界；AMP 改变算术精度，因此需要正确的缩放与取消缩放顺序。</p>
+</section>
+<section id="initialization-early-training-dynamics" class="level3">
+<h3 class="anchored" data-anchor-id="initialization-early-training-dynamics"><strong>初始化与早期训练动态</strong></h3>
+<p>初始化决定模型最初的激活、梯度和对称性。如果两个隐藏单元以相同参数开始，并接收相同输入，它们会在梯度下降中始终相同，因而无法学习不同特征。随机初始化会打破这种对称性。其方差还必须与架构相匹配：若数值在多层间反复收缩或增长，就会在优化尚未来得及帮助之前产生接近零或爆炸的激活与梯度。</p>
+<p>对于 fan-in 为 <span class="math inline">\(n_{in}\)</span>、fan-out 为 <span class="math inline">\(n_{out}\)</span> 的层，Xavier/Glorot 初始化试图为大致线性或对称激活保持方差，常使用接近下式的方差：</p>
+<p><span class="math display">\[
+\operatorname{Var}(W)\approx\frac{2}{n_{in}+n_{out}}.
+\]</span></p>
+<p>对于 ReLU 类激活，He/Kaiming 初始化会补偿大约一半激活被移除的效果：</p>
+<p><span class="math display">\[
+\operatorname{Var}(W)\approx\frac{2}{n_{in}}.
+\]</span></p>
+<p>这些是方差保持启发式，而不是普适保证。残差路径、normalization、embedding scale、深度、优化器和精度都会改变早期动态。有用的做法是将合理默认值与测量结合：在最初几百次更新中检查 activation scale、gradient norms、更新与参数的比值以及非有限数值。</p>
+<details>
+<summary>
+<strong>PyTorch：对比保留对称性的零初始化与 Kaiming 初始化</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SmallReLUNet(nn.Module):</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.hidden <span class="op">=</span> nn.Linear(<span class="dv">6</span>, <span class="dv">12</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.output <span class="op">=</span> nn.Linear(<span class="dv">12</span>, <span class="dv">1</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        hidden <span class="op">=</span> F.relu(<span class="va">self</span>.hidden(x))</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.output(hidden), hidden</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> initialize(model: nn.Module, mode: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> mode <span class="op">==</span> <span class="st">"zero"</span>:</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>        nn.init.zeros_(model.hidden.weight)</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>        nn.init.zeros_(model.output.weight)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elif</span> mode <span class="op">==</span> <span class="st">"kaiming"</span>:</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Match Kaiming to the hidden ReLU, but use Xavier for the linear output.</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>        nn.init.kaiming_normal_(model.hidden.weight, nonlinearity<span class="op">=</span><span class="st">"relu"</span>)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        nn.init.xavier_normal_(model.output.weight)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(mode)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    nn.init.zeros_(model.hidden.bias)</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>    nn.init.zeros_(model.output.bias)</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">67</span>)</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>inputs <span class="op">=</span> torch.randn(<span class="dv">32</span>, <span class="dv">6</span>)</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.randn(<span class="dv">32</span>, <span class="dv">1</span>)</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>zero_model, kaiming_model <span class="op">=</span> SmallReLUNet(), SmallReLUNet()</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>initialize(zero_model, <span class="st">"zero"</span>)</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>initialize(kaiming_model, <span class="st">"kaiming"</span>)</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>zero_prediction, zero_hidden <span class="op">=</span> zero_model(inputs)</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>zero_loss <span class="op">=</span> F.mse_loss(zero_prediction, targets)</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>zero_loss.backward()</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>kaiming_prediction, kaiming_hidden <span class="op">=</span> kaiming_model(inputs)</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>kaiming_loss <span class="op">=</span> F.mse_loss(kaiming_prediction, targets)</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>kaiming_loss.backward()</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> zero_hidden.var() <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> zero_model.hidden.weight.grad.<span class="bu">abs</span>().<span class="bu">sum</span>() <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> kaiming_hidden.var() <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> kaiming_model.hidden.weight.grad.<span class="bu">abs</span>().<span class="bu">sum</span>() <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"zero-init hidden variance:   "</span>, <span class="bu">float</span>(zero_hidden.detach().var()))</span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Kaiming hidden variance:     "</span>, <span class="bu">float</span>(kaiming_hidden.detach().var()))</span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Kaiming first-layer grad norm:"</span>, <span class="bu">float</span>(kaiming_model.hidden.weight.grad.norm()))</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 从框架默认值或架构推荐初始化开始，然后在调优复杂优化器之前检查早期动态。增加新的残差分支、自定义 normalization、非常规激活，或很深的循环/状态空间组件时，这一点尤为重要。</p>
+<p><strong>对比总结。</strong> 初始化提供起始分布，优化提供迭代移动。较差初始化会从第一步起就让梯度失去信息，而尺度合适的随机初始化会打破对称性，并为优化提供可用信号。</p>
+</section>
+<section id="loss-landscapes-optimization-diagnostics" class="level3">
+<h3 class="anchored" data-anchor-id="loss-landscapes-optimization-diagnostics"><strong>损失曲面与优化诊断</strong></h3>
+<p><strong>损失曲面（loss landscape）</strong>指的是目标值作为全部参数函数的形状。现代网络的这一空间拥有数百万甚至数十亿维，因此二维等高线图只能是局部投影。即便如此，这类图仍提供有用直觉：狭窄谷地会产生振荡，平坦或条件不良方向会让进展缓慢，鞍点附近可能梯度很小却并非好解，而不同参数化可能在不同位置表达相同函数。</p>
+<p>不要只根据损失诊断真实训练。一个有用的训练记录至少应包含：</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>信号</th>
+<th>它可能揭示什么</th>
+<th>注意事项</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>train loss 与任务指标</td>
+<td>目标进展和面向任务的行为</td>
+<td>低训练损失可与较差验证表现共存</td>
+</tr>
+<tr class="even">
+<td>validation loss 与指标</td>
+<td>泛化和过拟合</td>
+<td>应在稳定的评估协议下比较</td>
+</tr>
+<tr class="odd">
+<td>learning rate 与更新次数</td>
+<td>预期调度是否真的生效</td>
+<td>记录实际 optimizer 值，而不只记录配置</td>
+</tr>
+<tr class="even">
+<td>全局或逐层 gradient norms</td>
+<td>爆炸、消失或断开的路径</td>
+<td>范数必须结合尺度与层类型解释</td>
+</tr>
+<tr class="odd">
+<td>parameter norm 与更新/参数比值</td>
+<td>更新是否微弱或具有破坏性</td>
+<td>应跨时间比较，而不是只看单步</td>
+</tr>
+<tr class="even">
+<td>activation distributions 与非有限值计数</td>
+<td>饱和、死亡单元、溢出或无效数据</td>
+<td>检查代表性层，而非每个张量</td>
+</tr>
+</tbody>
+</table>
+<p>不同症状对应不同干预。损失立即变为 <code>NaN</code> 可能表示无效数据、数值操作、AMP 溢出或过大的更新；持续接近零的梯度可能表示饱和、masking、断开的计算图或尺度较差；训练改进而验证变差则意味着过拟合，或目标与评估不匹配。降低学习率可能有用，但不是通用诊断方法。</p>
+<p>最可靠的调试流程是在一个小型、确定性的运行中一次只改变一个有意义变量。先在极小子集上过拟合，然后确认目标函数、数据管道、更新记账、precision mode 与指标。只有在这些步骤完成后，大规模超参数搜索才值得信任。</p>
+<details>
+<summary>
+<strong>PyTorch：在小型训练中记录 loss、gradient norm 与相对更新大小</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(<span class="dv">71</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.randn(<span class="dv">128</span>, <span class="dv">4</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>true_weight <span class="op">=</span> torch.tensor([<span class="fl">1.2</span>, <span class="op">-</span><span class="fl">0.8</span>, <span class="fl">0.5</span>, <span class="fl">1.0</span>])</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> ((features <span class="op">@</span> true_weight) <span class="op">&gt;</span> <span class="dv">0</span>).<span class="bu">float</span>().unsqueeze(<span class="dv">1</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> nn.Sequential(nn.Linear(<span class="dv">4</span>, <span class="dv">8</span>), nn.Tanh(), nn.Linear(<span class="dv">8</span>, <span class="dv">1</span>))</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(model.parameters(), lr<span class="op">=</span><span class="fl">5e-2</span>, weight_decay<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>ledger <span class="op">=</span> []</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parameter_vector(module: nn.Module) <span class="op">-&gt;</span> torch.Tensor:</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.cat([parameter.detach().flatten() <span class="cf">for</span> parameter <span class="kw">in</span> module.parameters()])</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> step <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">40</span>):</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    before <span class="op">=</span> parameter_vector(model)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> F.binary_cross_entropy_with_logits(model(features), labels)</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>    loss.backward()</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>    gradient_norm <span class="op">=</span> torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm<span class="op">=</span><span class="fl">10.0</span>)</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>    optimizer.step()</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>    after <span class="op">=</span> parameter_vector(model)</span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>    update_ratio <span class="op">=</span> (after <span class="op">-</span> before).norm() <span class="op">/</span> before.norm().clamp_min(<span class="fl">1e-12</span>)</span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>    ledger.append(</span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>        {</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a>            <span class="st">"step"</span>: step,</span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a>            <span class="st">"loss"</span>: <span class="bu">float</span>(loss.detach()),</span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>            <span class="st">"gradient_norm"</span>: <span class="bu">float</span>(gradient_norm),</span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">"update_ratio"</span>: <span class="bu">float</span>(update_ratio),</span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>            <span class="st">"learning_rate"</span>: optimizer.param_groups[<span class="dv">0</span>][<span class="st">"lr"</span>],</span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> ledger[<span class="op">-</span><span class="dv">1</span>][<span class="st">"loss"</span>] <span class="op">&lt;</span> ledger[<span class="dv">0</span>][<span class="st">"loss"</span>]</span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(torch.isfinite(torch.tensor(row[<span class="st">"gradient_norm"</span>])) <span class="cf">for</span> row <span class="kw">in</span> ledger)</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"first step:"</span>, ledger[<span class="dv">0</span>])</span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"last step: "</span>, ledger[<span class="op">-</span><span class="dv">1</span>])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p><strong>应用。</strong> 这些诊断属于每一个严肃训练循环，无论是笔记本电脑实验还是分布式预训练运行。具体的日志系统可以变化，但将优化过程视为时间序列来观察的习惯具有普适性。</p>
+<p><strong>对比总结。</strong> 损失曲面提供有用直觉，诊断记录提供可操作证据。损失值展示所选标量是否降低；梯度、更新、激活、精度与验证信号则解释一次运行为什么稳定、停滞或具有误导性。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>本章对比与总结</strong></h3>
+<p>训练是目标函数、随机梯度估计、更新规则和测量过程的反复组合。不存在一种脱离数据、架构、batch 方案、精度和评估目标而普适最好的优化器或损失函数。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>组件</th>
+<th>核心问题</th>
+<th>典型机制</th>
+<th>重要失败模式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>目标函数</td>
+<td>什么行为会得到奖励？</td>
+<td>经验风险加显式偏好</td>
+<td>优化遗漏任务目标的代理指标</td>
+</tr>
+<tr class="even">
+<td>回归或分类损失</td>
+<td>如何衡量预测错误？</td>
+<td>MSE、Huber、BCE-with-logits、cross-entropy</td>
+<td>不稳定的概率计算或不匹配的标签</td>
+</tr>
+<tr class="odd">
+<td>序列或度量损失</td>
+<td>哪些位置、样本或关系重要？</td>
+<td>masks、weights、smoothing、contrastive terms</td>
+<td>padding、类别不平衡或负样本选择错误</td>
+</tr>
+<tr class="even">
+<td>Minibatch SGD</td>
+<td>如何估计数据集梯度？</td>
+<td>随机 batch 平均</td>
+<td>方差过高或归约尺度错误</td>
+</tr>
+<tr class="odd">
+<td>Momentum/Nesterov</td>
+<td>如何加速持续方向？</td>
+<td>velocity 与 lookahead</td>
+<td>学习率与状态不兼容造成过冲</td>
+</tr>
+<tr class="even">
+<td>自适应方法</td>
+<td>如何重缩放不同坐标？</td>
+<td>二阶矩对角预条件</td>
+<td>不经重新调优就复制 SGD 超参数</td>
+</tr>
+<tr class="odd">
+<td>AdamW</td>
+<td>如何分离自适应更新与收缩？</td>
+<td>Adam moments 加解耦 decay</td>
+<td>意外衰减不应衰减的参数，或误用耦合 L2</td>
+</tr>
+<tr class="even">
+<td>调度或 warmup</td>
+<td>步长如何随时间变化？</td>
+<td>按更新索引的学习率</td>
+<td>更新次数变化时仍按 epoch 调度</td>
+</tr>
+<tr class="odd">
+<td>累积、AMP、裁剪</td>
+<td>如何安全执行一次有效更新？</td>
+<td>缩放的 microbatch 梯度、unscale、clip、step</td>
+<td>在错误粒度上 step、clip 或调度</td>
+</tr>
+<tr class="even">
+<td>初始化或诊断</td>
+<td>早期训练信号是否可用？</td>
+<td>方差感知初始化与记录统计量</td>
+<td>把症状误认为根因</td>
+</tr>
+</tbody>
+</table>
+<p>本章的主要结论是：</p>
+<ol type="1">
+<li>损失函数编码的是建模与产品决策，而不是中性的实现细节。</li>
+<li>损失归约、batch size、累积次数和数据并行 world size 共同定义梯度尺度。</li>
+<li>稳定的基于 logit 的损失可避免数值失败，并为分类提供直接梯度。</li>
+<li>Masks、class weights、focal factors 与 metric terms 会重新分配位置、样本和关系之间的梯度影响。</li>
+<li>Minibatch gradients 是带噪估计；它们的噪声、更新频率和硬件效率都是训练设计的一部分。</li>
+<li>Momentum 平均梯度方向，而自适应优化器借助梯度历史重缩放坐标。</li>
+<li>AdamW 将 weight decay 与自适应梯度归一化解耦，并应使用有意设计的 parameter groups。</li>
+<li>Learning-rate schedules 与 warmup 是按更新次数计的控制策略，而不是可选的装饰性设置。</li>
+<li>Accumulation、clipping、AMP 与分布式平均必须围绕同一次有效更新按正确顺序与尺度执行。</li>
+<li>初始化决定在优化器发挥作用前，是否已经存在有用的打破对称的激活与梯度。</li>
+<li>诊断应追踪损失、验证、梯度、更新、激活、精度和非有限值构成的时间序列。</li>
+</ol>
+<p>第 06 章研究模型拟合训练目标之后会发生什么：泛化、正则化、实验设计，以及判断一次训练改进是真实的还是某个 split 或 seed 的偶然产物所需的证据。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

@@ -47,6 +47,7 @@ $notebooks = Get-ChildItem -Path $root -Recurse -File -Filter *.ipynb |
 
 $rendered = 0
 $skipped = 0
+$renderedHtml = New-Object System.Collections.Generic.List[string]
 
 function ConvertTo-YamlSafeTitleLine {
     param([string]$Line)
@@ -175,9 +176,16 @@ foreach ($notebook in $notebooks) {
     }
 
     $rendered += 1
+    $renderedHtml.Add($htmlPath)
 }
 
-& $navigationSync -Root $root
+if ($Force) {
+    & $navigationSync -Root $root
+} elseif ($renderedHtml.Count -gt 0) {
+    & $navigationSync -Root $root -Path ($renderedHtml.ToArray())
+} else {
+    Write-Host 'Navigation sync skipped because no HTML file changed.'
+}
 
 Write-Host ""
 Write-Host "Done. Rendered: $rendered; skipped: $skipped."

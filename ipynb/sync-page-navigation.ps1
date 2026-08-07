@@ -1,5 +1,7 @@
 param(
-    [string]$Root = (Split-Path -Parent $MyInvocation.MyCommand.Path)
+    [string]$Root = (Split-Path -Parent $MyInvocation.MyCommand.Path),
+    [string[]]$Path,
+    [switch]$OptimizeAssets
 )
 
 $ErrorActionPreference = "Stop"
@@ -178,27 +180,101 @@ function Get-RootRelativeLanguageHref {
     return "/ipynb/" + ($encodedSegments -join "/")
 }
 
-# Keep copied notebook stylesheets aligned with the canonical stylesheet.
-$cssCopies = Get-ChildItem -Path $rootPath -Recurse -Force -File -Filter "blog-images.css" |
-    Where-Object {
-        $relativePath = $_.FullName.Substring($rootPath.Length).TrimStart('\', '/')
-        $_.FullName -ne $sharedCss -and
+function Test-PublishableHtml {
+    param([System.IO.FileInfo]$File)
+
+    $relativePath = $File.FullName.Substring($rootPath.Length).TrimStart('\', '/')
+    return (
         $relativePath -notmatch '(^|[\\/])\.translation-work([\\/]|$)' -and
         $relativePath -notmatch '(^|[\\/])\.ipynb_checkpoints([\\/]|$)' -and
         $relativePath -notmatch '(^|[\\/])[^\\/]+_files([\\/]|$)'
+    )
+}
+
+function Assert-PathInsideRoot {
+    param([string]$Candidate)
+
+    $fullPath = [System.IO.Path]::GetFullPath($Candidate)
+    $rootPrefix = $rootPath.TrimEnd('\') + '\'
+    if (
+        $fullPath -ne $rootPath -and
+        -not $fullPath.StartsWith(
+            $rootPrefix,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )
+    ) {
+        throw "Target path is outside the notebook root: $Candidate"
     }
+    return $fullPath
+}
+
+if ($Path) {
+    $selectedHtml = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+    foreach ($requestedPath in $Path) {
+        $candidates = if ([System.IO.Path]::IsPathRooted($requestedPath)) {
+            @($requestedPath)
+        } else {
+            @(
+                (Join-Path (Get-Location).Path $requestedPath),
+                (Join-Path $rootPath $requestedPath)
+            )
+        }
+
+        $resolved = $null
+        foreach ($candidate in $candidates) {
+            if (Test-Path -LiteralPath $candidate) {
+                $resolved = Assert-PathInsideRoot -Candidate $candidate
+                break
+            }
+        }
+        if (-not $resolved) {
+            throw "Navigation target was not found: $requestedPath"
+        }
+
+        if (Test-Path -LiteralPath $resolved -PathType Container) {
+            Get-ChildItem -LiteralPath $resolved -Recurse -File -Filter '*.html' |
+                Where-Object { Test-PublishableHtml -File $_ } |
+                ForEach-Object { $selectedHtml.Add($_) }
+        } elseif ([System.IO.Path]::GetExtension($resolved) -ieq '.html') {
+            $item = Get-Item -LiteralPath $resolved
+            if (Test-PublishableHtml -File $item) {
+                $selectedHtml.Add($item)
+            }
+        } else {
+            throw "Navigation target is not an HTML file or directory: $requestedPath"
+        }
+    }
+
+    $htmlFiles = $selectedHtml | Sort-Object FullName -Unique
+    $cssCopies = $htmlFiles |
+        ForEach-Object {
+            $localCss = Join-Path $_.DirectoryName 'blog-images.css'
+            if (
+                $localCss -ne $sharedCss -and
+                (Test-Path -LiteralPath $localCss -PathType Leaf)
+            ) {
+                Get-Item -LiteralPath $localCss
+            }
+        } |
+        Sort-Object FullName -Unique
+} else {
+    # Keep copied notebook stylesheets aligned with the canonical stylesheet.
+    $cssCopies = Get-ChildItem -Path $rootPath -Recurse -Force -File -Filter "blog-images.css" |
+        Where-Object {
+            $relativePath = $_.FullName.Substring($rootPath.Length).TrimStart('\', '/')
+            $_.FullName -ne $sharedCss -and
+            $relativePath -notmatch '(^|[\\/])\.translation-work([\\/]|$)' -and
+            $relativePath -notmatch '(^|[\\/])\.ipynb_checkpoints([\\/]|$)' -and
+            $relativePath -notmatch '(^|[\\/])[^\\/]+_files([\\/]|$)'
+        }
+
+    $htmlFiles = Get-ChildItem -Path $rootPath -Recurse -File -Filter "*.html" |
+        Where-Object { Test-PublishableHtml -File $_ }
+}
 
 foreach ($copy in $cssCopies) {
     [System.IO.File]::Copy($sharedCss, $copy.FullName, $true)
 }
-
-$htmlFiles = Get-ChildItem -Path $rootPath -Recurse -File -Filter "*.html" |
-    Where-Object {
-        $relativePath = $_.FullName.Substring($rootPath.Length).TrimStart('\', '/')
-        $relativePath -notmatch '(^|[\\/])\.translation-work([\\/]|$)' -and
-        $relativePath -notmatch '(^|[\\/])\.ipynb_checkpoints([\\/]|$)' -and
-        $relativePath -notmatch '(^|[\\/])[^\\/]+_files([\\/]|$)'
-    }
 
 $overviewLinkPattern =
     '<a\b[^>]*>[^<]*(?:guideline|overview|\u603B\u89C8|\u6307\u5357)[^<]*</a>'
@@ -447,5 +523,9 @@ Write-Host (
     "unchanged: $unchanged; CSS copies: $($cssCopies.Count)."
 )
 
-& $libraryOptimizer -Root $rootPath
-& $translatedAssetOptimizer -Root $rootPath
+if (-not $Path -or $OptimizeAssets) {
+    & $libraryOptimizer -Root $rootPath
+    & $translatedAssetOptimizer -Root $rootPath
+} else {
+    Write-Host 'Targeted mode: skipped full-site library and translated-asset deduplication.'
+}
