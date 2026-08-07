@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：注意力与 Transformer</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="09-attention-transformers.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="09-attention-transformers.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="09-attention-transformers.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="09-attention-transformers.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="09-attention-transformers.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="09-attention-transformers.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="09-attention-transformers.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="09-attention-transformers.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="09-attention-transformers.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="09-attention-transformers.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="09-attention-transformers.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="09-attention-transformers.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="09-attention-transformers.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#attention-transformers" id="toc-attention-transformers" class="nav-link active" data-scroll-target="#attention-transformers"><strong>注意力与 Transformer</strong></a>
+  <ul>
+  <li><a href="#why-attention-was-introduced" id="toc-why-attention-was-introduced" class="nav-link" data-scroll-target="#why-attention-was-introduced"><strong>为什么引入注意力</strong></a></li>
+  <li><a href="#queries-keys-values" id="toc-queries-keys-values" class="nav-link" data-scroll-target="#queries-keys-values"><strong>Query、Key 与 Value</strong></a></li>
+  <li><a href="#scaled-dot-product-attention" id="toc-scaled-dot-product-attention" class="nav-link" data-scroll-target="#scaled-dot-product-attention"><strong>缩放点积注意力</strong></a></li>
+  <li><a href="#multi-head-attention-tensor-shapes" id="toc-multi-head-attention-tensor-shapes" class="nav-link" data-scroll-target="#multi-head-attention-tensor-shapes"><strong>多头注意力与张量形状</strong></a></li>
+  <li><a href="#self-attention-cross-attention" id="toc-self-attention-cross-attention" class="nav-link" data-scroll-target="#self-attention-cross-attention"><strong>Self-Attention 与 Cross-Attention</strong></a></li>
+  <li><a href="#causal-padding-structural-masks" id="toc-causal-padding-structural-masks" class="nav-link" data-scroll-target="#causal-padding-structural-masks"><strong>因果、Padding 与结构化 Mask</strong></a></li>
+  <li><a href="#positional-encoding-rope" id="toc-positional-encoding-rope" class="nav-link" data-scroll-target="#positional-encoding-rope"><strong>位置编码与 RoPE</strong></a></li>
+  <li><a href="#transformer-encoder-decoder-blocks" id="toc-transformer-encoder-decoder-blocks" class="nav-link" data-scroll-target="#transformer-encoder-decoder-blocks"><strong>Transformer Encoder 与 Decoder Block</strong></a></li>
+  <li><a href="#residual-normalization-feed-forward" id="toc-residual-normalization-feed-forward" class="nav-link" data-scroll-target="#residual-normalization-feed-forward"><strong>残差路径、归一化与前馈网络</strong></a></li>
+  <li><a href="#encoder-decoder-model-families" id="toc-encoder-decoder-model-families" class="nav-link" data-scroll-target="#encoder-decoder-model-families"><strong>Encoder-Only、Decoder-Only 与 Encoder-Decoder 模型</strong></a></li>
+  <li><a href="#kv-cache-autoregressive-inference" id="toc-kv-cache-autoregressive-inference" class="nav-link" data-scroll-target="#kv-cache-autoregressive-inference"><strong>KV Cache 与自回归推理</strong></a></li>
+  <li><a href="#flashattention-efficient-attention" id="toc-flashattention-efficient-attention" class="nav-link" data-scroll-target="#flashattention-efficient-attention"><strong>FlashAttention 与高效 Attention 原则</strong></a></li>
+  <li><a href="#transformers-beyond-text" id="toc-transformers-beyond-text" class="nav-link" data-scroll-target="#transformers-beyond-text"><strong>文本之外的 Transformer</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>本章对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：注意力与 Transformer</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/09-attention-transformers.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="attention-transformers" class="level2">
+<h2 class="anchored" data-anchor-id="attention-transformers"><strong>注意力与 Transformer</strong></h2>
+<p>第 08 章比较了 recurrence、时间卷积和状态空间压缩。这些方法都通过预先确定的状态转移或局部卷积核传递信息。Attention 引入了不同的操作：一个位置通过对其他位置集合进行<strong>内容寻址（content addressing）</strong>来构造自己的表示。Transformer 将这种操作与投影、残差路径、归一化、前馈网络和位置信息组织起来，使整条序列可以并行训练。</p>
+<p>本章继续使用第 08 章的 <a href="https://openslr.org/1/">OpenSLR SLR1 YESNO corpus</a>。所有示例都处理本地保存的 8 kHz 录音及其八个 yes/no 标签。波形先转换为归一化 log-STFT 帧，再每四帧保留一帧，以降低二次复杂度教学示例的成本。这种时间下采样是明确声明的预处理，而不是隐藏优化。数据集只有一名男性说话者的 60 条语音，因此预测分数只用于检查机制，不代表广泛语音基准。官方 <a href="https://docs.pytorch.org/audio/main/generated/torchaudio.datasets.YESNO.html">torchaudio <code>YESNO</code> 文档</a>指向同一个 OpenSLR 归档。</p>
+<section id="why-attention-was-introduced" class="level3">
+<h3 class="anchored" data-anchor-id="why-attention-was-introduced"><strong>为什么引入注意力</strong></h3>
+<p>早期 encoder-decoder RNN 把整条源序列压缩成一个最终隐藏向量。当源序列变长时，该向量必须保存每个解码步骤可能需要的全部细节。Attention 用一组编码器状态替代单一瓶颈，让每个输出步骤检索不同的加权组合。任意源位置到当前输出的依赖路径因此缩短，模型还可以显式给出软对齐。</p>
+<p>Self-attention 在同一序列内部应用该原则。它用数据相关交互代替卷积的固定邻域和 recurrence 的逐步路径。对于长度 <span class="math inline">\(T\)</span> 和隐藏维度 <span class="math inline">\(D\)</span>，完整 self-attention 会计算 <span class="math inline">\(T\times T\)</span> score matrix。短依赖路径与并行训练很强大，但除非施加结构或采用优化的内存日程，否则时间和内存都随 <span class="math inline">\(T\)</span> 二次增长。</p>
+<p>Attention 本身不是完整的记忆系统，它只定义一组表示如何读取另一组表示。Transformer 还需要输入 embedding、位置或几何、非线性通道混合、残差优化路径和任务头。Attention map 的质量也依赖学习到的投影；一张热力图不会自动成为最终预测的忠实解释。</p>
+<details>
+<summary>
+<strong>PyTorch：建立共享的 YESNO attention 实验</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> io</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> tarfile</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> wave</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn.utils.rnn <span class="im">import</span> pad_sequence</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.utils.data <span class="im">import</span> DataLoader, Dataset</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>torch.set_num_threads(<span class="dv">1</span>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> seed_everything(seed<span class="op">=</span><span class="dv">909</span>):</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    random.seed(seed)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    np.random.seed(seed)</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    torch.manual_seed(seed)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_pcm_wave(payload):</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> wave.<span class="bu">open</span>(io.BytesIO(payload), <span class="st">"rb"</span>) <span class="im">as</span> stream:</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> stream.getnchannels() <span class="op">==</span> <span class="dv">1</span> <span class="kw">and</span> stream.getsampwidth() <span class="op">==</span> <span class="dv">2</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>        sample_rate <span class="op">=</span> stream.getframerate()</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>        samples <span class="op">=</span> np.frombuffer(stream.readframes(stream.getnframes()), dtype<span class="op">=</span><span class="st">"&lt;i2"</span>).copy()</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.tensor(samples, dtype<span class="op">=</span>torch.float32) <span class="op">/</span> <span class="fl">32768.0</span>, sample_rate</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>archive_candidates <span class="op">=</span> [</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    Path(<span class="st">"assets/data/waves_yesno.tar.gz"</span>),</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    Path(<span class="st">"ipynb/Deep-Learning/assets/data/waves_yesno.tar.gz"</span>),</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>archive <span class="op">=</span> <span class="bu">next</span>(path <span class="cf">for</span> path <span class="kw">in</span> archive_candidates <span class="cf">if</span> path.exists())</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>window <span class="op">=</span> torch.hann_window(<span class="dv">256</span>)</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>records <span class="op">=</span> []</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> tarfile.<span class="bu">open</span>(archive, <span class="st">"r:gz"</span>) <span class="im">as</span> bundle:</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>    members <span class="op">=</span> <span class="bu">sorted</span>(</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>        (member <span class="cf">for</span> member <span class="kw">in</span> bundle.getmembers() <span class="cf">if</span> member.isfile() <span class="kw">and</span> member.name.endswith(<span class="st">".wav"</span>)),</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>        key<span class="op">=</span><span class="kw">lambda</span> member: member.name,</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> member <span class="kw">in</span> members:</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>        waveform, sample_rate <span class="op">=</span> read_pcm_wave(bundle.extractfile(member).read())</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>        spectrum <span class="op">=</span> torch.stft(</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>            waveform, n_fft<span class="op">=</span><span class="dv">256</span>, hop_length<span class="op">=</span><span class="dv">160</span>, win_length<span class="op">=</span><span class="dv">256</span>,</span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>            window<span class="op">=</span>window, return_complex<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a>        ).<span class="bu">abs</span>().transpose(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>        features <span class="op">=</span> torch.log1p(spectrum)[::<span class="dv">4</span>]  <span class="co"># 20 ms hop becomes an 80 ms teaching sequence.</span></span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a>        labels <span class="op">=</span> torch.tensor([<span class="bu">int</span>(value) <span class="cf">for</span> value <span class="kw">in</span> Path(member.name).stem.split(<span class="st">"_"</span>)])</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>        records.append({<span class="st">"name"</span>: member.name, <span class="st">"features"</span>: features, <span class="st">"labels"</span>: labels})</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>all_idx <span class="op">=</span> np.arange(<span class="bu">len</span>(records))</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>first_labels <span class="op">=</span> np.array([<span class="bu">int</span>(record[<span class="st">"labels"</span>][<span class="dv">0</span>]) <span class="cf">for</span> record <span class="kw">in</span> records])</span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>train_idx, holdout_idx <span class="op">=</span> train_test_split(</span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a>    all_idx, test_size<span class="op">=</span><span class="fl">0.30</span>, random_state<span class="op">=</span><span class="dv">808</span>, stratify<span class="op">=</span>first_labels</span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>val_idx, test_idx <span class="op">=</span> train_test_split(</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>    holdout_idx, test_size<span class="op">=</span><span class="fl">0.50</span>, random_state<span class="op">=</span><span class="dv">808</span>, stratify<span class="op">=</span>first_labels[holdout_idx]</span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a>training_frames <span class="op">=</span> torch.cat([records[<span class="bu">int</span>(i)][<span class="st">"features"</span>] <span class="cf">for</span> i <span class="kw">in</span> train_idx])</span>
+<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a>feature_mean <span class="op">=</span> training_frames.mean(<span class="dv">0</span>)</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>feature_std <span class="op">=</span> training_frames.std(<span class="dv">0</span>).clamp_min(<span class="fl">1e-5</span>)</span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> record <span class="kw">in</span> records:</span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>    record[<span class="st">"features"</span>] <span class="op">=</span> (record[<span class="st">"features"</span>] <span class="op">-</span> feature_mean) <span class="op">/</span> feature_std</span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> YesNoDataset(Dataset):</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, indices):</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.indices <span class="op">=</span> [<span class="bu">int</span>(i) <span class="cf">for</span> i <span class="kw">in</span> indices]</span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__len__</span>(<span class="va">self</span>):</span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">len</span>(<span class="va">self</span>.indices)</span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__getitem__</span>(<span class="va">self</span>, index):</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> records[<span class="va">self</span>.indices[index]]</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> collate_yesno(batch):</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>    sequences <span class="op">=</span> [item[<span class="st">"features"</span>] <span class="cf">for</span> item <span class="kw">in</span> batch]</span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>    lengths <span class="op">=</span> torch.tensor([<span class="bu">len</span>(sequence) <span class="cf">for</span> sequence <span class="kw">in</span> sequences])</span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a>    padded <span class="op">=</span> pad_sequence(sequences, batch_first<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>    valid <span class="op">=</span> torch.arange(padded.shape[<span class="dv">1</span>]).unsqueeze(<span class="dv">0</span>) <span class="op">&lt;</span> lengths.unsqueeze(<span class="dv">1</span>)</span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> torch.stack([item[<span class="st">"labels"</span>] <span class="cf">for</span> item <span class="kw">in</span> batch])</span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> padded, lengths, valid, labels</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> yesno_loader(indices, shuffle<span class="op">=</span><span class="va">False</span>, seed<span class="op">=</span><span class="dv">909</span>, batch_size<span class="op">=</span><span class="dv">6</span>):</span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>    generator <span class="op">=</span> torch.Generator().manual_seed(seed)</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> DataLoader(</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>        YesNoDataset(indices), batch_size<span class="op">=</span>batch_size, shuffle<span class="op">=</span>shuffle,</span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>        generator<span class="op">=</span>generator, collate_fn<span class="op">=</span>collate_yesno,</span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>acoustic_frames, frame_lengths, frame_mask, word_labels <span class="op">=</span> <span class="bu">next</span>(<span class="bu">iter</span>(yesno_loader(train_idx)))</span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(records) <span class="op">==</span> <span class="dv">60</span> <span class="kw">and</span> sample_rate <span class="op">==</span> <span class="dv">8000</span></span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> acoustic_frames.shape[<span class="dv">0</span>] <span class="op">==</span> <span class="dv">6</span> <span class="kw">and</span> acoustic_frames.shape[<span class="op">-</span><span class="dv">1</span>] <span class="op">==</span> <span class="dv">129</span></span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frame_mask.<span class="bu">sum</span>(<span class="dv">1</span>).equal(frame_lengths)</span>
+<span id="cb1-103"><a href="#cb1-103" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">set</span>(train_idx).isdisjoint(test_idx)</span>
+<span id="cb1-104"><a href="#cb1-104" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"split"</span>: (<span class="bu">len</span>(train_idx), <span class="bu">len</span>(val_idx), <span class="bu">len</span>(test_idx)),</span>
+<span id="cb1-105"><a href="#cb1-105" aria-hidden="true" tabindex="-1"></a>       <span class="st">"frames"</span>: <span class="bu">tuple</span>(acoustic_frames.shape),</span>
+<span id="cb1-106"><a href="#cb1-106" aria-hidden="true" tabindex="-1"></a>       <span class="st">"valid length range"</span>: (<span class="bu">int</span>(frame_lengths.<span class="bu">min</span>()), <span class="bu">int</span>(frame_lengths.<span class="bu">max</span>()))})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>后面的每个示例都复用该划分、特征归一化和 padding mask。因此新的 attention 机制始终面对相同的序列几何，而不是每节重新生成一个恰好形状方便的随机张量。</p>
+</section>
+<section id="queries-keys-values" class="level3">
+<h3 class="anchored" data-anchor-id="queries-keys-values"><strong>Query、Key 与 Value</strong></h3>
+<p>Attention 把三个角色分开。<strong>Query</strong> 描述当前位置希望检索什么；<strong>key</strong> 描述每个候选位置可以用于匹配的地址；<strong>value</strong> 保存候选位置被赋予权重后返回的信息。给定 query <span class="math inline">\(q\)</span>、key-value 对 <span class="math inline">\((k_i,v_i)\)</span> 和兼容函数 <span class="math inline">\(a\)</span>，attention pooling 为</p>
+<p><span class="math display">\[
+\alpha_i=\frac{\exp(a(q,k_i))}{\sum_j\exp(a(q,k_j))},
+\qquad
+\operatorname{Attention}(q,K,V)=\sum_i\alpha_i v_i.
+\]</span></p>
+<p>Key 与 value 属于相同候选位置，但表示不必相同。一帧声学信息可能因为某个模式适合定位，却返回另一个变换后的特征。学习型投影使这些角色依赖任务：</p>
+<p><span class="math display">\[
+Q=XW_Q,\qquad K=XW_K,\qquad V=XW_V.
+\]</span></p>
+<p>逐行 softmax 使 <span class="math inline">\(\alpha_i\ge0\)</span> 且 <span class="math inline">\(\sum_i\alpha_i=1\)</span>，所以每个输出是 value 向量的凸组合。投影和后续残差/FFN 仍然可以产生带符号的非线性变换；凸性只适用于一次 attention 聚合。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl09-qkv.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Query 与 key 比较后产生权重，再利用权重汇聚对应 value。"><img src="assets/dl09-qkv.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="Query、key 和 value 示意图，兼容分数转化为 value 上的 attention 权重。"></a></p>
+</figure>
+</div>
+<figcaption>Query 与 key 比较后产生权重，再利用权重汇聚对应 value。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_attention-mechanisms-and-transformers/queries-keys-values.html">Dive into Deep Learning, Queries, Keys, and Values</a>，CC BY-SA 4.0。</em></p>
+<details>
+<summary>
+<strong>PyTorch：从一条真实声学序列中检索上下文</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">910</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>model_dimension <span class="op">=</span> <span class="dv">32</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>query_projection <span class="op">=</span> nn.Linear(<span class="dv">129</span>, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>key_projection <span class="op">=</span> nn.Linear(<span class="dv">129</span>, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>value_projection <span class="op">=</span> nn.Linear(<span class="dv">129</span>, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>sequence <span class="op">=</span> acoustic_frames[<span class="dv">0</span>, :frame_lengths[<span class="dv">0</span>]]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>query_frame <span class="op">=</span> sequence[<span class="bu">len</span>(sequence) <span class="op">//</span> <span class="dv">2</span>:<span class="bu">len</span>(sequence) <span class="op">//</span> <span class="dv">2</span> <span class="op">+</span> <span class="dv">1</span>]</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>query <span class="op">=</span> query_projection(query_frame)                    <span class="co"># [1, D]</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>keys <span class="op">=</span> key_projection(sequence)                          <span class="co"># [T, D]</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> value_projection(sequence)                      <span class="co"># [T, D]</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> query <span class="op">@</span> keys.transpose(<span class="dv">0</span>, <span class="dv">1</span>) <span class="op">/</span> math.sqrt(model_dimension)</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> scores.softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>context <span class="op">=</span> weights <span class="op">@</span> values</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>top_positions <span class="op">=</span> weights[<span class="dv">0</span>].topk(<span class="dv">3</span>).indices.tolist()</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> context.shape <span class="op">==</span> (<span class="dv">1</span>, model_dimension)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(weights.<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>), torch.ones(<span class="dv">1</span>))</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">max</span>(top_positions) <span class="op">&lt;</span> <span class="bu">len</span>(sequence)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"query position"</span>: <span class="bu">len</span>(sequence) <span class="op">//</span> <span class="dv">2</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>       <span class="st">"top key positions"</span>: top_positions,</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>       <span class="st">"context shape"</span>: <span class="bu">tuple</span>(context.shape)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>未训练投影使选中位置没有语义；代码验证的是检索语义，而不是可解释性。任务训练后，权重会成为学习计算的一部分，但因果归因仍需要干预或梯度分析，不能把一张热力图直接当成解释。</p>
+</section>
+<section id="scaled-dot-product-attention" class="level3">
+<h3 class="anchored" data-anchor-id="scaled-dot-product-attention"><strong>缩放点积注意力</strong></h3>
+<p>对于批量矩阵 <span class="math inline">\(Q\in\mathbb{R}^{T_q\times d_k}\)</span>、<span class="math inline">\(K\in\mathbb{R}^{T_k\times d_k}\)</span> 和 <span class="math inline">\(V\in\mathbb{R}^{T_k\times d_v}\)</span>，scaled dot-product attention 为</p>
+<p><span class="math display">\[
+\operatorname{Attention}(Q,K,V)
+=\operatorname{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}+M\right)V.
+\]</span></p>
+<p><span class="math inline">\(M\)</span> 是加性 mask：允许位置取零，禁止位置在 softmax 前取 <span class="math inline">\(-\infty\)</span>。若 query 与 key 的独立分量方差为一，它们点积的方差近似为 <span class="math inline">\(d_k\)</span>。除以 <span class="math inline">\(\sqrt{d_k}\)</span> 可让 score 方差保持在一附近，避免 head dimension 增大时 softmax 越来越饱和。</p>
+<p>数值稳定实现需要在指数运算前减去每行最大值。框架函数会在内部合并这种 log-sum-exp 变换。在低精度中，手动构造极小有限常数可能溢出或在不同 dtype 下行为不同；更适合把 boolean mask 交给维护良好的 scaled-dot-product attention 原语。</p>
+<p><span class="math inline">\(T_qT_k\)</span> 个 score 主导完整 attention 的内存。输出存储只有 <span class="math inline">\(T_qd_v\)</span>，但朴素实现会同时物化 score 和 probability。后面的 FlashAttention 会在不改变该精确方程的情况下调整内存日程。</p>
+<details>
+<summary>
+<strong>PyTorch：在 YESNO 帧上验证缩放与稳定 softmax</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> query_projection(acoustic_frames[:<span class="dv">2</span>])</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>queries <span class="op">=</span> tokens</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>keys_for_scale <span class="op">=</span> key_projection(acoustic_frames[:<span class="dv">2</span>])</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>raw_scores <span class="op">=</span> queries <span class="op">@</span> keys_for_scale.transpose(<span class="op">-</span><span class="dv">2</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>scaled_scores <span class="op">=</span> raw_scores <span class="op">/</span> math.sqrt(model_dimension)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>stable_probabilities <span class="op">=</span> torch.exp(scaled_scores <span class="op">-</span> scaled_scores.amax(<span class="op">-</span><span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>stable_probabilities <span class="op">=</span> stable_probabilities <span class="op">/</span> stable_probabilities.<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>library_probabilities <span class="op">=</span> scaled_scores.softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>raw_variance <span class="op">=</span> raw_scores.var().item()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>scaled_variance <span class="op">=</span> scaled_scores.var().item()</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(stable_probabilities, library_probabilities, atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> scaled_variance <span class="op">&lt;</span> raw_variance</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(library_probabilities.<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>), torch.ones_like(library_probabilities[..., <span class="dv">0</span>]))</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"raw score variance"</span>: raw_variance, <span class="st">"scaled score variance"</span>: scaled_variance,</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>       <span class="st">"score elements"</span>: raw_scores.numel()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>缩放控制初始化时的 score 分布，但不能保证训练后 attention 始终良好。Query/key 范数仍可能增长，因此归一化、初始化、正则化与 attention entropy 监控仍然重要。</p>
+</section>
+<section id="multi-head-attention-tensor-shapes" class="level3">
+<h3 class="anchored" data-anchor-id="multi-head-attention-tensor-shapes"><strong>多头注意力与张量形状</strong></h3>
+<p>一张 attention map 只使用一个学习型相似度空间。Multi-head attention 创建 <span class="math inline">\(H\)</span> 个子空间，分别执行 attention，拼接结果，再投影回模型维度：</p>
+<p><span class="math display">\[
+\operatorname{head}_h
+=\operatorname{Attention}(QW_Q^{(h)},KW_K^{(h)},VW_V^{(h)}),
+\]</span></p>
+<p><span class="math display">\[
+\operatorname{MHA}(Q,K,V)
+=\operatorname{Concat}(\operatorname{head}_1,\ldots,\operatorname{head}_H)W_O.
+\]</span></p>
+<p>对 <span class="math inline">\(D=Hd_h\)</span>，核心形状变化是</p>
+<p><span class="math display">\[
+[B,T,D]
+\rightarrow[B,T,H,d_h]
+\rightarrow[B,H,T,d_h].
+\]</span></p>
+<p>Score tensor 的形状是 <code>[B,H,T_q,T_k]</code>。不同 head 不会自动学到不同语言或声学角色；对称性可能导致冗余。只有任务和优化使不同子空间有用时，head 才会分化。在固定 <span class="math inline">\(D\)</span> 下，head 数还会影响硬件效率，因为过小的 <span class="math inline">\(d_h\)</span> 可能导致矩阵运算利用率不佳。</p>
+<p>当 query/key/value 维度相同时，主导参数量仍近似为 <span class="math inline">\(4D^2\)</span>：三个输入投影加一个输出投影。在固定 <span class="math inline">\(D\)</span> 下增加 head 数改变的是分解方式，而不是这一主导参数量。</p>
+<details>
+<summary>
+<strong>PyTorch：用显式形状检查实现 multi-head attention</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ManualMultiHeadAttention(nn.Module):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, dimension<span class="op">=</span><span class="dv">32</span>, heads<span class="op">=</span><span class="dv">4</span>):</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">assert</span> dimension <span class="op">%</span> heads <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.heads <span class="op">=</span> heads</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.head_dimension <span class="op">=</span> dimension <span class="op">//</span> heads</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.qkv <span class="op">=</span> nn.Linear(dimension, <span class="dv">3</span> <span class="op">*</span> dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.output <span class="op">=</span> nn.Linear(dimension, dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.last_weights <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> split_heads(<span class="va">self</span>, x):</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>        batch, time, dimension <span class="op">=</span> x.shape</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> x.view(batch, time, <span class="va">self</span>.heads, <span class="va">self</span>.head_dimension).transpose(<span class="dv">1</span>, <span class="dv">2</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x, valid_mask):</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        q, k, v <span class="op">=</span> <span class="va">self</span>.qkv(x).chunk(<span class="dv">3</span>, dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        q, k, v <span class="op">=</span> <span class="bu">map</span>(<span class="va">self</span>.split_heads, (q, k, v))</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> q <span class="op">@</span> k.transpose(<span class="op">-</span><span class="dv">2</span>, <span class="op">-</span><span class="dv">1</span>) <span class="op">/</span> math.sqrt(<span class="va">self</span>.head_dimension)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> scores.masked_fill(<span class="op">~</span>valid_mask[:, <span class="va">None</span>, <span class="va">None</span>, :], <span class="bu">float</span>(<span class="st">"-inf"</span>))</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        weights <span class="op">=</span> scores.softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        context <span class="op">=</span> weights <span class="op">@</span> v</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        context <span class="op">=</span> context.transpose(<span class="dv">1</span>, <span class="dv">2</span>).contiguous().view(x.shape)</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.last_weights <span class="op">=</span> weights</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.output(context).masked_fill(<span class="op">~</span>valid_mask.unsqueeze(<span class="op">-</span><span class="dv">1</span>), <span class="fl">0.0</span>)</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>input_projection <span class="op">=</span> nn.Linear(<span class="dv">129</span>, model_dimension)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>acoustic_tokens <span class="op">=</span> input_projection(acoustic_frames)</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>manual_mha <span class="op">=</span> ManualMultiHeadAttention(model_dimension, heads<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>multihead_output <span class="op">=</span> manual_mha(acoustic_tokens, frame_mask)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> multihead_output.shape <span class="op">==</span> acoustic_tokens.shape</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> manual_mha.last_weights.shape <span class="op">==</span> (</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    acoustic_frames.shape[<span class="dv">0</span>], <span class="dv">4</span>, acoustic_frames.shape[<span class="dv">1</span>], acoustic_frames.shape[<span class="dv">1</span>]</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.<span class="bu">all</span>(multihead_output[<span class="op">~</span>frame_mask] <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"tokens"</span>: <span class="bu">tuple</span>(acoustic_tokens.shape),</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>       <span class="st">"heads"</span>: <span class="bu">tuple</span>(manual_mha.last_weights.shape),</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>       <span class="st">"head dimension"</span>: manual_mha.head_dimension})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>在 <code>.view()</code> 前调用 <code>.contiguous()</code> 不是形式主义：transpose 会改变 stride，目标逻辑拼接可能不再位于连续内存中。Shape 和 stride 推理属于正确实现 attention 的一部分。</p>
+</section>
+<section id="self-attention-cross-attention" class="level3">
+<h3 class="anchored" data-anchor-id="self-attention-cross-attention"><strong>Self-Attention 与 Cross-Attention</strong></h3>
+<p>在 <strong>self-attention</strong> 中，query、key 和 value 来自同一序列，因此每个声学帧都可以从其他帧聚合证据。如果没有位置信息或 mask，该操作是 permutation equivariant：打乱输入 token 会以相同方式打乱输出。序列顺序必须通过其他机制加入。</p>
+<p>在 <strong>cross-attention</strong> 中，query 来自一个序列，key/value 来自另一个序列。Decoder token 可以查询 encoder memory，文本 token 可以查询图像 patch，小型 latent array 也可以查询大型传感器流。如果 query 长度为 <span class="math inline">\(T_q\)</span>、memory 长度为 <span class="math inline">\(T_k\)</span>，交互成本为 <span class="math inline">\(O(T_qT_kD)\)</span>，不一定是 <span class="math inline">\(O(T_k^2D)\)</span>。</p>
+<p>这些角色是不对称的。Cross-attention 输出具有 query sequence length，因为每个 query 产生一个结果。Padding mask 通常描述无效 key/value memory 位置；无效 query 位置还需要在输出或损失中单独处理。</p>
+<details>
+<summary>
+<strong>PyTorch：让八个标签 query 读取声学 memory</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>self_attention <span class="op">=</span> nn.MultiheadAttention(model_dimension, num_heads<span class="op">=</span><span class="dv">4</span>, batch_first<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>self_output, self_weights <span class="op">=</span> self_attention(</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    acoustic_tokens, acoustic_tokens, acoustic_tokens,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    key_padding_mask<span class="op">=~</span>frame_mask,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>label_embedding <span class="op">=</span> nn.Embedding(<span class="dv">3</span>, model_dimension)  <span class="co"># labels 0/1 plus start token 2</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>label_queries <span class="op">=</span> label_embedding(word_labels)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>cross_attention <span class="op">=</span> nn.MultiheadAttention(model_dimension, num_heads<span class="op">=</span><span class="dv">4</span>, batch_first<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>cross_output, cross_weights <span class="op">=</span> cross_attention(</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    label_queries, acoustic_tokens, acoustic_tokens,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    key_padding_mask<span class="op">=~</span>frame_mask,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> self_output.shape <span class="op">==</span> acoustic_tokens.shape</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cross_output.shape <span class="op">==</span> (acoustic_frames.shape[<span class="dv">0</span>], <span class="dv">8</span>, model_dimension)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> cross_weights.shape <span class="op">==</span> (acoustic_frames.shape[<span class="dv">0</span>], <span class="dv">8</span>, acoustic_frames.shape[<span class="dv">1</span>])</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(cross_weights.masked_select(<span class="op">~</span>frame_mask[:, <span class="va">None</span>, :]), torch.zeros_like(</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    cross_weights.masked_select(<span class="op">~</span>frame_mask[:, <span class="va">None</span>, :])</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>))</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"self"</span>: <span class="bu">tuple</span>(self_output.shape), <span class="st">"cross"</span>: <span class="bu">tuple</span>(cross_output.shape)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这里的 label query 是 teacher-forced ground-truth embedding，只用于展示 cross-attention 接口。生成式 decoder 必须移动 target，确保某位置不会直接收到自己应该预测的标签。</p>
+</section>
+<section id="causal-padding-structural-masks" class="level3">
+<h3 class="anchored" data-anchor-id="causal-padding-structural-masks"><strong>因果、Padding 与结构化 Mask</strong></h3>
+<p>Mask 编码哪些信息通路是合法的。</p>
+<ul>
+<li><strong>Padding mask</strong> 阻止真实 query 读取人工 padding key。其形状通常为 <code>[B,T_k]</code>，并跨 head 与 query position 广播。</li>
+<li><strong>Causal mask</strong> 阻止位置 <span class="math inline">\(t\)</span> 读取 <span class="math inline">\(j&gt;t\)</span> 的 key。它是下三角结构，用于保持自回归分解。</li>
+<li><strong>Structural mask</strong> 只允许局部窗口、block、图边、模态关系或应用定义的连接。</li>
+</ul>
+<p>对于加性 mask <span class="math inline">\(M_{ij}\)</span>，</p>
+<p><span class="math display">\[
+M_{ij}=\begin{cases}
+0,&amp;\text{允许交互},\\
+-\infty,&amp;\text{禁止交互}.
+\end{cases}
+\]</span></p>
+<p>Mask 必须在 softmax <strong>之前</strong>应用。事后把 probability 乘零会让剩余行和小于一，除非再次归一化，而且被屏蔽位置可能已经影响数值最大值。如果一个 query row 全部被 mask，对全 <span class="math inline">\(-\infty\)</span> 做 softmax 没有定义；应移除该 query、提供合法 sentinel 通路，或显式清零。</p>
+<p>训练 target 也必须正确 shift。即使有 causal mask，如果用于预测 <span class="math inline">\(y_t\)</span> 的输入位置直接包含 <span class="math inline">\(y_t\)</span>，仍会发生泄漏。Decoder input 应是 start token 后接 <span class="math inline">\(y_{&lt;t}\)</span>。</p>
+<details>
+<summary>
+<strong>PyTorch：验证 padding 与 causal 信息边界</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>padding_weights <span class="op">=</span> manual_mha.last_weights</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>masked_padding_weights <span class="op">=</span> padding_weights.masked_select(<span class="op">~</span>frame_mask[:, <span class="va">None</span>, <span class="va">None</span>, :])</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.<span class="bu">all</span>(masked_padding_weights <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>start <span class="op">=</span> torch.full((word_labels.shape[<span class="dv">0</span>], <span class="dv">1</span>), <span class="dv">2</span>, dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>decoder_inputs <span class="op">=</span> torch.cat([start, word_labels[:, :<span class="op">-</span><span class="dv">1</span>]], dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>decoder_tokens <span class="op">=</span> label_embedding(decoder_inputs)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>causal_mask <span class="op">=</span> torch.triu(torch.ones(<span class="dv">8</span>, <span class="dv">8</span>, dtype<span class="op">=</span>torch.<span class="bu">bool</span>), diagonal<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>causal_attention <span class="op">=</span> nn.MultiheadAttention(model_dimension, <span class="dv">4</span>, batch_first<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>causal_output, causal_weights <span class="op">=</span> causal_attention(</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    decoder_tokens, decoder_tokens, decoder_tokens,</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    attn_mask<span class="op">=</span>causal_mask,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>future_entries <span class="op">=</span> causal_weights[:, causal_mask]</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> causal_output.shape <span class="op">==</span> decoder_tokens.shape</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.<span class="bu">all</span>(future_entries <span class="op">==</span> <span class="dv">0</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.equal(decoder_inputs[:, <span class="dv">1</span>:], word_labels[:, :<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"padding weights checked"</span>: masked_padding_weights.numel(),</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>       <span class="st">"future weights checked"</span>: future_entries.numel()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>可靠测试应在固定合法输入时修改禁止输入，并验证较早输出不变。只查看 mask tensor 无法发现 target shift、broadcast 或 cache position 错误。</p>
+</section>
+<section id="positional-encoding-rope" class="level3">
+<h3 class="anchored" data-anchor-id="positional-encoding-rope"><strong>位置编码与 RoPE</strong></h3>
+<p>没有位置信息时，self-attention 把 token 当作集合。绝对 sinusoidal encoding 加入确定性向量：</p>
+<p><span class="math display">\[
+PE_{p,2i}=\sin\left(p/10000^{2i/D}\right),
+\qquad
+PE_{p,2i+1}=\cos\left(p/10000^{2i/D}\right).
+\]</span></p>
+<p>不同频率使线性组合可以表示相对偏移，而且不需要学习位置表。学习型 absolute embedding 可以适应训练长度，但超过范围时需要外推策略。</p>
+<p>Relative-position 方法会根据距离改变 attention logit。ALiBi 加入 head-specific 线性距离偏置。<strong>Rotary Position Embedding（RoPE）</strong>则按位置角度旋转每一对 query/key 特征。对于一组二维特征，</p>
+<p><span class="math display">\[
+R(m\theta)^\top R(n\theta)=R((n-m)\theta),
+\]</span></p>
+<p>所以位置 <span class="math inline">\(m\)</span> 的 query 与位置 <span class="math inline">\(n\)</span> 的 key 之间点积依赖相对偏移 <span class="math inline">\(n-m\)</span>，同时每个向量仍获得绝对旋转。不同特征对使用不同频率。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl09-rope.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="RoPE 旋转 query/key 特征对，使点积显式包含相对位置。"><img src="assets/dl09-rope.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="Rotary position embedding 示意图，展示位置相关的 query/key 旋转与相对角度点积。"></a></p>
+</figure>
+</div>
+<figcaption>RoPE 旋转 query/key 特征对，使点积显式包含相对位置。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：依据 <a href="https://arxiv.org/abs/2104.09864">Su et al., RoFormer: Enhanced Transformer with Rotary Position Embedding</a> 绘制的本地教学图。</em></p>
+<p>RoPE 不会自动保证可靠的上下文外推。频率谱、最大训练长度、缩放方法、数值精度和任务都会影响结果。Position interpolation 与 frequency rescaling 会改变行为，必须在超出训练长度的输入上评估，而不能直接假定有效。</p>
+<details>
+<summary>
+<strong>PyTorch：应用 sinusoidal encoding 并验证 RoPE 相对平移</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sinusoidal_encoding(length, dimension):</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    positions <span class="op">=</span> torch.arange(length, dtype<span class="op">=</span>torch.float32).unsqueeze(<span class="dv">1</span>)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    frequencies <span class="op">=</span> torch.exp(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        torch.arange(<span class="dv">0</span>, dimension, <span class="dv">2</span>, dtype<span class="op">=</span>torch.float32) <span class="op">*</span> (<span class="op">-</span>math.log(<span class="fl">10000.0</span>) <span class="op">/</span> dimension)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    encoding <span class="op">=</span> torch.zeros(length, dimension)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    encoding[:, <span class="dv">0</span>::<span class="dv">2</span>] <span class="op">=</span> torch.sin(positions <span class="op">*</span> frequencies)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    encoding[:, <span class="dv">1</span>::<span class="dv">2</span>] <span class="op">=</span> torch.cos(positions <span class="op">*</span> frequencies)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> encoding</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> apply_rope(x, positions):</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    dimension <span class="op">=</span> x.shape[<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    frequencies <span class="op">=</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">10000.0</span> <span class="op">**</span> (torch.arange(<span class="dv">0</span>, dimension, <span class="dv">2</span>) <span class="op">/</span> dimension))</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    angles <span class="op">=</span> positions.<span class="bu">float</span>().unsqueeze(<span class="op">-</span><span class="dv">1</span>) <span class="op">*</span> frequencies</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    even, odd <span class="op">=</span> x[..., <span class="dv">0</span>::<span class="dv">2</span>], x[..., <span class="dv">1</span>::<span class="dv">2</span>]</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    rotated_even <span class="op">=</span> even <span class="op">*</span> angles.cos() <span class="op">-</span> odd <span class="op">*</span> angles.sin()</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    rotated_odd <span class="op">=</span> even <span class="op">*</span> angles.sin() <span class="op">+</span> odd <span class="op">*</span> angles.cos()</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.stack((rotated_even, rotated_odd), dim<span class="op">=-</span><span class="dv">1</span>).flatten(<span class="op">-</span><span class="dv">2</span>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>ordered_tokens <span class="op">=</span> acoustic_tokens[<span class="dv">0</span>, :frame_lengths[<span class="dv">0</span>]]</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>absolute_tokens <span class="op">=</span> ordered_tokens <span class="op">+</span> sinusoidal_encoding(<span class="bu">len</span>(ordered_tokens), model_dimension)</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="kw">not</span> torch.allclose(absolute_tokens[<span class="dv">0</span>], absolute_tokens[<span class="dv">1</span>])</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>q <span class="op">=</span> ordered_tokens[<span class="dv">3</span>:<span class="dv">4</span>]</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>k <span class="op">=</span> ordered_tokens[<span class="dv">11</span>:<span class="dv">12</span>]</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>score_a <span class="op">=</span> (apply_rope(q, torch.tensor([<span class="dv">3</span>])) <span class="op">*</span> apply_rope(k, torch.tensor([<span class="dv">11</span>]))).<span class="bu">sum</span>()</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>score_b <span class="op">=</span> (apply_rope(q, torch.tensor([<span class="dv">8</span>])) <span class="op">*</span> apply_rope(k, torch.tensor([<span class="dv">16</span>]))).<span class="bu">sum</span>()</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(score_a, score_b, atol<span class="op">=</span><span class="fl">1e-5</span>)</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"sequence length"</span>: <span class="bu">len</span>(ordered_tokens), <span class="st">"relative offset"</span>: <span class="dv">8</span>,</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>       <span class="st">"shift-invariant RoPE score"</span>: score_a.item()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>两个位置都平移五，因此相对偏移仍为八，上述等式成立。在 multi-head attention 中，RoPE 通常应用于 query 与 key 投影，而不是 value。</p>
+</section>
+<section id="transformer-encoder-decoder-blocks" class="level3">
+<h3 class="anchored" data-anchor-id="transformer-encoder-decoder-blocks"><strong>Transformer Encoder 与 Decoder Block</strong></h3>
+<p>原始 Transformer 是 encoder-decoder 架构。每个 encoder block 包含 self-attention 和 position-wise FFN；每个 decoder block 还增加 masked self-attention、读取 encoder memory 的 cross-attention，以及 FFN。残差连接与归一化围绕这些子层。</p>
+<p>对于 encoder 输入 <span class="math inline">\(X\in\mathbb{R}^{B\times T_s\times D}\)</span> 和 decoder state <span class="math inline">\(Y\in\mathbb{R}^{B\times T_t\times D}\)</span>：</p>
+<ul>
+<li>encoder self-attention 使用 <span class="math inline">\(Q=K=V=X\)</span>，输出长度为 <span class="math inline">\(T_s\)</span>；</li>
+<li>decoder causal self-attention 使用 <span class="math inline">\(Q=K=V=Y\)</span>，输出长度为 <span class="math inline">\(T_t\)</span>；</li>
+<li>cross-attention 使用 <span class="math inline">\(Q=Y\)</span>、<span class="math inline">\(K=V=X_{enc}\)</span>，输出长度为 <span class="math inline">\(T_t\)</span>。</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl09-transformer.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Transformer 把堆叠 encoder self-attention block 与因果 masked decoder、encoder-decoder attention 组合起来。"><img src="assets/dl09-transformer.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="包含 self-attention、cross-attention、前馈网络、残差路径和位置编码的 Transformer encoder-decoder 架构。"></a></p>
+</figure>
+</div>
+<figcaption>Transformer 把堆叠 encoder self-attention block 与因果 masked decoder、encoder-decoder attention 组合起来。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：<a href="https://d2l.ai/chapter_attention-mechanisms-and-transformers/transformer.html">Dive into Deep Learning, The Transformer Architecture</a>，CC BY-SA 4.0。</em></p>
+<p>训练时，decoder 接收 shift 后的 target。在输出步骤 <span class="math inline">\(u\)</span>，模型看到 start token 和标签 <span class="math inline">\(y_{&lt;u}\)</span>，然后预测 <span class="math inline">\(y_u\)</span>。Teacher forcing 使所有目标位置能够在 causal mask 下并行训练，尽管推理仍然逐 token 生成。</p>
+<details>
+<summary>
+<strong>PyTorch：构建声学 encoder 与标签 decoder</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TinySpeechTransformer(nn.Module):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, input_size<span class="op">=</span><span class="dv">129</span>, dimension<span class="op">=</span><span class="dv">32</span>, heads<span class="op">=</span><span class="dv">4</span>):</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.dimension <span class="op">=</span> dimension</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.input_projection <span class="op">=</span> nn.Linear(input_size, dimension)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.label_embedding <span class="op">=</span> nn.Embedding(<span class="dv">3</span>, dimension)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        encoder_layer <span class="op">=</span> nn.TransformerEncoderLayer(</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>            dimension, heads, dim_feedforward<span class="op">=</span><span class="dv">64</span>, dropout<span class="op">=</span><span class="fl">0.0</span>,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>            batch_first<span class="op">=</span><span class="va">True</span>, norm_first<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        decoder_layer <span class="op">=</span> nn.TransformerDecoderLayer(</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>            dimension, heads, dim_feedforward<span class="op">=</span><span class="dv">64</span>, dropout<span class="op">=</span><span class="fl">0.0</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            batch_first<span class="op">=</span><span class="va">True</span>, norm_first<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.encoder <span class="op">=</span> nn.TransformerEncoder(encoder_layer, num_layers<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.decoder <span class="op">=</span> nn.TransformerDecoder(decoder_layer, num_layers<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.output <span class="op">=</span> nn.Linear(dimension, <span class="dv">2</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, source, source_mask, target_input):</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        source_tokens <span class="op">=</span> <span class="va">self</span>.input_projection(source)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        source_tokens <span class="op">=</span> source_tokens <span class="op">+</span> sinusoidal_encoding(source.shape[<span class="dv">1</span>], <span class="va">self</span>.dimension)</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        memory <span class="op">=</span> <span class="va">self</span>.encoder(source_tokens, src_key_padding_mask<span class="op">=~</span>source_mask)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        target_tokens <span class="op">=</span> <span class="va">self</span>.label_embedding(target_input)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>        target_tokens <span class="op">=</span> target_tokens <span class="op">+</span> sinusoidal_encoding(target_input.shape[<span class="dv">1</span>], <span class="va">self</span>.dimension)</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>        causal <span class="op">=</span> torch.triu(torch.ones(target_input.shape[<span class="dv">1</span>], target_input.shape[<span class="dv">1</span>], dtype<span class="op">=</span>torch.<span class="bu">bool</span>), <span class="dv">1</span>)</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>        decoded <span class="op">=</span> <span class="va">self</span>.decoder(</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>            target_tokens, memory, tgt_mask<span class="op">=</span>causal,</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>            memory_key_padding_mask<span class="op">=~</span>source_mask,</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.output(decoded), memory</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">911</span>)</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>speech_transformer <span class="op">=</span> TinySpeechTransformer()</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a>teacher_input <span class="op">=</span> torch.cat([</span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>    torch.full((word_labels.shape[<span class="dv">0</span>], <span class="dv">1</span>), <span class="dv">2</span>, dtype<span class="op">=</span>torch.<span class="bu">long</span>),</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a>    word_labels[:, :<span class="op">-</span><span class="dv">1</span>],</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a>], dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb8-39"><a href="#cb8-39" aria-hidden="true" tabindex="-1"></a>label_logits, encoder_memory <span class="op">=</span> speech_transformer(acoustic_frames, frame_mask, teacher_input)</span>
+<span id="cb8-40"><a href="#cb8-40" aria-hidden="true" tabindex="-1"></a>sequence_loss <span class="op">=</span> F.cross_entropy(label_logits.flatten(<span class="dv">0</span>, <span class="dv">1</span>), word_labels.flatten())</span>
+<span id="cb8-41"><a href="#cb8-41" aria-hidden="true" tabindex="-1"></a>sequence_loss.backward()</span>
+<span id="cb8-42"><a href="#cb8-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-43"><a href="#cb8-43" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> label_logits.shape <span class="op">==</span> (acoustic_frames.shape[<span class="dv">0</span>], <span class="dv">8</span>, <span class="dv">2</span>)</span>
+<span id="cb8-44"><a href="#cb8-44" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> encoder_memory.shape <span class="op">==</span> acoustic_tokens.shape</span>
+<span id="cb8-45"><a href="#cb8-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(parameter.grad <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">for</span> parameter <span class="kw">in</span> speech_transformer.parameters())</span>
+<span id="cb8-46"><a href="#cb8-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"memory"</span>: <span class="bu">tuple</span>(encoder_memory.shape), <span class="st">"label logits"</span>: <span class="bu">tuple</span>(label_logits.shape),</span>
+<span id="cb8-47"><a href="#cb8-47" aria-hidden="true" tabindex="-1"></a>       <span class="st">"teacher-forced loss"</span>: sequence_loss.item()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>该示例验证完整信息路径，但没有训练语音识别器。真正实验需要在训练划分上优化，并在未见说话者上评估 sequence error，而不能从一次 backward pass 推断质量。</p>
+</section>
+<section id="residual-normalization-feed-forward" class="level3">
+<h3 class="anchored" data-anchor-id="residual-normalization-feed-forward"><strong>残差路径、归一化与前馈网络</strong></h3>
+<p>Attention 混合的是<strong>位置之间</strong>的信息。FFN 使用共享权重，在每个位置独立变换通道：</p>
+<p><span class="math display">\[
+\operatorname{FFN}(x)=W_2\,\phi(W_1x+b_1)+b_2.
+\]</span></p>
+<p>内部维度通常是 <span class="math inline">\(D\)</span> 的若干倍，使 FFN 占据大量参数和 FLOPs。GLU、GEGLU 和 SwiGLU 等门控变体会让一个分支乘上学习门；它们改变通道计算，却不改变序列混合。</p>
+<p>残差连接保留恒等通路，并要求每个子层返回维度 <span class="math inline">\(D\)</span>。Layer normalization 按 token 稳定特征尺度。两种常见排列是</p>
+<p><span class="math display">\[
+\text{post-norm: }x_{l+1}=\operatorname{LN}(x_l+F(x_l)),
+\]</span></p>
+<p><span class="math display">\[
+\text{pre-norm: }x_{l+1}=x_l+F(\operatorname{LN}(x_l)).
+\]</span></p>
+<p>Post-norm 与原始 Transformer 一致，但深层优化可能困难，因为每条恒等路径都经过归一化。Pre-norm 通常改善梯度流，是深层模型的常见选择，但也会改变激活增长和最终归一化要求。残差缩放、谨慎初始化和 normalization 变体仍是重要设计选择。</p>
+<details>
+<summary>
+<strong>PyTorch：在音频 token 上比较 pre-norm 与 post-norm 梯度路径</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TransformerSubBlock(nn.Module):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, dimension<span class="op">=</span><span class="dv">32</span>, heads<span class="op">=</span><span class="dv">4</span>, pre_norm<span class="op">=</span><span class="va">True</span>):</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.pre_norm <span class="op">=</span> pre_norm</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.norm1 <span class="op">=</span> nn.LayerNorm(dimension)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.norm2 <span class="op">=</span> nn.LayerNorm(dimension)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.attention <span class="op">=</span> nn.MultiheadAttention(dimension, heads, batch_first<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.ffn <span class="op">=</span> nn.Sequential(nn.Linear(dimension, <span class="dv">64</span>), nn.GELU(), nn.Linear(<span class="dv">64</span>, dimension))</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x, valid):</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="va">self</span>.pre_norm:</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>            normalized <span class="op">=</span> <span class="va">self</span>.norm1(x)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>            attended <span class="op">=</span> <span class="va">self</span>.attention(normalized, normalized, normalized,</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>                                      key_padding_mask<span class="op">=~</span>valid, need_weights<span class="op">=</span><span class="va">False</span>)[<span class="dv">0</span>]</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>            x <span class="op">=</span> x <span class="op">+</span> attended</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> x <span class="op">+</span> <span class="va">self</span>.ffn(<span class="va">self</span>.norm2(x))</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>        attended <span class="op">=</span> <span class="va">self</span>.attention(x, x, x, key_padding_mask<span class="op">=~</span>valid, need_weights<span class="op">=</span><span class="va">False</span>)[<span class="dv">0</span>]</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> <span class="va">self</span>.norm1(x <span class="op">+</span> attended)</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.norm2(x <span class="op">+</span> <span class="va">self</span>.ffn(x))</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>gradient_records <span class="op">=</span> {}</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, pre_norm <span class="kw">in</span> ((<span class="st">"pre"</span>, <span class="va">True</span>), (<span class="st">"post"</span>, <span class="va">False</span>)):</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>    seed_everything(<span class="dv">912</span>)</span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a>    block_input <span class="op">=</span> acoustic_tokens[:<span class="dv">2</span>].detach().clone().requires_grad_(<span class="va">True</span>)</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    block <span class="op">=</span> TransformerSubBlock(pre_norm<span class="op">=</span>pre_norm)</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    output <span class="op">=</span> block(block_input, frame_mask[:<span class="dv">2</span>])</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> output[frame_mask[:<span class="dv">2</span>]].<span class="bu">pow</span>(<span class="dv">2</span>).mean()</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    loss.backward()</span>
+<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>    gradient_records[name] <span class="op">=</span> block_input.grad.norm().item()</span>
+<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> torch.isfinite(block_input.grad).<span class="bu">all</span>()</span>
+<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"input gradient norms"</span>: gradient_records,</span>
+<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a>       <span class="st">"FFN parameters"</span>: <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> TransformerSubBlock().ffn.parameters())})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>一个随机初始化 block 无法建立普遍的梯度排名。该实验验证两种计算路径，并提供深度扫描所需的日志模式。关于可训练性的结论需要多层网络、受控初始化和重复运行。</p>
+</section>
+<section id="encoder-decoder-model-families" class="level3">
+<h3 class="anchored" data-anchor-id="encoder-decoder-model-families"><strong>Encoder-Only、Decoder-Only 与 Encoder-Decoder 模型</strong></h3>
+<p>Transformer 家族的主要差异在于信息边界和训练目标。</p>
+<p><strong>Encoder-only</strong> 模型对已观测输入使用双向 self-attention，适合整个输入都可用时的分类、检索 embedding 和 token-level prediction。Masked-token pretraining 会隐藏部分输入，但剩余上下文仍是双向的。</p>
+<p><strong>Decoder-only</strong> 模型使用 causal self-attention，并优化自回归似然</p>
+<p><span class="math display">\[
+p(x_{1:T})=\prod_{t=1}^{T}p(x_t\mid x_{&lt;t}).
+\]</span></p>
+<p>同一接口支持生成与 in-context conditioning，但每个预测 token 都必须遵守因果 mask。Prompt token 是已观察上下文，生成 token 会继续扩展上下文。</p>
+<p><strong>Encoder-decoder</strong> 模型让自回归 target 以独立编码的 source 为条件：</p>
+<p><span class="math display">\[
+p(y_{1:U}\mid x_{1:T})=\prod_{u=1}^{U}p(y_u\mid y_{&lt;u},x_{1:T}).
+\]</span></p>
+<p>当输入输出的模态、长度或角色不同时，例如 speech-to-text 与翻译，这种结构很自然。Encoder 可以双向处理 source，decoder 仍保持 causal。</p>
+<details>
+<summary>
+<strong>PyTorch：在 YESNO 上训练 encoder-only 首词分类器</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SpeechEncoderClassifier(nn.Module):</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, input_size<span class="op">=</span><span class="dv">129</span>, dimension<span class="op">=</span><span class="dv">32</span>, heads<span class="op">=</span><span class="dv">4</span>):</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.projection <span class="op">=</span> nn.Linear(input_size, dimension)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>        layer <span class="op">=</span> nn.TransformerEncoderLayer(</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>            dimension, heads, dim_feedforward<span class="op">=</span><span class="dv">64</span>, dropout<span class="op">=</span><span class="fl">0.1</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>            batch_first<span class="op">=</span><span class="va">True</span>, norm_first<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.encoder <span class="op">=</span> nn.TransformerEncoder(layer, num_layers<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.head <span class="op">=</span> nn.Linear(dimension, <span class="dv">2</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x, valid):</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        tokens <span class="op">=</span> <span class="va">self</span>.projection(x) <span class="op">+</span> sinusoidal_encoding(x.shape[<span class="dv">1</span>], <span class="dv">32</span>)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        encoded <span class="op">=</span> <span class="va">self</span>.encoder(tokens, src_key_padding_mask<span class="op">=~</span>valid)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        pooled <span class="op">=</span> (encoded <span class="op">*</span> valid.unsqueeze(<span class="op">-</span><span class="dv">1</span>)).<span class="bu">sum</span>(<span class="dv">1</span>) <span class="op">/</span> valid.<span class="bu">sum</span>(<span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.head(pooled)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="at">@torch.no_grad</span>()</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> classifier_accuracy(model, indices):</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>    model.<span class="bu">eval</span>()</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> total <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> xb, _, valid, labels <span class="kw">in</span> yesno_loader(indices):</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>        prediction <span class="op">=</span> model(xb, valid).argmax(<span class="dv">1</span>)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>        correct <span class="op">+=</span> <span class="bu">int</span>((prediction <span class="op">==</span> labels[:, <span class="dv">0</span>]).<span class="bu">sum</span>())</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>        total <span class="op">+=</span> <span class="bu">len</span>(labels)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> correct <span class="op">/</span> total</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">913</span>)</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>encoder_classifier <span class="op">=</span> SpeechEncoderClassifier()</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(encoder_classifier.parameters(), lr<span class="op">=</span><span class="fl">2e-3</span>, weight_decay<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">8</span>):</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>    encoder_classifier.train()</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> xb, _, valid, labels <span class="kw">in</span> yesno_loader(train_idx, shuffle<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span><span class="dv">913</span>):</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>        loss <span class="op">=</span> F.cross_entropy(encoder_classifier(xb, valid), labels[:, <span class="dv">0</span>])</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>        loss.backward()</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>        nn.utils.clip_grad_norm_(encoder_classifier.parameters(), <span class="fl">1.0</span>)</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>        optimizer.step()</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>validation_accuracy <span class="op">=</span> classifier_accuracy(encoder_classifier, val_idx)</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="fl">0.0</span> <span class="op">&lt;=</span> validation_accuracy <span class="op">&lt;=</span> <span class="fl">1.0</span></span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"encoder-only validation accuracy"</span>: validation_accuracy,</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a>       <span class="st">"parameters"</span>: <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> encoder_classifier.parameters())})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>极小验证集使分数非常离散。该实验的目的，是证明同一批归一化音频、mask 和 split 可以支持端到端 Transformer 训练。模型家族应根据合法上下文和输出结构选择，而不是根据流行度选择。</p>
+</section>
+<section id="kv-cache-autoregressive-inference" class="level3">
+<h3 class="anchored" data-anchor-id="kv-cache-autoregressive-inference"><strong>KV Cache 与自回归推理</strong></h3>
+<p>在 teacher-forced training 中，causal decoder 并行处理所有目标位置。自回归推理时，它生成一个 token、追加到序列并重复。朴素实现会在每一步重新计算整个 prefix 的 key/value 投影。</p>
+<p><strong>KV cache</strong> 保存每一 decoder layer 已产生的 key 和 value tensor。在步骤 <span class="math inline">\(t+1\)</span>，只有新 token 被投影为 <span class="math inline">\(q_{t+1},k_{t+1},v_{t+1}\)</span>；query 读取缓存的 <span class="math inline">\(K_{1:t+1},V_{1:t+1}\)</span>。Cache 消除了历史 token 的重复投影和重复处理，但不会消除新 query 与所有保留 key 的点积。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl09-kv-cache.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="KV cache 保存过去的 key/value 投影，每个新 token 只追加一组 K/V 并发出一个 query。"><img src="assets/dl09-kv-cache.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:78.0%" alt="自回归解码示意图，过去的 key-value 投影保存在持久 cache 中，一个新 query 读取它们。"></a></p>
+</figure>
+</div>
+<figcaption>KV cache 保存过去的 key/value 投影，每个新 token 只追加一组 K/V 并发出一个 query。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：依据增量 causal-attention 计算绘制的本地教学图。</em></p>
+<p>对于 <span class="math inline">\(L\)</span> 层、batch size <span class="math inline">\(B\)</span>、缓存长度 <span class="math inline">\(T\)</span>、key/value head 数 <span class="math inline">\(H_{kv}\)</span>、head dimension <span class="math inline">\(d_h\)</span> 和每元素 <span class="math inline">\(s\)</span> bytes，cache memory 近似为</p>
+<p><span class="math display">\[
+M_{KV}=2LBTH_{kv}d_hs.
+\]</span></p>
+<p>因子二对应 key 和 value。Multi-query attention 在所有 query head 间共享一个 K/V head；grouped-query attention 使用中间数量，从而降低 cache memory 和带宽。Beam search 需要谨慎复制或共享 cache state，continuous batching 则要追踪每条序列的位置与淘汰。</p>
+<details>
+<summary>
+<strong>PyTorch：证明 cached decoding 与完整 causal attention 一致</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">914</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>label_sequence <span class="op">=</span> word_labels[<span class="dv">0</span>]</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>label_tokens <span class="op">=</span> label_embedding(label_sequence.unsqueeze(<span class="dv">0</span>))[<span class="dv">0</span>]</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>q_layer <span class="op">=</span> nn.Linear(model_dimension, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>k_layer <span class="op">=</span> nn.Linear(model_dimension, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>v_layer <span class="op">=</span> nn.Linear(model_dimension, model_dimension, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>q_all, k_all, v_all <span class="op">=</span> q_layer(label_tokens), k_layer(label_tokens), v_layer(label_tokens)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>full_scores <span class="op">=</span> q_all <span class="op">@</span> k_all.T <span class="op">/</span> math.sqrt(model_dimension)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>full_scores <span class="op">=</span> full_scores.masked_fill(torch.triu(torch.ones(<span class="dv">8</span>, <span class="dv">8</span>, dtype<span class="op">=</span>torch.<span class="bu">bool</span>), <span class="dv">1</span>), <span class="bu">float</span>(<span class="st">"-inf"</span>))</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>full_output <span class="op">=</span> full_scores.softmax(<span class="op">-</span><span class="dv">1</span>) <span class="op">@</span> v_all</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>cached_keys, cached_values, cached_outputs <span class="op">=</span> [], [], []</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> step <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(label_tokens)):</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>    cached_keys.append(k_all[step:step <span class="op">+</span> <span class="dv">1</span>])</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    cached_values.append(v_all[step:step <span class="op">+</span> <span class="dv">1</span>])</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>    key_cache <span class="op">=</span> torch.cat(cached_keys, dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>    value_cache <span class="op">=</span> torch.cat(cached_values, dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>    step_scores <span class="op">=</span> q_all[step:step <span class="op">+</span> <span class="dv">1</span>] <span class="op">@</span> key_cache.T <span class="op">/</span> math.sqrt(model_dimension)</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    cached_outputs.append(step_scores.softmax(<span class="op">-</span><span class="dv">1</span>) <span class="op">@</span> value_cache)</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>cached_output <span class="op">=</span> torch.cat(cached_outputs, dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(full_output, cached_output, atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a>cache_elements <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> <span class="bu">len</span>(label_tokens) <span class="op">*</span> model_dimension</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"tokens"</span>: <span class="bu">len</span>(label_tokens), <span class="st">"cached K/V elements"</span>: cache_elements,</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>       <span class="st">"maximum output error"</span>: (full_output <span class="op">-</span> cached_output).<span class="bu">abs</span>().<span class="bu">max</span>().item()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>真实 cache 还会为每层保存一组 tensor，并对新 query/key 应用正确位置编码。Position ID 偏移、causal mask 不一致、旧 cache 条目和 beam 重排是常见推理错误。</p>
+</section>
+<section id="flashattention-efficient-attention" class="level3">
+<h3 class="anchored" data-anchor-id="flashattention-efficient-attention"><strong>FlashAttention 与高效 Attention 原则</strong></h3>
+<p>朴素 attention 把完整 score matrix <span class="math inline">\(S=QK^\top\)</span> 和 probability matrix <span class="math inline">\(P=\operatorname{softmax}(S)\)</span> 写入高带宽内存（HBM），之后再读取并计算 <span class="math inline">\(PV\)</span>。在现代加速器上，这些内存传输可能比算术本身更昂贵。</p>
+<p>FlashAttention 是一种<strong>精确且 IO-aware</strong> 的算法。它把 query、key、value 分块装入片上 SRAM，一次计算一个 score block，并维护在线 softmax 统计量。对于跨 key block 处理的一行，保存 running maximum <span class="math inline">\(m\)</span>、denominator <span class="math inline">\(\ell\)</span> 和未归一化 output numerator <span class="math inline">\(o\)</span>。新 block 最大值为 <span class="math inline">\(m_b\)</span> 时，</p>
+<p><span class="math display">\[
+m'=\max(m,m_b),
+\]</span></p>
+<p><span class="math display">\[
+\ell'=e^{m-m'}\ell+\sum_j e^{s_j-m'},
+\qquad
+o'=e^{m-m'}o+\sum_j e^{s_j-m'}v_j.
+\]</span></p>
+<p>所有 block 完成后输出 <span class="math inline">\(o/\ell\)</span>。使用新最大值重缩放，可以在不让完整行同时驻留内存的情况下保持精确稳定 softmax。Backward pass 可以重新计算选定中间量，而不保存完整 probability matrix。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl09-flashattention-tiling.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="FlashAttention 把 Q/K/V 分块送入片上内存，更新精确 online-softmax 统计量，不在 HBM 中物化完整 score matrix。"><img src="assets/dl09-flashattention-tiling.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:78.0%" alt="FlashAttention 内存图，包含 HBM block、SRAM score tile、online softmax state 与精确输出。"></a></p>
+</figure>
+</div>
+<figcaption>FlashAttention 把 Q/K/V 分块送入片上内存，更新精确 online-softmax 统计量，不在 HBM 中物化完整 score matrix。</figcaption>
+</figure>
+</div>
+<p><em>图片来源：依据 <a href="https://arxiv.org/abs/2205.14135">Dao et al., FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</a> 绘制的本地教学图。</em></p>
+<p>FlashAttention 改变 kernel schedule，而不是 dense all-pairs interaction 的数学复杂度。实际收益取决于序列长度、head dimension、dtype、硬件、mask、dropout 和可用内核。PyTorch 的 <code>scaled_dot_product_attention</code> 可以调度到优化 backend；生产代码应优先使用它，并通过 profiling 确认实际选中的 backend。</p>
+<details>
+<summary>
+<strong>PyTorch：用分块 online softmax 复现精确 attention</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> tiled_online_attention(q, k, v, block_size<span class="op">=</span><span class="dv">16</span>):</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    outputs <span class="op">=</span> []</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    scale <span class="op">=</span> <span class="fl">1.0</span> <span class="op">/</span> math.sqrt(q.shape[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> q_start <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(q), block_size):</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        q_block <span class="op">=</span> q[q_start:q_start <span class="op">+</span> block_size]</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        running_max <span class="op">=</span> torch.full((<span class="bu">len</span>(q_block), <span class="dv">1</span>), <span class="bu">float</span>(<span class="st">"-inf"</span>))</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        running_sum <span class="op">=</span> torch.zeros(<span class="bu">len</span>(q_block), <span class="dv">1</span>)</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        running_output <span class="op">=</span> torch.zeros(<span class="bu">len</span>(q_block), v.shape[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> k_start <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(k), block_size):</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>            k_block <span class="op">=</span> k[k_start:k_start <span class="op">+</span> block_size]</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>            v_block <span class="op">=</span> v[k_start:k_start <span class="op">+</span> block_size]</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>            score_block <span class="op">=</span> q_block <span class="op">@</span> k_block.T <span class="op">*</span> scale</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>            new_max <span class="op">=</span> torch.maximum(running_max, score_block.amax(<span class="op">-</span><span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>))</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>            old_scale <span class="op">=</span> torch.exp(running_max <span class="op">-</span> new_max)</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>            probabilities <span class="op">=</span> torch.exp(score_block <span class="op">-</span> new_max)</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>            running_output <span class="op">=</span> old_scale <span class="op">*</span> running_output <span class="op">+</span> probabilities <span class="op">@</span> v_block</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>            running_sum <span class="op">=</span> old_scale <span class="op">*</span> running_sum <span class="op">+</span> probabilities.<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>            running_max <span class="op">=</span> new_max</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        outputs.append(running_output <span class="op">/</span> running_sum)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.cat(outputs, dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>attention_input <span class="op">=</span> acoustic_tokens[<span class="dv">0</span>, :<span class="bu">min</span>(<span class="bu">int</span>(frame_lengths[<span class="dv">0</span>]), <span class="dv">48</span>)]</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>q_flash <span class="op">=</span> query_projection(acoustic_frames[<span class="dv">0</span>, :<span class="bu">len</span>(attention_input)])</span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>k_flash <span class="op">=</span> key_projection(acoustic_frames[<span class="dv">0</span>, :<span class="bu">len</span>(attention_input)])</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>v_flash <span class="op">=</span> value_projection(acoustic_frames[<span class="dv">0</span>, :<span class="bu">len</span>(attention_input)])</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>reference <span class="op">=</span> (q_flash <span class="op">@</span> k_flash.T <span class="op">/</span> math.sqrt(model_dimension)).softmax(<span class="op">-</span><span class="dv">1</span>) <span class="op">@</span> v_flash</span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>tiled <span class="op">=</span> tiled_online_attention(q_flash, k_flash, v_flash, block_size<span class="op">=</span><span class="dv">16</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(reference, tiled, atol<span class="op">=</span><span class="fl">1e-5</span>)</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="dv">16</span> <span class="op">*</span> <span class="dv">16</span> <span class="op">&lt;</span> <span class="bu">len</span>(q_flash) <span class="op">*</span> <span class="bu">len</span>(k_flash) <span class="kw">or</span> <span class="bu">len</span>(q_flash) <span class="op">&lt;=</span> <span class="dv">16</span></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"sequence length"</span>: <span class="bu">len</span>(q_flash),</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>       <span class="st">"full score elements"</span>: <span class="bu">len</span>(q_flash) <span class="op">*</span> <span class="bu">len</span>(k_flash),</span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>       <span class="st">"largest teaching tile"</span>: <span class="bu">min</span>(<span class="dv">16</span>, <span class="bu">len</span>(q_flash)) <span class="op">*</span> <span class="bu">min</span>(<span class="dv">16</span>, <span class="bu">len</span>(k_flash)),</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>       <span class="st">"maximum error"</span>: (reference <span class="op">-</span> tiled).<span class="bu">abs</span>().<span class="bu">max</span>().item()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个循环展示 online-softmax 代数，但比普通 PyTorch 更慢，因为 Python 启动了许多小操作。FlashAttention 的价值来自融合硬件实现和精心设计的 IO 日程。</p>
+</section>
+<section id="transformers-beyond-text" class="level3">
+<h3 class="anchored" data-anchor-id="transformers-beyond-text"><strong>文本之外的 Transformer</strong></h3>
+<p>Attention 需要的是 token，而不一定是单词。Tokenization 决定 Transformer 将要建模的几何。</p>
+<ul>
+<li><strong>Vision：</strong>图像变为固定 patch、分层窗口、region proposal 或学习型 visual token；二维位置和多尺度结构很重要。</li>
+<li><strong>Audio：</strong>波形采样、spectrogram frame 或时频 patch 变为 token；长录音通常需要下采样、局部前端或流式 chunk。</li>
+<li><strong>Time series：</strong>每个时间步可以包含多个变量，也可以把变量本身作为 token；缺失值、不规则时间戳和因果预测边界需要显式编码。</li>
+<li><strong>Multimodal system：</strong>模态专用 encoder 产生 token，再通过 cross-attention、共享 self-attention 或小型 latent bottleneck 交互。</li>
+</ul>
+<p>相同的 attention 方程不意味着模态可以互换。文本 token 是离散且语义学习的；图像 patch 有二维邻域；声学帧表示重叠窗口；传感器事件可能具有不规则时间间隔。Position、augmentation、masking objective 与 output head 必须反映这些差异。</p>
+<p>对音频而言，减少 token 数常常至关重要。把连续 <span class="math inline">\(P\)</span> 帧分组，会把长度从 <span class="math inline">\(T\)</span> 降到约 <span class="math inline">\(T/P\)</span>，并把完整 attention score 数量减少约 <span class="math inline">\(P^2\)</span>，但也会损失时间分辨率。卷积下采样可以学习这种压缩；固定拼接则让权衡更直观。</p>
+<details>
+<summary>
+<strong>PyTorch：把 YESNO spectrogram frame 转换为声学 patch</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>patch_size <span class="op">=</span> <span class="dv">4</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>single_audio <span class="op">=</span> acoustic_frames[<span class="dv">0</span>, :frame_lengths[<span class="dv">0</span>]]</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>usable_length <span class="op">=</span> (<span class="bu">len</span>(single_audio) <span class="op">//</span> patch_size) <span class="op">*</span> patch_size</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>frame_patches <span class="op">=</span> single_audio[:usable_length].reshape(<span class="op">-</span><span class="dv">1</span>, patch_size <span class="op">*</span> <span class="dv">129</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>patch_projection <span class="op">=</span> nn.Linear(patch_size <span class="op">*</span> <span class="dv">129</span>, model_dimension)</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>audio_patch_tokens <span class="op">=</span> patch_projection(frame_patches)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>original_score_elements <span class="op">=</span> usable_length <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>patched_score_elements <span class="op">=</span> <span class="bu">len</span>(audio_patch_tokens) <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> audio_patch_tokens.shape <span class="op">==</span> (usable_length <span class="op">//</span> patch_size, model_dimension)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> original_score_elements <span class="op">//</span> patched_score_elements <span class="op">==</span> patch_size <span class="op">**</span> <span class="dv">2</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"original frames"</span>: usable_length, <span class="st">"patch tokens"</span>: <span class="bu">len</span>(audio_patch_tokens),</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>       <span class="st">"attention score reduction"</span>: original_score_elements <span class="op">/</span> patched_score_elements})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>Patch size 为四时，score 数量下降 <span class="math inline">\(16\times\)</span>，但模型在 patch projection 前无法关注单个 frame。高效 tokenization 和高效 attention 解决成本的不同部分，应该联合评估。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>本章对比与总结</strong></h3>
+<p>Attention 是内容寻址的聚合算子。只有把它与位置结构、mask、逐位置非线性通道计算、残差优化路径和任务特定信息边界结合，Transformer 才成为完整架构。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>组件或家族</th>
+<th>主要作用</th>
+<th>张量/成本重点</th>
+<th>典型失败</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>query、key、value</td>
+<td>分离检索请求、地址和内容</td>
+<td><span class="math inline">\(Q:[B,T_q,D]\)</span>，<span class="math inline">\(K,V:[B,T_k,D]\)</span></td>
+<td>把 attention weight 当作因果解释</td>
+</tr>
+<tr class="even">
+<td>scaled dot product</td>
+<td>稳定的内容相似度与汇聚</td>
+<td>score <code>[B,H,T_q,T_k]</code></td>
+<td>缺少 <span class="math inline">\(\sqrt{d_k}\)</span> 缩放或 mask 不稳定</td>
+</tr>
+<tr class="odd">
+<td>multi-head attention</td>
+<td>多个学习型交互子空间</td>
+<td><code>[B,T,D]</code> reshape 为 <code>[B,H,T,d_h]</code></td>
+<td>隐蔽 transpose/view 错误或 head 冗余</td>
+</tr>
+<tr class="even">
+<td>self-attention</td>
+<td>同一序列内部交互</td>
+<td><span class="math inline">\(O(T^2D)\)</span> dense interaction</td>
+<td>没有 position 时不含顺序</td>
+</tr>
+<tr class="odd">
+<td>cross-attention</td>
+<td>一个序列读取另一个序列</td>
+<td><span class="math inline">\(O(T_qT_kD)\)</span></td>
+<td>混淆 query/memory 长度与 mask</td>
+</tr>
+<tr class="even">
+<td>padding/causal mask</td>
+<td>约束合法信息路径</td>
+<td>softmax 前广播</td>
+<td>target leakage 或全 mask row</td>
+</tr>
+<tr class="odd">
+<td>sinusoidal/RoPE</td>
+<td>注入顺序与相对偏移</td>
+<td>位置-频率特征对</td>
+<td>未测试长序列就假定可外推</td>
+</tr>
+<tr class="even">
+<td>encoder block</td>
+<td>双向 source 表示</td>
+<td>self-attention 加 FFN</td>
+<td>padding 污染</td>
+</tr>
+<tr class="odd">
+<td>decoder block</td>
+<td>因果生成，可选 source 条件</td>
+<td>causal self-attention 加可选 cross-attention</td>
+<td>target 未 shift 或 cache position 错误</td>
+</tr>
+<tr class="even">
+<td>pre-/post-norm</td>
+<td>控制残差优化路径</td>
+<td>逐 token 特征统计</td>
+<td>把单 block 行为外推到深层网络</td>
+</tr>
+<tr class="odd">
+<td>encoder-only</td>
+<td>全上下文表示</td>
+<td>一条已观察序列</td>
+<td>不适用于严格因果部署</td>
+</tr>
+<tr class="even">
+<td>decoder-only</td>
+<td>自回归建模</td>
+<td>增长的上下文和 cache</td>
+<td>二次上下文交互与误差累积</td>
+</tr>
+<tr class="odd">
+<td>encoder-decoder</td>
+<td>条件序列生成</td>
+<td>独立 source/target 长度</td>
+<td>跨模态对齐或解码瓶颈</td>
+</tr>
+<tr class="even">
+<td>KV cache</td>
+<td>复用过去 key/value 投影</td>
+<td><span class="math inline">\(2LBTH_{kv}d_hs\)</span> bytes</td>
+<td>memory 增长、过期 cache、beam 重排</td>
+</tr>
+<tr class="odd">
+<td>FlashAttention</td>
+<td>减少 dense attention HBM 流量</td>
+<td>分块精确 online softmax</td>
+<td>把 IO 节省误认为次二次数学</td>
+</tr>
+</tbody>
+</table>
+<p>YESNO 实验在本章形成一条连续路线：</p>
+<ol type="1">
+<li>把官方波形转为固定且只用训练集归一化的声学序列，并建立显式 padding mask。</li>
+<li>用一帧真实输入作为 query，从其他 frame 中读取信息，解释 Q/K/V 语义。</li>
+<li>缩放点积、拆分 head，并验证每个张量形状。</li>
+<li>让标签 query cross-attend 到声学 memory，同时保持 source padding 边界。</li>
+<li>加入 causal 与位置结构，再组装完整 teacher-forced encoder-decoder。</li>
+<li>在同一 split 上训练 encoder-only 分类器，把机制连接到端到端目标。</li>
+<li>证明增量 KV cached decoding 与完整 causal attention 一致。</li>
+<li>证明分块 online softmax 与朴素 dense attention 完全一致。</li>
+<li>通过显式 patching 减少音频序列长度，并计算损失的时间分辨率。</li>
+</ol>
+<p>实践选择规则不是“所有序列都使用 Transformer”。只有当直接内容相关交互值得其内存和计算成本时才使用 attention；根据合法上下文和输出分解选择 encoder-only、decoder-only 或 encoder-decoder；同时测量 tokenization、score matrix 大小、cache memory、kernel backend 和部署延迟。第 10 章将继续讨论图神经网络，其中允许的交互由关系结构而不是稠密序列决定。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","loop":false,"openEffect":"zoom","descPosition":"bottom","closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

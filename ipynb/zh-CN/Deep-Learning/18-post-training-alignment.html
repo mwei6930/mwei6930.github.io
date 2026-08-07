@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：后训练与对齐</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="18-post-training-alignment.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="18-post-training-alignment.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="18-post-training-alignment.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="18-post-training-alignment.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="18-post-training-alignment.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="18-post-training-alignment.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="18-post-training-alignment.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="18-post-training-alignment.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="18-post-training-alignment.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="18-post-training-alignment.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="18-post-training-alignment.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="18-post-training-alignment.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="18-post-training-alignment.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#post-training-alignment" id="toc-post-training-alignment" class="nav-link active" data-scroll-target="#post-training-alignment"><strong>后训练与对齐</strong></a>
+  <ul>
+  <li><a href="#what-post-training-changes" id="toc-what-post-training-changes" class="nav-link" data-scroll-target="#what-post-training-changes"><strong>后训练改变了什么？</strong></a></li>
+  <li><a href="#supervised-fine-tuning" id="toc-supervised-fine-tuning" class="nav-link" data-scroll-target="#supervised-fine-tuning"><strong>监督微调</strong></a></li>
+  <li><a href="#instruction-data-construction" id="toc-instruction-data-construction" class="nav-link" data-scroll-target="#instruction-data-construction"><strong>指令数据构造</strong></a></li>
+  <li><a href="#preference-data-pairwise-feedback" id="toc-preference-data-pairwise-feedback" class="nav-link" data-scroll-target="#preference-data-pairwise-feedback"><strong>偏好数据与成对反馈</strong></a></li>
+  <li><a href="#reward-modeling" id="toc-reward-modeling" class="nav-link" data-scroll-target="#reward-modeling"><strong>奖励建模</strong></a></li>
+  <li><a href="#reinforcement-learning-human-feedback" id="toc-reinforcement-learning-human-feedback" class="nav-link" data-scroll-target="#reinforcement-learning-human-feedback"><strong>基于人类反馈的强化学习</strong></a></li>
+  <li><a href="#ppo-model-alignment" id="toc-ppo-model-alignment" class="nav-link" data-scroll-target="#ppo-model-alignment"><strong>用于模型对齐的 PPO</strong></a></li>
+  <li><a href="#direct-preference-optimization" id="toc-direct-preference-optimization" class="nav-link" data-scroll-target="#direct-preference-optimization"><strong>直接偏好优化</strong></a></li>
+  <li><a href="#rejection-sampling-best-of-n" id="toc-rejection-sampling-best-of-n" class="nav-link" data-scroll-target="#rejection-sampling-best-of-n"><strong>拒绝采样与 Best-of-N</strong></a></li>
+  <li><a href="#ai-feedback-scalable-oversight" id="toc-ai-feedback-scalable-oversight" class="nav-link" data-scroll-target="#ai-feedback-scalable-oversight"><strong>AI 反馈与可扩展监督</strong></a></li>
+  <li><a href="#online-offline-preference-learning" id="toc-online-offline-preference-learning" class="nav-link" data-scroll-target="#online-offline-preference-learning"><strong>在线与离线偏好学习</strong></a></li>
+  <li><a href="#reward-hacking-over-optimization" id="toc-reward-hacking-over-optimization" class="nav-link" data-scroll-target="#reward-hacking-over-optimization"><strong>奖励投机与过度优化</strong></a></li>
+  <li><a href="#alignment-tax-evaluation-safety" id="toc-alignment-tax-evaluation-safety" class="nav-link" data-scroll-target="#alignment-tax-evaluation-safety"><strong>对齐代价、评估与安全</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>章节对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：后训练与对齐</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/18-post-training-alignment.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="post-training-alignment" class="level2">
+<h2 class="anchored" data-anchor-id="post-training-alignment"><strong>后训练与对齐</strong></h2>
+<p>预训练赋予模型广泛的预测能力，但仅靠下一词元似然，并不能规定一个部署中的助手应当如何遵循指令、拒绝不安全请求、表达不确定性，或在有用性与冗长度之间进行权衡。<strong>后训练（post-training）</strong>利用示范、比较、奖励信号和定向评估改变预训练模型的行为。<strong>对齐（alignment）</strong>则是更广泛的工程问题：使这种行为在常规与对抗性使用场景中都能可靠反映预期目标和约束。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-post-training-pipeline.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="分阶段的后训练流水线把预测型基础模型转变为经过评估的部署策略。"><img src="assets/dl18-post-training-pipeline.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:78.0%" alt="流水线从预训练模型经过监督微调和偏好优化到达已评估策略，评估结果再反馈为新数据。"></a></p>
+</figure>
+</div>
+<figcaption>分阶段的后训练流水线把预测型基础模型转变为经过评估的部署策略。</figcaption>
+</figure>
+</div>
+<p><em>根据 <a href="https://arxiv.org/abs/2203.02155">InstructGPT</a>、<a href="https://arxiv.org/abs/2305.18290">DPO 论文</a>与 <a href="https://arxiv.org/abs/2212.08073">Constitutional AI</a> 中的后训练流程综合绘制的原创教学图。</em></p>
+<p>本章使用 <a href="https://huggingface.co/datasets/nvidia/HelpSteer2">NVIDIA HelpSteer2</a>，其来源见 <a href="https://arxiv.org/abs/2406.08673">HelpSteer2 论文</a>。该数据集按有用性、正确性、连贯性、复杂度和冗长度对回答评分。仓库在 <strong>CC BY 4.0</strong> 许可下保存了官方训练集的一个确定性 240-prompt 教学子集。每个 prompt 有两个回答；加权人工分数较高者记作 <span class="math inline">\(y_w\)</span>，另一条记作 <span class="math inline">\(y_l\)</span>。这个约简支持可复现的 CPU 机制演示，不用于宣称排行榜成绩。</p>
+<details>
+<summary>
+<strong>Python：一次性加载 HelpSteer2，并建立防泄漏的 prompt 划分</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> json</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> collections <span class="im">import</span> defaultdict</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pathlib <span class="im">import</span> Path</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.feature_extraction.text <span class="im">import</span> TfidfVectorizer</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>torch.set_num_threads(<span class="dv">1</span>)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> seed_everything(seed<span class="op">=</span><span class="dv">1818</span>):</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    random.seed(seed)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    np.random.seed(seed)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    torch.manual_seed(seed)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>data_path <span class="op">=</span> Path(<span class="st">"assets/dl18-helpsteer2-mini.jsonl"</span>)</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="kw">not</span> data_path.exists():</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    data_path <span class="op">=</span> Path(<span class="st">"ipynb/Deep-Learning/assets/dl18-helpsteer2-mini.jsonl"</span>)</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>rows <span class="op">=</span> [json.loads(line) <span class="cf">for</span> line <span class="kw">in</span> data_path.read_text(encoding<span class="op">=</span><span class="st">"utf-8"</span>).splitlines()]</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>grouped <span class="op">=</span> defaultdict(<span class="bu">list</span>)</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> row <span class="kw">in</span> rows:</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    grouped[row[<span class="st">"pair_id"</span>]].append(row)</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_score(row):</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Verbosity is audited separately rather than rewarded by default.</span></span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (</span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>        <span class="fl">0.4</span> <span class="op">*</span> row[<span class="st">"helpfulness"</span>]</span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> <span class="fl">0.3</span> <span class="op">*</span> row[<span class="st">"correctness"</span>]</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> <span class="fl">0.2</span> <span class="op">*</span> row[<span class="st">"coherence"</span>]</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>        <span class="op">+</span> <span class="fl">0.1</span> <span class="op">*</span> row[<span class="st">"complexity"</span>]</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>pairs <span class="op">=</span> []</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> pair_id, candidates <span class="kw">in</span> grouped.items():</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> <span class="bu">len</span>(candidates) <span class="op">==</span> <span class="dv">2</span> <span class="kw">and</span> candidates[<span class="dv">0</span>][<span class="st">"prompt"</span>] <span class="op">==</span> candidates[<span class="dv">1</span>][<span class="st">"prompt"</span>]</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>    ordered <span class="op">=</span> <span class="bu">sorted</span>(candidates, key<span class="op">=</span>human_score, reverse<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> human_score(ordered[<span class="dv">0</span>]) <span class="op">==</span> human_score(ordered[<span class="dv">1</span>]):</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">continue</span></span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>    pairs.append({<span class="st">"pair_id"</span>: pair_id, <span class="st">"prompt"</span>: ordered[<span class="dv">0</span>][<span class="st">"prompt"</span>], <span class="st">"chosen"</span>: ordered[<span class="dv">0</span>], <span class="st">"rejected"</span>: ordered[<span class="dv">1</span>]})</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a>seed_everything()</span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a>random.Random(<span class="dv">1818</span>).shuffle(pairs)</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>train_pairs, val_pairs, test_pairs <span class="op">=</span> pairs[:<span class="dv">168</span>], pairs[<span class="dv">168</span>:<span class="dv">204</span>], pairs[<span class="dv">204</span>:]</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>train_ids <span class="op">=</span> {pair[<span class="st">"pair_id"</span>] <span class="cf">for</span> pair <span class="kw">in</span> train_pairs}</span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>test_ids <span class="op">=</span> {pair[<span class="st">"pair_id"</span>] <span class="cf">for</span> pair <span class="kw">in</span> test_pairs}</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(pairs) <span class="op">==</span> <span class="dv">240</span> <span class="kw">and</span> <span class="bu">len</span>(train_pairs) <span class="op">==</span> <span class="dv">168</span> <span class="kw">and</span> <span class="bu">len</span>(val_pairs) <span class="op">==</span> <span class="bu">len</span>(test_pairs) <span class="op">==</span> <span class="dv">36</span></span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> train_ids.isdisjoint(test_ids)</span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(human_score(pair[<span class="st">"chosen"</span>]) <span class="op">&gt;</span> human_score(pair[<span class="st">"rejected"</span>]) <span class="cf">for</span> pair <span class="kw">in</span> pairs)</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"prompt split"</span>: (<span class="dv">168</span>, <span class="dv">36</span>, <span class="dv">36</span>), <span class="st">"responses"</span>: <span class="bu">len</span>(rows), <span class="st">"license"</span>: <span class="st">"CC BY 4.0"</span>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>独立划分单元是 <strong>prompt</strong>，而不是单条回答。否则，同一指令的两个回答可能落在边界两侧，使模型或向量化器在训练时识别到测试 prompt。</p>
+<section id="what-post-training-changes" class="level3">
+<h3 class="anchored" data-anchor-id="what-post-training-changes"><strong>后训练改变了什么？</strong></h3>
+<p>基础语言模型从广泛文本中估计 <span class="math inline">\(p_{\theta_0}(y\mid x)\)</span>。部署要求的是更窄、更明确的条件行为：回答用户指令、遵守策略、保留原有能力，同时避免只是在评估器看来优秀的病态策略。因此，后训练改变的是<strong>回答上的条件分布</strong>，而不是某个数据库中的事实内容。它可以提高期望回答的概率，但无法可靠注入模型和数据中原本不存在的知识。</p>
+<p>一个有用的抽象是正则化策略优化：</p>
+<p><span class="math display">\[
+\max_\theta\;\mathbb E_{x\sim\mathcal D,\,y\sim\pi_\theta(\cdot|x)}[R(x,y)]
+-\beta\,\mathbb E_x[D_{\mathrm{KL}}(\pi_\theta(\cdot|x)\|\pi_{\mathrm{ref}}(\cdot|x))].
+\]</span></p>
+<p>其中，<span class="math inline">\(R\)</span> 是不完美的操作性目标，<span class="math inline">\(\pi_{\mathrm{ref}}\)</span> 通常是 SFT 策略，<span class="math inline">\(\beta\)</span> 则为偏离参考策略的行为定价。较小的 <span class="math inline">\(\beta\)</span> 允许更激进的优化，也更容易利用奖励漏洞；较大的 <span class="math inline">\(\beta\)</span> 能保留参考行为，却可能阻止有益适配。SFT 通过示范实现第一次行为迁移，而 RLHF 和直接偏好方法估计或优化相对偏好。</p>
+<p>对齐并不等于“高奖励”。目标是多维的：指令遵循、事实性、校准、安全、风格、鲁棒性、隐私和运行成本可能相互冲突。模型、奖励模型、数据收集流程与评估套件构成一个耦合系统。只提高标量代理而忽视这个系统，正是奖励投机产生的方式。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>主要监督</th>
+<th>直接优化对象</th>
+<th>典型局限</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>预训练</td>
+<td>原始词元序列</td>
+<td>下一词元似然</td>
+<td>部署意图是隐式的</td>
+</tr>
+<tr class="even">
+<td>SFT</td>
+<td>选定的示范</td>
+<td>目标回答的似然</td>
+<td>模仿标注分布</td>
+</tr>
+<tr class="odd">
+<td>奖励建模</td>
+<td>回答比较</td>
+<td>偏好次序的似然</td>
+<td>评估器偏差与目标错设</td>
+</tr>
+<tr class="even">
+<td>RLHF / PPO</td>
+<td>模型 rollout 与学习奖励</td>
+<td>正则化期望奖励</td>
+<td>成本高且对优化细节敏感</td>
+</tr>
+<tr class="odd">
+<td>DPO 类方法</td>
+<td>固定偏好对</td>
+<td>相对策略对数比</td>
+<td>受离线偏好覆盖范围限制</td>
+</tr>
+<tr class="even">
+<td>评估与红队测试</td>
+<td>保留测试与人工审查</td>
+<td>诊断，而非单一训练损失</td>
+<td>永远无法穷尽</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="supervised-fine-tuning" class="level3">
+<h3 class="anchored" data-anchor-id="supervised-fine-tuning"><strong>监督微调</strong></h3>
+<p>监督微调（SFT）教自回归模型复现高质量回答。对于 prompt <span class="math inline">\(x\)</span> 和示范 <span class="math inline">\(y=(y_1,\ldots,y_T)\)</span>，仅回答区域的 SFT 最小化</p>
+<p><span class="math display">\[
+\mathcal L_{\mathrm{SFT}}(\theta)
+=-\sum_{t=1}^{T}m_t\log \pi_\theta(y_t\mid x,y_{&lt;t}),
+\]</span></p>
+<p>其中，回答目标上的 <span class="math inline">\(m_t=1\)</span>，prompt 词元上的 <span class="math inline">\(m_t=0\)</span>。prompt 仍作为上下文可见，但其词元通常使用忽略索引（PyTorch 中为 <code>-100</code>）。如果对 prompt 词元也计算损失，模型会浪费能力复述用户文本，而且长 prompt 样本会不成比例地主导损失。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-sft-mask.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="仅回答区域的 SFT 让 prompt 词元作为上下文可见，同时把它们从损失中屏蔽。"><img src="assets/dl18-sft-mask.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="Prompt 与分隔符词元的标签为负一百，回答词元保留下一个词元标签并产生梯度。"></a></p>
+</figure>
+</div>
+<figcaption>仅回答区域的 SFT 让 prompt 词元作为上下文可见，同时把它们从损失中屏蔽。</figcaption>
+</figure>
+</div>
+<p>把多个样本打包进同一序列可以提高加速器利用率，但注意力与标签都不得跨越样本边界。损失还应按预期统计单元归一化：按词元平均会提高长回答的权重；按样本归一化则让每条指令获得近似相同的影响。</p>
+<details>
+<summary>
+<strong>PyTorch：从一条 HelpSteer2 示范构造仅回答区域的标签</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>BOS, SEP, EOS, VOCAB_SIZE <span class="op">=</span> <span class="dv">256</span>, <span class="dv">257</span>, <span class="dv">258</span>, <span class="dv">259</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> encode_sft_example(prompt, response, prompt_limit<span class="op">=</span><span class="dv">96</span>, response_limit<span class="op">=</span><span class="dv">160</span>):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    prompt_bytes <span class="op">=</span> <span class="bu">list</span>(prompt.encode(<span class="st">"utf-8"</span>)[:prompt_limit])</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    response_bytes <span class="op">=</span> <span class="bu">list</span>(response.encode(<span class="st">"utf-8"</span>)[:response_limit])</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    full <span class="op">=</span> [BOS] <span class="op">+</span> prompt_bytes <span class="op">+</span> [SEP] <span class="op">+</span> response_bytes <span class="op">+</span> [EOS]</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    input_ids <span class="op">=</span> torch.tensor(full[:<span class="op">-</span><span class="dv">1</span>], dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> torch.tensor(full[<span class="dv">1</span>:], dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    separator_index <span class="op">=</span> <span class="dv">1</span> <span class="op">+</span> <span class="bu">len</span>(prompt_bytes)</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    labels[:separator_index] <span class="op">=</span> <span class="op">-</span><span class="dv">100</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> input_ids, labels, separator_index</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>example <span class="op">=</span> train_pairs[<span class="dv">0</span>]</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>input_ids, labels, separator_index <span class="op">=</span> encode_sft_example(example[<span class="st">"prompt"</span>], example[<span class="st">"chosen"</span>][<span class="st">"response"</span>])</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">1819</span>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> torch.randn(<span class="bu">len</span>(input_ids), VOCAB_SIZE, requires_grad<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> F.cross_entropy(logits, labels, ignore_index<span class="op">=-</span><span class="dv">100</span>)</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>ignored_gradient <span class="op">=</span> logits.grad[:separator_index].<span class="bu">abs</span>().<span class="bu">sum</span>()</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>response_gradient <span class="op">=</span> logits.grad[separator_index:].<span class="bu">abs</span>().<span class="bu">sum</span>()</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> ignored_gradient <span class="op">==</span> <span class="dv">0</span> <span class="kw">and</span> response_gradient <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"input tokens"</span>: <span class="bu">len</span>(input_ids), <span class="st">"masked targets"</span>: separator_index, <span class="st">"response NLL"</span>: <span class="bu">round</span>(<span class="bu">float</span>(loss.detach()), <span class="dv">3</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>SFT 稳定且不可或缺，但每个 prompt 只从一个选定回答学习。它不会直接表达另一个同样流畅的回答为何略差。常见失败模式包括模板过拟合、继承示范中的冗长风格、学习率过大造成能力灾难性丢失，以及示范中缺少不确定性表达时形成的虚假自信。</p>
+</section>
+<section id="instruction-data-construction" class="level3">
+<h3 class="anchored" data-anchor-id="instruction-data-construction"><strong>指令数据构造</strong></h3>
+<p>指令数据构造本身就是算法的一部分。示范并非“只是一段文本”；它编码了任务分布、评分准则、作者群体、策略边界和质量控制流程。健壮的流水线会记录来源与许可，过滤隐私或不安全材料，对语义相似的 prompt 去重，规定标注者不确定时应如何处理，并在训练前保留对抗性与分布外测试集。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-data-funnel.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="数据漏斗让原始回答依次经过来源、质量和划分检查。"><img src="assets/dl18-data-funnel.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="四阶段漏斗依次执行来源检查、隐私和安全审查、准则与去重审计，以及按 prompt 的训练验证测试划分。"></a></p>
+</figure>
+</div>
+<figcaption>数据漏斗让原始回答依次经过来源、质量和划分检查。</figcaption>
+</figure>
+</div>
+<p>必须从多个层面理解数据平衡。只统计 prompt 数量可能掩盖某个领域的回答更长、因而产生更多损失词元；平均评分可能掩盖一个存在严重正确性问题的小群体；近重复 prompt 会夸大保留集性能。对于偏好数据，极小的分数差还会产生弱标签或不稳定标签。与其任意打破平局，不如显式保留平局，或按声明清楚的规则删除它们。</p>
+<details>
+<summary>
+<strong>Python：审计长度、评分维度、偏好间隔与划分来源</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> split_audit(selected_pairs):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    response_lengths <span class="op">=</span> [<span class="bu">len</span>(pair[key][<span class="st">"response"</span>]) <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs <span class="cf">for</span> key <span class="kw">in</span> (<span class="st">"chosen"</span>, <span class="st">"rejected"</span>)]</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    score_margins <span class="op">=</span> [human_score(pair[<span class="st">"chosen"</span>]) <span class="op">-</span> human_score(pair[<span class="st">"rejected"</span>]) <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs]</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    attribute_means <span class="op">=</span> {</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        attribute: <span class="bu">round</span>(<span class="bu">float</span>(np.mean([pair[key][attribute] <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs <span class="cf">for</span> key <span class="kw">in</span> (<span class="st">"chosen"</span>, <span class="st">"rejected"</span>)])), <span class="dv">3</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> attribute <span class="kw">in</span> (<span class="st">"helpfulness"</span>, <span class="st">"correctness"</span>, <span class="st">"coherence"</span>, <span class="st">"complexity"</span>, <span class="st">"verbosity"</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        <span class="st">"prompts"</span>: <span class="bu">len</span>(selected_pairs),</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"median response chars"</span>: <span class="bu">int</span>(np.median(response_lengths)),</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"p95 response chars"</span>: <span class="bu">int</span>(np.percentile(response_lengths, <span class="dv">95</span>)),</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"median preference margin"</span>: <span class="bu">round</span>(<span class="bu">float</span>(np.median(score_margins)), <span class="dv">3</span>),</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"attribute means"</span>: attribute_means,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>audits <span class="op">=</span> {<span class="st">"train"</span>: split_audit(train_pairs), <span class="st">"validation"</span>: split_audit(val_pairs), <span class="st">"test"</span>: split_audit(test_pairs)}</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> {pair[<span class="st">"prompt"</span>] <span class="cf">for</span> pair <span class="kw">in</span> train_pairs}.isdisjoint({pair[<span class="st">"prompt"</span>] <span class="cf">for</span> pair <span class="kw">in</span> test_pairs})</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(audits[name][<span class="st">"p95 response chars"</span>] <span class="op">&lt;=</span> <span class="dv">2200</span> <span class="cf">for</span> name <span class="kw">in</span> audits)</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(audits)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>为了让 CPU 示例可运行，本章把教学子集限制在中等回答长度，这会改变所研究的总体。因此，本章把它报告为机制数据集，而不是对完整 HelpSteer2 或真实助手流量的无偏估计。</p>
+</section>
+<section id="preference-data-pairwise-feedback" class="level3">
+<h3 class="anchored" data-anchor-id="preference-data-pairwise-feedback"><strong>偏好数据与成对反馈</strong></h3>
+<p>成对反馈要求标注者判断：在同一个 prompt 下，哪个回答更符合准则。与给出全局校准分数相比，这通常更容易，因为标注者只需比较两个具体候选。记录形式为 <span class="math inline">\((x,y_w,y_l)\)</span>，其中 <span class="math inline">\(y_w\)</span> 是偏好回答，<span class="math inline">\(y_l\)</span> 是被拒绝回答。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-pairwise-feedback.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="成对反馈在一套显式准则下比较两个回答。"><img src="assets/dl18-pairwise-feedback.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="一个 prompt 分支到偏好回答与拒绝回答，两者按有用性、正确性、连贯性和不确定性准则比较。"></a></p>
+</figure>
+</div>
+<figcaption>成对反馈在一套显式准则下比较两个回答。</figcaption>
+</figure>
+</div>
+<p>偏好取决于候选的生成方式。如果两个候选来自几乎相同的策略，差异可能过于细微；如果其中一个明显损坏，标签虽然容易，却无法有效刻画当前决策边界。候选次序应随机化，应记录标注者身份与不确定性，并允许平局。位置偏差、风格偏差、人口分布不匹配和准则歧义都是数据生成机制，而不是扩大规模就会自动消失的随机噪声。</p>
+<p>HelpSteer2 提供多个独立标量维度，而不是一个普适偏好。本章为了教学构造透明的复合分数，同时把冗长度留在目标之外，以便将它作为潜在捷径单独审计。</p>
+<details>
+<summary>
+<strong>Python：度量单维评估器与多属性偏好之间的不一致</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> proxy_judge(pair):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># A deliberately narrow judge sees helpfulness only.</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    delta <span class="op">=</span> pair[<span class="st">"chosen"</span>][<span class="st">"helpfulness"</span>] <span class="op">-</span> pair[<span class="st">"rejected"</span>][<span class="st">"helpfulness"</span>]</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> delta <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="st">"tie"</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">"chosen"</span> <span class="cf">if</span> delta <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> <span class="st">"rejected"</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>proxy_labels <span class="op">=</span> [proxy_judge(pair) <span class="cf">for</span> pair <span class="kw">in</span> test_pairs]</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>agreement <span class="op">=</span> <span class="bu">sum</span>(label <span class="op">==</span> <span class="st">"chosen"</span> <span class="cf">for</span> label <span class="kw">in</span> proxy_labels) <span class="op">/</span> <span class="bu">len</span>(proxy_labels)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>tie_rate <span class="op">=</span> <span class="bu">sum</span>(label <span class="op">==</span> <span class="st">"tie"</span> <span class="cf">for</span> label <span class="kw">in</span> proxy_labels) <span class="op">/</span> <span class="bu">len</span>(proxy_labels)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="dv">0</span> <span class="op">&lt;=</span> agreement <span class="op">&lt;=</span> <span class="dv">1</span> <span class="kw">and</span> <span class="dv">0</span> <span class="op">&lt;=</span> tie_rate <span class="op">&lt;=</span> <span class="dv">1</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"helpfulness-only agreement"</span>: <span class="bu">round</span>(agreement, <span class="dv">3</span>), <span class="st">"helpfulness ties"</span>: <span class="bu">round</span>(tie_rate, <span class="dv">3</span>), <span class="st">"test pairs"</span>: <span class="bu">len</span>(test_pairs)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>不一致并不能证明任何一方一定错误：复合分数本身就包含人为权重。这个诊断说明，对齐报告必须公开准则并保留底层维度，而不能把“人类偏好”描述成脱离上下文的客观事实。</p>
+</section>
+<section id="reward-modeling" class="level3">
+<h3 class="anchored" data-anchor-id="reward-modeling"><strong>奖励建模</strong></h3>
+<p>奖励模型把 prompt—回答对映射为标量 <span class="math inline">\(r_\phi(x,y)\)</span>。在 Bradley-Terry 模型中，</p>
+<p><span class="math display">\[
+P_\phi(y_w\succ y_l\mid x)=\sigma\!\left(r_\phi(x,y_w)-r_\phi(x,y_l)\right),
+\]</span></p>
+<p>因而成对负对数似然为</p>
+<p><span class="math display">\[
+\mathcal L_{\mathrm{RM}}(\phi)=-\mathbb E_{(x,y_w,y_l)}\log\sigma(r_w-r_l)
+=\mathbb E\,\operatorname{softplus}(-(r_w-r_l)).
+\]</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-reward-model.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Bradley-Terry 奖励模型把分数差转换为偏好概率。"><img src="assets/dl18-reward-model.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="Prompt—回答特征通过标量奖励头，偏好概率等于选择回答与拒绝回答奖励差的 sigmoid。"></a></p>
+</figure>
+</div>
+<figcaption>Bradley-Terry 奖励模型把分数差转换为偏好概率。</figcaption>
+</figure>
+</div>
+<p>能被识别的只有差值 <span class="math inline">\(r_w-r_l\)</span>：给所有分数加上同一个常数不会改变结果。因此，奖励值并不是人类效用的绝对单位。除了成对准确率，还必须关注校准、子群性能、分数漂移与分布外行为。</p>
+<details>
+<summary>
+<strong>PyTorch：在固定 HelpSteer2 特征上训练紧凑的成对奖励模型</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> candidate_text(pair, key):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> pair[<span class="st">"prompt"</span>] <span class="op">+</span> <span class="st">"</span><span class="ch">\n</span><span class="st">&lt;response&gt;</span><span class="ch">\n</span><span class="st">"</span> <span class="op">+</span> pair[key][<span class="st">"response"</span>]</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Learned vocabulary and IDF statistics are fit on training text only.</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>vectorizer <span class="op">=</span> TfidfVectorizer(max_features<span class="op">=</span><span class="dv">1800</span>, ngram_range<span class="op">=</span>(<span class="dv">1</span>, <span class="dv">2</span>), min_df<span class="op">=</span><span class="dv">2</span>, sublinear_tf<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>vectorizer.fit([candidate_text(pair, key) <span class="cf">for</span> pair <span class="kw">in</span> train_pairs <span class="cf">for</span> key <span class="kw">in</span> (<span class="st">"chosen"</span>, <span class="st">"rejected"</span>)])</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pair_features(selected_pairs):</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    chosen <span class="op">=</span> vectorizer.transform([candidate_text(pair, <span class="st">"chosen"</span>) <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs]).toarray()</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    rejected <span class="op">=</span> vectorizer.transform([candidate_text(pair, <span class="st">"rejected"</span>) <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs]).toarray()</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.tensor(np.stack([chosen, rejected], axis<span class="op">=</span><span class="dv">1</span>), dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>train_x, val_x, test_x <span class="op">=</span> <span class="bu">map</span>(pair_features, (train_pairs, val_pairs, test_pairs))</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">1820</span>)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>reward_model <span class="op">=</span> nn.Linear(train_x.shape[<span class="op">-</span><span class="dv">1</span>], <span class="dv">1</span>)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>reward_optimizer <span class="op">=</span> torch.optim.AdamW(reward_model.parameters(), lr<span class="op">=</span><span class="fl">0.04</span>, weight_decay<span class="op">=</span><span class="fl">2e-3</span>)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>reward_losses <span class="op">=</span> []</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">350</span>):</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    scores <span class="op">=</span> reward_model(train_x).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> F.softplus(<span class="op">-</span>(scores[:, <span class="dv">0</span>] <span class="op">-</span> scores[:, <span class="dv">1</span>])).mean()</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    reward_optimizer.zero_grad()</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    loss.backward()</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    reward_optimizer.step()</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    reward_losses.append(<span class="bu">float</span>(loss.detach()))</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> reward_metrics(features):</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a>        scores <span class="op">=</span> reward_model(features).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>        margins <span class="op">=</span> scores[:, <span class="dv">0</span>] <span class="op">-</span> scores[:, <span class="dv">1</span>]</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">"pair accuracy"</span>: <span class="bu">float</span>((margins <span class="op">&gt;</span> <span class="dv">0</span>).<span class="bu">float</span>().mean()), <span class="st">"mean margin"</span>: <span class="bu">float</span>(margins.mean())}</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>rm_validation <span class="op">=</span> reward_metrics(val_x)</span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a>rm_test <span class="op">=</span> reward_metrics(test_x)</span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> reward_losses[<span class="op">-</span><span class="dv">1</span>] <span class="op">&lt;</span> reward_losses[<span class="dv">0</span>] <span class="kw">and</span> <span class="dv">0</span> <span class="op">&lt;=</span> rm_test[<span class="st">"pair accuracy"</span>] <span class="op">&lt;=</span> <span class="dv">1</span></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"features"</span>: train_x.shape[<span class="op">-</span><span class="dv">1</span>], <span class="st">"loss"</span>: (<span class="bu">round</span>(reward_losses[<span class="dv">0</span>], <span class="dv">3</span>), <span class="bu">round</span>(reward_losses[<span class="op">-</span><span class="dv">1</span>], <span class="dv">3</span>)), <span class="st">"validation"</span>: {k: <span class="bu">round</span>(v, <span class="dv">3</span>) <span class="cf">for</span> k, v <span class="kw">in</span> rm_validation.items()}, <span class="st">"test"</span>: {k: <span class="bu">round</span>(v, <span class="dv">3</span>) <span class="cf">for</span> k, v <span class="kw">in</span> rm_test.items()}})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个线性 TF-IDF 模型刻意暴露目标函数；生产级奖励模型通常复用预训练 Transformer 并连接标量头。小型保留集使准确率噪声较大，而词汇特征很容易被利用。这些限制在本章反而有教学价值，因为后续部分可以真实观察代理优化，而不是假定评估器一定正确。</p>
+</section>
+<section id="reinforcement-learning-human-feedback" class="level3">
+<h3 class="anchored" data-anchor-id="reinforcement-learning-human-feedback"><strong>基于人类反馈的强化学习</strong></h3>
+<p>RLHF 把偏好测量与策略改进分开。人类比较回答；奖励模型学习比较规则；策略再生成新回答，并针对学习到的奖励进行优化。在 InstructGPT 风格的流水线中，SFT 既提供强初始化，也提供用于限制漂移的冻结参考策略。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-rlhf-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="RLHF 在策略 rollout、奖励评估和带 KL 正则的 PPO 更新之间循环。"><img src="assets/dl18-rlhf-loop.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="Prompt 进入策略，完整回答获得奖励与 KL 惩罚，PPO 更新策略，冻结的参考策略作为锚点。"></a></p>
+</figure>
+</div>
+<figcaption>RLHF 在策略 rollout、奖励评估和带 KL 正则的 PPO 更新之间循环。</figcaption>
+</figure>
+</div>
+<p>常见的成形序列奖励为</p>
+<p><span class="math display">\[
+\widetilde R(x,y)=r_\phi(x,y)-\beta\log\frac{\pi_\theta(y|x)}{\pi_{\mathrm{ref}}(y|x)},
+\qquad
+\log\pi_\theta(y|x)=\sum_t\log\pi_\theta(y_t|x,y_{&lt;t}).
+\]</span></p>
+<p>第一项评价完整回答，第二项惩罚在更新策略下比参考策略下显著更可能出现的序列。实现通常把逐词元 KL 惩罚分布到轨迹中，并训练价值头，把终止时奖励反向分配到各个词元。</p>
+<p>对当前生成器而言，RLHF 是<strong>同策略（on-policy）</strong>的：策略移动足够远后，旧回答就不再能刻画模型当前输出。这种自适应能够暴露新失败模式，是它相对固定偏好数据的优势之一；它也使 RLHF 成本高昂，因为生成通常主导训练成本，奖励与策略版本必须同步，rollout 数据也会迅速过期。</p>
+<p>可靠系统应记录策略与参考对数概率、原始奖励、KL 惩罚、回答长度、熵、裁剪比例、价值误差和保留人工判断。训练奖励上升但熵坍缩或 KL 快速增长是一条警报，而不是成功证明。</p>
+</section>
+<section id="ppo-model-alignment" class="level3">
+<h3 class="anchored" data-anchor-id="ppo-model-alignment"><strong>用于模型对齐的 PPO</strong></h3>
+<p>第 17 章把 PPO 作为通用同策略 Actor-Critic 方法介绍。在语言对齐中，状态是 prompt 加已生成前缀，动作是下一个词元，一个 episode 是完整回答。PPO 在多个梯度 epoch 中复用一次 rollout，同时裁剪概率比</p>
+<p><span class="math display">\[
+\rho_t(\theta)=\frac{\pi_\theta(y_t|x,y_{&lt;t})}{\pi_{\mathrm{old}}(y_t|x,y_{&lt;t})},
+\qquad
+L^{\mathrm{clip}}=\mathbb E_t\left[\min(\rho_t\hat A_t,\operatorname{clip}(\rho_t,1-\epsilon,1+\epsilon)\hat A_t)\right].
+\]</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-ppo-alignment.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="语言模型 PPO 把词元动作映射到终止回答分数，并使用 Critic 与 KL 成形分配信用。"><img src="assets/dl18-ppo-alignment.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="词元概率生成回答，终止奖励通过 Critic 与 KL 成形向前分配，PPO 裁剪概率比的优化激励。"></a></p>
+</figure>
+</div>
+<figcaption>语言模型 PPO 把词元动作映射到终止回答分数，并使用 Critic 与 KL 成形分配信用。</figcaption>
+</figure>
+</div>
+<p>PPO 裁剪限制的是采样代理目标上的激励，并不保证所有位置上的实际 KL。显式参考 KL 与调节 <span class="math inline">\(\beta\)</span> 的控制器仍然重要。Padding mask、EOS 处理、奖励白化、优势归一化、旧对数概率的梯度分离，以及截断与真实 EOS 的区分，都是常见的静默错误来源。</p>
+<details>
+<summary>
+<strong>PyTorch：KL 正则 PPO 的双回答上下文 Bandit 抽象</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CandidatePolicy(nn.Module):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, feature_dim):</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.scorer <span class="op">=</span> nn.Linear(feature_dim, <span class="dv">1</span>)</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, features):</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.scorer(features).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> categorical_kl(logits, reference_logits):</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    log_p <span class="op">=</span> logits.log_softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    log_q <span class="op">=</span> reference_logits.log_softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (log_p.exp() <span class="op">*</span> (log_p <span class="op">-</span> log_q)).<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">1821</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>reference_policy <span class="op">=</span> CandidatePolicy(train_x.shape[<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>sft_optimizer <span class="op">=</span> torch.optim.AdamW(reference_policy.parameters(), lr<span class="op">=</span><span class="fl">0.025</span>, weight_decay<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>chosen_targets <span class="op">=</span> torch.zeros(<span class="bu">len</span>(train_x), dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">180</span>):</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>    sft_loss <span class="op">=</span> F.cross_entropy(reference_policy(train_x), chosen_targets)</span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>    sft_optimizer.zero_grad()<span class="op">;</span> sft_loss.backward()<span class="op">;</span> sft_optimizer.step()</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> parameter <span class="kw">in</span> reference_policy.parameters():</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>    parameter.requires_grad_(<span class="va">False</span>)</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>ppo_policy <span class="op">=</span> copy.deepcopy(reference_policy)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> parameter <span class="kw">in</span> ppo_policy.parameters():</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    parameter.requires_grad_(<span class="va">True</span>)</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a>ppo_optimizer <span class="op">=</span> torch.optim.AdamW(ppo_policy.parameters(), lr<span class="op">=</span><span class="fl">0.006</span>, weight_decay<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a>    train_rewards <span class="op">=</span> reward_model(train_x).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a>    train_rewards <span class="op">=</span> (train_rewards <span class="op">-</span> train_rewards.mean()) <span class="op">/</span> (train_rewards.std() <span class="op">+</span> <span class="fl">1e-6</span>)</span>
+<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a>    reference_train_logits <span class="op">=</span> reference_policy(train_x)</span>
+<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a>beta, epsilon <span class="op">=</span> <span class="fl">0.08</span>, <span class="fl">0.2</span></span>
+<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a>ppo_log <span class="op">=</span> []</span>
+<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> update <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">24</span>):</span>
+<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a>    old_policy <span class="op">=</span> copy.deepcopy(ppo_policy).<span class="bu">eval</span>()</span>
+<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a>        old_logits <span class="op">=</span> old_policy(train_x)</span>
+<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a>        old_distribution <span class="op">=</span> torch.distributions.Categorical(logits<span class="op">=</span>old_logits)</span>
+<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a>        actions <span class="op">=</span> old_distribution.sample()</span>
+<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>        old_log_prob <span class="op">=</span> old_distribution.log_prob(actions)</span>
+<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>        baseline <span class="op">=</span> (old_logits.softmax(<span class="op">-</span><span class="dv">1</span>) <span class="op">*</span> train_rewards).<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>        advantages <span class="op">=</span> train_rewards.gather(<span class="dv">1</span>, actions[:, <span class="va">None</span>]).squeeze(<span class="dv">1</span>) <span class="op">-</span> baseline</span>
+<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>        advantages <span class="op">=</span> (advantages <span class="op">-</span> advantages.mean()) <span class="op">/</span> (advantages.std() <span class="op">+</span> <span class="fl">1e-6</span>)</span>
+<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">4</span>):</span>
+<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>        logits <span class="op">=</span> ppo_policy(train_x)</span>
+<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>        distribution <span class="op">=</span> torch.distributions.Categorical(logits<span class="op">=</span>logits)</span>
+<span id="cb6-51"><a href="#cb6-51" aria-hidden="true" tabindex="-1"></a>        ratio <span class="op">=</span> (distribution.log_prob(actions) <span class="op">-</span> old_log_prob).exp()</span>
+<span id="cb6-52"><a href="#cb6-52" aria-hidden="true" tabindex="-1"></a>        surrogate <span class="op">=</span> torch.minimum(ratio <span class="op">*</span> advantages, ratio.clamp(<span class="dv">1</span> <span class="op">-</span> epsilon, <span class="dv">1</span> <span class="op">+</span> epsilon) <span class="op">*</span> advantages)</span>
+<span id="cb6-53"><a href="#cb6-53" aria-hidden="true" tabindex="-1"></a>        kl <span class="op">=</span> categorical_kl(logits, reference_train_logits).mean()</span>
+<span id="cb6-54"><a href="#cb6-54" aria-hidden="true" tabindex="-1"></a>        loss <span class="op">=</span> <span class="op">-</span>surrogate.mean() <span class="op">+</span> beta <span class="op">*</span> kl <span class="op">-</span> <span class="fl">0.002</span> <span class="op">*</span> distribution.entropy().mean()</span>
+<span id="cb6-55"><a href="#cb6-55" aria-hidden="true" tabindex="-1"></a>        ppo_optimizer.zero_grad()<span class="op">;</span> loss.backward()<span class="op">;</span> ppo_optimizer.step()</span>
+<span id="cb6-56"><a href="#cb6-56" aria-hidden="true" tabindex="-1"></a>    ppo_log.append((<span class="bu">float</span>(kl.detach()), <span class="bu">float</span>(((ratio <span class="op">-</span> <span class="dv">1</span>).<span class="bu">abs</span>() <span class="op">&gt;</span> epsilon).<span class="bu">float</span>().mean())))</span>
+<span id="cb6-57"><a href="#cb6-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-58"><a href="#cb6-58" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb6-59"><a href="#cb6-59" aria-hidden="true" tabindex="-1"></a>    reference_test_logits <span class="op">=</span> reference_policy(test_x)</span>
+<span id="cb6-60"><a href="#cb6-60" aria-hidden="true" tabindex="-1"></a>    ppo_test_logits <span class="op">=</span> ppo_policy(test_x)</span>
+<span id="cb6-61"><a href="#cb6-61" aria-hidden="true" tabindex="-1"></a>    ppo_preferred_probability <span class="op">=</span> <span class="bu">float</span>(ppo_test_logits.softmax(<span class="op">-</span><span class="dv">1</span>)[:, <span class="dv">0</span>].mean())</span>
+<span id="cb6-62"><a href="#cb6-62" aria-hidden="true" tabindex="-1"></a>    ppo_test_kl <span class="op">=</span> <span class="bu">float</span>(categorical_kl(ppo_test_logits, reference_test_logits).mean())</span>
+<span id="cb6-63"><a href="#cb6-63" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> math.isfinite(ppo_test_kl) <span class="kw">and</span> <span class="dv">0</span> <span class="op">&lt;=</span> ppo_preferred_probability <span class="op">&lt;=</span> <span class="dv">1</span></span>
+<span id="cb6-64"><a href="#cb6-64" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"preferred probability"</span>: <span class="bu">round</span>(ppo_preferred_probability, <span class="dv">3</span>), <span class="st">"test KL to reference"</span>: <span class="bu">round</span>(ppo_test_kl, <span class="dv">4</span>), <span class="st">"last train clip fraction"</span>: <span class="bu">round</span>(ppo_log[<span class="op">-</span><span class="dv">1</span>][<span class="dv">1</span>], <span class="dv">3</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码把两个已记录回答视为完整动作集合。它保留 PPO 的采样、旧策略概率比、裁剪、基线与参考 KL，但并不是逐词元 RLHF，也无法暴露生成时病态行为。它的目标是在与 SFT、奖励模型相同的数据上隔离更新几何。</p>
+</section>
+<section id="direct-preference-optimization" class="level3">
+<h3 class="anchored" data-anchor-id="direct-preference-optimization"><strong>直接偏好优化</strong></h3>
+<p>DPO 从训练中移除了显式的“奖励模型加 RL”循环。在带 KL 正则的奖励形式下，最优策略蕴含一个与目标策略和参考策略对数比成比例的奖励。把这个关系代入 Bradley-Terry 偏好模型，可得</p>
+<p><span class="math display">\[
+\mathcal L_{\mathrm{DPO}}(\theta)
+=-\mathbb E\log\sigma\left(\beta\left[
+\log\frac{\pi_\theta(y_w|x)}{\pi_{\mathrm{ref}}(y_w|x)}
+-\log\frac{\pi_\theta(y_l|x)}{\pi_{\mathrm{ref}}(y_l|x)}
+\right]\right).
+\]</span></p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-dpo-log-ratio.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="DPO 优化偏好回答相对于拒绝回答和参考策略的策略改善。"><img src="assets/dl18-dpo-log-ratio.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="选择与拒绝回答的策略对数比相减、乘以 beta，再输入负对数 sigmoid。"></a></p>
+</figure>
+</div>
+<figcaption>DPO 优化偏好回答相对于拒绝回答和参考策略的策略改善。</figcaption>
+</figure>
+</div>
+<p>方括号内是<strong>相对改善之差</strong>。DPO 并非简单最大化偏好回答似然，而是要求当前策略比参考策略更强地偏向 <span class="math inline">\(y_w\)</span> 而非 <span class="math inline">\(y_l\)</span>。逆温度 <span class="math inline">\(\beta\)</span> 决定尺度。不同实现对它的约定并不总是一致，因此必须同时核对公式和库配置。</p>
+<details>
+<summary>
+<strong>PyTorch：在同一 HelpSteer2 偏好对上优化 DPO</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>dpo_policy <span class="op">=</span> copy.deepcopy(reference_policy)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> parameter <span class="kw">in</span> dpo_policy.parameters():</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    parameter.requires_grad_(<span class="va">True</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>dpo_optimizer <span class="op">=</span> torch.optim.AdamW(dpo_policy.parameters(), lr<span class="op">=</span><span class="fl">0.008</span>, weight_decay<span class="op">=</span><span class="fl">1e-3</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    reference_train_log_probs <span class="op">=</span> reference_policy(train_x).log_softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>dpo_beta <span class="op">=</span> <span class="fl">0.2</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>dpo_losses <span class="op">=</span> []</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">220</span>):</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    policy_log_probs <span class="op">=</span> dpo_policy(train_x).log_softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    policy_log_ratio <span class="op">=</span> policy_log_probs[:, <span class="dv">0</span>] <span class="op">-</span> policy_log_probs[:, <span class="dv">1</span>]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    reference_log_ratio <span class="op">=</span> reference_train_log_probs[:, <span class="dv">0</span>] <span class="op">-</span> reference_train_log_probs[:, <span class="dv">1</span>]</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    dpo_loss <span class="op">=</span> F.softplus(<span class="op">-</span>dpo_beta <span class="op">*</span> (policy_log_ratio <span class="op">-</span> reference_log_ratio)).mean()</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    dpo_optimizer.zero_grad()<span class="op">;</span> dpo_loss.backward()<span class="op">;</span> dpo_optimizer.step()</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    dpo_losses.append(<span class="bu">float</span>(dpo_loss.detach()))</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    dpo_test_logits <span class="op">=</span> dpo_policy(test_x)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    dpo_preferred_probability <span class="op">=</span> <span class="bu">float</span>(dpo_test_logits.softmax(<span class="op">-</span><span class="dv">1</span>)[:, <span class="dv">0</span>].mean())</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    dpo_test_kl <span class="op">=</span> <span class="bu">float</span>(categorical_kl(dpo_test_logits, reference_test_logits).mean())</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> dpo_losses[<span class="op">-</span><span class="dv">1</span>] <span class="op">&lt;</span> dpo_losses[<span class="dv">0</span>] <span class="kw">and</span> dpo_test_kl <span class="op">&gt;=</span> <span class="dv">0</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"loss"</span>: (<span class="bu">round</span>(dpo_losses[<span class="dv">0</span>], <span class="dv">3</span>), <span class="bu">round</span>(dpo_losses[<span class="op">-</span><span class="dv">1</span>], <span class="dv">3</span>)), <span class="st">"preferred probability"</span>: <span class="bu">round</span>(dpo_preferred_probability, <span class="dv">3</span>), <span class="st">"test KL to reference"</span>: <span class="bu">round</span>(dpo_test_kl, <span class="dv">4</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>DPO 的运行流程更简单：不需要在线 rollout 服务、学习型 Critic、奖励模型在线服务或 PPO 循环。这种简单性并不会使它免受过拟合、标签噪声、长度偏差或分布外 prompt 的影响。如果不收集新偏好对，它本质上仍是离线方法。IPO、ORPO、KTO 和 robust DPO 等变体改变了假设或损失，但核心审计仍相同：数据覆盖、参考策略、正则强度和保留行为。</p>
+</section>
+<section id="rejection-sampling-best-of-n" class="level3">
+<h3 class="anchored" data-anchor-id="rejection-sampling-best-of-n"><strong>拒绝采样与 Best-of-N</strong></h3>
+<p>Best-of-<span class="math inline">\(N\)</span> 从提议策略采样 <span class="math inline">\(N\)</span> 个回答，分别评分，并返回最高分候选。拒绝采样微调还可以把选中的候选加入监督数据。这些方法把一部分优化转移到推理与数据选择，而不是用策略梯度改变每个词元的概率。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-best-of-n.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="Best-of-N 生成多个候选，并返回奖励模型评分最高的回答。"><img src="assets/dl18-best-of-n.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="一个 prompt 产生 N 个候选，奖励模型对它们评分，argmax 阶段返回一个回答。"></a></p>
+</figure>
+</div>
+<figcaption>Best-of-N 生成多个候选，并返回奖励模型评分最高的回答。</figcaption>
+</figure>
+</div>
+<p>如果候选相互独立，且质量的 CDF 为 <span class="math inline">\(F\)</span>，则最大值的 CDF 为 <span class="math inline">\(F_{\max}(q)=F(q)^N\)</span>。更大的 <span class="math inline">\(N\)</span> 会提高评估器下最大值的期望，但在考虑批处理和缓存复用前，生成工作量约增加到 <span class="math inline">\(N\)</span> 倍。当样本缺乏多样性时，收益会饱和。更重要的是，选择极端代理分数会探索奖励模型误差可能占主导的区域。</p>
+<details>
+<summary>
+<strong>Python：比较 Best-of-N 的代理奖励与保留人工分数</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pair_human_scores(selected_pairs):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.tensor([[human_score(pair[<span class="st">"chosen"</span>]), human_score(pair[<span class="st">"rejected"</span>])] <span class="cf">for</span> pair <span class="kw">in</span> selected_pairs], dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    proposal_probs <span class="op">=</span> reference_test_logits.softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    test_reward_scores <span class="op">=</span> reward_model(test_x).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    test_human_scores <span class="op">=</span> pair_human_scores(test_pairs)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> best_of_n_metrics(n, trials<span class="op">=</span><span class="dv">250</span>):</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">1800</span> <span class="op">+</span> n)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    proxy_values, human_values <span class="op">=</span> [], []</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(trials):</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        samples <span class="op">=</span> torch.multinomial(proposal_probs, n, replacement<span class="op">=</span><span class="va">True</span>, generator<span class="op">=</span>generator)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        sampled_rewards <span class="op">=</span> test_reward_scores.gather(<span class="dv">1</span>, samples)</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>        winner_position <span class="op">=</span> sampled_rewards.argmax(<span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        winner <span class="op">=</span> samples.gather(<span class="dv">1</span>, winner_position).squeeze(<span class="dv">1</span>)</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        proxy_values.append(test_reward_scores.gather(<span class="dv">1</span>, winner[:, <span class="va">None</span>]).mean())</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        human_values.append(test_human_scores.gather(<span class="dv">1</span>, winner[:, <span class="va">None</span>]).mean())</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(torch.stack(proxy_values).mean()), <span class="bu">float</span>(torch.stack(human_values).mean())</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>best_of_n_results <span class="op">=</span> {n: <span class="bu">tuple</span>(<span class="bu">round</span>(value, <span class="dv">3</span>) <span class="cf">for</span> value <span class="kw">in</span> best_of_n_metrics(n)) <span class="cf">for</span> n <span class="kw">in</span> (<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">8</span>)}</span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> best_of_n_results[<span class="dv">8</span>][<span class="dv">0</span>] <span class="op">&gt;=</span> best_of_n_results[<span class="dv">1</span>][<span class="dv">0</span>] <span class="op">-</span> <span class="fl">1e-6</span></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"N: (RM score, human composite)"</span>: best_of_n_results})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>由于只有两个已记录回答，这个实验隔离的是选择压力，而不是真实语言多样性。能够保证的结论只涉及被选中的<strong>奖励模型分数</strong>，不涉及真实人类效用。生产研究还应报告 pass@<span class="math inline">\(N\)</span>、差异度、延迟、词元成本、评估器不确定性，并由人类重新评价高分样本。</p>
+</section>
+<section id="ai-feedback-scalable-oversight" class="level3">
+<h3 class="anchored" data-anchor-id="ai-feedback-scalable-oversight"><strong>AI 反馈与可扩展监督</strong></h3>
+<p>人工比较成本高，而且很难扩展到长推理轨迹或专业领域。基于 AI 反馈的强化学习（RLAIF）使用模型评判器，在显式准则下批评、排序或修订回答。<a href="https://arxiv.org/abs/2212.08073">Constitutional AI</a> 把监督式批评—修订阶段与 AI 反馈偏好阶段分开。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-rlaif.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="Constitutional AI 使用显式准则批评和修订回答，再更新策略或评判器。"><img src="assets/dl18-rlaif.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="草拟回答对照 constitution 检查，转换为修订或偏好，并在人工审计参与下用于更新。"></a></p>
+</figure>
+</div>
+<figcaption>Constitutional AI 使用显式准则批评和修订回答，再更新策略或评判器。</figcaption>
+</figure>
+</div>
+<p>可扩展流程可以询问多个评判器、随机化回答顺序、要求提供证据、允许弃权，并把高不确定性样本路由给人类。它扩展的是一套<strong>已指定准则</strong>，并不能证明准则完整。模型评判器可能偏爱自身风格、受到位置和冗长度影响、与策略共享盲点，或被回答中的文本操纵。</p>
+<p>前面的“仅有用性”诊断是评判器目标错设的最小类比。更真实的评估会在隔离审计集上比较 AI 与人工标签，并按领域、语言、回答长度、安全类别和评判器置信度分层统计一致率。在简单样本上高度一致，完全可能与关键困难样本上的系统性失败同时存在。</p>
+<p>可扩展监督还研究结果本身难以由人类直接评价的任务。分解、辩论、递归批评、过程监督和工具辅助验证都试图让潜在错误可观察。它们改变了评估器可获得的证据，却都无法取代威胁模型和独立审计。</p>
+</section>
+<section id="online-offline-preference-learning" class="level3">
+<h3 class="anchored" data-anchor-id="online-offline-preference-learning"><strong>在线与离线偏好学习</strong></h3>
+<p>离线偏好学习在由早期策略收集的固定数据上训练。它可复现、易缓存，并适合 DPO；但其支持集也是固定的。策略发生变化后，数据中可能很少出现与新输出相似的样本。在线学习则不断从当前策略采样、获取新标签、更新并再次审计。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-online-offline.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="离线学习继承固定覆盖范围，在线学习则形成策略—数据反馈环。"><img src="assets/dl18-online-offline.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:73.0%" alt="离线面板显示固定 prompt 与偏好对；在线环把当前策略送往新反馈，再返回更新阶段。"></a></p>
+</figure>
+</div>
+<figcaption>离线学习继承固定覆盖范围，在线学习则形成策略—数据反馈环。</figcaption>
+</figure>
+</div>
+<p>在线并不自动意味着更好。新标签成本高，数据分布持续移动，回归可能污染后续收集，而且模型版本间的比较更困难。实用的混合方案先用广泛离线 SFT 与偏好建立基础，再把在线标注预算投入当前策略失败、奖励模型不确定比较和高风险切片。</p>
+<details>
+<summary>
+<strong>Python：用奖励模型不确定性安排一批优先反馈样本</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    validation_reward_margin <span class="op">=</span> (reward_model(val_x).squeeze(<span class="op">-</span><span class="dv">1</span>)[:, <span class="dv">0</span>] <span class="op">-</span> reward_model(val_x).squeeze(<span class="op">-</span><span class="dv">1</span>)[:, <span class="dv">1</span>]).<span class="bu">abs</span>()</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>true_validation_margin <span class="op">=</span> torch.tensor([</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    human_score(pair[<span class="st">"chosen"</span>]) <span class="op">-</span> human_score(pair[<span class="st">"rejected"</span>]) <span class="cf">for</span> pair <span class="kw">in</span> val_pairs</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>budget <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>uncertain_ids <span class="op">=</span> validation_reward_margin.argsort()[:budget]</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>random_ids <span class="op">=</span> torch.randperm(<span class="bu">len</span>(val_pairs), generator<span class="op">=</span>torch.Generator().manual_seed(<span class="dv">1825</span>))[:budget]</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>uncertainty_report <span class="op">=</span> {</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"uncertainty-selected RM margin"</span>: <span class="bu">float</span>(validation_reward_margin[uncertain_ids].mean()),</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"random RM margin"</span>: <span class="bu">float</span>(validation_reward_margin[random_ids].mean()),</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"uncertainty-selected human margin"</span>: <span class="bu">float</span>(true_validation_margin[uncertain_ids].mean()),</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"random human margin"</span>: <span class="bu">float</span>(true_validation_margin[random_ids].mean()),</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> uncertainty_report[<span class="st">"uncertainty-selected RM margin"</span>] <span class="op">&lt;=</span> uncertainty_report[<span class="st">"random RM margin"</span>]</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({key: <span class="bu">round</span>(value, <span class="dv">3</span>) <span class="cf">for</span> key, value <span class="kw">in</span> uncertainty_report.items()})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>小预测间隔识别的是奖励模型认为模糊的样本，不一定是人类认为模糊的样本。把不确定性与领域覆盖、安全风险、新颖度，以及多个独立奖励模型之间的分歧结合起来，会比单一采集分数更稳健。</p>
+</section>
+<section id="reward-hacking-over-optimization" class="level3">
+<h3 class="anchored" data-anchor-id="reward-hacking-over-optimization"><strong>奖励投机与过度优化</strong></h3>
+<p>当策略找到在代理指标下高分、却没有满足真实意图的行为时，就发生了奖励投机。这是 Goodhart 定律的一种形式：当带噪测量成为优化目标，优化器会寻找测量误差对自己有利的区域。<a href="https://arxiv.org/abs/2210.10760">Scaling Laws for Reward Model Overoptimization</a> 随优化强度上升，实证区分了代理奖励与保留的“gold”奖励。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-reward-overoptimization.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="代理奖励可能在保留人类效用达到峰值后仍继续上升。"><img src="assets/dl18-reward-overoptimization.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:73.0%" alt="蓝色代理奖励曲线随优化压力持续上升，红色保留人类效用曲线先上升、达到峰值后下降。"></a></p>
+</figure>
+</div>
+<figcaption>代理奖励可能在保留人类效用达到峰值后仍继续上升。</figcaption>
+</figure>
+</div>
+<p>捷径可能表现为冗长、过度自信、复制准则措辞、对所有请求都拒绝、奖励模型特定短语或谄媚。KL 正则能够限制策略距离，却无法保证安全：邻近策略仍可能利用局部奖励缺陷，而过强 KL 又可能保留参考策略中的不良行为。</p>
+<details>
+<summary>
+<strong>Python：压力测试一个刻意错设、对长度敏感的代理</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    base_proxy <span class="op">=</span> reward_model(test_x).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>response_lengths <span class="op">=</span> torch.tensor([</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    [<span class="bu">len</span>(pair[<span class="st">"chosen"</span>][<span class="st">"response"</span>]), <span class="bu">len</span>(pair[<span class="st">"rejected"</span>][<span class="st">"response"</span>])] <span class="cf">for</span> pair <span class="kw">in</span> test_pairs</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>], dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>standardized_length <span class="op">=</span> (response_lengths <span class="op">-</span> response_lengths.mean()) <span class="op">/</span> (response_lengths.std() <span class="op">+</span> <span class="fl">1e-6</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>true_scores <span class="op">=</span> pair_human_scores(test_pairs)</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>reward_hacking_report <span class="op">=</span> {}</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> length_bonus <span class="kw">in</span> (<span class="fl">0.0</span>, <span class="fl">0.5</span>, <span class="fl">1.0</span>, <span class="fl">2.0</span>):</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    misspecified_proxy <span class="op">=</span> base_proxy <span class="op">+</span> length_bonus <span class="op">*</span> standardized_length</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    selected <span class="op">=</span> misspecified_proxy.argmax(<span class="dv">1</span>, keepdim<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    reward_hacking_report[length_bonus] <span class="op">=</span> {</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"optimized proxy"</span>: <span class="bu">round</span>(<span class="bu">float</span>(misspecified_proxy.gather(<span class="dv">1</span>, selected).mean()), <span class="dv">3</span>),</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"human composite"</span>: <span class="bu">round</span>(<span class="bu">float</span>(true_scores.gather(<span class="dv">1</span>, selected).mean()), <span class="dv">3</span>),</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">"response chars"</span>: <span class="bu">round</span>(<span class="bu">float</span>(response_lengths.gather(<span class="dv">1</span>, selected).mean()), <span class="dv">1</span>),</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> reward_hacking_report[<span class="fl">2.0</span>][<span class="st">"response chars"</span>] <span class="op">&gt;=</span> reward_hacking_report[<span class="fl">0.0</span>][<span class="st">"response chars"</span>]</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(reward_hacking_report)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这是显式压力测试，并不是声称 HelpSteer2 奖励长度。关键做法是扰动评估器、针对它优化，再与保留维度比较。防御包括奖励模型集成、对抗性数据、不确定性感知惩罚、早停、参考约束、独立评判器和对极端分数输出的人工审查。它们都不能替代对真实部署分布的监控。</p>
+</section>
+<section id="alignment-tax-evaluation-safety" class="level3">
+<h3 class="anchored" data-anchor-id="alignment-tax-evaluation-safety"><strong>对齐代价、评估与安全</strong></h3>
+<p><strong>对齐代价（alignment tax）</strong>是后训练约束导致的某项原有能力、多样性、延迟或成本指标损失。它并非必然发生，也不能由一个汇总 benchmark 推断。SFT 可能通过澄清意图改善任务质量；偏好优化可能减少有用多样性；Best-of-<span class="math inline">\(N\)</span> 可能提高选中质量，同时成倍增加推理成本。正确分析对象是 Pareto 曲面，而不是一个分数。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl18-alignment-evaluation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-13" title="对齐评估分别跟踪任务质量、偏好拟合、漂移、安全、鲁棒性、效率与监督。"><img src="assets/dl18-alignment-evaluation.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="七个面板构成评估账本，覆盖任务质量、偏好拟合、策略漂移、安全、鲁棒性、效率与人工监督。"></a></p>
+</figure>
+</div>
+<figcaption>对齐评估分别跟踪任务质量、偏好拟合、漂移、安全、鲁棒性、效率与监督。</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>PyTorch：在共享评估账本上比较参考策略、PPO 与 DPO</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>test_lengths <span class="op">=</span> response_lengths</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>test_human <span class="op">=</span> true_scores</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    test_rm <span class="op">=</span> reward_model(test_x).squeeze(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> policy_ledger(name, logits):</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>    probabilities <span class="op">=</span> logits.softmax(<span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>        <span class="st">"policy"</span>: name,</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"preferred probability"</span>: <span class="bu">float</span>(probabilities[:, <span class="dv">0</span>].mean()),</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"expected human composite"</span>: <span class="bu">float</span>((probabilities <span class="op">*</span> test_human).<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>).mean()),</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>        <span class="st">"expected RM score"</span>: <span class="bu">float</span>((probabilities <span class="op">*</span> test_rm).<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>).mean()),</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">"KL to reference"</span>: <span class="bu">float</span>(categorical_kl(logits, reference_test_logits).mean()),</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">"expected response chars"</span>: <span class="bu">float</span>((probabilities <span class="op">*</span> test_lengths).<span class="bu">sum</span>(<span class="op">-</span><span class="dv">1</span>).mean()),</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>ledgers <span class="op">=</span> [</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>    policy_ledger(<span class="st">"SFT reference"</span>, reference_test_logits),</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>    policy_ledger(<span class="st">"PPO abstraction"</span>, ppo_test_logits),</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>    policy_ledger(<span class="st">"DPO"</span>, dpo_test_logits),</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ledger <span class="kw">in</span> ledgers:</span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>({key: (<span class="bu">round</span>(value, <span class="dv">3</span>) <span class="cf">if</span> <span class="bu">isinstance</span>(value, <span class="bu">float</span>) <span class="cf">else</span> value) <span class="cf">for</span> key, value <span class="kw">in</span> ledger.items()})</span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">all</span>(math.isfinite(ledger[<span class="st">"expected human composite"</span>]) <span class="cf">for</span> ledger <span class="kw">in</span> ledgers)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个确定性教学运行刻意允许出现令人不舒服的结果：紧凑奖励模型可以近乎完全分开训练偏好对，却在保留排序上接近随机；优化器可以提高期望学习奖励，却没有提高保留人工复合分数。这不是 PPO 与 DPO 的排名，而是说明在信任更强策略优化前，必须先证明评估器能够泛化。</p>
+<p>这份账本有意保持不完整：HelpSteer2 的五项评分无法证明毒性、隐私、偏见、越狱抵抗、校准或下游事实正确性。安全评估需要任务专用拒绝测试、良性请求过度拒绝测试、多语言与子群切片、对抗 prompt、工具使用约束和人工升级机制。能力评估应包含未对齐基础模型或 SFT 模型以发现回归；统计报告则应包含置信区间与多种 prompt 模板。</p>
+<p>离线分数还会遗漏系统效应。采样温度、system prompt、检索、工具、安全过滤器、量化和服务端截断都可能改变部署行为。因此，评估产物必须记录准确的模型、tokenizer、解码配置、策略文本、评估器版本与日期。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>章节对比与总结</strong></h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 15%">
+<col style="width: 15%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 15%">
+<col style="width: 15%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>训练信号</th>
+<th style="text-align: right;">是否需要在线生成？</th>
+<th style="text-align: right;">是否使用显式奖励模型？</th>
+<th>主要优势</th>
+<th>主要失败模式</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>SFT</td>
+<td>目标回答词元</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">否</td>
+<td>稳定、简单的指令学习</td>
+<td>示范偏差，缺少负向比较</td>
+</tr>
+<tr class="even">
+<td>奖励建模</td>
+<td>选择/拒绝回答对</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">是</td>
+<td>可复用的偏好评估器</td>
+<td>代理错设与分布偏移</td>
+</tr>
+<tr class="odd">
+<td>使用 PPO 的 RLHF</td>
+<td>当前策略 rollout</td>
+<td style="text-align: right;">是</td>
+<td style="text-align: right;">通常是</td>
+<td>适应当前策略输出</td>
+<td>系统复杂且可能利用奖励漏洞</td>
+</tr>
+<tr class="even">
+<td>DPO</td>
+<td>固定偏好对</td>
+<td style="text-align: right;">否</td>
+<td style="text-align: right;">隐式</td>
+<td>类监督学习式的简单优化</td>
+<td>离线覆盖与参考策略敏感性</td>
+</tr>
+<tr class="odd">
+<td>Best-of-<span class="math inline">\(N\)</span></td>
+<td>采样候选与评估器</td>
+<td style="text-align: right;">推理时需要</td>
+<td style="text-align: right;">通常是</td>
+<td>无需策略梯度循环</td>
+<td>推理成本与极端分数偏差</td>
+</tr>
+<tr class="even">
+<td>RLAIF</td>
+<td>模型批评或比较</td>
+<td style="text-align: right;">视情况而定</td>
+<td style="text-align: right;">评判器或奖励模型</td>
+<td>可扩展准则执行</td>
+<td>评判器与策略共享盲点</td>
+</tr>
+</tbody>
+</table>
+<p>实用的后训练流程是：</p>
+<ol type="1">
+<li>在优化前定义预期行为与多轴评估套件。</li>
+<li>构建来源清晰的示范，并按 prompt 或对话谱系划分。</li>
+<li>使用仅回答区域标签训练 SFT，并监控能力保留。</li>
+<li>以随机化顺序收集比较，同时记录平局、不确定性和标注者元数据。</li>
+<li>按切片、校准与分布偏移验证奖励模型，而不只看训练准确率。</li>
+<li>把 DPO 作为可控离线基线；只有当前策略采样足以抵消运行成本时，才选择 PPO/RLHF。</li>
+<li>把 Best-of-<span class="math inline">\(N\)</span> 视为推理时权衡，并用独立判断重新评估极端分数。</li>
+<li>把 AI 反馈视为带人工审计的可扩展准则执行，而不是 ground truth。</li>
+<li>同时跟踪奖励、KL、熵、回答长度、能力、安全与成本。</li>
+<li>当代理奖励上升而保留性能没有改善时，停止优化或刷新数据。</li>
+</ol>
+<p>最适合把后训练理解为<strong>具备测量意识的策略塑形</strong>。算法很重要，但它的行为边界由周围的示范、比较、参考策略、评估器、rollout 分布和部署测试共同决定。下一章将从目标函数转向系统问题：如何高效、可扩展地训练这些模型。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","descPosition":"bottom","loop":false,"selector":".lightbox","closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>

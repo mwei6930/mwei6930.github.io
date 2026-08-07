@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.5.55">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>深度学习：高效推理与部署</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/clipboard/clipboard.min.js"></script>
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/quarto.js"></script>
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/popper.min.js"></script>
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/anchor.min.js"></script>
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script src="20-efficient-inference-deployment.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.js"></script>
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
+<link href="20-efficient-inference-deployment.zh-CN_files/libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN") {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../blog-images.css">
+<link rel="stylesheet" href="../../reading-toolbar.css">
+<script src="../../reading-toolbar.js" defer></script>
+</head>
+
+<body>
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">目录</h2>
+   
+  <ul>
+  <li><a href="#efficient-inference-deployment" id="toc-efficient-inference-deployment" class="nav-link active" data-scroll-target="#efficient-inference-deployment"><strong>高效推理与部署</strong></a>
+  <ul>
+  <li><a href="#inference-lifecycle" id="toc-inference-lifecycle" class="nav-link" data-scroll-target="#inference-lifecycle"><strong>推理生命周期</strong></a></li>
+  <li><a href="#latency-throughput-tail" id="toc-latency-throughput-tail" class="nav-link" data-scroll-target="#latency-throughput-tail"><strong>延迟、吞吐量与尾部行为</strong></a></li>
+  <li><a href="#static-dynamic-continuous-batching" id="toc-static-dynamic-continuous-batching" class="nav-link" data-scroll-target="#static-dynamic-continuous-batching"><strong>静态、动态与连续批处理</strong></a></li>
+  <li><a href="#kv-cache-memory-management" id="toc-kv-cache-memory-management" class="nav-link" data-scroll-target="#kv-cache-memory-management"><strong>KV Cache 与内存管理</strong></a></li>
+  <li><a href="#speculative-decoding" id="toc-speculative-decoding" class="nav-link" data-scroll-target="#speculative-decoding"><strong>Speculative Decoding</strong></a></li>
+  <li><a href="#post-training-quantization" id="toc-post-training-quantization" class="nav-link" data-scroll-target="#post-training-quantization"><strong>训练后量化</strong></a></li>
+  <li><a href="#quantization-aware-training" id="toc-quantization-aware-training" class="nav-link" data-scroll-target="#quantization-aware-training"><strong>量化感知训练</strong></a></li>
+  <li><a href="#weight-only-low-bit" id="toc-weight-only-low-bit" class="nav-link" data-scroll-target="#weight-only-low-bit"><strong>仅权重量化与低 bit 方法</strong></a></li>
+  <li><a href="#pruning-knowledge-distillation" id="toc-pruning-knowledge-distillation" class="nav-link" data-scroll-target="#pruning-knowledge-distillation"><strong>剪枝与知识蒸馏</strong></a></li>
+  <li><a href="#export-compilation-runtime-optimization" id="toc-export-compilation-runtime-optimization" class="nav-link" data-scroll-target="#export-compilation-runtime-optimization"><strong>导出、编译与运行时优化</strong></a></li>
+  <li><a href="#onnx-tensorrt-triton" id="toc-onnx-tensorrt-triton" class="nav-link" data-scroll-target="#onnx-tensorrt-triton"><strong>ONNX、TensorRT 与 Triton</strong></a></li>
+  <li><a href="#cloud-edge-on-device" id="toc-cloud-edge-on-device" class="nav-link" data-scroll-target="#cloud-edge-on-device"><strong>云端、边缘与端侧部署</strong></a></li>
+  <li><a href="#monitoring-drift-rollback-cost" id="toc-monitoring-drift-rollback-cost" class="nav-link" data-scroll-target="#monitoring-drift-rollback-cost"><strong>监控、漂移、回滚与成本控制</strong></a></li>
+  <li><a href="#accuracy-latency-memory-tradeoff" id="toc-accuracy-latency-memory-tradeoff" class="nav-link" data-scroll-target="#accuracy-latency-memory-tradeoff"><strong>准确率-延迟-内存取舍</strong></a></li>
+  <li><a href="#chapter-comparison-summary" id="toc-chapter-comparison-summary" class="nav-link" data-scroll-target="#chapter-comparison-summary"><strong>章节对比与总结</strong></a></li>
+  </ul></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">深度学习：高效推理与部署</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="blog-language-switch" role="group" aria-label="文章语言">
+<p><a href="/ipynb/Deep-Learning/20-efficient-inference-deployment.html" lang="en" hreflang="en">English</a> <span aria-current="page">中文</span></p>
+</div>
+<div class="blog-page-nav" aria-label="页面导航">
+<a href="/">博客首页</a> <span class="blog-page-nav-separator" aria-hidden="true">/</span> <a href="Deep-Learning.html">返回深度学习总览</a>
+</div>
+<section id="efficient-inference-deployment" class="level2">
+<h2 class="anchored" data-anchor-id="efficient-inference-deployment"><strong>高效推理与部署</strong></h2>
+<p>推理是把训练完成的模型转化为满足运行约束的决策过程。Notebook 只需要回答模型能否产生正确张量；部署系统还必须验证请求、满足延迟目标、在多个用户之间共享有限内存、处理异常输入、暴露遥测指标，并支持回滚。因此，“更快的推理”并不是一项孤立优化，而是围绕<strong>模型质量、请求调度、数值表示、运行时编译、硬件与运维</strong>展开的联合设计问题。</p>
+<p>本章延续第 19 章的 UCI Optical Recognition of Handwritten Digits 实验主线。<a href="https://doi.org/10.24432/C50P49">UCI 数据集</a>包含 1,797 张带标签的 8 x 8 图像，采用 <strong>CC BY 4.0</strong> 许可。分类部署实验共享一个确定性的训练/验证/测试划分。对于自回归机制，每张图像被转换为由起始 token、类别 token、64 个整数像素强度 token 和结束 token 组成的序列。这个派生序列仍然对应同一批观测数据；它只用于验证缓存与精确 speculative sampling 的机制，并不是语言模型 benchmark。</p>
+<details>
+<summary>
+<strong>PyTorch：建立整章共享的 Digits 部署工作负载</strong>
+</summary>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> copy</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> random</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> time</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.datasets <span class="im">import</span> load_digits</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> sklearn.model_selection <span class="im">import</span> train_test_split</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch <span class="im">import</span> nn</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.nn <span class="im">import</span> functional <span class="im">as</span> F</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> torch.utils.data <span class="im">import</span> DataLoader, TensorDataset</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>torch.set_num_threads(<span class="dv">1</span>)</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> seed_everything(seed<span class="op">=</span><span class="dv">2020</span>):</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    random.seed(seed)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    np.random.seed(seed)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    torch.manual_seed(seed)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>seed_everything()</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>digits <span class="op">=</span> load_digits()</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>all_ids <span class="op">=</span> np.arange(<span class="bu">len</span>(digits.data))</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>train_ids, remaining_ids <span class="op">=</span> train_test_split(</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>    all_ids, test_size<span class="op">=</span><span class="fl">0.30</span>, stratify<span class="op">=</span>digits.target, random_state<span class="op">=</span><span class="dv">2020</span></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>val_ids, test_ids <span class="op">=</span> train_test_split(</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>    remaining_ids,</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>    test_size<span class="op">=</span><span class="fl">0.50</span>,</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>    stratify<span class="op">=</span>digits.target[remaining_ids],</span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>    random_state<span class="op">=</span><span class="dv">2020</span>,</span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a><span class="co"># UCI documents pixel intensities on 0..16, so this fixed divisor does not leak test statistics.</span></span>
+<span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>features <span class="op">=</span> torch.tensor(digits.data <span class="op">/</span> <span class="fl">16.0</span>, dtype<span class="op">=</span>torch.float32)</span>
+<span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>targets <span class="op">=</span> torch.tensor(digits.target, dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb1-39"><a href="#cb1-39" aria-hidden="true" tabindex="-1"></a>train_dataset <span class="op">=</span> TensorDataset(features[train_ids], targets[train_ids])</span>
+<span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a>val_dataset <span class="op">=</span> TensorDataset(features[val_ids], targets[val_ids])</span>
+<span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a>test_dataset <span class="op">=</span> TensorDataset(features[test_ids], targets[test_ids])</span>
+<span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>train_loader <span class="op">=</span> DataLoader(</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>    train_dataset,</span>
+<span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    batch_size<span class="op">=</span><span class="dv">64</span>,</span>
+<span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>    shuffle<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>    generator<span class="op">=</span>torch.Generator().manual_seed(<span class="dv">2020</span>),</span>
+<span id="cb1-47"><a href="#cb1-47" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-48"><a href="#cb1-48" aria-hidden="true" tabindex="-1"></a>val_loader <span class="op">=</span> DataLoader(val_dataset, batch_size<span class="op">=</span><span class="dv">128</span>)</span>
+<span id="cb1-49"><a href="#cb1-49" aria-hidden="true" tabindex="-1"></a>test_loader <span class="op">=</span> DataLoader(test_dataset, batch_size<span class="op">=</span><span class="dv">128</span>)</span>
+<span id="cb1-50"><a href="#cb1-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-51"><a href="#cb1-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-52"><a href="#cb1-52" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> DigitMLP(nn.Module):</span>
+<span id="cb1-53"><a href="#cb1-53" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, hidden1<span class="op">=</span><span class="dv">128</span>, hidden2<span class="op">=</span><span class="dv">64</span>):</span>
+<span id="cb1-54"><a href="#cb1-54" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb1-55"><a href="#cb1-55" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc1 <span class="op">=</span> nn.Linear(<span class="dv">64</span>, hidden1)</span>
+<span id="cb1-56"><a href="#cb1-56" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc2 <span class="op">=</span> nn.Linear(hidden1, hidden2)</span>
+<span id="cb1-57"><a href="#cb1-57" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc3 <span class="op">=</span> nn.Linear(hidden2, <span class="dv">10</span>)</span>
+<span id="cb1-58"><a href="#cb1-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.fc1(x))</span>
+<span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.fc2(x))</span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.fc3(x)</span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> accuracy(model, loader):</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>    model.<span class="bu">eval</span>()</span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>    correct <span class="op">=</span> total <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> x, y <span class="kw">in</span> loader:</span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>            correct <span class="op">+=</span> <span class="bu">int</span>((model(x).argmax(<span class="dv">1</span>) <span class="op">==</span> y).<span class="bu">sum</span>())</span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>            total <span class="op">+=</span> <span class="bu">len</span>(y)</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> correct <span class="op">/</span> total</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>seed_everything()</span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>baseline_model <span class="op">=</span> DigitMLP()</span>
+<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> torch.optim.AdamW(baseline_model.parameters(), lr<span class="op">=</span><span class="fl">2e-3</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">15</span>):</span>
+<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>    baseline_model.train()</span>
+<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x, y <span class="kw">in</span> train_loader:</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>        loss <span class="op">=</span> F.cross_entropy(baseline_model(x), y)</span>
+<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a>        optimizer.zero_grad()</span>
+<span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>        loss.backward()</span>
+<span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>        optimizer.step()</span>
+<span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a><span class="co"># Reuse the same observations as short discrete sequences for generative mechanisms.</span></span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>BOS, LABEL_OFFSET, EOS, VOCAB_SIZE <span class="op">=</span> <span class="dv">27</span>, <span class="dv">17</span>, <span class="dv">28</span>, <span class="dv">29</span></span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>pixel_tokens <span class="op">=</span> torch.tensor(digits.data.astype(np.int64), dtype<span class="op">=</span>torch.<span class="bu">long</span>)</span>
+<span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a>token_sequences <span class="op">=</span> torch.cat(</span>
+<span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>        torch.full((<span class="bu">len</span>(digits.data), <span class="dv">1</span>), BOS, dtype<span class="op">=</span>torch.<span class="bu">long</span>),</span>
+<span id="cb1-92"><a href="#cb1-92" aria-hidden="true" tabindex="-1"></a>        targets[:, <span class="va">None</span>] <span class="op">+</span> LABEL_OFFSET,</span>
+<span id="cb1-93"><a href="#cb1-93" aria-hidden="true" tabindex="-1"></a>        pixel_tokens,</span>
+<span id="cb1-94"><a href="#cb1-94" aria-hidden="true" tabindex="-1"></a>        torch.full((<span class="bu">len</span>(digits.data), <span class="dv">1</span>), EOS, dtype<span class="op">=</span>torch.<span class="bu">long</span>),</span>
+<span id="cb1-95"><a href="#cb1-95" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb1-96"><a href="#cb1-96" aria-hidden="true" tabindex="-1"></a>    dim<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb1-97"><a href="#cb1-97" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-98"><a href="#cb1-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-99"><a href="#cb1-99" aria-hidden="true" tabindex="-1"></a>baseline_accuracy <span class="op">=</span> accuracy(baseline_model, test_loader)</span>
+<span id="cb1-100"><a href="#cb1-100" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">len</span>(<span class="bu">set</span>(train_ids) <span class="op">&amp;</span> <span class="bu">set</span>(test_ids)) <span class="op">==</span> <span class="dv">0</span></span>
+<span id="cb1-101"><a href="#cb1-101" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> token_sequences.shape <span class="op">==</span> (<span class="dv">1797</span>, <span class="dv">67</span>) <span class="kw">and</span> baseline_accuracy <span class="op">&gt;</span> <span class="fl">0.92</span></span>
+<span id="cb1-102"><a href="#cb1-102" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"split"</span>: (<span class="bu">len</span>(train_ids), <span class="bu">len</span>(val_ids), <span class="bu">len</span>(test_ids)), <span class="st">"test_accuracy"</span>: <span class="bu">round</span>(baseline_accuracy, <span class="dv">3</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>基线模型足够小，可以直接在 CPU 上运行。除非正文明确指出生产运行时，下面的计时都只描述当前本地 eager 环境；它们用于演示测量与决策流程，而不是给出跨硬件都成立的性能排名。</p>
+<section id="inference-lifecycle" class="level3">
+<h3 class="anchored" data-anchor-id="inference-lifecycle"><strong>推理生命周期</strong></h3>
+<p>一次前向传播把合法张量映射为 logits；推理生命周期开始得更早、结束得更晚。请求首先被接纳、鉴权和解析，预处理必须复现训练时的数据契约，调度器把请求组织成可执行工作，运行时选择 kernel 与设备内存，后处理把张量转换为应用响应，遥测系统则记录全过程。即使模型本身正确，只要 tokenizer 不一致、归一化规则过期或请求形状没有边界，服务仍然是错误的。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-inference-lifecycle.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="从请求验证到运行观测的推理生命周期。"><img src="assets/dl20-inference-lifecycle.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="五阶段流程依次经过请求验证、准备、模型执行、后处理与观测，下方是发布契约。"></a></p>
+</figure>
+</div>
+<figcaption>从请求验证到运行观测的推理生命周期。</figcaption>
+</figure>
+</div>
+<p><em>原创教学图，依据 <a href="https://onnxruntime.ai/docs/">ONNX Runtime</a> 描述的部署边界以及 <a href="https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/">NVIDIA Triton Inference Server</a> 的请求服务职责整理。</em></p>
+<p>一份有用的接口契约至少应规定输入 schema、允许的形状与 dtype、预处理版本、输出语义、模型产物摘要、超时时间与失败行为。幂等的 request ID 让重试过程可以被追踪。readiness check 应加载真实产物并运行代表性输入；liveness check 只应确认进程仍能响应，否则一次暂时性的加速器故障可能触发重启风暴。</p>
+<details>
+<summary>
+<strong>PyTorch：用明确的请求-响应契约封装模型</strong>
+</summary>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>MODEL_VERSION <span class="op">=</span> <span class="st">"digits-mlp-2020-v1"</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> predict_digits(request):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1. Validate the external schema before allocating an unbounded tensor.</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    request_id <span class="op">=</span> <span class="bu">str</span>(request[<span class="st">"request_id"</span>])</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    raw <span class="op">=</span> np.asarray(request[<span class="st">"pixels"</span>], dtype<span class="op">=</span>np.float32)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> raw.shape <span class="kw">not</span> <span class="kw">in</span> {(<span class="dv">8</span>, <span class="dv">8</span>), (<span class="dv">64</span>,)}:</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"pixels must have shape (8, 8) or (64,)"</span>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> np.isfinite(raw).<span class="bu">all</span>() <span class="kw">or</span> raw.<span class="bu">min</span>() <span class="op">&lt;</span> <span class="dv">0</span> <span class="kw">or</span> raw.<span class="bu">max</span>() <span class="op">&gt;</span> <span class="dv">16</span>:</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"pixels must be finite values in the documented 0..16 range"</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2. Apply the same fixed preprocessing contract used during training.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    model_input <span class="op">=</span> torch.from_numpy(raw.reshape(<span class="dv">1</span>, <span class="dv">64</span>) <span class="op">/</span> <span class="fl">16.0</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3. Disable autograd and execute the immutable evaluation model.</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    started_ns <span class="op">=</span> time.perf_counter_ns()</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    baseline_model.<span class="bu">eval</span>()</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>        probabilities <span class="op">=</span> baseline_model(model_input).softmax(dim<span class="op">=-</span><span class="dv">1</span>)[<span class="dv">0</span>]</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    elapsed_ms <span class="op">=</span> (time.perf_counter_ns() <span class="op">-</span> started_ns) <span class="op">/</span> <span class="fl">1e6</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 4. Return stable application semantics and enough identity for tracing.</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    top_probability, top_class <span class="op">=</span> probabilities.<span class="bu">max</span>(dim<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">"request_id"</span>: request_id,</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>        <span class="st">"model_version"</span>: MODEL_VERSION,</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>        <span class="st">"prediction"</span>: <span class="bu">int</span>(top_class),</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>        <span class="st">"confidence"</span>: <span class="bu">float</span>(top_probability),</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>        <span class="st">"model_ms"</span>: elapsed_ms,</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>sample_id <span class="op">=</span> <span class="bu">int</span>(test_ids[<span class="dv">0</span>])</span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>response <span class="op">=</span> predict_digits({<span class="st">"request_id"</span>: <span class="st">"demo-1"</span>, <span class="st">"pixels"</span>: digits.images[sample_id]})</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> response[<span class="st">"prediction"</span>] <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">10</span>) <span class="kw">and</span> <span class="fl">0.0</span> <span class="op">&lt;=</span> response[<span class="st">"confidence"</span>] <span class="op">&lt;=</span> <span class="fl">1.0</span></span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true" tabindex="-1"></a><span class="cf">try</span>:</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true" tabindex="-1"></a>    predict_digits({<span class="st">"request_id"</span>: <span class="st">"bad"</span>, <span class="st">"pixels"</span>: np.zeros((<span class="dv">16</span>, <span class="dv">16</span>))})</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">AssertionError</span>(<span class="st">"shape validation should have failed"</span>)</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true" tabindex="-1"></a><span class="cf">except</span> <span class="pp">ValueError</span>:</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">pass</span></span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(response)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这个封装把<strong>模型延迟</strong>与端到端延迟分开。该区别非常重要：即使模型 kernel 正常，排队或图像解码仍然可能让响应变慢。每次切换候选产物之前，都应使用同一份契约进行重放测试。</p>
+</section>
+<section id="latency-throughput-tail" class="level3">
+<h3 class="anchored" data-anchor-id="latency-throughput-tail"><strong>延迟、吞吐量与尾部行为</strong></h3>
+<p>延迟是单个请求经历的时间，吞吐量是单位时间内完成的工作量。对请求 (i)，有</p>
+<p><span class="math display">\[L_i = t_i^{\text{return}} - t_i^{\text{arrival}}, \qquad \lambda = \frac{N_{\text{completed}}}{\Delta t}.\]</span></p>
+<p>服务级目标通常是 (P(L L_{}) ) 这样的分位数约束，而不是平均值。第 99 百分位能够暴露均值掩盖的慢尾部。排队会把两个指标耦合起来：当输入负载接近服务容量时，很小的突发流量也可能造成不成比例的等待。对稳定系统，Little 定律 (Q=W) 连接平均在系统中的请求数 (Q)、实际吞吐量 () 与平均停留时间 (W)。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-latency-tail.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="标出中位数与尾部延迟的累积分布曲线。"><img src="assets/dl20-latency-tail.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="累积延迟曲线标出 p50 与 p99，并把排队、形状回退和缓存未命中列为尾部原因。"></a></p>
+</figure>
+</div>
+<figcaption>标出中位数与尾部延迟的累积分布曲线。</figcaption>
+</figure>
+</div>
+<p>对自回归生成而言，一个延迟数字还不够。<strong>首 token 时间（TTFT）</strong>包括排队和 prompt prefill，<strong>token 间延迟（ITL）</strong>或<strong>每个输出 token 时间（TPOT）</strong>描述 decode 节奏，端到端延迟还取决于输出长度。交互式系统通常优先关注 TTFT 与尾部 ITL，离线任务则更看重每秒 token 数。</p>
+<details>
+<summary>
+<strong>Python：测量预热后的同步延迟分布与吞吐量</strong>
+</summary>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> benchmark_classifier(model, requests, batch_size<span class="op">=</span><span class="dv">1</span>, repeats<span class="op">=</span><span class="dv">3</span>):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    model.<span class="bu">eval</span>()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Warm-up removes one-time initialization from the steady-state sample.</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">20</span>):</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>            model(requests[: <span class="bu">min</span>(batch_size, <span class="bu">len</span>(requests))])</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    samples_ms <span class="op">=</span> []</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    started <span class="op">=</span> time.perf_counter()</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    completed <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(repeats):</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> start <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(requests), batch_size):</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>                batch <span class="op">=</span> requests[start : start <span class="op">+</span> batch_size]</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>                tick <span class="op">=</span> time.perf_counter_ns()</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>                model(batch)</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>                samples_ms.append((time.perf_counter_ns() <span class="op">-</span> tick) <span class="op">/</span> <span class="fl">1e6</span>)</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>                completed <span class="op">+=</span> <span class="bu">len</span>(batch)</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    elapsed <span class="op">=</span> time.perf_counter() <span class="op">-</span> started</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        <span class="st">"p50_batch_ms"</span>: <span class="bu">float</span>(np.percentile(samples_ms, <span class="dv">50</span>)),</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        <span class="st">"p95_batch_ms"</span>: <span class="bu">float</span>(np.percentile(samples_ms, <span class="dv">95</span>)),</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"p99_batch_ms"</span>: <span class="bu">float</span>(np.percentile(samples_ms, <span class="dv">99</span>)),</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"requests_per_second"</span>: completed <span class="op">/</span> elapsed,</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>test_x <span class="op">=</span> features[test_ids]</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>single_metrics <span class="op">=</span> benchmark_classifier(baseline_model, test_x[:<span class="dv">128</span>], batch_size<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>batch_metrics <span class="op">=</span> benchmark_classifier(baseline_model, test_x[:<span class="dv">128</span>], batch_size<span class="op">=</span><span class="dv">32</span>)</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> single_metrics[<span class="st">"p99_batch_ms"</span>] <span class="op">&gt;=</span> single_metrics[<span class="st">"p50_batch_ms"</span>]</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> batch_metrics[<span class="st">"requests_per_second"</span>] <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"single"</span>: single_metrics, <span class="st">"batch_32"</span>: batch_metrics})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>计时报告必须记录硬件、运行时版本、线程数、batch/sequence 形状、精度、预热方式、并发度以及是否同步设备执行。比较时应使用接近真实情况的到达过程；紧凑的 microbenchmark 可以暴露 kernel 成本，却无法预测网络排队或多租户干扰。</p>
+</section>
+<section id="static-dynamic-continuous-batching" class="level3">
+<h3 class="anchored" data-anchor-id="static-dynamic-continuous-batching"><strong>静态、动态与连续批处理</strong></h3>
+<p>批处理可以摊薄调度开销并暴露并行工作，但也可能让较早到达的请求等待其他请求。<strong>静态批处理</strong>在执行前固定 batch 形状，适合同质的离线数据。<strong>动态批处理</strong>收集相容请求，直到达到最大 batch size 或队列超时。<strong>连续批处理</strong>面向长度不一的自回归解码：序列完成后立即释放槽位，等待中的序列可以进入，而不必等原始 batch 的所有成员都结束。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-batching.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="静态、动态和连续批处理的时间线比较。"><img src="assets/dl20-batching.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="三条时间线分别展示固定完整 batch、由大小或超时形成的 batch，以及持续补充的序列槽位。"></a></p>
+</figure>
+</div>
+<figcaption>静态、动态和连续批处理的时间线比较。</figcaption>
+</figure>
+</div>
+<p><em>原创教学图，依据 <a href="https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html">Triton dynamic batcher</a> 以及现代生成式服务系统使用的 iteration-level scheduling 整理。</em></p>
+<p>相容性与到达时间同样重要。请求可能必须共享模型版本、精度、adapter、张量形状 bucket 或解码策略。对变化很大的序列做 padding 会浪费计算；把队列拆得过细又会损失利用率。因此，调度器优化的是“在 (p99 L_{}) 条件下最大化吞吐量”一类受约束目标，而不是单独追求更大的 batch。</p>
+<details>
+<summary>
+<strong>Python：使用 Digits 派生请求模拟动态与连续调度器</strong>
+</summary>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Deterministic inter-arrival gaps and generation lengths come from test observations.</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>arrival_ms <span class="op">=</span> np.cumsum(<span class="fl">0.15</span> <span class="op">+</span> (digits.target[test_ids[:<span class="dv">80</span>]] <span class="op">%</span> <span class="dv">4</span>) <span class="op">*</span> <span class="fl">0.08</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>token_budgets <span class="op">=</span> <span class="dv">4</span> <span class="op">+</span> (pixel_tokens[test_ids[:<span class="dv">80</span>]] <span class="op">&gt;</span> <span class="dv">0</span>).<span class="bu">sum</span>(dim<span class="op">=</span><span class="dv">1</span>).numpy() <span class="op">//</span> <span class="dv">4</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dynamic_batches(arrivals, max_batch<span class="op">=</span><span class="dv">12</span>, timeout_ms<span class="op">=</span><span class="fl">0.8</span>):</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    batches, queue <span class="op">=</span> [], []</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    first_arrival <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> request_id, arrival <span class="kw">in</span> <span class="bu">enumerate</span>(arrivals):</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> queue <span class="kw">and</span> arrival <span class="op">-</span> first_arrival <span class="op">&gt;=</span> timeout_ms:</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>            batches.append(queue)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>            queue, first_arrival <span class="op">=</span> [], <span class="va">None</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="kw">not</span> queue:</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>            first_arrival <span class="op">=</span> arrival</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>        queue.append(request_id)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="bu">len</span>(queue) <span class="op">==</span> max_batch:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>            batches.append(queue)</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>            queue, first_arrival <span class="op">=</span> [], <span class="va">None</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> queue:</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        batches.append(queue)</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> batches</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> continuous_decode(lengths, slots<span class="op">=</span><span class="dv">8</span>):</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    waiting <span class="op">=</span> <span class="bu">list</span>(<span class="bu">enumerate</span>(lengths))</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    active, finish_step <span class="op">=</span> [], {}</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    step <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> waiting <span class="kw">or</span> active:</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> waiting <span class="kw">and</span> <span class="bu">len</span>(active) <span class="op">&lt;</span> slots:</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>            request_id, length <span class="op">=</span> waiting.pop(<span class="dv">0</span>)</span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>            active.append([request_id, <span class="bu">int</span>(length)])</span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>        step <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> item <span class="kw">in</span> active:</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>            item[<span class="dv">1</span>] <span class="op">-=</span> <span class="dv">1</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>        finished <span class="op">=</span> [item <span class="cf">for</span> item <span class="kw">in</span> active <span class="cf">if</span> item[<span class="dv">1</span>] <span class="op">==</span> <span class="dv">0</span>]</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> request_id, _ <span class="kw">in</span> finished:</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>            finish_step[request_id] <span class="op">=</span> step</span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        active <span class="op">=</span> [item <span class="cf">for</span> item <span class="kw">in</span> active <span class="cf">if</span> item[<span class="dv">1</span>] <span class="op">&gt;</span> <span class="dv">0</span>]</span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> finish_step, step</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>formed <span class="op">=</span> dynamic_batches(arrival_ms)</span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>continuous_finish, continuous_steps <span class="op">=</span> continuous_decode(token_budgets, slots<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a>padded_steps <span class="op">=</span> <span class="bu">sum</span>(<span class="bu">max</span>(token_budgets[i : i <span class="op">+</span> <span class="dv">8</span>]) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">0</span>, <span class="bu">len</span>(token_budgets), <span class="dv">8</span>))</span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">sum</span>(<span class="bu">map</span>(<span class="bu">len</span>, formed)) <span class="op">==</span> <span class="bu">len</span>(arrival_ms)</span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">set</span>(continuous_finish) <span class="op">==</span> <span class="bu">set</span>(<span class="bu">range</span>(<span class="bu">len</span>(token_budgets)))</span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({</span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>    <span class="st">"dynamic_batch_sizes"</span>: [<span class="bu">len</span>(batch) <span class="cf">for</span> batch <span class="kw">in</span> formed[:<span class="dv">6</span>]],</span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>    <span class="st">"continuous_steps"</span>: continuous_steps,</span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>    <span class="st">"fixed_padded_steps"</span>: <span class="bu">int</span>(padded_steps),</span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>连续批处理并不会让每个请求都更快。它提高的是槽位利用率，而 admission control 与抢占策略决定谁需要等待。应分别报告排队延迟和执行时间，并按照 prompt 长度、输出长度、adapter 与优先级检查延迟，避免良好的总指标掩盖饥饿问题。</p>
+</section>
+<section id="kv-cache-memory-management" class="level3">
+<h3 class="anchored" data-anchor-id="kv-cache-memory-management"><strong>KV Cache 与内存管理</strong></h3>
+<p>在因果自注意力中，第 (t) 个解码位置需要位置 (1,,t) 的 key 与 value。如果每生成一个 token 都重新计算全部旧投影，就会重复大量工作。<strong>KV cache</strong> 在 prefill 后保存已有的 key/value 张量，并在每个 decode step 追加一个位置。新的 query 仍然要关注整个前缀，但旧的 key 与 value 可以直接复用。</p>
+<p>对 (N_L) 层、batch size (B)、缓存长度 (T)、(H_{kv}) 个 key/value head、head dimension (d_h) 以及每个元素 (b) 字节，缓存的主要内存为</p>
+<p><span class="math display">\[M_{KV} = 2N_LBTH_{kv}d_hb.\]</span></p>
+<p>系数 2 代表 key 与 value。Multi-query attention 只使用一个 KV head，grouped-query attention 使用少于 query head 数量的 KV head，因此都能降低这项内存。静态 cache 预留已知最大形状，便于编译但可能浪费容量；动态 cache 自然增长，却会增加分配复杂度。<a href="https://huggingface.co/docs/transformers/main/kv_cache">Hugging Face cache 指南</a>记录了这种速度-内存取舍。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-kv-cache.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="KV cache 的前缀复用与分页式内存管理。"><img src="assets/dl20-kv-cache.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="Prefill 阶段把 key/value block 写入分页 cache，每个 decode step 读取前缀并追加一个 block。"></a></p>
+</figure>
+</div>
+<figcaption>KV cache 的前缀复用与分页式内存管理。</figcaption>
+</figure>
+</div>
+<p>当每个请求都获得一块很大的连续预留空间时，不同序列长度会造成碎片。<a href="https://arxiv.org/abs/2309.06180">PagedAttention</a>像操作系统虚拟内存分页一样，把逻辑 KV block 映射到不连续的物理 block，从而改善分配与前缀共享；但它不会消除 cache 内容随上下文长度线性增长的事实。</p>
+<details>
+<summary>
+<strong>PyTorch：验证完整因果注意力与增量 KV cache 的等价性</strong>
+</summary>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">2020</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>sequence <span class="op">=</span> token_sequences[<span class="bu">int</span>(test_ids[<span class="dv">0</span>]), :<span class="dv">18</span>]</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>model_dim, heads, head_dim <span class="op">=</span> <span class="dv">32</span>, <span class="dv">4</span>, <span class="dv">8</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>embedding <span class="op">=</span> nn.Embedding(VOCAB_SIZE, model_dim)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>q_proj <span class="op">=</span> nn.Linear(model_dim, model_dim, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>k_proj <span class="op">=</span> nn.Linear(model_dim, model_dim, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>v_proj <span class="op">=</span> nn.Linear(model_dim, model_dim, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> split_heads(x):</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    batch, length, _ <span class="op">=</span> x.shape</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x.view(batch, length, heads, head_dim).transpose(<span class="dv">1</span>, <span class="dv">2</span>)</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>hidden <span class="op">=</span> embedding(sequence[<span class="va">None</span>, :])</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>q_full, k_full, v_full <span class="op">=</span> <span class="bu">map</span>(split_heads, (q_proj(hidden), k_proj(hidden), v_proj(hidden)))</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> q_full <span class="op">@</span> k_full.transpose(<span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">2</span>) <span class="op">/</span> math.sqrt(head_dim)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>causal_mask <span class="op">=</span> torch.triu(torch.ones(<span class="bu">len</span>(sequence), <span class="bu">len</span>(sequence), dtype<span class="op">=</span>torch.<span class="bu">bool</span>), diagonal<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>full_output <span class="op">=</span> torch.softmax(scores.masked_fill(causal_mask, <span class="op">-</span>torch.inf), dim<span class="op">=-</span><span class="dv">1</span>) <span class="op">@</span> v_full</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>cached_k <span class="op">=</span> cached_v <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>incremental_outputs <span class="op">=</span> []</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> position <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(sequence)):</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a>    token_hidden <span class="op">=</span> embedding(sequence[position : position <span class="op">+</span> <span class="dv">1</span>][<span class="va">None</span>, :])</span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    q_t <span class="op">=</span> split_heads(q_proj(token_hidden))</span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    k_t <span class="op">=</span> split_heads(k_proj(token_hidden))</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    v_t <span class="op">=</span> split_heads(v_proj(token_hidden))</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a>    cached_k <span class="op">=</span> k_t <span class="cf">if</span> cached_k <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> torch.cat([cached_k, k_t], dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    cached_v <span class="op">=</span> v_t <span class="cf">if</span> cached_v <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> torch.cat([cached_v, v_t], dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    attention_t <span class="op">=</span> torch.softmax(q_t <span class="op">@</span> cached_k.transpose(<span class="op">-</span><span class="dv">1</span>, <span class="op">-</span><span class="dv">2</span>) <span class="op">/</span> math.sqrt(head_dim), dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>    incremental_outputs.append(attention_t <span class="op">@</span> cached_v)</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a>incremental_output <span class="op">=</span> torch.cat(incremental_outputs, dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> kv_cache_mib(layers, batch, tokens, kv_heads, dimension, bytes_per_value):</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="dv">2</span> <span class="op">*</span> layers <span class="op">*</span> batch <span class="op">*</span> tokens <span class="op">*</span> kv_heads <span class="op">*</span> dimension <span class="op">*</span> bytes_per_value <span class="op">/</span> <span class="dv">2</span><span class="op">**</span><span class="dv">20</span></span>
+<span id="cb5-38"><a href="#cb5-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-39"><a href="#cb5-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-40"><a href="#cb5-40" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(full_output, incremental_output, atol<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb5-41"><a href="#cb5-41" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({</span>
+<span id="cb5-42"><a href="#cb5-42" aria-hidden="true" tabindex="-1"></a>    <span class="st">"equivalent"</span>: <span class="va">True</span>,</span>
+<span id="cb5-43"><a href="#cb5-43" aria-hidden="true" tabindex="-1"></a>    <span class="st">"example_cache_MiB"</span>: <span class="bu">round</span>(kv_cache_mib(<span class="dv">32</span>, <span class="dv">8</span>, <span class="dv">4096</span>, <span class="dv">8</span>, <span class="dv">128</span>, <span class="dv">2</span>), <span class="dv">1</span>),</span>
+<span id="cb5-44"><a href="#cb5-44" aria-hidden="true" tabindex="-1"></a>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>cache 正确性测试必须覆盖位置索引、attention mask、beam 重排、前缀所有权与驱逐。运行诊断则应记录已分配/已使用 block、cache hit rate、碎片率、驱逐率以及每个 active token 的字节数。即使 cache 策略提高了 batch 容量，只要 offloading 或驱逐导致重复传输，延迟仍然可能恶化。</p>
+</section>
+<section id="speculative-decoding" class="level3">
+<h3 class="anchored" data-anchor-id="speculative-decoding"><strong>Speculative Decoding</strong></h3>
+<p>自回归解码经常受内存带宽限制，因为大型 target model 每次调用只生成一个新 token。<strong>Speculative decoding</strong> 让较便宜的 draft model (q) 先提出多个 token，再由 target model (p) 并行验证。核心要求是分布精确性：被拒绝的 draft token 必须经过校正，使最终输出仍服从 (p)，而不是仅为速度选择的近似分布。</p>
+<p>对一个提议 token (yq)，以如下概率接受：</p>
+<p><span class="math display">\[\alpha(y)=\min\left(1,\frac{p(y)}{q(y)}\right).\]</span></p>
+<p>如果被拒绝，则从归一化残差 (r(y)(0,p(y)-q(y))) 中采样。这个接受-拒绝恒等式保证边缘输出恰好服从 (p)。<a href="https://proceedings.mlr.press/v202/leviathan23a.html">原始 speculative decoding 论文</a>把该思想扩展到 token block，用更少的串行 target 调用完成验证。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-speculative.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Speculative decoding 中的 draft 提议、target 验证与精确校正。"><img src="assets/dl20-speculative.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="Draft model 提出 token block，target model 用接受概率验证，并用已接受 token 或校正样本扩展提交前缀。"></a></p>
+</figure>
+</div>
+<figcaption>Speculative decoding 中的 draft 提议、target 验证与精确校正。</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>Python：在 Digits token 转移上验证精确的一步 speculative sampling</strong>
+</summary>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a target bigram distribution and a cheaper smoothed draft from training sequences only.</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>transition_counts <span class="op">=</span> np.full((VOCAB_SIZE, VOCAB_SIZE), <span class="fl">0.5</span>, dtype<span class="op">=</span>np.float64)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>unigram_counts <span class="op">=</span> np.full(VOCAB_SIZE, <span class="fl">0.5</span>, dtype<span class="op">=</span>np.float64)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sequence_row <span class="kw">in</span> token_sequences[train_ids].numpy():</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    np.add.at(transition_counts, (sequence_row[:<span class="op">-</span><span class="dv">1</span>], sequence_row[<span class="dv">1</span>:]), <span class="dv">1</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    np.add.at(unigram_counts, sequence_row[<span class="dv">1</span>:], <span class="dv">1</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>target_bigram <span class="op">=</span> transition_counts <span class="op">/</span> transition_counts.<span class="bu">sum</span>(axis<span class="op">=</span><span class="dv">1</span>, keepdims<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>unigram <span class="op">=</span> unigram_counts <span class="op">/</span> unigram_counts.<span class="bu">sum</span>()</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>draft_bigram <span class="op">=</span> <span class="fl">0.82</span> <span class="op">*</span> target_bigram <span class="op">+</span> <span class="fl">0.18</span> <span class="op">*</span> unigram[<span class="va">None</span>, :]</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> speculative_one_step(p, q, rng):</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    proposal <span class="op">=</span> <span class="bu">int</span>(rng.choice(<span class="bu">len</span>(q), p<span class="op">=</span>q))</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    acceptance <span class="op">=</span> <span class="bu">min</span>(<span class="fl">1.0</span>, p[proposal] <span class="op">/</span> q[proposal])</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> rng.random() <span class="op">&lt;=</span> acceptance:</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> proposal, <span class="va">True</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    residual <span class="op">=</span> np.maximum(p <span class="op">-</span> q, <span class="fl">0.0</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    residual <span class="op">/=</span> residual.<span class="bu">sum</span>()</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">int</span>(rng.choice(<span class="bu">len</span>(p), p<span class="op">=</span>residual)), <span class="va">False</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>context <span class="op">=</span> <span class="bu">int</span>(token_sequences[<span class="bu">int</span>(test_ids[<span class="dv">0</span>]), <span class="dv">8</span>])</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>p, q <span class="op">=</span> target_bigram[context], draft_bigram[context]</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">2020</span>)</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a>draws, accepted <span class="op">=</span> <span class="bu">zip</span>(<span class="op">*</span>(speculative_one_step(p, q, rng) <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">20000</span>)))</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a>empirical <span class="op">=</span> np.bincount(draws, minlength<span class="op">=</span>VOCAB_SIZE) <span class="op">/</span> <span class="bu">len</span>(draws)</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a>total_variation <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> np.<span class="bu">abs</span>(empirical <span class="op">-</span> p).<span class="bu">sum</span>()</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> total_variation <span class="op">&lt;</span> <span class="fl">0.035</span></span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"acceptance_rate"</span>: <span class="bu">round</span>(np.mean(accepted), <span class="dv">3</span>), <span class="st">"target_TV_error"</span>: <span class="bu">round</span>(total_variation, <span class="dv">4</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>加速效果取决于接受长度、draft 成本、target 验证效率、采样设置与同步开销。draft 太弱会频繁拒绝，太大则节省不了多少工作。应在真实解码策略下测量每次 target 调用接受的 token 数以及端到端 TTFT/TPOT。Greedy assisted decoding 更简单，但不能与上述精确采样算法混为一谈。</p>
+</section>
+<section id="post-training-quantization" class="level3">
+<h3 class="anchored" data-anchor-id="post-training-quantization"><strong>训练后量化</strong></h3>
+<p>量化使用更小的离散代码表示实数。仿射映射由 scale (s&gt;0)、zero point (z) 与整数范围 ([q_{},q_{}]) 构成：</p>
+<p><span class="math display">\[q=\operatorname{clip}\left(\operatorname{round}(x/s)+z,q_{\min},q_{\max}\right), \qquad \hat{x}=s(q-z).\]</span></p>
+<ol start="17" type="a">
+<li>由整数 kernel 存储或处理，() 是重构值。对称有符号量化设 (z=0)，对 (b) bit 通常取 (s=|x|/(2^{b-1}-1))。逐通道 weight scale 能适应幅值不同的行；逐张量 activation scale 管理成本更低。截断虽然缩小了范围，却可能提高主要分布区域的分辨率。</li>
+</ol>
+<p><strong>训练后量化（PTQ）</strong>在不重新优化任务 loss 的情况下修改训练完成的模型。动态 PTQ 在执行时估计 activation 参数；静态 PTQ 预先运行具有代表性的<strong>训练/校准</strong>数据，并把 activation 参数写入产物。<a href="https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html">ONNX Runtime 量化指南</a>区分了这两种方式，并建议在质量回退时比较对应的 FP32 与量化 activation。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-ptq.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="训练后校准、转换和验证流程。"><img src="assets/dl20-ptq.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="流程从浮点模型经过校准和量化进入验证，并包含 activation 级别的调试路径。"></a></p>
+</figure>
+</div>
+<figcaption>训练后校准、转换和验证流程。</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>PyTorch：实现经过校准的 W8A8 训练后量化</strong>
+</summary>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> symmetric_scale(x, bits<span class="op">=</span><span class="dv">8</span>, dim<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    limit <span class="op">=</span> <span class="dv">2</span> <span class="op">**</span> (bits <span class="op">-</span> <span class="dv">1</span>) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    maximum <span class="op">=</span> x.detach().<span class="bu">abs</span>().amax(dim<span class="op">=</span>dim, keepdim<span class="op">=</span>dim <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> maximum.clamp_min(<span class="fl">1e-8</span>) <span class="op">/</span> limit</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> quantize_dequantize(x, scale, bits<span class="op">=</span><span class="dv">8</span>):</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    limit <span class="op">=</span> <span class="dv">2</span> <span class="op">**</span> (bits <span class="op">-</span> <span class="dv">1</span>) <span class="op">-</span> <span class="dv">1</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> torch.<span class="bu">round</span>(x <span class="op">/</span> scale).clamp(<span class="op">-</span>limit, limit) <span class="op">*</span> scale</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Observe post-activation ranges using training data only.</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>activation_max <span class="op">=</span> {<span class="st">"input"</span>: <span class="fl">0.0</span>, <span class="st">"hidden1"</span>: <span class="fl">0.0</span>, <span class="st">"hidden2"</span>: <span class="fl">0.0</span>}</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>baseline_model.<span class="bu">eval</span>()</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x, _ <span class="kw">in</span> train_loader:</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        h1 <span class="op">=</span> F.gelu(baseline_model.fc1(x))</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        h2 <span class="op">=</span> F.gelu(baseline_model.fc2(h1))</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        activation_max[<span class="st">"input"</span>] <span class="op">=</span> <span class="bu">max</span>(activation_max[<span class="st">"input"</span>], <span class="bu">float</span>(x.<span class="bu">abs</span>().<span class="bu">max</span>()))</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        activation_max[<span class="st">"hidden1"</span>] <span class="op">=</span> <span class="bu">max</span>(activation_max[<span class="st">"hidden1"</span>], <span class="bu">float</span>(h1.<span class="bu">abs</span>().<span class="bu">max</span>()))</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        activation_max[<span class="st">"hidden2"</span>] <span class="op">=</span> <span class="bu">max</span>(activation_max[<span class="st">"hidden2"</span>], <span class="bu">float</span>(h2.<span class="bu">abs</span>().<span class="bu">max</span>()))</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>activation_scales <span class="op">=</span> {name: torch.tensor(value <span class="op">/</span> <span class="fl">127.0</span>) <span class="cf">for</span> name, value <span class="kw">in</span> activation_max.items()}</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StaticPTQDigitMLP(nn.Module):</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, source, scales):</span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc1, <span class="va">self</span>.fc2, <span class="va">self</span>.fc3 <span class="op">=</span> [copy.deepcopy(layer) <span class="cf">for</span> layer <span class="kw">in</span> (source.fc1, source.fc2, source.fc3)]</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.scales <span class="op">=</span> scales</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> layer <span class="kw">in</span> (<span class="va">self</span>.fc1, <span class="va">self</span>.fc2, <span class="va">self</span>.fc3):</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>                row_scale <span class="op">=</span> symmetric_scale(layer.weight, bits<span class="op">=</span><span class="dv">8</span>, dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>                layer.weight.copy_(quantize_dequantize(layer.weight, row_scale, bits<span class="op">=</span><span class="dv">8</span>))</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"input"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.fc1(x))</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"hidden1"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.fc2(x))</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"hidden2"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.fc3(x)</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>ptq_model <span class="op">=</span> StaticPTQDigitMLP(baseline_model, activation_scales)</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>    reference_logits <span class="op">=</span> baseline_model(test_x[:<span class="dv">128</span>])</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>    ptq_logits <span class="op">=</span> ptq_model(test_x[:<span class="dv">128</span>])</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>ptq_accuracy <span class="op">=</span> accuracy(ptq_model, test_loader)</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>ptq_logit_mae <span class="op">=</span> <span class="bu">float</span>((reference_logits <span class="op">-</span> ptq_logits).<span class="bu">abs</span>().mean())</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> ptq_accuracy <span class="op">&gt;</span> <span class="fl">0.90</span> <span class="kw">and</span> ptq_logit_mae <span class="op">&gt;</span> <span class="dv">0</span></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"FP32"</span>: <span class="bu">round</span>(baseline_accuracy, <span class="dv">3</span>), <span class="st">"PTQ_W8A8"</span>: <span class="bu">round</span>(ptq_accuracy, <span class="dv">3</span>), <span class="st">"logit_MAE"</span>: <span class="bu">round</span>(ptq_logit_mae, <span class="dv">4</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>为了不依赖特定整数后端，示例模型仍以重构后的张量保存参数；它验证的是量化数值，而不是 INT8 速度。真实加速还需要受支持的打包算子与硬件指令。校准数据必须覆盖部署范围，同时与测试集隔离；范围过窄会使偏移输入饱和，离群值又可能浪费大部分整数级别。</p>
+</section>
+<section id="quantization-aware-training" class="level3">
+<h3 class="anchored" data-anchor-id="quantization-aware-training"><strong>量化感知训练</strong></h3>
+<p>当微小舍入误差在敏感层中不断累积时，PTQ 可能失败。<strong>量化感知训练（QAT）</strong>在部署前让模型接触这些误差。前向传播插入 fake quantize/dequantize 操作，而可训练参数仍保持浮点。由于 rounding 几乎处处导数为零，常用 straight-through estimator（STE）用近似恒等梯度穿过量化器。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-qat.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="QAT 的 fake-quantized 前向传播与 straight-through 反向循环。"><img src="assets/dl20-qat.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="循环展示前向传播中的 fake-quantized weight/activation、任务 loss、straight-through gradient 与浮点参数更新。"></a></p>
+</figure>
+</div>
+<figcaption>QAT 的 fake-quantized 前向传播与 straight-through 反向循环。</figcaption>
+</figure>
+</div>
+<p>QAT 并不保证可部署的加速。fake-quant graph 最终必须被转换为目标后端支持的算子，而且 observer、粒度和数值假设必须与训练一致。当前 PyTorch 的量化开发集中在 <a href="https://docs.pytorch.org/ao/stable/workflows/qat.html">torchao</a>；具体 API 会演进，但 prepare-train-convert 生命周期是稳定的概念边界。</p>
+<details>
+<summary>
+<strong>PyTorch：使用 straight-through fake quantization 微调 Digits 模型</strong>
+</summary>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ste_quantize_dequantize(x, scale, bits<span class="op">=</span><span class="dv">8</span>):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    reconstructed <span class="op">=</span> quantize_dequantize(x, scale, bits)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> x <span class="op">+</span> (reconstructed <span class="op">-</span> x).detach()</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> QATDigitMLP(DigitMLP):</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, source, scales):</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.load_state_dict(copy.deepcopy(source.state_dict()))</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.scales <span class="op">=</span> scales</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> quantized_linear(<span class="va">self</span>, x, layer):</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        weight_scale <span class="op">=</span> symmetric_scale(layer.weight, bits<span class="op">=</span><span class="dv">8</span>, dim<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        weight <span class="op">=</span> ste_quantize_dequantize(layer.weight, weight_scale, bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> F.linear(x, weight, layer.bias)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> ste_quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"input"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.quantized_linear(x, <span class="va">self</span>.fc1))</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> ste_quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"hidden1"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> F.gelu(<span class="va">self</span>.quantized_linear(x, <span class="va">self</span>.fc2))</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>        x <span class="op">=</span> ste_quantize_dequantize(x, <span class="va">self</span>.scales[<span class="st">"hidden2"</span>], bits<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.quantized_linear(x, <span class="va">self</span>.fc3)</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>qat_model <span class="op">=</span> QATDigitMLP(baseline_model, activation_scales)</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>qat_optimizer <span class="op">=</span> torch.optim.AdamW(qat_model.parameters(), lr<span class="op">=</span><span class="fl">2e-4</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">4</span>):</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    qat_model.train()</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x, y <span class="kw">in</span> train_loader:</span>
+<span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>        qat_loss <span class="op">=</span> F.cross_entropy(qat_model(x), y)</span>
+<span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>        qat_optimizer.zero_grad()</span>
+<span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>        qat_loss.backward()</span>
+<span id="cb8-34"><a href="#cb8-34" aria-hidden="true" tabindex="-1"></a>        qat_optimizer.step()</span>
+<span id="cb8-35"><a href="#cb8-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-36"><a href="#cb8-36" aria-hidden="true" tabindex="-1"></a>qat_accuracy <span class="op">=</span> accuracy(qat_model, test_loader)</span>
+<span id="cb8-37"><a href="#cb8-37" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> qat_accuracy <span class="op">&gt;</span> <span class="fl">0.90</span> <span class="kw">and</span> <span class="bu">any</span>(parameter.grad <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span> <span class="cf">for</span> parameter <span class="kw">in</span> qat_model.parameters())</span>
+<span id="cb8-38"><a href="#cb8-38" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"PTQ"</span>: <span class="bu">round</span>(ptq_accuracy, <span class="dv">3</span>), <span class="st">"QAT_fake_quant"</span>: <span class="bu">round</span>(qat_accuracy, <span class="dv">3</span>)})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>当 PTQ 无法满足质量预算且存在代表性微调数据时，QAT 才值得付出成本。应先通过逐层 activation error、clipping frequency 与分 slice 任务指标定位问题。如果只有少数算子敏感，mixed precision 或 selective quantization 往往比全模型 QAT 更干净。</p>
+</section>
+<section id="weight-only-low-bit" class="level3">
+<h3 class="anchored" data-anchor-id="weight-only-low-bit"><strong>仅权重量化与低 bit 方法</strong></h3>
+<p>在大型模型中，从内存读取 weight 可能主导 decode 成本。<strong>仅权重量化</strong>用低精度保存 weight，同时让 activation 与累加保持较宽类型。它不需要 activation calibration，能够降低带宽，但每个矩阵乘法都需要兼容的打包 kernel 来反量化或直接处理低 bit block。</p>
+<p>分组量化把每一行切成包含 (G) 个 weight 的 block，并让每个 block 共享一个 scale。对于 (n_w) 个 weight、(b)-bit code 与 (n_s) 个 FP32 scale，逻辑存储量近似为</p>
+<p><span class="math display">\[M \approx \frac{bn_w}{8} + 4n_s \text{ bytes}.\]</span></p>
+<p>较小的 group 能更好适应局部范围，却会增加 scale 元数据。Round-to-nearest（RTN）不需要数据；GPTQ 使用校准 activation 近似最小化逐层重构误差；AWQ 利用 activation 信息保护显著 weight channel。它们代表不同的优化准则，而不是可以互换的 bit format。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-weight-only.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-8" title="每个 block 共享一个 scale 的分组低 bit 权重存储。"><img src="assets/dl20-weight-only.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="浮点矩阵被切分为彩色 group，并打包为 INT4 code 和 scale，图中同时标出粒度取舍。"></a></p>
+</figure>
+</div>
+<figcaption>每个 block 共享一个 scale 的分组低 bit 权重存储。</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>PyTorch：实现分组 INT4 权重重构与存储量核算</strong>
+</summary>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> groupwise_weight_qdq(weight, bits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">32</span>):</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    output_dim, input_dim <span class="op">=</span> weight.shape</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    padding <span class="op">=</span> (<span class="op">-</span>input_dim) <span class="op">%</span> group_size</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    padded <span class="op">=</span> F.pad(weight, (<span class="dv">0</span>, padding))</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    grouped <span class="op">=</span> padded.view(output_dim, <span class="op">-</span><span class="dv">1</span>, group_size)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    scale <span class="op">=</span> symmetric_scale(grouped, bits<span class="op">=</span>bits, dim<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    reconstructed <span class="op">=</span> quantize_dequantize(grouped, scale, bits<span class="op">=</span>bits)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> reconstructed.view(output_dim, <span class="op">-</span><span class="dv">1</span>)[:, :input_dim], scale</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>int4_model <span class="op">=</span> copy.deepcopy(baseline_model)</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>int4_scale_count <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> layer <span class="kw">in</span> (int4_model.fc1, int4_model.fc2, int4_model.fc3):</span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>        reconstructed, scales <span class="op">=</span> groupwise_weight_qdq(layer.weight, bits<span class="op">=</span><span class="dv">4</span>, group_size<span class="op">=</span><span class="dv">32</span>)</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        layer.weight.copy_(reconstructed)</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>        int4_scale_count <span class="op">+=</span> scales.numel()</span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>weight_count <span class="op">=</span> <span class="bu">sum</span>(layer.weight.numel() <span class="cf">for</span> layer <span class="kw">in</span> (baseline_model.fc1, baseline_model.fc2, baseline_model.fc3))</span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>bias_count <span class="op">=</span> <span class="bu">sum</span>(layer.bias.numel() <span class="cf">for</span> layer <span class="kw">in</span> (baseline_model.fc1, baseline_model.fc2, baseline_model.fc3))</span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>fp32_bytes <span class="op">=</span> <span class="dv">4</span> <span class="op">*</span> (weight_count <span class="op">+</span> bias_count)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>int4_logical_bytes <span class="op">=</span> weight_count <span class="op">/</span> <span class="dv">2</span> <span class="op">+</span> <span class="dv">4</span> <span class="op">*</span> (int4_scale_count <span class="op">+</span> bias_count)</span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>int4_accuracy <span class="op">=</span> accuracy(int4_model, test_loader)</span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> int4_logical_bytes <span class="op">&lt;</span> fp32_bytes <span class="kw">and</span> int4_accuracy <span class="op">&gt;</span> <span class="fl">0.85</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({</span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FP32_KiB"</span>: <span class="bu">round</span>(fp32_bytes <span class="op">/</span> <span class="dv">1024</span>, <span class="dv">1</span>),</span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    <span class="st">"INT4_logical_KiB"</span>: <span class="bu">round</span>(int4_logical_bytes <span class="op">/</span> <span class="dv">1024</span>, <span class="dv">1</span>),</span>
+<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    <span class="st">"INT4_accuracy"</span>: <span class="bu">round</span>(int4_accuracy, <span class="dv">3</span>),</span>
+<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>代码有意重构出 FP32 weight，因此其延迟不能代表打包 INT4 kernel。当运行时插入额外转换或回退到通用算子时，低 bit 产物甚至可能更慢。选择方法之前，需要在目标硬件上验证 perplexity/任务指标、长上下文稳定性、离群层、resident memory 与每秒 token 数。</p>
+</section>
+<section id="pruning-knowledge-distillation" class="level3">
+<h3 class="anchored" data-anchor-id="pruning-knowledge-distillation"><strong>剪枝与知识蒸馏</strong></h3>
+<p><strong>剪枝</strong>把参数或结构设为零。非结构化 magnitude pruning 可以在保持张量形状的情况下得到高稀疏度；如果没有 sparse kernel 且元数据开销不利，它既不会减少 dense FLOPs，也不会缩短 wall time。结构化剪枝移除 channel、head、block 或 layer，使标准 dense kernel 真正看到更小的形状，但每次移除都会扰动更大的功能单元。</p>
+<p><strong>知识蒸馏</strong>训练较小 student 同时匹配 teacher 与标签。设 temperature 为 ()，teacher logits 为 (z_t)，student logits 为 (z_s)，hard-label loss 为 (_{CE})，混合权重为 ()，常用目标为</p>
+<p><span class="math display">\[\mathcal{L}=\alpha\mathcal{L}_{CE}(z_s,y)+(1-\alpha)\tau^2\,D_{KL}\!\left(\operatorname{softmax}(z_t/\tau)\;\|\;\operatorname{softmax}(z_s/\tau)\right).\]</span></p>
+<p>soft distribution 传递了 one-hot label 没有表达的类别相似性。(^2) 因子用于补偿温度缩放后的梯度幅值。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-pruning-distillation.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-9" title="从训练完成的 teacher 出发的剪枝与蒸馏路径。"><img src="assets/dl20-pruning-distillation.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="Teacher 分支为稀疏剪枝模型和更小的蒸馏 student，两者都需要测量质量、存储和后端延迟。"></a></p>
+</figure>
+</div>
+<figcaption>从训练完成的 teacher 出发的剪枝与蒸馏路径。</figcaption>
+</figure>
+</div>
+<details>
+<summary>
+<strong>PyTorch：比较非结构化剪枝与蒸馏后的 dense student</strong>
+</summary>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>pruned_model <span class="op">=</span> copy.deepcopy(baseline_model)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>prune_fraction <span class="op">=</span> <span class="fl">0.50</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>all_magnitudes <span class="op">=</span> torch.cat([layer.weight.detach().<span class="bu">abs</span>().flatten() <span class="cf">for</span> layer <span class="kw">in</span> (pruned_model.fc1, pruned_model.fc2, pruned_model.fc3)])</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>threshold <span class="op">=</span> torch.quantile(all_magnitudes, prune_fraction)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>zero_weights <span class="op">=</span> total_weights <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> layer <span class="kw">in</span> (pruned_model.fc1, pruned_model.fc2, pruned_model.fc3):</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>        mask <span class="op">=</span> layer.weight.<span class="bu">abs</span>() <span class="op">&gt;</span> threshold</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>        layer.weight.mul_(mask)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>        zero_weights <span class="op">+=</span> <span class="bu">int</span>((layer.weight <span class="op">==</span> <span class="dv">0</span>).<span class="bu">sum</span>())</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>        total_weights <span class="op">+=</span> layer.weight.numel()</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> StudentMLP(nn.Module):</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>):</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc1 <span class="op">=</span> nn.Linear(<span class="dv">64</span>, <span class="dv">48</span>)</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.fc2 <span class="op">=</span> nn.Linear(<span class="dv">48</span>, <span class="dv">10</span>)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.fc2(F.gelu(<span class="va">self</span>.fc1(x)))</span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>seed_everything(<span class="dv">2020</span>)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>student_model <span class="op">=</span> StudentMLP()</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>student_optimizer <span class="op">=</span> torch.optim.AdamW(student_model.parameters(), lr<span class="op">=</span><span class="fl">2e-3</span>, weight_decay<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>temperature, hard_weight <span class="op">=</span> <span class="fl">2.0</span>, <span class="fl">0.45</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>baseline_model.<span class="bu">eval</span>()</span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">15</span>):</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    student_model.train()</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> x, y <span class="kw">in</span> train_loader:</span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>            teacher_logits <span class="op">=</span> baseline_model(x)</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a>        student_logits <span class="op">=</span> student_model(x)</span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a>        hard_loss <span class="op">=</span> F.cross_entropy(student_logits, y)</span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a>        soft_loss <span class="op">=</span> F.kl_div(</span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>            F.log_softmax(student_logits <span class="op">/</span> temperature, dim<span class="op">=-</span><span class="dv">1</span>),</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a>            F.softmax(teacher_logits <span class="op">/</span> temperature, dim<span class="op">=-</span><span class="dv">1</span>),</span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a>            reduction<span class="op">=</span><span class="st">"batchmean"</span>,</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a>        ) <span class="op">*</span> temperature<span class="op">**</span><span class="dv">2</span></span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a>        distillation_loss <span class="op">=</span> hard_weight <span class="op">*</span> hard_loss <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> hard_weight) <span class="op">*</span> soft_loss</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a>        student_optimizer.zero_grad()</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a>        distillation_loss.backward()</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a>        student_optimizer.step()</span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a>pruned_accuracy <span class="op">=</span> accuracy(pruned_model, test_loader)</span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>student_accuracy <span class="op">=</span> accuracy(student_model, test_loader)</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a>student_parameters <span class="op">=</span> <span class="bu">sum</span>(parameter.numel() <span class="cf">for</span> parameter <span class="kw">in</span> student_model.parameters())</span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a>teacher_parameters <span class="op">=</span> <span class="bu">sum</span>(parameter.numel() <span class="cf">for</span> parameter <span class="kw">in</span> baseline_model.parameters())</span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> zero_weights <span class="op">/</span> total_weights <span class="op">&gt;=</span> <span class="fl">0.49</span> <span class="kw">and</span> student_parameters <span class="op">&lt;</span> teacher_parameters</span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({</span>
+<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pruned_accuracy"</span>: <span class="bu">round</span>(pruned_accuracy, <span class="dv">3</span>),</span>
+<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>    <span class="st">"sparsity"</span>: <span class="bu">round</span>(zero_weights <span class="op">/</span> total_weights, <span class="dv">3</span>),</span>
+<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a>    <span class="st">"student_accuracy"</span>: <span class="bu">round</span>(student_accuracy, <span class="dv">3</span>),</span>
+<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>    <span class="st">"student_parameter_ratio"</span>: <span class="bu">round</span>(student_parameters <span class="op">/</span> teacher_parameters, <span class="dv">3</span>),</span>
+<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>剪枝保留原架构，却要求运行时利用稀疏性；蒸馏付出训练成本，换取普通 kernel 就能加速的更小 dense graph。为了证明收益来自蒸馏而不只是架构变小，应与只用 hard label 训练的 student 比较；还要检查稀有类别与校准，因为 student 也可能复制 teacher 的错误。</p>
+</section>
+<section id="export-compilation-runtime-optimization" class="level3">
+<h3 class="anchored" data-anchor-id="export-compilation-runtime-optimization"><strong>导出、编译与运行时优化</strong></h3>
+<p>部署会跨越三个相关但不同的边界。<strong>导出</strong>把程序及其输入约束捕获为可移植或 ahead-of-time 表示。<strong>编译</strong>针对目标变换 graph：分解算子、传播常量、融合模式、规划内存并选择 kernel。<strong>运行时</strong>加载产物、绑定输入、管理设备、执行 kernel，并报告错误和指标。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-export-runtime.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-10" title="从 eager model 到受监控目标运行时的各个阶段。"><img src="assets/dl20-export-runtime.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:76.0%" alt="Eager model 依次被捕获、变换、编译并由运行时加载，parity gate 检查代表性输入和形状约束。"></a></p>
+</figure>
+</div>
+<figcaption>从 eager model 到受监控目标运行时的各个阶段。</figcaption>
+</figure>
+</div>
+<p>导出会把假设显式化。依赖任意 Python 状态的分支可能无法捕获；动态维度需要声明范围；不受支持的 custom operator 需要 lowering 或运行时实现。Graph fusion 减少 launch 与中间内存开销，但改变操作顺序也可能改变浮点舍入。因此，每个编译产物都是一种新的数值实现，必须重新通过 parity 与任务质量门。</p>
+<p><a href="https://docs.pytorch.org/docs/main/user_guide/torch_compiler/torch.compiler_aot_inductor.html">PyTorch AOTInductor</a>使用 <code>torch.export</code> 作为 ahead-of-time graph 边界，并可为非 Python 部署打包产物。<code>torch.compile</code> 则在保留 Python 工作流的同时优化执行，guard 不满足时可能重新编译。</p>
+<details>
+<summary>
+<strong>PyTorch：捕获 export graph 并验证编译结果一致性</strong>
+</summary>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>export_input <span class="op">=</span> test_x[:<span class="dv">16</span>]</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>baseline_model.<span class="bu">eval</span>()</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>exported_program <span class="op">=</span> torch.export.export(baseline_model, (export_input,))</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>exported_model <span class="op">=</span> exported_program.module()</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    eager_output <span class="op">=</span> baseline_model(export_input)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    exported_output <span class="op">=</span> exported_model(export_input)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(eager_output, exported_output, atol<span class="op">=</span><span class="fl">1e-6</span>, rtol<span class="op">=</span><span class="fl">1e-5</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co"># The eager backend exercises Dynamo graph capture without claiming a native-kernel speedup.</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>compiled_model <span class="op">=</span> torch.<span class="bu">compile</span>(copy.deepcopy(baseline_model), backend<span class="op">=</span><span class="st">"eager"</span>, fullgraph<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    compiled_output <span class="op">=</span> compiled_model(export_input)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> torch.allclose(eager_output, compiled_output, atol<span class="op">=</span><span class="fl">1e-6</span>, rtol<span class="op">=</span><span class="fl">1e-5</span>)</span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>graph_ops <span class="op">=</span> [node.target <span class="cf">for</span> node <span class="kw">in</span> exported_program.graph.nodes <span class="cf">if</span> node.op <span class="op">==</span> <span class="st">"call_function"</span>]</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"captured_ops"</span>: <span class="bu">len</span>(graph_ops), <span class="st">"export_parity"</span>: <span class="va">True</span>, <span class="st">"compile_parity"</span>: <span class="va">True</span>})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>生产测试矩阵应覆盖最小、典型与最大形状，空输入或异常输入，数值上困难的取值，以及每个声明的 device/precision profile。除 warm throughput 外，还要追踪 graph break、recompilation count、fallback operator、peak workspace、engine build time 与 cold-start latency。</p>
+</section>
+<section id="onnx-tensorrt-triton" class="level3">
+<h3 class="anchored" data-anchor-id="onnx-tensorrt-triton"><strong>ONNX、TensorRT 与 Triton</strong></h3>
+<p>这三个名称处于不同层级：</p>
+<ul>
+<li><strong>ONNX</strong> 是算子 graph format 与交换契约。<strong>ONNX Runtime</strong> 验证并执行该 graph，把子图分配给硬件 execution provider，并应用 graph optimization。</li>
+<li><strong>TensorRT</strong> 构建面向 NVIDIA 的优化 inference engine。精度、workspace、tactic selection 与 optimization profile 可能使产物依赖特定硬件和形状。</li>
+<li><strong>Triton Inference Server</strong> 是服务层，负责 model repository、协议、instance、指标、ensemble 与 scheduler；它可以托管 TensorRT、ONNX Runtime 及其他 backend。</li>
+</ul>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-runtime-stack.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-11" title="Triton、ONNX Runtime、TensorRT 与硬件 kernel 的关系。"><img src="assets/dl20-runtime-stack.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:74.0%" alt="Triton 构成请求服务层，下方是 ONNX Runtime 与 TensorRT 执行路径，两者最终都使用硬件 kernel 和内存。"></a></p>
+</figure>
+</div>
+<figcaption>Triton、ONNX Runtime、TensorRT 与硬件 kernel 的关系。</figcaption>
+</figure>
+</div>
+<p><a href="https://onnxruntime.ai/docs/">ONNX Runtime</a>强调跨框架与跨语言执行。<a href="https://docs.nvidia.com/deeplearning/tensorrt/latest/inference-library/work-with-dynamic-shapes.html">TensorRT dynamic-shape 文档</a>要求 optimization profile 为每个运行时维度设置边界。<a href="https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/user_guide/batcher.html">Triton dynamic batcher</a>合并相容的无状态请求，而 <a href="https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/model_analyzer/README.html">Model Analyzer</a>搜索配置之间的取舍。</p>
+<details>
+<summary>
+<strong>Python：验证 shape profile 并生成最小 Triton 服务契约</strong>
+</summary>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>deployment_manifest <span class="op">=</span> {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"name"</span>: <span class="st">"digits_mlp"</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"version"</span>: <span class="dv">1</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"input"</span>: {<span class="st">"name"</span>: <span class="st">"pixels"</span>, <span class="st">"dtype"</span>: <span class="st">"FP32"</span>, <span class="st">"shape"</span>: [<span class="dv">64</span>]},</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"output"</span>: {<span class="st">"name"</span>: <span class="st">"logits"</span>, <span class="st">"dtype"</span>: <span class="st">"FP32"</span>, <span class="st">"shape"</span>: [<span class="dv">10</span>]},</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"batch_profile"</span>: {<span class="st">"min"</span>: <span class="dv">1</span>, <span class="st">"opt"</span>: <span class="dv">16</span>, <span class="st">"max"</span>: <span class="dv">64</span>},</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> validate_batch_profile(manifest, observed_batches):</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    profile <span class="op">=</span> manifest[<span class="st">"batch_profile"</span>]</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="kw">not</span> (<span class="dv">1</span> <span class="op">&lt;=</span> profile[<span class="st">"min"</span>] <span class="op">&lt;=</span> profile[<span class="st">"opt"</span>] <span class="op">&lt;=</span> profile[<span class="st">"max"</span>]):</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">"invalid optimization profile ordering"</span>)</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>    unsupported <span class="op">=</span> [batch <span class="cf">for</span> batch <span class="kw">in</span> observed_batches <span class="cf">if</span> <span class="kw">not</span> profile[<span class="st">"min"</span>] <span class="op">&lt;=</span> batch <span class="op">&lt;=</span> profile[<span class="st">"max"</span>]]</span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> unsupported</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>observed <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">8</span>, <span class="dv">16</span>, <span class="dv">32</span>, <span class="dv">64</span>]</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> validate_batch_profile(deployment_manifest, observed) <span class="op">==</span> []</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>triton_config <span class="op">=</span> <span class="ss">f'''name: "</span><span class="sc">{</span>deployment_manifest[<span class="st">"name"</span>]<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="ss">platform: "onnxruntime_onnx"</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="ss">max_batch_size: </span><span class="sc">{</span>deployment_manifest[<span class="st">"batch_profile"</span>][<span class="st">"max"</span>]<span class="sc">}</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="ss">input [</span><span class="ch">{{</span><span class="ss"> name: "pixels" data_type: TYPE_FP32 dims: [64] </span><span class="ch">}}</span><span class="ss">]</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="ss">output [</span><span class="ch">{{</span><span class="ss"> name: "logits" data_type: TYPE_FP32 dims: [10] </span><span class="ch">}}</span><span class="ss">]</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a><span class="ss">dynamic_batching </span><span class="ch">{{</span><span class="ss"> preferred_batch_size: [8, 16, 32] max_queue_delay_microseconds: 800 </span><span class="ch">}}</span><span class="ss">'''</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="st">"dynamic_batching"</span> <span class="kw">in</span> triton_config <span class="kw">and</span> <span class="st">"dims: [64]"</span> <span class="kw">in</span> triton_config</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(triton_config)</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>导出 graph 并不等于部署完成。需要比较 eager 与运行时输出，确认预期节点被分配给加速器而不是 CPU fallback，检查 engine profile 是否覆盖真实形状，并在接近真实的并发下进行 load test。模型、预处理、运行时、driver 与配置都应一起版本化，因为其中任何一个变化都可能改变行为或性能。</p>
+</section>
+<section id="cloud-edge-on-device" class="level3">
+<h3 class="anchored" data-anchor-id="cloud-edge-on-device"><strong>云端、边缘与端侧部署</strong></h3>
+<p>云端加速器具有弹性容量、成熟可观测性和大内存，但每个请求都要承担网络和多租户成本。边缘网关把计算移到数据源附近，可以在固定本地预算下汇总多个设备。端侧执行减少网络依赖并可能改善隐私，却受到内存、能耗、温度、二进制大小和算子支持的严格约束。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-deployment-targets.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-12" title="云端、边缘与端侧约束共同决定产物选择。"><img src="assets/dl20-deployment-targets.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="云端、边缘与端侧部署框列出各自约束，并共同指向产物选择规则。"></a></p>
+</figure>
+</div>
+<figcaption>云端、边缘与端侧约束共同决定产物选择。</figcaption>
+</figure>
+</div>
+<p>放置位置是端到端决策。小模型能够节省服务端计算，但如果无线连接启动时间主导延迟，这项收益可能消失。更大的本地模型在持续运行时可能超过热限制。混合设计可以先在本地执行 confidence gate，再把不确定请求升级到云端，但这又带来一致性、隐私与 fallback 问题。除了准确率，还必须考察 package size、peak working memory、cold start、每请求能耗、离线可用性、更新带宽与目标算子覆盖。</p>
+<details>
+<summary>
+<strong>Python：在明确的部署预算下筛选候选产物</strong>
+</summary>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> parameter_bytes(model):</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">sum</span>(parameter.numel() <span class="op">*</span> parameter.element_size() <span class="cf">for</span> parameter <span class="kw">in</span> model.parameters())</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Logical compressed sizes are separated from the FP32 teaching tensors used to emulate numerics.</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>ptq_logical_bytes <span class="op">=</span> weight_count <span class="op">+</span> <span class="dv">4</span> <span class="op">*</span> (bias_count <span class="op">+</span> <span class="dv">3</span> <span class="op">+</span> baseline_model.fc1.out_features <span class="op">+</span> baseline_model.fc2.out_features <span class="op">+</span> baseline_model.fc3.out_features)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> [</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"name"</span>: <span class="st">"FP32_teacher"</span>, <span class="st">"accuracy"</span>: baseline_accuracy, <span class="st">"bytes"</span>: parameter_bytes(baseline_model)},</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"name"</span>: <span class="st">"PTQ_W8A8"</span>, <span class="st">"accuracy"</span>: ptq_accuracy, <span class="st">"bytes"</span>: ptq_logical_bytes},</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"name"</span>: <span class="st">"INT4_weight_only"</span>, <span class="st">"accuracy"</span>: int4_accuracy, <span class="st">"bytes"</span>: int4_logical_bytes},</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"name"</span>: <span class="st">"distilled_student"</span>, <span class="st">"accuracy"</span>: student_accuracy, <span class="st">"bytes"</span>: parameter_bytes(student_model)},</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> feasible_artifacts(items, minimum_accuracy, maximum_kib):</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [item <span class="cf">for</span> item <span class="kw">in</span> items <span class="cf">if</span> item[<span class="st">"accuracy"</span>] <span class="op">&gt;=</span> minimum_accuracy <span class="kw">and</span> item[<span class="st">"bytes"</span>] <span class="op">/</span> <span class="dv">1024</span> <span class="op">&lt;=</span> maximum_kib]</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>edge_choices <span class="op">=</span> feasible_artifacts(candidates, minimum_accuracy<span class="op">=</span><span class="fl">0.90</span>, maximum_kib<span class="op">=</span><span class="dv">40</span>)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> edge_choices <span class="kw">and</span> <span class="bu">all</span>(item[<span class="st">"bytes"</span>] <span class="op">&lt;=</span> <span class="dv">40</span> <span class="op">*</span> <span class="dv">1024</span> <span class="cf">for</span> item <span class="kw">in</span> edge_choices)</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>([{<span class="st">"name"</span>: item[<span class="st">"name"</span>], <span class="st">"accuracy"</span>: <span class="bu">round</span>(item[<span class="st">"accuracy"</span>], <span class="dv">3</span>), <span class="st">"KiB"</span>: <span class="bu">round</span>(item[<span class="st">"bytes"</span>] <span class="op">/</span> <span class="dv">1024</span>, <span class="dv">1</span>)} <span class="cf">for</span> item <span class="kw">in</span> edge_choices])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>这道初始门只筛选准确率与逻辑产物大小。发布决策还需要目标设备延迟、peak resident memory、能耗、热行为、启动时间以及签名更新/回滚测试。不能用桌面 CPU 计时或逻辑 bit width 推断移动设备速度。</p>
+</section>
+<section id="monitoring-drift-rollback-cost" class="level3">
+<h3 class="anchored" data-anchor-id="monitoring-drift-rollback-cost"><strong>监控、漂移、回滚与成本控制</strong></h3>
+<p>部署改变了模型团队能够获得的证据。输入与系统信号会立即到达，可信标签则可能延迟或完全缺失。因此监控应分为四层：<strong>服务健康</strong>（错误、饱和度、延迟）、<strong>数据健康</strong>（schema、缺失、范围、漂移）、<strong>模型行为</strong>（confidence、abstention、slice metric）以及<strong>业务/安全结果</strong>（最初促使系统建模的延迟后果）。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-monitoring-loop.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-13" title="从流量、遥测到回滚决策的监控闭环。"><img src="assets/dl20-monitoring-loop.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="流量经过模型进入遥测与延迟质量评估，决策节点可以继续、canary 或回滚。"></a></p>
+</figure>
+</div>
+<figcaption>从流量、遥测到回滚决策的监控闭环。</figcaption>
+</figure>
+</div>
+<p>分布漂移是变化的证据，不是质量下降的证明。参考直方图与线上直方图之间的 Jensen-Shannon divergence 有界且对称：</p>
+<p><span class="math display">\[JS(P,Q)=\frac{1}{2}D_{KL}(P\|M)+\frac{1}{2}D_{KL}(Q\|M), \qquad M=\frac{P+Q}{2}.\]</span></p>
+<p>较大的 (JS) 只说明特征频率发生变化；只有延迟标签、受控审计或任务专用 proxy 才能确认预测是否退化。还必须分 slice 监控，因为总体稳定可能掩盖某个设备、地区、类别或序列长度区间的失败。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-digits-clean-drift.png" class="lightbox" data-gallery="quarto-lightbox-gallery-14" title="干净的 Digits 请求以及合成亮度和噪声偏移。"><img src="assets/dl20-digits-clean-drift.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:72.0%" alt="两行图像比较六个干净手写数字与经过亮度偏移和噪声处理的版本，用于演示输入漂移。"></a></p>
+</figure>
+</div>
+<figcaption>干净的 Digits 请求以及合成亮度和噪声偏移。</figcaption>
+</figure>
+</div>
+<p><em>数据来源：Alpaydin 与 Kaynak，<a href="https://doi.org/10.24432/C50P49">UCI Optical Recognition of Handwritten Digits</a>，CC BY 4.0。下方一行是本地生成的亮度/噪声偏移，用于诊断演示。</em></p>
+<details>
+<summary>
+<strong>PyTorch：连接漂移、confidence、质量与回滚策略</strong>
+</summary>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>test_y <span class="op">=</span> targets[test_ids]</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>drift_generator <span class="op">=</span> torch.Generator().manual_seed(<span class="dv">2020</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>shifted_x <span class="op">=</span> (<span class="fl">0.55</span> <span class="op">*</span> test_x <span class="op">+</span> <span class="fl">0.25</span> <span class="op">+</span> <span class="fl">0.12</span> <span class="op">*</span> torch.randn(test_x.shape, generator<span class="op">=</span>drift_generator)).clamp(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prediction_snapshot(model, x, y):</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    model.<span class="bu">eval</span>()</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.inference_mode():</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        probabilities <span class="op">=</span> model(x).softmax(dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"accuracy"</span>: <span class="bu">float</span>((probabilities.argmax(<span class="dv">1</span>) <span class="op">==</span> y).<span class="bu">float</span>().mean()),</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>        <span class="st">"mean_confidence"</span>: <span class="bu">float</span>(probabilities.<span class="bu">max</span>(dim<span class="op">=</span><span class="dv">1</span>).values.mean()),</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jensen_shannon_histogram(reference, live, bins<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a>    p, _ <span class="op">=</span> np.histogram(reference.numpy(), bins<span class="op">=</span>bins, <span class="bu">range</span><span class="op">=</span>(<span class="dv">0</span>, <span class="dv">1</span>), density<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a>    q, _ <span class="op">=</span> np.histogram(live.numpy(), bins<span class="op">=</span>bins, <span class="bu">range</span><span class="op">=</span>(<span class="dv">0</span>, <span class="dv">1</span>), density<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a>    p <span class="op">=</span> (p <span class="op">+</span> <span class="fl">1e-8</span>) <span class="op">/</span> (p.<span class="bu">sum</span>() <span class="op">+</span> bins <span class="op">*</span> <span class="fl">1e-8</span>)</span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> (q <span class="op">+</span> <span class="fl">1e-8</span>) <span class="op">/</span> (q.<span class="bu">sum</span>() <span class="op">+</span> bins <span class="op">*</span> <span class="fl">1e-8</span>)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (p <span class="op">+</span> q)</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">float</span>(<span class="fl">0.5</span> <span class="op">*</span> np.<span class="bu">sum</span>(p <span class="op">*</span> np.log(p <span class="op">/</span> m)) <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> np.<span class="bu">sum</span>(q <span class="op">*</span> np.log(q <span class="op">/</span> m)))</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true" tabindex="-1"></a>clean_snapshot <span class="op">=</span> prediction_snapshot(baseline_model, test_x, test_y)</span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true" tabindex="-1"></a>shifted_snapshot <span class="op">=</span> prediction_snapshot(baseline_model, shifted_x, test_y)</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true" tabindex="-1"></a>drift_score <span class="op">=</span> jensen_shannon_histogram(features[train_ids].flatten(), shifted_x.flatten())</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true" tabindex="-1"></a>rollback <span class="op">=</span> shifted_snapshot[<span class="st">"accuracy"</span>] <span class="op">&lt;</span> clean_snapshot[<span class="st">"accuracy"</span>] <span class="op">-</span> <span class="fl">0.08</span></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> drift_score <span class="op">&gt;</span> <span class="dv">0</span> <span class="kw">and</span> shifted_snapshot[<span class="st">"accuracy"</span>] <span class="op">&lt;=</span> clean_snapshot[<span class="st">"accuracy"</span>]</span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"clean"</span>: clean_snapshot, <span class="st">"shifted"</span>: shifted_snapshot, <span class="st">"JS"</span>: <span class="bu">round</span>(drift_score, <span class="dv">4</span>), <span class="st">"rollback"</span>: rollback})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>安全发布应依次使用 shadow traffic、离线重放、小流量 canary 与明确的自动/人工回滚阈值。上线前保留旧产物与预处理 bundle 并真正验证回滚；同时通过 admission limit、输出长度上限、cache quota、autoscaling limit 与每个成功请求成本来限制开销。如果重试、失败或低质量输出增加，只看每个原始 token 的成本是不完整的。</p>
+</section>
+<section id="accuracy-latency-memory-tradeoff" class="level3">
+<h3 class="anchored" data-anchor-id="accuracy-latency-memory-tradeoff"><strong>准确率-延迟-内存取舍</strong></h3>
+<p>部署优化是多目标问题。如果候选 (A) 的准确率不低于 (B)、延迟不高于 (B)、体积不大于 (B)，并且至少一个维度严格更好，则称 (A) <strong>支配</strong> (B)。不被支配的候选构成 Pareto frontier，产品约束再从中选择一点。加权总分可能掩盖不可接受的硬约束，因此应先执行质量、安全、内存与尾部延迟门，再在可行产物中优化成本。</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="assets/dl20-pareto.svg" class="lightbox" data-gallery="quarto-lightbox-gallery-15" title="部署候选的概念性 Pareto frontier。"><img src="assets/dl20-pareto.svg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:70.0%" alt="准确率与延迟/内存成本形成坐标，若干候选位于虚线 Pareto frontier 上，另有一个候选被支配。"></a></p>
+</figure>
+</div>
+<figcaption>部署候选的概念性 Pareto frontier。</figcaption>
+</figure>
+</div>
+<p>不同压缩方法移动不同坐标。PTQ 与 weight-only quantization 面向数值表示和带宽；QAT 在选定量化器下恢复质量；剪枝依赖结构化或 sparse-kernel 支持；蒸馏改变架构；batching 提高利用率却增加排队延迟；KV cache 用内存换取避免重复计算。任何方法都不应只依据文件大小或单一 microbenchmark 选择。</p>
+<details>
+<summary>
+<strong>Python：建立可复现候选表并找出非支配方案</strong>
+</summary>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>model_variants <span class="op">=</span> {</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FP32_teacher"</span>: baseline_model,</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">"PTQ_W8A8"</span>: ptq_model,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"QAT_fake_quant"</span>: qat_model,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"INT4_simulation"</span>: int4_model,</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pruned_dense_shape"</span>: pruned_model,</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"distilled_student"</span>: student_model,</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>logical_bytes <span class="op">=</span> {</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">"FP32_teacher"</span>: parameter_bytes(baseline_model),</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"PTQ_W8A8"</span>: ptq_logical_bytes,</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>    <span class="st">"QAT_fake_quant"</span>: ptq_logical_bytes,</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    <span class="st">"INT4_simulation"</span>: int4_logical_bytes,</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Unstructured zeros do not shrink a dense artifact without a sparse format.</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="st">"pruned_dense_shape"</span>: parameter_bytes(pruned_model),</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    <span class="st">"distilled_student"</span>: parameter_bytes(student_model),</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>deployment_records <span class="op">=</span> []</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, model <span class="kw">in</span> model_variants.items():</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>    timing <span class="op">=</span> benchmark_classifier(model, test_x[:<span class="dv">128</span>], batch_size<span class="op">=</span><span class="dv">16</span>, repeats<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>    deployment_records.append({</span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>        <span class="st">"name"</span>: name,</span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>        <span class="st">"accuracy"</span>: accuracy(model, test_loader),</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>        <span class="st">"latency_ms"</span>: timing[<span class="st">"p50_batch_ms"</span>],</span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a>        <span class="st">"logical_KiB"</span>: logical_bytes[name] <span class="op">/</span> <span class="dv">1024</span>,</span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>    })</span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> dominates(a, b):</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>    no_worse <span class="op">=</span> (</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>        a[<span class="st">"accuracy"</span>] <span class="op">&gt;=</span> b[<span class="st">"accuracy"</span>]</span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>        <span class="kw">and</span> a[<span class="st">"latency_ms"</span>] <span class="op">&lt;=</span> b[<span class="st">"latency_ms"</span>]</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>        <span class="kw">and</span> a[<span class="st">"logical_KiB"</span>] <span class="op">&lt;=</span> b[<span class="st">"logical_KiB"</span>]</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a>    strictly_better <span class="op">=</span> (</span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>        a[<span class="st">"accuracy"</span>] <span class="op">&gt;</span> b[<span class="st">"accuracy"</span>]</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>        <span class="kw">or</span> a[<span class="st">"latency_ms"</span>] <span class="op">&lt;</span> b[<span class="st">"latency_ms"</span>]</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>        <span class="kw">or</span> a[<span class="st">"logical_KiB"</span>] <span class="op">&lt;</span> b[<span class="st">"logical_KiB"</span>]</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> no_worse <span class="kw">and</span> strictly_better</span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>frontier <span class="op">=</span> [record <span class="cf">for</span> record <span class="kw">in</span> deployment_records <span class="cf">if</span> <span class="kw">not</span> <span class="bu">any</span>(dominates(other, record) <span class="cf">for</span> other <span class="kw">in</span> deployment_records <span class="cf">if</span> other <span class="kw">is</span> <span class="kw">not</span> record)]</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> frontier <span class="kw">and</span> <span class="bu">all</span>(record[<span class="st">"accuracy"</span>] <span class="op">&gt;</span> <span class="fl">0.80</span> <span class="cf">for</span> record <span class="kw">in</span> deployment_records)</span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"all candidates:"</span>, [{<span class="op">**</span>r, <span class="st">"accuracy"</span>: <span class="bu">round</span>(r[<span class="st">"accuracy"</span>], <span class="dv">3</span>), <span class="st">"latency_ms"</span>: <span class="bu">round</span>(r[<span class="st">"latency_ms"</span>], <span class="dv">4</span>), <span class="st">"logical_KiB"</span>: <span class="bu">round</span>(r[<span class="st">"logical_KiB"</span>], <span class="dv">1</span>)} <span class="cf">for</span> r <span class="kw">in</span> deployment_records])</span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"local reference frontier:"</span>, [record[<span class="st">"name"</span>] <span class="cf">for</span> record <span class="kw">in</span> frontier])</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>上述低 bit 变体执行的是重构 FP32 或 fake-quantized 操作，因此本地延迟列只是<strong>参考路径诊断</strong>，不是 INT8/INT4 kernel benchmark。必须在每个目标运行时用真实打包产物、真实并发、p95/p99 latency、peak memory、能耗与分 slice 质量重建该表。即使模型 weight 不变，硬件或运行时升级也可能改变 frontier。</p>
+</section>
+<section id="chapter-comparison-summary" class="level3">
+<h3 class="anchored" data-anchor-id="chapter-comparison-summary"><strong>章节对比与总结</strong></h3>
+<p>高效部署从可信的 eager reference 开始，以可监控、可逆的发布结束。两者之间是一串变换，每一步都会改变假设，因此都需要新的证据。</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>决策</th>
+<th>主要资源</th>
+<th>核心收益</th>
+<th>常见失败</th>
+<th>必需证据</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>动态/连续 batching</td>
+<td>scheduler slot</td>
+<td>更高利用率</td>
+<td>排队与饥饿</td>
+<td>类真实到达下的延迟分布</td>
+</tr>
+<tr class="even">
+<td>KV cache / paging</td>
+<td>加速器内存</td>
+<td>避免重复前缀投影</td>
+<td>碎片、驱逐、位置错误</td>
+<td>token 级 parity 与 cache telemetry</td>
+</tr>
+<tr class="odd">
+<td>Speculative decoding</td>
+<td>target model call</td>
+<td>每次 target step 接受更多 token</td>
+<td>draft 太弱或校正错误</td>
+<td>分布测试与 TTFT/TPOT</td>
+</tr>
+<tr class="even">
+<td>PTQ / QAT</td>
+<td>数值表示</td>
+<td>更小产物与受支持低 bit 计算</td>
+<td>clipping 与敏感层</td>
+<td>质量、逐层误差、打包 kernel benchmark</td>
+</tr>
+<tr class="odd">
+<td>仅权重量化</td>
+<td>weight 带宽</td>
+<td>降低 decode 内存流量</td>
+<td>fallback/反量化开销</td>
+<td>目标 tokens/s 与 resident memory</td>
+</tr>
+<tr class="even">
+<td>剪枝</td>
+<td>参数结构</td>
+<td>潜在稀疏或更小 graph</td>
+<td>零值没有带来 kernel 加速</td>
+<td>真实 sparse/structured runtime 测量</td>
+</tr>
+<tr class="odd">
+<td>蒸馏</td>
+<td>架构大小</td>
+<td>更小的 dense student</td>
+<td>复制错误或丢失尾部行为</td>
+<td>hard-label baseline 与 slice 评估</td>
+</tr>
+<tr class="even">
+<td>导出 / 编译</td>
+<td>graph 与 kernel</td>
+<td>fusion、可移植性、AOT 执行</td>
+<td>graph break、不支持算子、形状未命中</td>
+<td>parity matrix 与 fallback report</td>
+</tr>
+<tr class="odd">
+<td>监控 / 回滚</td>
+<td>运行风险</td>
+<td>发现并限制回退</td>
+<td>把 proxy drift 误认为质量</td>
+<td>telemetry、延迟标签、已验证回滚</td>
+</tr>
+</tbody>
+</table>
+<details>
+<summary>
+<strong>Python：把最低发布门编码为可执行策略</strong>
+</summary>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> release_gate(candidate, reference_accuracy, maximum_accuracy_drop<span class="op">=</span><span class="fl">0.02</span>, maximum_kib<span class="op">=</span><span class="dv">80</span>):</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    checks <span class="op">=</span> {</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"quality"</span>: candidate[<span class="st">"accuracy"</span>] <span class="op">&gt;=</span> reference_accuracy <span class="op">-</span> maximum_accuracy_drop,</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        <span class="st">"memory"</span>: candidate[<span class="st">"logical_KiB"</span>] <span class="op">&lt;=</span> maximum_kib,</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        <span class="st">"latency_measured"</span>: candidate[<span class="st">"latency_ms"</span>] <span class="op">&gt;</span> <span class="dv">0</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"rollback_artifact_present"</span>: <span class="va">True</span>,</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> checks, <span class="bu">all</span>(checks.values())</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>candidate <span class="op">=</span> <span class="bu">next</span>(record <span class="cf">for</span> record <span class="kw">in</span> deployment_records <span class="cf">if</span> record[<span class="st">"name"</span>] <span class="op">==</span> <span class="st">"distilled_student"</span>)</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>checks, releasable_in_local_gate <span class="op">=</span> release_gate(candidate, baseline_accuracy, maximum_accuracy_drop<span class="op">=</span><span class="fl">0.04</span>)</span>
+<span id="cb16-13"><a href="#cb16-13" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> <span class="bu">set</span>(checks) <span class="op">==</span> {<span class="st">"quality"</span>, <span class="st">"memory"</span>, <span class="st">"latency_measured"</span>, <span class="st">"rollback_artifact_present"</span>}</span>
+<span id="cb16-14"><a href="#cb16-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>({<span class="st">"candidate"</span>: candidate[<span class="st">"name"</span>], <span class="st">"checks"</span>: checks, <span class="st">"local_gate"</span>: releasable_in_local_gate})</span></code><button title="复制到剪贴板" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<p>一条实用顺序是：定义请求与质量契约；建立 warm 与 tail baseline；profile 瓶颈；一次只应用一项干预；验证数值和任务 parity；benchmark 目标运行时；在可观测条件下 canary；并始终保留 rollback。优化对象是受约束的完整系统，而不是孤立的 kernel、bit width 或平均值。</p>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const onCopySuccess = function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "已复制");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "已复制");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  }
+  const getTextToCopy = function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+    text: getTextToCopy
+  });
+  clipboard.on('success', onCopySuccess);
+  if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+    // For code content inside modals, clipBoardJS needs to be initialized with a container option
+    // TODO: Check when it could be a function (https://github.com/zenorocha/clipboard.js/issues/860)
+    const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+      text: getTextToCopy,
+      container: window.document.getElementById('quarto-embedded-source-code-modal')
+    });
+    clipboardModal.on('success', onCopySuccess);
+  }
+    var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+    var mailtoRegex = new RegExp(/^mailto:/);
+      var filterRegex = new RegExp('/' + window.location.host + '/');
+    var isInternal = (href) => {
+        return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+    }
+    // Inspect non-navigation links and adorn them if external
+ 	var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+    for (var i=0; i<links.length; i++) {
+      const link = links[i];
+      if (!isInternal(link.href)) {
+        // undo the damage that might have been done by quarto-nav.js in the case of
+        // links that we want to consider external
+        if (link.dataset.originalHref !== undefined) {
+          link.href = link.dataset.originalHref;
+        }
+      }
+    }
+  function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+    const config = {
+      allowHTML: true,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start',
+    };
+    if (contentFn) {
+      config.content = contentFn;
+    }
+    if (onTriggerFn) {
+      config.onTrigger = onTriggerFn;
+    }
+    if (onUntriggerFn) {
+      config.onUntrigger = onUntriggerFn;
+    }
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      if (note) {
+        return note.innerHTML;
+      } else {
+        return "";
+      }
+    });
+  }
+  const xrefs = window.document.querySelectorAll('a.quarto-xref');
+  const processXRef = (id, note) => {
+    // Strip column container classes
+    const stripColumnClz = (el) => {
+      el.classList.remove("page-full", "page-columns");
+      if (el.children) {
+        for (const child of el.children) {
+          stripColumnClz(child);
+        }
+      }
+    }
+    stripColumnClz(note)
+    if (id === null || id.startsWith('sec-')) {
+      // Special case sections, only their first couple elements
+      const container = document.createElement("div");
+      if (note.children && note.children.length > 2) {
+        container.appendChild(note.children[0].cloneNode(true));
+        for (let i = 1; i < note.children.length; i++) {
+          const child = note.children[i];
+          if (child.tagName === "P" && child.innerText === "") {
+            continue;
+          } else {
+            container.appendChild(child.cloneNode(true));
+            break;
+          }
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(container);
+        }
+        return container.innerHTML
+      } else {
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        return note.innerHTML;
+      }
+    } else {
+      // Remove any anchor links if they are present
+      const anchorLink = note.querySelector('a.anchorjs-link');
+      if (anchorLink) {
+        anchorLink.remove();
+      }
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(note);
+      }
+      // TODO in 1.5, we should make sure this works without a callout special case
+      if (note.classList.contains("callout")) {
+        return note.outerHTML;
+      } else {
+        return note.innerHTML;
+      }
+    }
+  }
+  for (var i=0; i<xrefs.length; i++) {
+    const xref = xrefs[i];
+    tippyHover(xref, undefined, function(instance) {
+      instance.disable();
+      let url = xref.getAttribute('href');
+      let hash = undefined; 
+      if (url.startsWith('#')) {
+        hash = url;
+      } else {
+        try { hash = new URL(url).hash; } catch {}
+      }
+      if (hash) {
+        const id = hash.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note !== null) {
+          try {
+            const html = processXRef(id, note.cloneNode(true));
+            instance.setContent(html);
+          } finally {
+            instance.enable();
+            instance.show();
+          }
+        } else {
+          // See if we can fetch this
+          fetch(url.split('#')[0])
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.getElementById(id);
+            if (note !== null) {
+              const html = processXRef(id, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      } else {
+        // See if we can fetch a full url (with no hash to target)
+        // This is a special case and we should probably do some content thinning / targeting
+        fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          const parser = new DOMParser();
+          const htmlDoc = parser.parseFromString(html, "text/html");
+          const note = htmlDoc.querySelector('main.content');
+          if (note !== null) {
+            // This should only happen for chapter cross references
+            // (since there is no id in the URL)
+            // remove the first header
+            if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+              note.children[0].remove();
+            }
+            const html = processXRef(null, note);
+            instance.setContent(html);
+          } 
+        }).finally(() => {
+          instance.enable();
+          instance.show();
+        });
+      }
+    }, function(instance) {
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            div.style.left = 0;
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+        // Handle positioning of the toggle
+    window.addEventListener(
+      "resize",
+      throttle(() => {
+        elRect = undefined;
+        if (selectedAnnoteEl) {
+          selectCodeLines(selectedAnnoteEl);
+        }
+      }, 10)
+    );
+    function throttle(fn, ms) {
+    let throttle = false;
+    let timer;
+      return (...args) => {
+        if(!throttle) { // first call gets through
+            fn.apply(this, args);
+            throttle = true;
+        } else { // all the others get throttled
+            if(timer) clearTimeout(timer); // cancel #2
+            timer = setTimeout(() => {
+              fn.apply(this, args);
+              timer = throttle = false;
+            }, ms);
+        }
+      };
+    }
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","descPosition":"bottom","selector":".lightbox","closeEffect":"zoom"});
+(function() {
+  let previousOnload = window.onload;
+  window.onload = () => {
+    if (previousOnload) {
+      previousOnload();
+    }
+    lightboxQuarto.on('slide_before_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      const href = trigger.getAttribute('href');
+      if (href !== null) {
+        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
+        if (imgEl !== null) {
+          const srcAttr = imgEl.getAttribute("src");
+          if (srcAttr && srcAttr.startsWith("data:")) {
+            slideConfig.href = srcAttr;
+          }
+        }
+      } 
+    });
+  
+    lightboxQuarto.on('slide_after_load', (data) => {
+      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
+      if (window.Quarto?.typesetMath) {
+        window.Quarto.typesetMath(slideNode);
+      }
+    });
+  
+  };
+  
+})();
+          </script>
+
+
+
+
+</body></html>
